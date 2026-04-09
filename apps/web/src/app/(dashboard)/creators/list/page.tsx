@@ -327,7 +327,7 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
     platform: 'instagram' as Creator['platform'],
     handle: '',
   });
-  const [inviteResult, setInviteResult] = useState<{ code: string; link: string } | null>(null);
+  const [inviteResult, setInviteResult] = useState<{ code: string; link: string; emailSent: boolean } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleSubmit = useCallback(
@@ -346,7 +346,7 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
             const code = creator.inviteCode || '';
             const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
             const link = `${baseUrl}/creator-portal?code=${code}`;
-            setInviteResult({ code, link });
+            setInviteResult({ code, link, emailSent: !!creator.emailSent });
           },
         },
       );
@@ -363,7 +363,7 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
 
   const handleClose = useCallback(() => {
     setForm({ name: '', email: '', platform: 'instagram', handle: '' });
-    setInviteResult(null);
+    setInviteResult(null as any);
     setCopiedLink(false);
     onClose();
   }, [onClose]);
@@ -457,13 +457,33 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
           <div className="p-5 space-y-4">
             <div className="text-center">
               <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-3">
-                <Check className="h-6 w-6 text-green-600" />
+                {inviteResult.emailSent ? (
+                  <Mail className="h-6 w-6 text-green-600" />
+                ) : (
+                  <Check className="h-6 w-6 text-green-600" />
+                )}
               </div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-1">Creator Invited!</h3>
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                {inviteResult.emailSent ? 'Invite Email Sent!' : 'Creator Invited!'}
+              </h3>
               <p className="text-xs text-gray-500">
-                Share this link with the creator to give them portal access.
+                {inviteResult.emailSent
+                  ? 'An email has been sent to the creator with portal access.'
+                  : 'Share this link with the creator to give them portal access.'}
               </p>
             </div>
+
+            {inviteResult.emailSent && (
+              <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-xs text-green-700 text-center">
+                Email sent successfully. The link below can also be shared manually.
+              </div>
+            )}
+
+            {!inviteResult.emailSent && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700 text-center">
+                Email not configured. Copy the link below and share it manually.
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Invite Code</label>
@@ -500,10 +520,6 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
                 </button>
               </div>
             </div>
-
-            <p className="text-[11px] text-gray-400 text-center">
-              No email is sent automatically. Copy and share the link manually.
-            </p>
 
             <div className="flex justify-end pt-1">
               <button

@@ -12,12 +12,14 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CreatorService } from './creator.service';
 import { DealService } from './deal.service';
 import { BriefingService } from './briefing.service';
 import { UploadService } from './upload.service';
 import { CommentService } from './comment.service';
 import { ProjectService } from './project.service';
+import { EmailService } from '../../common/email/email.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -32,6 +34,8 @@ export class CreatorController {
     private readonly uploadService: UploadService,
     private readonly commentService: CommentService,
     private readonly projectService: ProjectService,
+    private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   // =========================================================================
@@ -93,7 +97,23 @@ export class CreatorController {
   @Post('creators')
   async createCreator(@Body() body: any) {
     try {
-      return await this.creatorService.create(DEV_ORG_ID, body);
+      const creator = await this.creatorService.create(DEV_ORG_ID, body);
+
+      // Attempt to send invite email (graceful — does not fail the request)
+      let emailSent = false;
+      if (creator.email && creator.inviteCode) {
+        const appUrl =
+          this.configService.get<string>('APP_URL') ||
+          'http://localhost:3000';
+        emailSent = await this.emailService.sendCreatorInvite({
+          to: creator.email,
+          creatorName: creator.name,
+          inviteCode: creator.inviteCode,
+          inviteLink: `${appUrl}/creator-portal?code=${creator.inviteCode}`,
+        });
+      }
+
+      return { ...creator, emailSent };
     } catch (error) {
       this.logger.error('Failed to create creator', error);
       throw new HttpException(

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuthStore } from '@/stores/auth';
 import {
   LayoutDashboard,
   DollarSign,
@@ -134,7 +135,7 @@ const NAV_ITEMS: NavItem[] = [
 // Sidebar component
 // ---------------------------------------------------------------------------
 
-function Sidebar({ collapsed }: { collapsed: boolean }) {
+function Sidebar({ collapsed, user }: { collapsed: boolean; user: { name: string | null; email: string } | null }) {
   const pathname = usePathname();
   const { t } = useTranslation();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
@@ -306,12 +307,18 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
           collapsed ? 'justify-center' : 'gap-2.5',
         )}>
           <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0">
-            <span className="text-[10px] font-bold text-white">U</span>
+            <span className="text-[10px] font-bold text-white">
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+            </span>
           </div>
           {!collapsed && (
             <div className="flex flex-col min-w-0">
-              <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">User</span>
-              <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">user@filapen.com</span>
+              <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+                {user?.name || 'User'}
+              </span>
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                {user?.email || 'user@filapen.com'}
+              </span>
             </div>
           )}
         </div>
@@ -324,7 +331,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
 // Top Bar
 // ---------------------------------------------------------------------------
 
-function TopBar({ onToggleSidebar, sidebarCollapsed }: { onToggleSidebar: () => void; sidebarCollapsed: boolean }) {
+function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout }: { onToggleSidebar: () => void; sidebarCollapsed: boolean; user: { name: string | null; email: string } | null; onLogout: () => void }) {
   const pathname = usePathname();
   const { t } = useTranslation();
 
@@ -398,12 +405,25 @@ function TopBar({ onToggleSidebar, sidebarCollapsed }: { onToggleSidebar: () => 
         </span>
       </button>
 
-      {/* User avatar */}
-      <button className="rounded-full transition-all duration-150 hover:ring-2 hover:ring-primary-100 active:scale-95">
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-          <span className="text-xs font-bold text-white">U</span>
-        </div>
-      </button>
+      {/* User avatar + logout */}
+      <div className="flex items-center gap-2">
+        {user?.name && (
+          <span className="hidden lg:inline text-xs font-medium text-gray-600 dark:text-gray-400">
+            {user.name}
+          </span>
+        )}
+        <button
+          onClick={onLogout}
+          title="Sign out"
+          className="rounded-full transition-all duration-150 hover:ring-2 hover:ring-red-100 active:scale-95"
+        >
+          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
+            <span className="text-xs font-bold text-white">
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+            </span>
+          </div>
+        </button>
+      </div>
     </header>
   );
 }
@@ -417,8 +437,20 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const { sidebarCollapsed, toggleSidebar } = useFinanceUI();
   const { theme, setTheme } = useThemeStore();
+  const { token, user, logout } = useAuthStore();
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Auth check: redirect to login if no token
+  useEffect(() => {
+    if (!token) {
+      router.replace('/login');
+    } else {
+      setAuthChecked(true);
+    }
+  }, [token, router]);
 
   // Re-apply theme on mount (handles SSR hydration and system preference changes)
   useEffect(() => {
@@ -432,16 +464,32 @@ export default function DashboardLayout({
     }
   }, [theme, setTheme]);
 
+  const handleLogout = useCallback(() => {
+    logout();
+    router.replace('/login');
+  }, [logout, router]);
+
+  // Don't render dashboard content until auth is confirmed
+  if (!authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-surface-secondary dark:bg-[#0f1117]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-surface-secondary dark:bg-[#0f1117]">
       {/* Sidebar */}
-      <Sidebar collapsed={sidebarCollapsed} />
+      <Sidebar collapsed={sidebarCollapsed} user={user} />
 
       {/* Main area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar
           onToggleSidebar={toggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
+          user={user}
+          onLogout={handleLogout}
         />
 
         {/* Content */}

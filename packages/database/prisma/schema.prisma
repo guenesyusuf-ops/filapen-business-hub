@@ -339,9 +339,10 @@ model Organization {
 model User {
   id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId        String     @map("org_id") @db.Uuid
-  clerkUserId  String     @map("clerk_user_id") @db.VarChar(255)
+  clerkUserId  String     @default("") @map("clerk_user_id") @db.VarChar(255)
   email        String     @db.VarChar(320)
   name         String?    @db.VarChar(255)
+  passwordHash String?    @map("password_hash") @db.Text
   avatarUrl    String?    @map("avatar_url") @db.Text
   role         UserRole   @default(member)
   status       UserStatus @default(active)
