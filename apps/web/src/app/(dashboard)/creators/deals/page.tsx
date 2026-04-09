@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Plus,
@@ -442,7 +442,7 @@ function KanbanSkeleton() {
 // Main Page
 // ---------------------------------------------------------------------------
 
-export default function DealsPage() {
+function DealsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
@@ -554,5 +554,13 @@ export default function DealsPage() {
       {/* New Deal Modal */}
       <NewDealModal open={showNewDealModal} onClose={() => setShowNewDealModal(false)} />
     </div>
+  );
+}
+
+export default function DealsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-600 border-t-transparent" /></div>}>
+      <DealsPageInner />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Plus,
@@ -150,7 +150,7 @@ function CreateBriefingModal({ open, onClose }: { open: boolean; onClose: () => 
 // Main Page
 // ---------------------------------------------------------------------------
 
-export default function BriefingsPage() {
+function BriefingsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dealId = searchParams.get('dealId') ?? undefined;
@@ -283,5 +283,13 @@ export default function BriefingsPage() {
       {/* Create Briefing Modal */}
       <CreateBriefingModal open={showModal} onClose={() => setShowModal(false)} />
     </div>
+  );
+}
+
+export default function BriefingsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-600 border-t-transparent" /></div>}>
+      <BriefingsPageInner />
+    </Suspense>
   );
 }

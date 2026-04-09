@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Search,
@@ -524,7 +524,7 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
 // Main Page
 // ---------------------------------------------------------------------------
 
-export default function CreatorListPage() {
+function CreatorListPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -867,5 +867,13 @@ export default function CreatorListPage() {
       {/* Invite Creator Modal */}
       <InviteCreatorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} />
     </div>
+  );
+}
+
+export default function CreatorListPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-600 border-t-transparent" /></div>}>
+      <CreatorListPageInner />
+    </Suspense>
   );
 }
