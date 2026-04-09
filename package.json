@@ -5,7 +5,8 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "turbo dev",
-    "build": "turbo build",
+    "build": "npx prisma generate --schema=packages/database/prisma/schema.prisma && cd apps/api && npx nest build",
+    "build:all": "turbo build",
     "lint": "turbo lint",
     "db:migrate": "cd packages/database && npx prisma migrate dev",
     "db:generate": "cd packages/database && npx prisma generate",
