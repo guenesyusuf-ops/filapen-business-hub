@@ -1,0 +1,1258 @@
+// =============================================================================
+// Filapen Business Hub - Finance Hub MVP
+// PostgreSQL 16 + TimescaleDB + pgvector
+// Multi-tenant with RLS via tenant_id (org_id)
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../../../node_modules/.prisma/client"
+  previewFeatures = ["postgresqlExtensions", "multiSchema"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto]
+}
+
+// =============================================================================
+// ENUMS — Creator Hub
+// =============================================================================
+
+enum CreatorStatus {
+  prospect
+  outreach
+  active
+  inactive
+  churned
+  blacklisted
+
+  @@map("creator_status")
+}
+
+enum DealType {
+  ugc
+  paid_post
+  affiliate
+  ambassador
+  review
+
+  @@map("deal_type")
+}
+
+enum DealStage {
+  lead
+  outreach
+  negotiation
+  contracted
+  in_progress
+  review
+  completed
+  cancelled
+
+  @@map("deal_stage")
+}
+
+enum PaymentStatus {
+  pending
+  invoiced
+  paid
+  overdue
+
+  @@map("payment_status")
+}
+
+enum BriefingStatus {
+  draft
+  sent
+  acknowledged
+
+  @@map("briefing_status")
+}
+
+// =============================================================================
+// ENUMS — Finance Hub
+// =============================================================================
+
+enum PlanType {
+  free
+  starter
+  growth
+  enterprise
+
+  @@map("plan_type")
+}
+
+enum UserRole {
+  owner
+  admin
+  member
+  viewer
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  active
+  invited
+  suspended
+  deactivated
+
+  @@map("user_status")
+}
+
+enum IntegrationType {
+  shopify
+  meta_ads
+  google_ads
+
+  @@map("integration_type")
+}
+
+enum IntegrationStatus {
+  connected
+  disconnected
+  error
+
+  @@map("integration_status")
+}
+
+enum ShopPlatform {
+  shopify
+
+  @@map("shop_platform")
+}
+
+enum ProductStatus {
+  active
+  archived
+  draft
+
+  @@map("product_status")
+}
+
+enum OrderStatus {
+  open
+  closed
+  cancelled
+
+  @@map("order_status")
+}
+
+enum FinancialStatus {
+  paid
+  partially_paid
+  refunded
+  partially_refunded
+  pending
+
+  @@map("financial_status")
+}
+
+enum FulfillmentStatus {
+  fulfilled
+  partial
+  unfulfilled
+
+  @@map("fulfillment_status")
+}
+
+enum TransactionKind {
+  sale
+  refund
+  capture
+  void
+
+  @@map("transaction_kind")
+}
+
+enum TransactionStatus {
+  success
+  failure
+  pending
+
+  @@map("transaction_status")
+}
+
+enum AdPlatform {
+  meta
+  google
+  tiktok
+  amazon
+
+  @@map("ad_platform")
+}
+
+enum AdAccountStatus {
+  active
+  disabled
+  unsettled
+
+  @@map("ad_account_status")
+}
+
+enum CampaignStatus {
+  active
+  paused
+  deleted
+  archived
+
+  @@map("campaign_status")
+}
+
+enum FixedCostCategory {
+  software
+  salary
+  warehouse
+  agency
+  creator
+  other
+
+  @@map("fixed_cost_category")
+}
+
+enum Recurrence {
+  monthly
+  weekly
+  quarterly
+  annual
+  one_time
+
+  @@map("recurrence")
+}
+
+enum COGSImportStatus {
+  processing
+  completed
+  failed
+
+  @@map("cogs_import_status")
+}
+
+enum SyncType {
+  webhook
+  scheduled
+  manual
+  backfill
+
+  @@map("sync_type")
+}
+
+enum SyncStatus {
+  started
+  completed
+  failed
+
+  @@map("sync_status")
+}
+
+enum AlertType {
+  roas_below
+  refund_spike
+  spend_over_budget
+  cogs_missing
+  sync_failed
+
+  @@map("alert_type")
+}
+
+enum AlertSeverity {
+  info
+  warning
+  critical
+
+  @@map("alert_severity")
+}
+
+enum AlertStatus {
+  active
+  acknowledged
+  resolved
+
+  @@map("alert_status")
+}
+
+enum Channel {
+  shopify_dtc
+  amazon
+  tiktok
+  meta_ads
+  google_ads
+  all
+
+  @@map("channel")
+}
+
+// =============================================================================
+// CORE / SHARED MODELS
+// =============================================================================
+
+model Organization {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(255)
+  slug      String   @unique @db.VarChar(100)
+  plan      PlanType @default(free)
+  currency  String   @default("USD") @db.VarChar(3)
+  timezone  String   @default("UTC") @db.VarChar(50)
+  branding  Json     @default("{}")
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  users               User[]
+  integrations        Integration[]
+  shops               Shop[]
+  products            Product[]
+  productVariants     ProductVariant[]
+  orders              Order[]
+  orderLineItems      OrderLineItem[]
+  refunds             Refund[]
+  transactions        Transaction[]
+  shippingCosts       ShippingCost[]
+  adAccounts          AdAccount[]
+  adCampaigns         AdCampaign[]
+  adMetrics           AdMetric[]
+  fixedCosts          FixedCost[]
+  paymentMethodConfigs PaymentMethodConfig[]
+  cogsImports         COGSImport[]
+  dailyAggregates     DailyAggregate[]
+  syncLogs            SyncLog[]
+  alerts              Alert[]
+  auditLogs           AuditLog[]
+  creators            Creator[]
+  deals               Deal[]
+  briefings           Briefing[]
+  creatorUploads      CreatorUpload[]
+  creatorProjects     CreatorProject[]
+  influencerProfiles  InfluencerProfile[]
+  watchlists          Watchlist[]
+  brands              Brand[]
+  brandVoices         BrandVoice[]
+  contentTemplates    ContentTemplate[]
+  contentPieces       ContentPiece[]
+  teamInvites         TeamInvite[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String     @map("org_id") @db.Uuid
+  clerkUserId  String     @map("clerk_user_id") @db.VarChar(255)
+  email        String     @db.VarChar(320)
+  name         String?    @db.VarChar(255)
+  avatarUrl    String?    @map("avatar_url") @db.Text
+  role         UserRole   @default(member)
+  status       UserStatus @default(active)
+  lastActiveAt DateTime?  @map("last_active_at") @db.Timestamptz
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  auditLogs    AuditLog[]
+
+  @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
+  @@unique([orgId, email], map: "uq_user_org_email")
+  @@index([orgId])
+  @@index([clerkUserId])
+  @@map("users")
+}
+
+model TeamInvite {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  email     String   @db.VarChar(255)
+  role      UserRole @default(member)
+  invitedBy String   @map("invited_by") @db.Uuid
+  status    String   @default("pending") @db.VarChar(20)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([email])
+  @@map("team_invites")
+}
+
+model Integration {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String            @map("org_id") @db.Uuid
+  type        IntegrationType
+  status      IntegrationStatus @default(disconnected)
+  credentials Json              @default("{}") @db.JsonB
+  scopes      String[]          @default([])
+  lastSyncedAt DateTime?        @map("last_synced_at") @db.Timestamptz
+  syncCursor  Json?             @map("sync_cursor") @db.JsonB
+  errorLog    Json[]            @default([]) @map("error_log")
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shops        Shop[]
+  adAccounts   AdAccount[]
+  syncLogs     SyncLog[]
+
+  @@unique([orgId, type], map: "uq_integration_org_type")
+  @@index([orgId])
+  @@index([orgId, type])
+  @@map("integrations")
+}
+
+// =============================================================================
+// CREATOR HUB MODELS
+// =============================================================================
+
+model Creator {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String        @map("org_id") @db.Uuid
+  name           String        @db.VarChar(255)
+  email          String?       @db.VarChar(255)
+  phone          String?       @db.VarChar(100)
+  platform       String?       @db.VarChar(50)
+  handle         String?       @db.VarChar(255)
+  followerCount  Int?          @map("follower_count")
+  engagementRate Decimal?      @map("engagement_rate") @db.Decimal(5, 2)
+  niche          String?       @db.VarChar(100)
+  location       String?       @db.VarChar(255)
+  avatarUrl      String?       @map("avatar_url") @db.Text
+  ratePerPost    Decimal?      @map("rate_per_post") @db.Decimal(10, 2)
+  ratePerVideo   Decimal?      @map("rate_per_video") @db.Decimal(10, 2)
+  notes          String?       @db.Text
+  tags           String[]      @default([])
+  status         CreatorStatus @default(prospect)
+  score          Int?          @default(0)
+  totalDeals     Int           @default(0) @map("total_deals")
+  totalSpend     Decimal       @default(0) @map("total_spend") @db.Decimal(12, 2)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  inviteCode    String?   @unique @map("invite_code") @db.VarChar(20)
+  kids          Boolean   @default(false)
+  kidsAges      String?   @map("kids_ages") @db.VarChar(100)
+  kidsOnVideo   Boolean   @default(false) @map("kids_on_video")
+  compensation  String?   @db.VarChar(50)
+  provision     String?   @db.VarChar(100)
+  fixAmount     Decimal?  @map("fix_amount") @db.Decimal(10, 2)
+  contracts     Json      @default("[]")
+  creatorNotes  String?   @map("creator_notes") @db.Text
+  lastLogin     DateTime? @map("last_login") @db.Timestamptz
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deals        Deal[]
+  uploads      CreatorUpload[]
+
+  @@unique([orgId, email], map: "uq_creator_org_email")
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, niche])
+  @@map("creators")
+}
+
+model Deal {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String        @map("org_id") @db.Uuid
+  creatorId     String        @map("creator_id") @db.Uuid
+  title         String        @db.VarChar(255)
+  type          DealType      @default(ugc)
+  stage         DealStage     @default(lead)
+  amount        Decimal?      @db.Decimal(10, 2)
+  currency      String        @default("USD") @db.VarChar(10)
+  paymentStatus PaymentStatus @default(pending) @map("payment_status")
+  deliverables  Json?         @default("[]")
+  startDate     DateTime?     @map("start_date") @db.Date
+  deadline      DateTime?     @db.Date
+  completedAt   DateTime?     @map("completed_at") @db.Timestamptz
+  notes         String?       @db.Text
+  tags          String[]      @default([])
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  creator      Creator      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  briefings    Briefing[]
+
+  @@index([orgId])
+  @@index([orgId, stage])
+  @@index([orgId, creatorId])
+  @@map("deals")
+}
+
+model Briefing {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String         @map("org_id") @db.Uuid
+  dealId     String         @map("deal_id") @db.Uuid
+  title      String         @db.VarChar(255)
+  content    String?        @db.Text
+  guidelines Json?          @default("{}")
+  references String[]       @default([])
+  status     BriefingStatus @default(draft)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal         Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([dealId])
+  @@map("briefings")
+}
+
+model CreatorUpload {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  creatorId   String   @map("creator_id") @db.Uuid
+  fileName    String   @map("file_name") @db.VarChar(500)
+  fileUrl     String   @map("file_url") @db.Text
+  fileType    String   @map("file_type") @db.VarChar(50)
+  mimeType    String?  @map("mime_type") @db.VarChar(100)
+  fileSize    BigInt?  @map("file_size")
+  tab         String   @db.VarChar(50)
+  category    String?  @db.VarChar(100)
+  product     String?  @db.VarChar(255)
+  label       String?  @db.VarChar(255)
+  batch       String?  @db.VarChar(255)
+  storageKey  String?  @map("storage_key") @db.Text
+  seenByAdmin Boolean  @default(false) @map("seen_by_admin")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  creator      Creator         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  comments     UploadComment[]
+
+  @@index([orgId, creatorId])
+  @@index([creatorId, tab])
+  @@map("creator_uploads")
+}
+
+model UploadComment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String   @map("org_id") @db.Uuid
+  uploadId      String   @map("upload_id") @db.Uuid
+  creatorId     String?  @map("creator_id") @db.Uuid
+  authorRole    String   @map("author_role") @db.VarChar(20)
+  authorName    String   @map("author_name") @db.VarChar(255)
+  message       String   @db.Text
+  readByAdmin   Boolean  @default(false) @map("read_by_admin")
+  readByCreator Boolean  @default(false) @map("read_by_creator")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  upload CreatorUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@index([uploadId])
+  @@index([creatorId])
+  @@map("upload_comments")
+}
+
+model CreatorProject {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String    @map("org_id") @db.Uuid
+  name        String    @db.VarChar(255)
+  description String?   @db.Text
+  status      String    @default("active") @db.VarChar(50)
+  deadline    DateTime? @db.Date
+  creatorIds  String[]  @default([]) @map("creator_ids")
+  tags        String[]  @default([])
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("creator_projects")
+}
+
+// =============================================================================
+// FINANCE HUB MODELS
+// =============================================================================
+
+model Shop {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String       @map("org_id") @db.Uuid
+  integrationId String       @map("integration_id") @db.Uuid
+  platform      ShopPlatform @default(shopify)
+  name          String       @db.VarChar(255)
+  domain        String       @db.VarChar(255)
+  currency      String       @default("USD") @db.VarChar(3)
+  timezone      String       @default("UTC") @db.VarChar(50)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  integration  Integration  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  products     Product[]
+  orders       Order[]
+
+  @@unique([orgId, domain], map: "uq_shop_org_domain")
+  @@index([orgId])
+  @@index([integrationId])
+  @@map("shops")
+}
+
+model Product {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String        @map("org_id") @db.Uuid
+  shopId     String        @map("shop_id") @db.Uuid
+  externalId String        @map("external_id") @db.VarChar(255)
+  title      String        @db.VarChar(500)
+  handle     String?       @db.VarChar(500)
+  sku        String?       @db.VarChar(255)
+  imageUrl   String?       @map("image_url") @db.Text
+  status     ProductStatus @default(active)
+  category   String?       @db.VarChar(255)
+  vendor     String?       @db.VarChar(255)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shop         Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  variants     ProductVariant[]
+
+  @@unique([orgId, externalId], map: "uq_product_org_external")
+  @@index([orgId])
+  @@index([shopId])
+  @@index([orgId, shopId])
+  @@index([externalId])
+  @@index([orgId, status])
+  @@map("products")
+}
+
+model ProductVariant {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String    @map("org_id") @db.Uuid
+  productId         String    @map("product_id") @db.Uuid
+  externalId        String    @map("external_id") @db.VarChar(255)
+  title             String    @db.VarChar(500)
+  sku               String?   @db.VarChar(255)
+  barcode           String?   @db.VarChar(255)
+  price             Decimal   @db.Decimal(12, 2)
+  compareAtPrice    Decimal?  @map("compare_at_price") @db.Decimal(12, 2)
+  cogs              Decimal?  @db.Decimal(12, 4)
+  cogsCurrency      String?   @map("cogs_currency") @db.VarChar(3)
+  cogsUpdatedAt     DateTime? @map("cogs_updated_at") @db.Timestamptz
+  inventoryQuantity Int       @default(0) @map("inventory_quantity")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderLineItems OrderLineItem[]
+
+  @@unique([orgId, externalId], map: "uq_variant_org_external")
+  @@index([orgId])
+  @@index([productId])
+  @@index([sku])
+  @@index([orgId, sku])
+  @@map("product_variants")
+}
+
+/// TimescaleDB hypertable partitioned on placed_at
+model Order {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String            @map("org_id") @db.Uuid
+  shopId            String            @map("shop_id") @db.Uuid
+  externalId        String            @map("external_id") @db.VarChar(255)
+  orderNumber       String            @map("order_number") @db.VarChar(50)
+  status            OrderStatus       @default(open)
+  financialStatus   FinancialStatus   @default(pending) @map("financial_status")
+  fulfillmentStatus FulfillmentStatus @default(unfulfilled) @map("fulfillment_status")
+  customerId        String?           @map("customer_id") @db.VarChar(255)
+  emailHash         String?           @map("email_hash") @db.Char(64)
+  currency          String            @default("USD") @db.VarChar(3)
+  subtotalPrice     Decimal           @default(0) @map("subtotal_price") @db.Decimal(12, 2)
+  totalDiscounts    Decimal           @default(0) @map("total_discounts") @db.Decimal(12, 2)
+  totalShipping     Decimal           @default(0) @map("total_shipping") @db.Decimal(12, 2)
+  totalTax          Decimal           @default(0) @map("total_tax") @db.Decimal(12, 2)
+  totalPrice        Decimal           @default(0) @map("total_price") @db.Decimal(12, 2)
+  totalRefunded     Decimal           @default(0) @map("total_refunded") @db.Decimal(12, 2)
+  paymentGateway    String?           @map("payment_gateway") @db.VarChar(100)
+  isFirstOrder      Boolean           @default(false) @map("is_first_order")
+  sourceName        String?           @map("source_name") @db.VarChar(100)
+  tags              String[]          @default([])
+  landingSite       String?           @map("landing_site") @db.Text
+  referringSite     String?           @map("referring_site") @db.Text
+  discountCodes     Json[]            @default([]) @map("discount_codes")
+  countryCode       String?           @map("country_code") @db.VarChar(2)
+  provinceCode      String?           @map("province_code") @db.VarChar(10)
+  placedAt          DateTime          @map("placed_at") @db.Timestamptz
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization  Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shop          Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  lineItems     OrderLineItem[]
+  refunds       Refund[]
+  transactions  Transaction[]
+  shippingCosts ShippingCost[]
+
+  @@unique([orgId, externalId], map: "uq_order_org_external")
+  @@index([orgId])
+  @@index([shopId])
+  @@index([orgId, placedAt])
+  @@index([orgId, shopId, placedAt])
+  @@index([orgId, status])
+  @@index([orgId, financialStatus])
+  @@index([emailHash])
+  @@index([orgId, isFirstOrder, placedAt])
+  @@index([placedAt])
+  @@map("orders")
+}
+
+model OrderLineItem {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String  @map("org_id") @db.Uuid
+  orderId          String  @map("order_id") @db.Uuid
+  productVariantId String? @map("product_variant_id") @db.Uuid
+  externalId       String  @map("external_id") @db.VarChar(255)
+  title            String  @db.VarChar(500)
+  sku              String? @db.VarChar(255)
+  quantity         Int
+  unitPrice        Decimal @default(0) @map("unit_price") @db.Decimal(12, 2)
+  totalDiscount    Decimal @default(0) @map("total_discount") @db.Decimal(12, 2)
+  lineTotal        Decimal @default(0) @map("line_total") @db.Decimal(12, 2)
+  unitCogs         Decimal? @map("unit_cogs") @db.Decimal(12, 4)
+  lineCogs         Decimal? @map("line_cogs") @db.Decimal(12, 4)
+  fulfillmentStatus String? @map("fulfillment_status") @db.VarChar(50)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, orderId, externalId], map: "uq_line_item_org_order_external")
+  @@index([orgId])
+  @@index([orderId])
+  @@index([productVariantId])
+  @@index([orgId, sku])
+  @@map("order_line_items")
+}
+
+model Refund {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String   @map("org_id") @db.Uuid
+  orderId         String   @map("order_id") @db.Uuid
+  externalId      String   @map("external_id") @db.VarChar(255)
+  amount          Decimal  @db.Decimal(12, 2)
+  reason          String?  @db.VarChar(255)
+  note            String?  @db.Text
+  refundLineItems Json[]   @default([]) @map("refund_line_items")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, externalId], map: "uq_refund_org_external")
+  @@index([orgId])
+  @@index([orderId])
+  @@index([orgId, orderId])
+  @@map("refunds")
+}
+
+model Transaction {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String            @map("org_id") @db.Uuid
+  orderId    String            @map("order_id") @db.Uuid
+  externalId String            @map("external_id") @db.VarChar(255)
+  kind       TransactionKind
+  gateway    String            @db.VarChar(100)
+  amount     Decimal           @db.Decimal(12, 2)
+  currency   String            @default("USD") @db.VarChar(3)
+  status     TransactionStatus @default(pending)
+  fee        Decimal?          @db.Decimal(12, 4)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, externalId], map: "uq_transaction_org_external")
+  @@index([orgId])
+  @@index([orderId])
+  @@index([orgId, kind])
+  @@index([orgId, gateway])
+  @@map("transactions")
+}
+
+model ShippingCost {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String   @map("org_id") @db.Uuid
+  orderId       String   @map("order_id") @db.Uuid
+  carrier       String?  @db.VarChar(100)
+  method        String?  @db.VarChar(100)
+  actualCost    Decimal? @map("actual_cost") @db.Decimal(12, 2)
+  estimatedCost Decimal? @map("estimated_cost") @db.Decimal(12, 2)
+  currency      String   @default("USD") @db.VarChar(3)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orderId])
+  @@map("shipping_costs")
+}
+
+model AdAccount {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String          @map("org_id") @db.Uuid
+  integrationId     String          @map("integration_id") @db.Uuid
+  platform          AdPlatform
+  externalAccountId String          @map("external_account_id") @db.VarChar(255)
+  name              String          @db.VarChar(255)
+  currency          String          @default("USD") @db.VarChar(3)
+  timezone          String          @default("UTC") @db.VarChar(50)
+  status            AdAccountStatus @default(active)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  integration  Integration  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  campaigns    AdCampaign[]
+  adMetrics    AdMetric[]
+
+  @@unique([orgId, platform, externalAccountId], map: "uq_ad_account_org_platform_external")
+  @@index([orgId])
+  @@index([integrationId])
+  @@map("ad_accounts")
+}
+
+model AdCampaign {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String         @map("org_id") @db.Uuid
+  adAccountId    String         @map("ad_account_id") @db.Uuid
+  externalId     String         @map("external_id") @db.VarChar(255)
+  name           String         @db.VarChar(500)
+  status         CampaignStatus @default(active)
+  objective      String?        @db.VarChar(100)
+  dailyBudget    Decimal?       @map("daily_budget") @db.Decimal(12, 2)
+  lifetimeBudget Decimal?       @map("lifetime_budget") @db.Decimal(12, 2)
+  currency       String         @default("USD") @db.VarChar(3)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  adAccount    AdAccount    @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  adMetrics    AdMetric[]
+
+  @@unique([orgId, externalId], map: "uq_campaign_org_external")
+  @@index([orgId])
+  @@index([adAccountId])
+  @@index([orgId, status])
+  @@map("ad_campaigns")
+}
+
+/// TimescaleDB hypertable partitioned on date
+model AdMetric {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                 String   @map("org_id") @db.Uuid
+  adAccountId           String   @map("ad_account_id") @db.Uuid
+  campaignId            String?  @map("campaign_id") @db.Uuid
+  adsetId               String?  @map("adset_id") @db.VarChar(255)
+  adId                  String?  @map("ad_id") @db.VarChar(255)
+  date                  DateTime @db.Date
+  platform              AdPlatform
+  spend                 Decimal  @default(0) @db.Decimal(12, 2)
+  impressions           Int      @default(0)
+  clicks                Int      @default(0)
+  conversions           Int      @default(0)
+  conversionValue       Decimal  @default(0) @map("conversion_value") @db.Decimal(12, 2)
+  cpc                   Decimal? @db.Decimal(12, 4)
+  cpm                   Decimal? @db.Decimal(12, 4)
+  ctr                   Decimal? @db.Decimal(8, 6)
+  roasPlatformReported  Decimal? @map("roas_platform_reported") @db.Decimal(10, 4)
+  currency              String   @default("USD") @db.VarChar(3)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  adAccount    AdAccount    @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaign     AdCampaign?  @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, adAccountId, campaignId, adsetId, adId, date], map: "uq_ad_metric_composite")
+  @@index([orgId])
+  @@index([adAccountId])
+  @@index([campaignId])
+  @@index([orgId, date])
+  @@index([orgId, platform, date])
+  @@index([date])
+  @@map("ad_metrics")
+}
+
+model FixedCost {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String            @map("org_id") @db.Uuid
+  name       String            @db.VarChar(255)
+  category   FixedCostCategory
+  amount     Decimal           @db.Decimal(12, 2)
+  currency   String            @default("USD") @db.VarChar(3)
+  recurrence Recurrence
+  startDate  DateTime          @map("start_date") @db.Date
+  endDate    DateTime?         @map("end_date") @db.Date
+  notes      String?           @db.Text
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, category])
+  @@index([orgId, startDate, endDate])
+  @@map("fixed_costs")
+}
+
+model PaymentMethodConfig {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String   @map("org_id") @db.Uuid
+  gatewayName     String   @map("gateway_name") @db.VarChar(100)
+  feePercentage   Decimal  @default(0) @map("fee_percentage") @db.Decimal(6, 4)
+  feeFixedAmount  Decimal  @default(0) @map("fee_fixed_amount") @db.Decimal(8, 4)
+  feeCurrency     String   @default("USD") @map("fee_currency") @db.VarChar(3)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, gatewayName], map: "uq_payment_config_org_gateway")
+  @@index([orgId])
+  @@map("payment_method_configs")
+}
+
+model COGSImport {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String           @map("org_id") @db.Uuid
+  filename      String           @db.VarChar(500)
+  status        COGSImportStatus @default(processing)
+  totalRows     Int              @default(0) @map("total_rows")
+  processedRows Int              @default(0) @map("processed_rows")
+  errorRows     Int              @default(0) @map("error_rows")
+  errors        Json[]           @default([])
+  uploadedBy    String           @map("uploaded_by") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  completedAt   DateTime?        @map("completed_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@map("cogs_imports")
+}
+
+/// TimescaleDB hypertable partitioned on date
+/// Composite primary key: (org_id, date, channel)
+model DailyAggregate {
+  orgId                     String   @map("org_id") @db.Uuid
+  date                      DateTime @db.Date
+  channel                   Channel
+  grossRevenue              Decimal  @default(0) @map("gross_revenue") @db.Decimal(14, 2)
+  netRevenue                Decimal  @default(0) @map("net_revenue") @db.Decimal(14, 2)
+  totalCogs                 Decimal  @default(0) @map("total_cogs") @db.Decimal(14, 2)
+  totalAdSpend              Decimal  @default(0) @map("total_ad_spend") @db.Decimal(14, 2)
+  totalShippingCost         Decimal  @default(0) @map("total_shipping_cost") @db.Decimal(14, 2)
+  totalPaymentFees          Decimal  @default(0) @map("total_payment_fees") @db.Decimal(14, 2)
+  totalRefunds              Decimal  @default(0) @map("total_refunds") @db.Decimal(14, 2)
+  totalDiscounts            Decimal  @default(0) @map("total_discounts") @db.Decimal(14, 2)
+  totalFixedCostsAllocated  Decimal  @default(0) @map("total_fixed_costs_allocated") @db.Decimal(14, 2)
+  grossProfit               Decimal  @default(0) @map("gross_profit") @db.Decimal(14, 2)
+  contributionMargin        Decimal  @default(0) @map("contribution_margin") @db.Decimal(14, 2)
+  netProfit                 Decimal  @default(0) @map("net_profit") @db.Decimal(14, 2)
+  orderCount                Int      @default(0) @map("order_count")
+  unitsSold                 Int      @default(0) @map("units_sold")
+  newCustomerCount          Int      @default(0) @map("new_customer_count")
+  returningCustomerCount    Int      @default(0) @map("returning_customer_count")
+  avgOrderValue             Decimal  @default(0) @map("avg_order_value") @db.Decimal(12, 2)
+  refundCount               Int      @default(0) @map("refund_count")
+  refundRate                Decimal  @default(0) @map("refund_rate") @db.Decimal(8, 6)
+  blendedRoas               Decimal? @map("blended_roas") @db.Decimal(10, 4)
+  blendedCac                Decimal? @map("blended_cac") @db.Decimal(12, 2)
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, date, channel])
+  @@index([orgId, date])
+  @@index([orgId, channel, date])
+  @@index([date])
+  @@map("daily_aggregates")
+}
+
+model SyncLog {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String     @map("org_id") @db.Uuid
+  integrationId    String     @map("integration_id") @db.Uuid
+  syncType         SyncType   @map("sync_type")
+  status           SyncStatus @default(started)
+  recordsProcessed Int        @default(0) @map("records_processed")
+  errors           Json[]     @default([])
+  startedAt        DateTime   @default(now()) @map("started_at") @db.Timestamptz
+  completedAt      DateTime?  @map("completed_at") @db.Timestamptz
+  durationMs       Int?       @map("duration_ms")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  integration  Integration  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([integrationId])
+  @@index([orgId, integrationId, startedAt])
+  @@index([orgId, status])
+  @@map("sync_logs")
+}
+
+model Alert {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String        @map("org_id") @db.Uuid
+  type           AlertType
+  metric         String?       @db.VarChar(100)
+  threshold      Decimal?      @db.Decimal(14, 4)
+  currentValue   Decimal?      @map("current_value") @db.Decimal(14, 4)
+  severity       AlertSeverity @default(info)
+  status         AlertStatus   @default(active)
+  message        String        @db.Text
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  acknowledgedAt DateTime?     @map("acknowledged_at") @db.Timestamptz
+  resolvedAt     DateTime?     @map("resolved_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, type, status])
+  @@index([orgId, severity, status])
+  @@map("alerts")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String   @map("entity_type") @db.VarChar(100)
+  entityId   String   @map("entity_id") @db.VarChar(255)
+  changes    Json?    @db.JsonB
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, userId])
+  @@index([orgId, action])
+  @@index([orgId, createdAt])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// INFLUENCER HUB MODELS
+// =============================================================================
+
+model InfluencerProfile {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String   @map("org_id") @db.Uuid
+  platform        String   @db.VarChar(50)
+  handle          String   @db.VarChar(255)
+  displayName     String   @map("display_name") @db.VarChar(255)
+  bio             String?  @db.Text
+  avatarUrl       String?  @map("avatar_url") @db.Text
+  followerCount   Int      @map("follower_count") @default(0)
+  followingCount  Int      @map("following_count") @default(0)
+  engagementRate  Decimal  @map("engagement_rate") @db.Decimal(5, 2) @default(0)
+  avgLikes        Int      @map("avg_likes") @default(0)
+  avgComments     Int      @map("avg_comments") @default(0)
+  avgViews        Int?     @map("avg_views")
+  niche           String?  @db.VarChar(100)
+  location        String?  @db.VarChar(255)
+  language        String?  @db.VarChar(50)
+  isVerified      Boolean  @default(false) @map("is_verified")
+  email           String?  @db.VarChar(255)
+  websiteUrl      String?  @map("website_url") @db.Text
+  audienceCountry Json?    @map("audience_country")
+  audienceAge     Json?    @map("audience_age")
+  audienceGender  Json?    @map("audience_gender")
+  score           Int      @default(0)
+  tags            String[] @default([])
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  brandedContentPct    Decimal?  @map("branded_content_pct") @db.Decimal(5, 2)
+  estimatedMediaValue  Decimal?  @map("estimated_media_value") @db.Decimal(12, 2)
+  growthRate           Decimal?  @map("growth_rate") @db.Decimal(5, 2)
+  postingFrequency     String?   @map("posting_frequency") @db.VarChar(50)
+  contentCategories    String[]  @default([]) @map("content_categories")
+  brandFitScore        Int?      @map("brand_fit_score")
+
+  organization    Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  watchlistItems  WatchlistItem[]
+  mentions        BrandMention[]
+
+  @@unique([orgId, platform, handle], map: "uq_influencer_org_platform_handle")
+  @@index([orgId])
+  @@index([orgId, niche])
+  @@index([orgId, platform])
+  @@index([followerCount])
+  @@index([engagementRate])
+  @@map("influencer_profiles")
+}
+
+model Watchlist {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  items        WatchlistItem[]
+
+  @@index([orgId])
+  @@map("watchlists")
+}
+
+model WatchlistItem {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  watchlistId         String   @map("watchlist_id") @db.Uuid
+  influencerProfileId String   @map("influencer_profile_id") @db.Uuid
+  notes               String?  @db.Text
+  addedAt             DateTime @default(now()) @map("added_at") @db.Timestamptz
+
+  watchlist         Watchlist         @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  influencerProfile InfluencerProfile @relation(fields: [influencerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, influencerProfileId])
+  @@map("watchlist_items")
+}
+
+model Brand {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  category    String?  @db.VarChar(100)
+  logoUrl     String?  @map("logo_url") @db.Text
+  website     String?  @db.Text
+  channels    String[] @default([])
+  competitors String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  mentions     BrandMention[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@map("brands")
+}
+
+model BrandMention {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId               String   @map("org_id") @db.Uuid
+  brandId             String   @map("brand_id") @db.Uuid
+  influencerProfileId String   @map("influencer_profile_id") @db.Uuid
+  type                String   @db.VarChar(50)
+  platform            String   @db.VarChar(50)
+  postUrl             String?  @map("post_url") @db.Text
+  mentionDate         DateTime @map("mention_date") @db.Date
+  engagementRate      Decimal? @map("engagement_rate") @db.Decimal(5, 2)
+  estimatedReach      Int?     @map("estimated_reach")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  brand             Brand             @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  influencerProfile InfluencerProfile @relation(fields: [influencerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@index([influencerProfileId])
+  @@index([orgId, brandId])
+  @@map("brand_mentions")
+}
+
+// =============================================================================
+// ENUMS — Content Hub
+// =============================================================================
+
+enum ContentType {
+  headline
+  primary_text
+  ugc_script
+  video_concept
+  hook
+  cta
+  brief
+  landing_page
+  social_caption
+
+  @@map("content_type")
+}
+
+enum ContentStatus {
+  draft
+  in_review
+  approved
+  published
+  archived
+
+  @@map("content_status")
+}
+
+// =============================================================================
+// CONTENT HUB MODELS
+// =============================================================================
+
+model BrandVoice {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String   @map("org_id") @db.Uuid
+  name           String   @db.VarChar(255)
+  description    String?  @db.Text
+  toneAttributes Json?    @map("tone_attributes")
+  examples       String[] @default([])
+  bannedWords    String[] @default([]) @map("banned_words")
+  isDefault      Boolean  @default(false) @map("is_default")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization  Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contentPieces ContentPiece[]
+
+  @@index([orgId])
+  @@map("brand_voices")
+}
+
+model ContentTemplate {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String?     @map("org_id") @db.Uuid
+  name           String      @db.VarChar(255)
+  type           ContentType
+  promptTemplate String      @map("prompt_template") @db.Text
+  variables      Json?       @default("[]")
+  category       String?     @db.VarChar(100)
+  isSystem       Boolean     @default(false) @map("is_system")
+  usageCount     Int         @default(0) @map("usage_count")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([type])
+  @@map("content_templates")
+}
+
+model ContentPiece {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String        @map("org_id") @db.Uuid
+  type         ContentType
+  title        String        @db.VarChar(255)
+  body         String        @db.Text
+  platform     String?       @db.VarChar(50)
+  status       ContentStatus @default(draft)
+  brandVoiceId String?       @map("brand_voice_id") @db.Uuid
+  aiGenerated  Boolean       @default(false) @map("ai_generated")
+  aiModel      String?       @map("ai_model") @db.VarChar(100)
+  tags         String[]      @default([])
+  rating       Int?
+  campaign     String?       @db.VarChar(255)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  brandVoice   BrandVoice?  @relation(fields: [brandVoiceId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([orgId, type])
+  @@index([orgId, status])
+  @@map("content_pieces")
+}

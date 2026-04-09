@@ -1,0 +1,28 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { CreatorModule } from './modules/creator/creator.module';
+import { InfluencerModule } from './modules/influencer/influencer.module';
+import { ContentModule } from './modules/content/content.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { HealthController } from './health.controller';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['../../.env', '.env'],
+    }),
+
+    PrismaModule,
+    FinanceModule,
+    CreatorModule,
+    InfluencerModule,
+    ContentModule,
+    AdminModule,
+  ],
+  controllers: [HealthController],
+  providers: [],
+})
+export class AppModule {}
