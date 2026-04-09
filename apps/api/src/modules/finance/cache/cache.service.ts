@@ -7,12 +7,13 @@ const FINANCE_PREFIX = 'finance';
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
 
-  constructor(@Inject('REDIS') private readonly redis: Redis) {}
+  constructor(@Inject('REDIS') private readonly redis: Redis | null) {}
 
   /**
    * Get a cached value by key, deserialized from JSON.
    */
   async get<T>(key: string): Promise<T | null> {
+    if (!this.redis) return null;
     try {
       const raw = await this.redis.get(`${FINANCE_PREFIX}:${key}`);
       if (!raw) return null;
@@ -27,6 +28,7 @@ export class CacheService {
    * Set a cached value with TTL in seconds.
    */
   async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+    if (!this.redis) return;
     try {
       const serialized = JSON.stringify(value);
       await this.redis.set(
@@ -45,38 +47,49 @@ export class CacheService {
    * Returns the count of deleted keys.
    */
   async invalidatePattern(pattern: string): Promise<number> {
-    let cursor = '0';
-    let deletedCount = 0;
-    const fullPattern = `${FINANCE_PREFIX}:${pattern}`;
+    if (!this.redis) return 0;
+    try {
+      let cursor = '0';
+      let deletedCount = 0;
+      const fullPattern = `${FINANCE_PREFIX}:${pattern}`;
 
-    do {
-      const [nextCursor, keys] = await this.redis.scan(
-        cursor,
-        'MATCH',
-        fullPattern,
-        'COUNT',
-        200,
-      );
-      cursor = nextCursor;
+      do {
+        const [nextCursor, keys] = await this.redis.scan(
+          cursor,
+          'MATCH',
+          fullPattern,
+          'COUNT',
+          200,
+        );
+        cursor = nextCursor;
 
-      if (keys.length > 0) {
-        const pipeline = this.redis.pipeline();
-        for (const key of keys) {
-          pipeline.del(key);
+        if (keys.length > 0) {
+          const pipeline = this.redis.pipeline();
+          for (const key of keys) {
+            pipeline.del(key);
+          }
+          await pipeline.exec();
+          deletedCount += keys.length;
         }
-        await pipeline.exec();
-        deletedCount += keys.length;
-      }
-    } while (cursor !== '0');
+      } while (cursor !== '0');
 
-    return deletedCount;
+      return deletedCount;
+    } catch (err) {
+      this.logger.warn(`Cache invalidatePattern failed for pattern=${pattern}`, err);
+      return 0;
+    }
   }
 
   /**
    * Invalidate all finance cache entries for an organization.
    */
   async invalidateForOrg(orgId: string): Promise<void> {
-    const count = await this.invalidatePattern(`*:${orgId}:*`);
-    this.logger.debug(`Invalidated ${count} cache entries for org ${orgId}`);
+    if (!this.redis) return;
+    try {
+      const count = await this.invalidatePattern(`*:${orgId}:*`);
+      this.logger.debug(`Invalidated ${count} cache entries for org ${orgId}`);
+    } catch (err) {
+      this.logger.warn(`Cache invalidateForOrg failed for org=${orgId}`, err);
+    }
   }
 }

@@ -8,6 +8,11 @@ import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
+  // Prevent unhandled rejections from crashing the process
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+
   const app = await NestFactory.create(AppModule, {
     logger:
       process.env.NODE_ENV === 'production'
@@ -50,7 +55,7 @@ async function bootstrap() {
   // Graceful shutdown
   app.enableShutdownHooks();
 
-  const port = config.get<number>('PORT', 4000);
+  const port = parseInt(process.env.PORT || '4000', 10);
   await app.listen(port, '0.0.0.0');
 
   logger.log(`Filapen API running on http://localhost:${port}`);
