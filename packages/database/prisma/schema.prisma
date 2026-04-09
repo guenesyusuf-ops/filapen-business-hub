@@ -94,8 +94,10 @@ enum UserRole {
 }
 
 enum UserStatus {
+  pending
   active
   invited
+  rejected
   suspended
   deactivated
 

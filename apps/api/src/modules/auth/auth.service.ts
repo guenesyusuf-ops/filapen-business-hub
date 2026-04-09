@@ -50,6 +50,7 @@ export interface AuthResponse {
     email: string;
     name: string | null;
     role: string;
+    status: string;
     orgId: string;
   };
 }
@@ -85,25 +86,85 @@ export class AuthService {
   }
 
   /**
-   * Register the first admin account. Only works if no users exist yet.
+   * Register a new user account.
+   * - First user ever: auto-approved as owner
+   * - Invite-based: auto-approved with invited role
+   * - Public self-registration: pending approval
    */
   async register(params: {
     email: string;
     password: string;
     name: string;
+    inviteToken?: string;
   }): Promise<AuthResponse> {
-    const hasUsers = await this.hasAnyUsers();
-    if (hasUsers) {
-      throw new ConflictException(
-        'Admin account already exists. Use login instead.',
-      );
-    }
-
     // Ensure the dev org exists
     await this.ensureDevOrg();
 
+    // Check for existing user with same email in org
+    const existingUser = await this.prisma.user.findFirst({
+      where: { orgId: DEV_ORG_ID, email: params.email },
+    });
+    if (existingUser) {
+      throw new ConflictException(
+        'An account with this email already exists.',
+      );
+    }
+
+    const userCount = await this.prisma.user.count();
     const passwordHash = hashPassword(params.password);
 
+    // First user ever → auto-approve as owner
+    if (userCount === 0) {
+      const user = await this.prisma.user.create({
+        data: {
+          orgId: DEV_ORG_ID,
+          email: params.email,
+          name: params.name,
+          clerkUserId: `local-${crypto.randomUUID()}`,
+          passwordHash,
+          role: 'owner',
+          status: 'active',
+        },
+      });
+      return this.createAuthResponse(user);
+    }
+
+    // Check if registering via invite token
+    if (params.inviteToken) {
+      const invite = await this.prisma.teamInvite.findFirst({
+        where: {
+          id: params.inviteToken,
+          status: 'pending',
+          email: params.email,
+        },
+      });
+
+      if (invite && new Date() < invite.expiresAt) {
+        const user = await this.prisma.user.create({
+          data: {
+            orgId: invite.orgId,
+            email: params.email,
+            name: params.name,
+            clerkUserId: `local-${crypto.randomUUID()}`,
+            passwordHash,
+            role: invite.role,
+            status: 'active',
+          },
+        });
+
+        // Mark invite as accepted
+        await this.prisma.teamInvite.update({
+          where: { id: invite.id },
+          data: { status: 'accepted' },
+        });
+
+        return this.createAuthResponse(user);
+      }
+      // If invite token is invalid/expired, fall through to pending registration
+      this.logger.warn(`Invalid or expired invite token for ${params.email}`);
+    }
+
+    // Public self-registration → pending status
     const user = await this.prisma.user.create({
       data: {
         orgId: DEV_ORG_ID,
@@ -111,8 +172,8 @@ export class AuthService {
         name: params.name,
         clerkUserId: `local-${crypto.randomUUID()}`,
         passwordHash,
-        role: 'owner',
-        status: 'active',
+        role: 'viewer',
+        status: 'pending',
       },
     });
 
@@ -120,11 +181,13 @@ export class AuthService {
   }
 
   /**
-   * Login with email + password
+   * Login with email + password.
+   * Allows pending/rejected users to log in so the frontend can display their status.
+   * Only suspended/deactivated users are blocked entirely.
    */
   async login(email: string, password: string): Promise<AuthResponse> {
     const user = await this.prisma.user.findFirst({
-      where: { email, status: 'active' },
+      where: { email },
     });
 
     if (!user || !user.passwordHash) {
@@ -135,11 +198,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Update last active
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastActiveAt: new Date() },
-    });
+    // Block suspended/deactivated users entirely
+    if (user.status === 'suspended' || user.status === 'deactivated') {
+      throw new UnauthorizedException('Your account has been suspended. Please contact the administrator.');
+    }
+
+    // Update last active only for active users
+    if (user.status === 'active') {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastActiveAt: new Date() },
+      });
+    }
 
     return this.createAuthResponse(user);
   }
@@ -172,6 +242,7 @@ export class AuthService {
       email: user.email,
       name: user.name,
       role: user.role,
+      status: user.status,
       orgId: user.orgId,
       avatarUrl: user.avatarUrl,
       createdAt: user.createdAt.toISOString(),
@@ -230,6 +301,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        status: user.status,
         orgId: user.orgId,
       },
     };

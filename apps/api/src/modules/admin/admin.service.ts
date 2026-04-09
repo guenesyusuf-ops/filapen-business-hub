@@ -137,6 +137,116 @@ export class AdminService {
   }
 
   /**
+   * List users with pending status awaiting approval.
+   */
+  async listPendingUsers(orgId: string) {
+    return this.prisma.user.findMany({
+      where: { orgId, status: 'pending' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Count users with pending status.
+   */
+  async countPendingUsers(orgId: string): Promise<number> {
+    return this.prisma.user.count({
+      where: { orgId, status: 'pending' },
+    });
+  }
+
+  /**
+   * Approve a pending user, optionally assigning a role.
+   */
+  async approveUser(orgId: string, userId: string, role?: UserRole) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, orgId, status: 'pending' },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Pending user not found in this organization');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        status: 'active',
+        ...(role && { role }),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  /**
+   * Reject a pending user.
+   */
+  async rejectUser(orgId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, orgId, status: 'pending' },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Pending user not found in this organization');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 'rejected' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  /**
+   * List recently approved/rejected users (last 30 days).
+   */
+  async listRecentlyReviewedUsers(orgId: string) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    return this.prisma.user.findMany({
+      where: {
+        orgId,
+        status: { in: ['active', 'rejected'] },
+        createdAt: { gte: thirtyDaysAgo },
+        // Exclude the first owner (auto-approved)
+        role: { not: 'owner' },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+  }
+
+  /**
    * Get organization settings.
    */
   async getOrgSettings(orgId: string) {

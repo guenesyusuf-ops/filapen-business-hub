@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   UserPlus,
   MoreVertical,
@@ -9,8 +9,11 @@ import {
   Mail,
   Clock,
   X,
+  Copy,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getAuthHeaders } from '@/stores/auth';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,12 +23,13 @@ type Role = 'owner' | 'admin' | 'member' | 'viewer';
 
 interface TeamMember {
   id: string;
-  name: string;
+  name: string | null;
   email: string;
   role: Role;
-  status: 'active' | 'invited';
+  status: string;
   lastActiveAt: string | null;
-  avatarInitials: string;
+  avatarUrl?: string | null;
+  createdAt?: string;
 }
 
 interface PendingInvite {
@@ -35,20 +39,7 @@ interface PendingInvite {
   createdAt: string;
 }
 
-// ---------------------------------------------------------------------------
-// Mock data (will be replaced by API calls)
-// ---------------------------------------------------------------------------
-
-const MOCK_MEMBERS: TeamMember[] = [
-  { id: '1', name: 'Anna Schmidt', email: 'anna@filapen.com', role: 'owner', status: 'active', lastActiveAt: '2026-04-08T10:30:00Z', avatarInitials: 'AS' },
-  { id: '2', name: 'Max Muster', email: 'max@filapen.com', role: 'admin', status: 'active', lastActiveAt: '2026-04-07T14:00:00Z', avatarInitials: 'MM' },
-  { id: '3', name: 'Lisa Weber', email: 'lisa@filapen.com', role: 'member', status: 'active', lastActiveAt: '2026-04-06T09:15:00Z', avatarInitials: 'LW' },
-  { id: '4', name: 'Tom Braun', email: 'tom@filapen.com', role: 'viewer', status: 'active', lastActiveAt: null, avatarInitials: 'TB' },
-];
-
-const MOCK_INVITES: PendingInvite[] = [
-  { id: 'i1', email: 'new@example.com', role: 'member', createdAt: '2026-04-07T12:00:00Z' },
-];
+// No more mock data - loaded from API
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -265,30 +256,107 @@ function ActionMenu({
 // ---------------------------------------------------------------------------
 
 export default function TeamSettingsPage() {
-  const [members, setMembers] = useState<TeamMember[]>(MOCK_MEMBERS);
-  const [invites, setInvites] = useState<PendingInvite[]>(MOCK_INVITES);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [showInvite, setShowInvite] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
 
-  const handleInvite = (email: string, role: Role) => {
-    setInvites((prev) => [
-      { id: `i${Date.now()}`, email, role, createdAt: new Date().toISOString() },
-      ...prev,
-    ]);
+  const fetchTeam = useCallback(async () => {
+    try {
+      const headers = getAuthHeaders();
+      const res = await fetch('/api/admin/team', { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setMembers(
+          (data.members || []).map((m: any) => ({
+            ...m,
+            name: m.name || null,
+          })),
+        );
+        setInvites(data.invites || []);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTeam();
+  }, [fetchTeam]);
+
+  const handleInvite = async (email: string, role: Role) => {
+    try {
+      const headers = {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      };
+      const res = await fetch('/api/admin/team/invite', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ email, role }),
+      });
+      if (res.ok) {
+        fetchTeam();
+      }
+    } catch {
+      // Silently fail
+    }
   };
 
-  const handleChangeRole = (id: string, role: Role) => {
-    setMembers((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, role } : m)),
-    );
+  const handleChangeRole = async (id: string, role: Role) => {
+    try {
+      const headers = {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      };
+      await fetch(`/api/admin/team/${id}/role`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ role }),
+      });
+      setMembers((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, role } : m)),
+      );
+    } catch {
+      // Silently fail
+    }
   };
 
-  const handleRemove = (id: string) => {
-    setMembers((prev) => prev.filter((m) => m.id !== id));
+  const handleRemove = async (id: string) => {
+    try {
+      const headers = getAuthHeaders();
+      await fetch(`/api/admin/team/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      setMembers((prev) => prev.filter((m) => m.id !== id));
+    } catch {
+      // Silently fail
+    }
   };
 
   const handleCancelInvite = (id: string) => {
     setInvites((prev) => prev.filter((inv) => inv.id !== id));
   };
+
+  const copyInviteLink = (inviteId: string) => {
+    const link = `${window.location.origin}/login?invite=${inviteId}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedInviteId(inviteId);
+      setTimeout(() => setCopiedInviteId(null), 2000);
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl space-y-6 animate-fade-in">
@@ -334,7 +402,7 @@ export default function TeamSettingsPage() {
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0">
-                        <span className="text-[10px] font-bold text-white">{member.avatarInitials}</span>
+                        <span className="text-[10px] font-bold text-white">{(member.name || member.email).charAt(0).toUpperCase()}</span>
                       </div>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">{member.name}</div>
@@ -346,11 +414,13 @@ export default function TeamSettingsPage() {
                   <td className="px-5 py-3">
                     <span className={cn(
                       'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                      member.status === 'active'
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                        : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+                      member.status === 'active' && 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+                      member.status === 'pending' && 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+                      member.status === 'invited' && 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                      member.status === 'rejected' && 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+                      member.status === 'suspended' && 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-400',
                     )}>
-                      {member.status === 'active' ? 'Active' : 'Invited'}
+                      {member.status === 'active' ? 'Active' : member.status === 'pending' ? 'Pending' : member.status === 'invited' ? 'Invited' : member.status === 'rejected' ? 'Rejected' : member.status.charAt(0).toUpperCase() + member.status.slice(1)}
                     </span>
                   </td>
                   <td className="px-5 py-3">
@@ -396,13 +466,37 @@ export default function TeamSettingsPage() {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleCancelInvite(invite.id)}
-                  className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
-                  title="Cancel invite"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => copyInviteLink(invite.id)}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors',
+                      copiedInviteId === invite.id
+                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
+                        : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-gray-300',
+                    )}
+                    title="Copy invite link"
+                  >
+                    {copiedInviteId === invite.id ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        Copy Link
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleCancelInvite(invite.id)}
+                    className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
+                    title="Cancel invite"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

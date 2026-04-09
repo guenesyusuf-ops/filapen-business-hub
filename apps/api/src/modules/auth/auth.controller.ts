@@ -40,11 +40,14 @@ export class AuthController {
 
   /**
    * POST /api/auth/register
-   * Create the first admin account. Only works when no users exist.
+   * Register a new user account.
+   * - First user: auto-approved as owner
+   * - With inviteToken: auto-approved with invited role
+   * - Public: pending approval
    */
   @Post('register')
   async register(
-    @Body() body: { email: string; password: string; name: string },
+    @Body() body: { email: string; password: string; name: string; inviteToken?: string },
   ) {
     if (!body.email || !body.password || !body.name) {
       throw new HttpException(
@@ -139,11 +142,16 @@ export class AuthController {
   /**
    * GET /api/auth/status
    * Returns whether any users exist (for first-time setup detection)
+   * and whether public registration creates pending accounts
    */
   @Get('status')
   async status() {
     const hasUsers = await this.authService.hasAnyUsers();
-    return { hasUsers, setupRequired: !hasUsers };
+    return {
+      hasUsers,
+      setupRequired: !hasUsers,
+      registrationMode: hasUsers ? 'approval' : 'first-admin',
+    };
   }
 
   // ---------------------------------------------------------------------------

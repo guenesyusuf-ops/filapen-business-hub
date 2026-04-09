@@ -79,6 +79,39 @@ export class AdminController {
     return this.adminService.changeUserRole(this.DEV_ORG_ID, userId, body.role);
   }
 
+  @Get('pending-users')
+  async listPendingUsers() {
+    return this.adminService.listPendingUsers(this.DEV_ORG_ID);
+  }
+
+  @Get('pending-users/count')
+  async countPendingUsers() {
+    const count = await this.adminService.countPendingUsers(this.DEV_ORG_ID);
+    return { count };
+  }
+
+  @Put('approve-user/:userId')
+  async approveUser(
+    @Param('userId') userId: string,
+    @Body() body: { role?: UserRole },
+  ) {
+    const role = body.role;
+    if (role && !VALID_ROLES.includes(role)) {
+      throw new BadRequestException(`Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
+    }
+    return this.adminService.approveUser(this.DEV_ORG_ID, userId, role);
+  }
+
+  @Put('reject-user/:userId')
+  async rejectUser(@Param('userId') userId: string) {
+    return this.adminService.rejectUser(this.DEV_ORG_ID, userId);
+  }
+
+  @Get('reviewed-users')
+  async listReviewedUsers() {
+    return this.adminService.listRecentlyReviewedUsers(this.DEV_ORG_ID);
+  }
+
   @Get('settings')
   async getSettings() {
     return this.adminService.getOrgSettings(this.DEV_ORG_ID);

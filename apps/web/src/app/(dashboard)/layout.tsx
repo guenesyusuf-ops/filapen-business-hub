@@ -39,6 +39,7 @@ import {
   Gauge,
   Palette,
   ExternalLink,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -127,6 +128,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { labelKey: 'nav.general', href: '/settings/general', icon: Sliders },
       { labelKey: 'nav.team', href: '/settings/team', icon: Users },
+      { labelKey: 'nav.approvals', href: '/settings/approvals', icon: ShieldCheck },
     ],
   },
 ];
@@ -135,7 +137,7 @@ const NAV_ITEMS: NavItem[] = [
 // Sidebar component
 // ---------------------------------------------------------------------------
 
-function Sidebar({ collapsed, user }: { collapsed: boolean; user: { name: string | null; email: string } | null }) {
+function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean; user: { name: string | null; email: string } | null; pendingApprovalCount: number }) {
   const pathname = usePathname();
   const { t } = useTranslation();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
@@ -273,6 +275,7 @@ function Sidebar({ collapsed, user }: { collapsed: boolean; user: { name: string
                     const ChildIcon = child.icon;
                     const childLabel = t(child.labelKey);
                     const childActive = isActive(child.href);
+                    const showBadge = child.labelKey === 'nav.approvals' && pendingApprovalCount > 0;
 
                     return (
                       <Link
@@ -289,7 +292,12 @@ function Sidebar({ collapsed, user }: { collapsed: boolean; user: { name: string
                           'h-3.5 w-3.5 flex-shrink-0',
                           childActive ? 'text-primary-500 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500',
                         )} />
-                        <span>{childLabel}</span>
+                        <span className="flex-1">{childLabel}</span>
+                        {showBadge && (
+                          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[10px] font-bold text-white">
+                            {pendingApprovalCount}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
@@ -442,15 +450,40 @@ export default function DashboardLayout({
   const { theme, setTheme } = useThemeStore();
   const { token, user, logout } = useAuthStore();
   const [authChecked, setAuthChecked] = useState(false);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
-  // Auth check: redirect to login if no token
+  // Auth check: redirect to login if no token, or if user is not active
   useEffect(() => {
     if (!token) {
+      router.replace('/login');
+    } else if (user && user.status !== 'active') {
+      // Non-active users (pending, rejected) get sent back to login
+      // which will show the appropriate status screen
       router.replace('/login');
     } else {
       setAuthChecked(true);
     }
-  }, [token, router]);
+  }, [token, user, router]);
+
+  // Fetch pending approval count for admin badge
+  useEffect(() => {
+    if (!token || !user) return;
+    // Only fetch for admin/owner roles
+    if (user.role !== 'owner' && user.role !== 'admin') return;
+
+    fetch('/api/admin/pending-users/count', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.count === 'number') {
+          setPendingApprovalCount(data.count);
+        }
+      })
+      .catch(() => {
+        // Silently fail — badge just won't show
+      });
+  }, [token, user]);
 
   // Re-apply theme on mount (handles SSR hydration and system preference changes)
   useEffect(() => {
@@ -481,7 +514,7 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden bg-surface-secondary dark:bg-[#0f1117]">
       {/* Sidebar */}
-      <Sidebar collapsed={sidebarCollapsed} user={user} />
+      <Sidebar collapsed={sidebarCollapsed} user={user} pendingApprovalCount={pendingApprovalCount} />
 
       {/* Main area */}
       <div className="flex flex-1 flex-col overflow-hidden">
