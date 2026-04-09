@@ -7,59 +7,75 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
+// Log immediately on process start (before any async work)
+const startTime = Date.now();
+console.log(`[Startup] Process starting... PID=${process.pid} PORT=${process.env.PORT} NODE_ENV=${process.env.NODE_ENV}`);
+console.log(`[Startup] DATABASE_URL set: ${!!process.env.DATABASE_URL}`);
+
+// Prevent unhandled rejections from crashing the process
+process.on('unhandledRejection', (reason) => {
+  console.error('[Unhandled Rejection]', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[Uncaught Exception]', error);
+  // Don't exit — let Railway see the error in logs
+});
+
 async function bootstrap() {
-  // Prevent unhandled rejections from crashing the process
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  });
+  try {
+    console.log('[Startup] Creating NestJS application...');
 
-  const app = await NestFactory.create(AppModule, {
-    logger:
-      process.env.NODE_ENV === 'production'
-        ? ['error', 'warn', 'log']
-        : ['error', 'warn', 'log', 'debug', 'verbose'],
-  });
+    const app = await NestFactory.create(AppModule, {
+      logger:
+        process.env.NODE_ENV === 'production'
+          ? ['error', 'warn', 'log']
+          : ['error', 'warn', 'log', 'debug', 'verbose'],
+    });
 
-  const config = app.get(ConfigService);
-  const logger = new Logger('Bootstrap');
+    console.log('[Startup] NestJS created, configuring...');
 
-  app.use(helmet());
-  app.use(compression());
+    app.use(helmet());
+    app.use(compression());
 
-  // CORS: support comma-separated origins for production
-  const corsOrigin = config.get<string>('APP_URL', 'http://localhost:3000');
-  const origins = corsOrigin.split(',').map((o) => o.trim());
-  app.enableCors({
-    origin: origins.length === 1 ? origins[0] : origins,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
+    // CORS
+    const corsOrigin = process.env.APP_URL || 'http://localhost:3000';
+    const origins = corsOrigin.split(',').map((o) => o.trim());
+    app.enableCors({
+      origin: origins.length === 1 ? origins[0] : origins,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
 
-  // Global filters and interceptors
-  app.useGlobalFilters(new GlobalExceptionFilter());
-  app.useGlobalInterceptors(new LoggingInterceptor());
+    app.useGlobalFilters(new GlobalExceptionFilter());
+    app.useGlobalInterceptors(new LoggingInterceptor());
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+      }),
+    );
 
-  app.setGlobalPrefix('api');
+    app.setGlobalPrefix('api');
 
-  // Graceful shutdown
-  app.enableShutdownHooks();
+    // PORT: Read directly from env (Railway sets this)
+    const port = parseInt(process.env.PORT || '4000', 10);
 
-  const port = parseInt(process.env.PORT || '4000', 10);
-  await app.listen(port, '0.0.0.0');
+    console.log(`[Startup] Listening on 0.0.0.0:${port}...`);
 
-  logger.log(`Filapen API running on http://localhost:${port}`);
-  logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    await app.listen(port, '0.0.0.0');
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[Startup] Filapen API READY on port ${port} (${elapsed}ms)`);
+    console.log(`[Startup] Health check: http://0.0.0.0:${port}/api/health`);
+
+  } catch (error) {
+    console.error('[Startup] FATAL ERROR during bootstrap:', error);
+    // Don't call process.exit — let Railway capture the error
+  }
 }
 
 bootstrap();

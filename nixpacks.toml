@@ -8,7 +8,9 @@ cacheDirectories = []
 [phases.build]
 cmds = [
   "npx prisma generate --schema=packages/database/prisma/schema.prisma",
-  "cd apps/api && npx nest build"
+  "rm -rf apps/api/dist",
+  "cd apps/api && npx nest build",
+  "echo 'Build complete: ' && ls -la apps/api/dist/main.js || echo 'ERROR: dist/main.js not found!'"
 ]
 
 [start]
