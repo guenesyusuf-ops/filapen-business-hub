@@ -88,7 +88,7 @@ export class AdLibraryService {
     const url = new URL('https://graph.facebook.com/v19.0/ads_archive');
     url.searchParams.set('access_token', this.accessToken);
     url.searchParams.set('search_terms', params.searchTerm);
-    url.searchParams.set('ad_reached_countries', JSON.stringify([country]));
+    url.searchParams.set('ad_reached_countries', `["${country}"]`);
     url.searchParams.set('ad_active_status', 'ACTIVE');
     url.searchParams.set('ad_type', params.adType || 'ALL');
     url.searchParams.set('limit', String(limit));
@@ -104,6 +104,7 @@ export class AdLibraryService {
       }
 
       const json = await res.json();
+      this.logger.log(`Ad Library response: ${json.data?.length || 0} ads found. ${json.error ? 'Error: ' + JSON.stringify(json.error) : ''}`);
       const ads = (json.data || []).map(this.mapAd);
 
       return {
