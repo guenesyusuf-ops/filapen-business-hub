@@ -248,7 +248,7 @@ export default function GenerateContentPage() {
     brandVoiceId: '',
     count: 5,
     useEmojis: false,
-    headlineRequirements: 'Max. 40 Zeichen, Hook-orientiert, Aufmerksamkeit im Feed erzeugen, emotional oder neugierig machend',
+    headlineRequirements: '1 Headline (max. 110 Zeichen, mit starker Hook, Hook-orientiert, Aufmerksamkeit im Feed erzeugen, emotional oder neugierig machend)',
     primaryTextRequirements: 'Max. 500 Zeichen, PAS oder AIDA Struktur, emotionale Verbindung aufbauen, Social Proof einbauen, klarer USP, starker CTA am Ende',
     linkDescriptionRequirements: 'Max. 30 Zeichen, neugierig machend, Benefit betonen, zum Klicken animieren',
     ctaRequirements: 'Zielgerichtet, KEINE generischen CTAs wie "Klick hier" oder "Mehr erfahren", Urgency oder konkreten Benefit einbauen',

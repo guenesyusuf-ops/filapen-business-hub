@@ -301,3 +301,17 @@
 {"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/creators/list/[id]/page.tsx","timestamp":1775766510504,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/creators/list/[id]/page.tsx","timestamp":1775766526094,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/packages/database/prisma/migrations/add_live_status_to_uploads.sql","timestamp":1775766564129,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/packages/database/prisma/schema.prisma","timestamp":1775767422356,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/packages/database/prisma/schema.prisma","timestamp":1775767422751,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/template.service.ts","timestamp":1775767428000,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/template.service.ts","timestamp":1775767431300,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/template.service.ts","timestamp":1775767433879,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/template.service.ts","timestamp":1775767435130,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/ai-generator.service.ts","timestamp":1775767440386,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/ai-generator.service.ts","timestamp":1775767447525,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.service.ts","timestamp":1775767453147,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.service.ts","timestamp":1775767454157,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.service.ts","timestamp":1775767471202,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/content/generate/page.tsx","timestamp":1775767472729,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.controller.ts","timestamp":1775767477512,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/hooks/content/useTemplates.ts","timestamp":1775767483377,"sessionId":null}

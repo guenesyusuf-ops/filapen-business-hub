@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { PromptEngine } from './prompt-engine';
 import { AiGeneratorService } from './ai-generator.service';
+import { TemplateService } from './template.service';
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -85,6 +86,7 @@ export class ContentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiGenerator: AiGeneratorService,
+    private readonly templateService: TemplateService,
   ) {}
 
   async list(orgId: string, params: ListContentParams) {
@@ -278,6 +280,25 @@ export class ContentService {
   async generate(orgId: string, data: GenerateContentDto) {
     this.logger.log(`Generating content: AI=${!!this.aiGenerator}, type=${data.type}, language=${data.language || 'Deutsch'}`);
 
+    // Fetch reference templates for this product (Feature 1: Templates as Learning Reference)
+    let referenceTemplates: Array<{ body: string; productName?: string }> = [];
+    if (data.product) {
+      try {
+        const templates = await this.templateService.listByProduct(orgId, data.product);
+        referenceTemplates = templates
+          .filter((t: any) => t.promptTemplate && t.promptTemplate.trim().length > 0)
+          .map((t: any) => ({
+            body: t.promptTemplate,
+            productName: t.productName || data.product,
+          }));
+        if (referenceTemplates.length > 0) {
+          this.logger.log(`Found ${referenceTemplates.length} reference templates for product "${data.product}"`);
+        }
+      } catch (err) {
+        this.logger.warn('Failed to fetch reference templates, continuing without them', err);
+      }
+    }
+
     // Try AI generation first (returns null if no API key or on error)
     const aiResult = await this.aiGenerator.generate({
       language: data.language || 'Deutsch',
@@ -308,6 +329,7 @@ export class ContentService {
       ctaCount: data.ctaCount || 5,
       bestPerformingHook: data.bestPerformingHook,
       topCompetitorAdCopy: data.topCompetitorAdCopy,
+      referenceTemplates,
     });
 
     if (aiResult) {

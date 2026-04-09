@@ -1247,6 +1247,8 @@ model ContentTemplate {
   promptTemplate String      @map("prompt_template") @db.Text
   variables      Json?       @default("[]")
   category       String?     @db.VarChar(100)
+  productName    String?     @map("product_name") @db.VarChar(255)
+  performanceNotes String?   @map("performance_notes") @db.Text
   isSystem       Boolean     @default(false) @map("is_system")
   usageCount     Int         @default(0) @map("usage_count")
   createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
@@ -1256,6 +1258,7 @@ model ContentTemplate {
 
   @@index([orgId])
   @@index([type])
+  @@index([productName])
   @@map("content_templates")
 }
 

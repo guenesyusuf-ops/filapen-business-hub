@@ -34,6 +34,7 @@ export interface AiGenerateParams {
   ctaCount?: number;
   bestPerformingHook?: string;
   topCompetitorAdCopy?: string;
+  referenceTemplates?: Array<{ body: string; productName?: string }>;
 }
 
 export interface AiGenerateResult {
@@ -196,6 +197,15 @@ Gib die Ergebnisse in folgendem JSON-Format zurueck:
     }
     if (params.ctaRequirements) {
       prompt += `CTA-Anforderungen: ${params.ctaRequirements} (KEIN generisches "Klick hier" — zielgerichtet!)\n`;
+    }
+
+    if (params.referenceTemplates && params.referenceTemplates.length > 0) {
+      prompt += `\nERFOLGREICHE REFERENZ-TEXTE (analysiere WARUM diese funktionieren und leite Muster ab, NIEMALS 1:1 kopieren):\n`;
+      params.referenceTemplates.forEach((t, i) => {
+        prompt += `\nReferenz ${i + 1}: "${t.body}"\n`;
+        if (t.productName) prompt += `Produkt: ${t.productName}\n`;
+      });
+      prompt += `\nAnalysiere die Referenzen: Was macht sie erfolgreich? Welche Hooks, Emotionen, Strukturen werden genutzt? Baue diese MUSTER (nicht die Worte) in deine neuen Texte ein.\n`;
     }
 
     if (params.bestPerformingHook) {

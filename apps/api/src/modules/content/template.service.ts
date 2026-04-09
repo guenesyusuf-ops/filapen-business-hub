@@ -11,6 +11,8 @@ export interface CreateTemplateDto {
   promptTemplate: string;
   variables?: { name: string; type: string; required: boolean }[];
   category?: string;
+  productName?: string;
+  performanceNotes?: string;
   isSystem?: boolean;
 }
 
@@ -100,11 +102,26 @@ export class TemplateService {
         promptTemplate: data.promptTemplate,
         variables: data.variables ? JSON.parse(JSON.stringify(data.variables)) : [],
         category: data.category || null,
+        productName: data.productName || null,
+        performanceNotes: data.performanceNotes || null,
         isSystem: false,
       },
     });
 
     return this.serialize(template);
+  }
+
+  async listByProduct(orgId: string, productName: string) {
+    const templates = await this.prisma.contentTemplate.findMany({
+      where: {
+        productName: { equals: productName, mode: 'insensitive' },
+        OR: [{ orgId }, { isSystem: true }],
+      },
+      orderBy: [{ usageCount: 'desc' }, { createdAt: 'desc' }],
+      take: 10,
+    });
+
+    return templates.map(this.serialize);
   }
 
   async incrementUsage(id: string) {
@@ -123,6 +140,8 @@ export class TemplateService {
       promptTemplate: template.promptTemplate,
       variables: template.variables,
       category: template.category,
+      productName: template.productName,
+      performanceNotes: template.performanceNotes,
       isSystem: template.isSystem,
       usageCount: template.usageCount,
       createdAt: template.createdAt.toISOString(),

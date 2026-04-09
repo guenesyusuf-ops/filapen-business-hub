@@ -103,6 +103,19 @@ export class ContentController {
     }
   }
 
+  @Get('content/templates/by-product')
+  async listTemplatesByProduct(@Query('productName') productName?: string) {
+    if (!productName) {
+      return [];
+    }
+    try {
+      return await this.templateService.listByProduct(DEV_ORG_ID, productName);
+    } catch (error) {
+      this.logger.error('Failed to list templates by product', error);
+      throw new HttpException('Failed to load templates by product', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Post('content/templates')
   async createTemplate(@Body() body: any) {
     try {

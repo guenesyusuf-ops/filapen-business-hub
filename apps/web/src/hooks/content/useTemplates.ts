@@ -14,6 +14,8 @@ export interface ContentTemplate {
   promptTemplate: string;
   variables: { name: string; type: string; required: boolean }[];
   category: string | null;
+  productName: string | null;
+  performanceNotes: string | null;
   isSystem: boolean;
   usageCount: number;
   createdAt: string;
