@@ -49,7 +49,7 @@ export default function HomePage() {
             <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
           </Link>
           <Link
-            href="/dashboard"
+            href="/finance"
             className="inline-flex items-center gap-2 w-full sm:w-auto justify-center rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-50 hover:border-gray-300 hover:-translate-y-0.5 active:scale-[0.98]"
           >
             Explore Hubs

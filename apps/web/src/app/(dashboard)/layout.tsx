@@ -62,7 +62,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   {
     labelKey: 'nav.dashboard',
-    href: '/dashboard',
+    href: '/finance',
     icon: LayoutDashboard,
   },
   {
@@ -173,7 +173,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
   }, []);
 
   function isActive(href: string): boolean {
-    if (href === '/dashboard') return pathname === '/dashboard';
+    if (href === '/finance') return pathname === '/finance';
     return pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
   }
 
