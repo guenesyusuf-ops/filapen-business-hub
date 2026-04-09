@@ -15,6 +15,7 @@ export interface Creator {
   platform: 'instagram' | 'tiktok' | 'youtube' | 'twitter';
   avatarUrl?: string;
   followers: number;
+  followerCount?: number;
   engagementRate: number;
   niche: string;
   status: 'active' | 'prospect' | 'outreach' | 'inactive';
@@ -34,6 +35,7 @@ export interface Creator {
   compensation?: string;
   provision?: string;
   fixAmount?: number;
+  firstContact?: string;
   contracts?: any;
   creatorNotes?: string;
   lastLogin?: string;
@@ -329,7 +331,26 @@ export function useCreators(params: CreatorsListParams = {}) {
         if (params.page) queryParams.page = String(params.page);
         if (params.pageSize) queryParams.pageSize = String(params.pageSize);
 
-        return await fetchApi<PaginatedResponse<Creator>>(`${API_BASE}/creators`, queryParams);
+        const raw = await fetchApi<any>(`${API_BASE}/creators`, queryParams);
+        // The API returns { items, total, page, pageSize, totalPages }
+        // but the frontend expects { data, total, page, pageSize, totalPages }
+        // Also normalize followerCount -> followers
+        const items = (raw.items ?? raw.data ?? []).map((c: any) => ({
+          ...c,
+          followers: c.followers ?? c.followerCount ?? 0,
+          engagementRate: c.engagementRate ?? 0,
+          avgEngagement: c.avgEngagement ?? c.engagementRate ?? 0,
+          score: c.score ?? 0,
+          totalDeals: c.totalDeals ?? 0,
+          totalSpend: c.totalSpend ?? 0,
+        }));
+        return {
+          data: items,
+          total: raw.total ?? 0,
+          page: raw.page ?? 1,
+          pageSize: raw.pageSize ?? 25,
+          totalPages: raw.totalPages ?? 1,
+        } as PaginatedResponse<Creator>;
       } catch {
         // Fallback to mock data
         let filtered = [...MOCK_CREATORS];
@@ -384,7 +405,17 @@ export function useCreator(id: string | undefined) {
     enabled: !!id,
     queryFn: async () => {
       try {
-        return await fetchApi<Creator>(`${API_BASE}/creators/${id}`);
+        const raw = await fetchApi<any>(`${API_BASE}/creators/${id}`);
+        // Normalize followerCount -> followers
+        return {
+          ...raw,
+          followers: raw.followers ?? raw.followerCount ?? 0,
+          engagementRate: raw.engagementRate ?? 0,
+          avgEngagement: raw.avgEngagement ?? raw.engagementRate ?? 0,
+          score: raw.score ?? 0,
+          totalDeals: raw.totalDeals ?? 0,
+          totalSpend: raw.totalSpend ?? 0,
+        } as Creator;
       } catch {
         const creator = MOCK_CREATORS.find((c) => c.id === id);
         if (!creator) throw new Error('Creator not found');
@@ -419,6 +450,14 @@ export function useCreateCreator() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['creators'] });
+    },
+  });
+}
+
+export function useResendInvite() {
+  return useMutation({
+    mutationFn: async (creatorId: string) => {
+      return postApi<{ success: boolean; emailSent: boolean }>(`/creators/${creatorId}/resend-invite`, {});
     },
   });
 }

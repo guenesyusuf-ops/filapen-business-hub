@@ -12,6 +12,7 @@ export interface CreateCreatorDto {
   phone?: string;
   platform?: string;
   handle?: string;
+  firstContact?: string;
   followerCount?: number;
   engagementRate?: number;
   niche?: string;
@@ -203,6 +204,7 @@ export class CreatorService {
         fixAmount: data.fixAmount != null ? new Prisma.Decimal(data.fixAmount) : null,
         contracts: data.contracts || [],
         creatorNotes: data.creatorNotes || null,
+        firstContact: data.firstContact || null,
       },
     });
 
@@ -259,6 +261,7 @@ export class CreatorService {
     }
     if (data.contracts !== undefined) updateData.contracts = data.contracts;
     if (data.creatorNotes !== undefined) updateData.creatorNotes = data.creatorNotes || null;
+    if (data.firstContact !== undefined) updateData.firstContact = data.firstContact || null;
 
     const creator = await this.prisma.creator.update({
       where: { id: creatorId },
@@ -380,6 +383,7 @@ export class CreatorService {
       fixAmount: creator.fixAmount ? Number(creator.fixAmount) : null,
       contracts: creator.contracts,
       creatorNotes: creator.creatorNotes,
+      firstContact: creator.firstContact,
       lastLogin: creator.lastLogin ? creator.lastLogin.toISOString() : null,
       createdAt: creator.createdAt.toISOString(),
       updatedAt: creator.updatedAt.toISOString(),

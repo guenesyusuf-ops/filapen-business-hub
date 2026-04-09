@@ -440,10 +440,12 @@ model Creator {
   contracts     Json      @default("[]")
   creatorNotes  String?   @map("creator_notes") @db.Text
   lastLogin     DateTime? @map("last_login") @db.Timestamptz
+  firstContact  String?   @map("first_contact") @db.VarChar(50)
 
   organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   deals        Deal[]
   uploads      CreatorUpload[]
+  chatMessages ChatMessage[]
 
   @@unique([orgId, email], map: "uq_creator_org_email")
   @@index([orgId])
@@ -563,6 +565,24 @@ model CreatorProject {
 
   @@index([orgId])
   @@map("creator_projects")
+}
+
+model ChatMessage {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String   @map("org_id") @db.Uuid
+  creatorId     String   @map("creator_id") @db.Uuid
+  senderRole    String   @map("sender_role") @db.VarChar(20)
+  senderName    String   @map("sender_name") @db.VarChar(255)
+  message       String   @db.Text
+  readByAdmin   Boolean  @default(false) @map("read_by_admin")
+  readByCreator Boolean  @default(false) @map("read_by_creator")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([orgId, creatorId])
+  @@map("chat_messages")
 }
 
 // =============================================================================

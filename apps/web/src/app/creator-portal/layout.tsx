@@ -137,6 +137,11 @@ export default function CreatorPortalLayout({
               active={pathname === '/creator-portal/briefings'}
             />
             <NavTab
+              href="/creator-portal/chat"
+              label="Chat"
+              active={pathname === '/creator-portal/chat'}
+            />
+            <NavTab
               href="/creator-portal/profile"
               label="Profile"
               active={pathname === '/creator-portal/profile'}

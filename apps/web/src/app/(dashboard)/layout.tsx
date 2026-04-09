@@ -449,11 +449,32 @@ export default function DashboardLayout({
   const { sidebarCollapsed, toggleSidebar } = useFinanceUI();
   const { theme, setTheme } = useThemeStore();
   const { token, user, logout } = useAuthStore();
+  const [hydrated, setHydrated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
+  // Wait for Zustand to hydrate from localStorage before checking auth.
+  // On first SSR render the persisted store is empty; the persist middleware
+  // restores values asynchronously. Without this guard the layout would
+  // redirect to /login before the token is available.
+  useEffect(() => {
+    // Zustand persist exposes onFinishHydration / onRehydrateStorage,
+    // but the simplest cross-version approach is a one-tick delay.
+    const unsub = useAuthStore.persist.onFinishHydration?.(() => {
+      setHydrated(true);
+    });
+    // If already hydrated (e.g. client-side navigation), set immediately
+    if (useAuthStore.persist.hasHydrated?.()) {
+      setHydrated(true);
+    }
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
+
   // Auth check: redirect to login if no token, or if user is not active
   useEffect(() => {
+    if (!hydrated) return; // wait for store hydration
     if (!token) {
       router.replace('/login');
     } else if (user && user.status !== 'active') {
@@ -463,7 +484,7 @@ export default function DashboardLayout({
     } else {
       setAuthChecked(true);
     }
-  }, [token, user, router]);
+  }, [hydrated, token, user, router]);
 
   // Fetch pending approval count for admin badge
   useEffect(() => {

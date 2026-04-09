@@ -19,6 +19,7 @@ import { BriefingService } from './briefing.service';
 import { UploadService } from './upload.service';
 import { CommentService } from './comment.service';
 import { ProjectService } from './project.service';
+import { ChatService } from './chat.service';
 import { EmailService } from '../../common/email/email.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
@@ -34,6 +35,7 @@ export class CreatorController {
     private readonly uploadService: UploadService,
     private readonly commentService: CommentService,
     private readonly projectService: ProjectService,
+    private readonly chatService: ChatService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {}
@@ -493,6 +495,95 @@ export class CreatorController {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to delete project', error);
       throw new HttpException('Failed to delete project', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // RESEND INVITE
+  // =========================================================================
+
+  @Post('creators/:id/resend-invite')
+  async resendInvite(@Param('id') id: string) {
+    try {
+      const creator = await this.creatorService.getById(DEV_ORG_ID, id);
+      if (!creator.email || !creator.inviteCode) {
+        throw new HttpException(
+          'Creator has no email or invite code',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const appUrl =
+        this.configService.get<string>('APP_URL') ||
+        'http://localhost:3000';
+      const emailSent = await this.emailService.sendCreatorInvite({
+        to: creator.email,
+        creatorName: creator.name,
+        inviteCode: creator.inviteCode,
+        inviteLink: `${appUrl}/creator-portal?code=${creator.inviteCode}`,
+      });
+
+      return { success: true, emailSent };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to resend invite', error);
+      throw new HttpException('Failed to resend invite', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // CHAT
+  // =========================================================================
+
+  @Get('chat/:creatorId')
+  async getChatMessages(@Param('creatorId') creatorId: string) {
+    try {
+      return await this.chatService.getMessages(DEV_ORG_ID, creatorId);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to get chat messages', error);
+      throw new HttpException('Failed to load chat messages', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Post('chat/:creatorId')
+  async sendChatMessage(
+    @Param('creatorId') creatorId: string,
+    @Body() body: { message: string; senderRole: string; senderName: string },
+  ) {
+    if (!body.message || !body.senderRole || !body.senderName) {
+      throw new HttpException(
+        'message, senderRole, and senderName are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    try {
+      return await this.chatService.sendMessage(DEV_ORG_ID, creatorId, {
+        message: body.message,
+        senderRole: body.senderRole as 'admin' | 'creator',
+        senderName: body.senderName,
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to send chat message', error);
+      throw new HttpException('Failed to send message', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Patch('chat/:creatorId/read')
+  async markChatRead(
+    @Param('creatorId') creatorId: string,
+    @Body() body: { role: 'admin' | 'creator' },
+  ) {
+    if (!body.role) {
+      throw new HttpException('role is required', HttpStatus.BAD_REQUEST);
+    }
+    try {
+      return await this.chatService.markRead(DEV_ORG_ID, creatorId, body.role);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to mark chat as read', error);
+      throw new HttpException('Failed to mark as read', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

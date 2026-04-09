@@ -5,6 +5,7 @@ import { BriefingService } from './briefing.service';
 import { UploadService } from './upload.service';
 import { CommentService } from './comment.service';
 import { ProjectService } from './project.service';
+import { ChatService } from './chat.service';
 import { CreatorController } from './creator.controller';
 
 @Module({
@@ -16,6 +17,7 @@ import { CreatorController } from './creator.controller';
     UploadService,
     CommentService,
     ProjectService,
+    ChatService,
   ],
   exports: [
     CreatorService,
@@ -24,6 +26,7 @@ import { CreatorController } from './creator.controller';
     UploadService,
     CommentService,
     ProjectService,
+    ChatService,
   ],
 })
 export class CreatorModule {}

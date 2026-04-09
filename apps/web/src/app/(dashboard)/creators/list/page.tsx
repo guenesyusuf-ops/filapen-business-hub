@@ -66,7 +66,7 @@ function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void
   const createMutation = useCreateCreator();
   const [form, setForm] = useState({
     name: '',
-    handle: '',
+    firstContact: '' as string,
     email: '',
     platform: 'instagram' as Creator['platform'],
     niche: '',
@@ -93,7 +93,7 @@ function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void
       e.preventDefault();
       const payload: any = {
         name: form.name,
-        handle: form.handle,
+        firstContact: form.firstContact || undefined,
         email: form.email,
         platform: form.platform,
         niche: form.niche,
@@ -119,7 +119,7 @@ function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void
         onSuccess: () => {
           onClose();
           setForm({
-            name: '', handle: '', email: '', platform: 'instagram', niche: '', status: 'prospect',
+            name: '', firstContact: '', email: '', platform: 'instagram', niche: '', status: 'prospect',
             age: '', gender: '', country: '', instagramHandle: '', tiktokHandle: '', youtubeHandle: '',
             compensation: 'Commission', commissionRate: '', fixAmount: '',
             kids: false, kidsAges: '', kidsOnVideo: false, notes: '', creatorNotes: '',
@@ -154,8 +154,14 @@ function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Handle</label>
-              <input type="text" required value={form.handle} onChange={(e) => setForm((f) => ({ ...f, handle: e.target.value }))} className={inputCls} placeholder="@handle" />
+              <label className={labelCls}>Erstkontakt</label>
+              <select value={form.firstContact} onChange={(e) => setForm((f) => ({ ...f, firstContact: e.target.value }))} className={inputCls}>
+                <option value="">Bitte ausw&auml;hlen</option>
+                <option value="Email">Email</option>
+                <option value="Meta Ads">Meta Ads</option>
+                <option value="Empfehlung">Empfehlung</option>
+                <option value="Sonstige">Sonstige</option>
+              </select>
             </div>
             <div>
               <label className={labelCls}>Primary Platform</label>
@@ -325,7 +331,7 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
     name: '',
     email: '',
     platform: 'instagram' as Creator['platform'],
-    handle: '',
+    firstContact: '',
   });
   const [inviteResult, setInviteResult] = useState<{ code: string; link: string; emailSent: boolean } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -338,7 +344,7 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
           name: form.name,
           email: form.email,
           platform: form.platform,
-          handle: form.handle || undefined,
+          firstContact: form.firstContact || undefined,
           status: 'prospect' as const,
         } as any,
         {
@@ -362,7 +368,7 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
   }, [inviteResult]);
 
   const handleClose = useCallback(() => {
-    setForm({ name: '', email: '', platform: 'instagram', handle: '' });
+    setForm({ name: '', email: '', platform: 'instagram', firstContact: '' });
     setInviteResult(null as any);
     setCopiedLink(false);
     onClose();
@@ -425,14 +431,18 @@ function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => v
                 </select>
               </div>
               <div>
-                <label className={labelCls}>Handle</label>
-                <input
-                  type="text"
-                  value={form.handle}
-                  onChange={(e) => setForm((f) => ({ ...f, handle: e.target.value }))}
+                <label className={labelCls}>Erstkontakt</label>
+                <select
+                  value={form.firstContact}
+                  onChange={(e) => setForm((f) => ({ ...f, firstContact: e.target.value }))}
                   className={inputCls}
-                  placeholder="@handle"
-                />
+                >
+                  <option value="">Bitte ausw&auml;hlen</option>
+                  <option value="Email">Email</option>
+                  <option value="Meta Ads">Meta Ads</option>
+                  <option value="Empfehlung">Empfehlung</option>
+                  <option value="Sonstige">Sonstige</option>
+                </select>
               </div>
             </div>
 

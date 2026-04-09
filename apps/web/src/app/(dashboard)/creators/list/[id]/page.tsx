@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -24,10 +24,14 @@ import {
   Link2,
   Baby,
   Banknote,
+  Send,
+  Loader2,
+  MailPlus,
+  MessageCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDollars, formatNumber } from '@filapen/shared/src/utils/money';
-import { useCreator, useUpdateCreator } from '@/hooks/creators/useCreators';
+import { useCreator, useUpdateCreator, useResendInvite } from '@/hooks/creators/useCreators';
 import { useDeals, DEAL_STAGE_LABELS, DEAL_STAGE_COLORS } from '@/hooks/creators/useDeals';
 import type { DealStage } from '@/hooks/creators/useDeals';
 import {
@@ -130,8 +134,9 @@ export default function CreatorDetailPage() {
   const { data: creator, isLoading } = useCreator(id);
   const { data: deals } = useDeals({ creatorId: id });
   const updateMutation = useUpdateCreator();
+  const resendMutation = useResendInvite();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'uploads' | 'deals' | 'activity'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'uploads' | 'deals' | 'chat' | 'activity'>('overview');
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
@@ -141,6 +146,86 @@ export default function CreatorDetailPage() {
 
   const { data: uploads } = useCreatorUploads(id, uploadTab);
   const deleteUpload = useDeleteUpload();
+
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Fetch chat messages when chat tab is active
+  useEffect(() => {
+    if (activeTab !== 'chat' || !id) return;
+    let cancelled = false;
+
+    async function fetchChat() {
+      setChatLoading(true);
+      try {
+        const res = await fetch(`/api/chat/${id}`);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setChatMessages(data);
+        }
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setChatLoading(false); }
+    }
+
+    fetchChat();
+    const poll = setInterval(fetchChat, 5000);
+    return () => { cancelled = true; clearInterval(poll); };
+  }, [activeTab, id]);
+
+  // Mark chat as read by admin when chat tab is active
+  useEffect(() => {
+    if (activeTab !== 'chat' || !id || chatMessages.length === 0) return;
+    const unread = chatMessages.some((m: any) => !m.readByAdmin && m.senderRole === 'creator');
+    if (unread) {
+      fetch(`/api/chat/${id}/read`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin' }),
+      }).catch(() => {});
+    }
+  }, [activeTab, id, chatMessages]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const handleSendChat = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatSending || !id) return;
+    setChatSending(true);
+    try {
+      const res = await fetch(`/api/chat/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: chatInput.trim(),
+          senderRole: 'admin',
+          senderName: 'Admin',
+        }),
+      });
+      if (res.ok) {
+        const msg = await res.json();
+        setChatMessages((prev) => [...prev, msg]);
+        setChatInput('');
+      }
+    } catch { /* ignore */ }
+    finally { setChatSending(false); }
+  }, [chatInput, chatSending, id]);
+
+  const handleResendInvite = useCallback(() => {
+    if (!creator?.id) return;
+    setResendStatus('sending');
+    resendMutation.mutate(creator.id, {
+      onSuccess: () => setResendStatus('sent'),
+      onError: () => setResendStatus('error'),
+    });
+  }, [creator?.id, resendMutation]);
 
   const handleCopyInviteCode = useCallback(() => {
     if (!creator?.inviteCode) return;
@@ -365,6 +450,22 @@ export default function CreatorDetailPage() {
                   </span>
                 )}
               </div>
+              {/* Resend Invite */}
+              <button
+                onClick={handleResendInvite}
+                disabled={resendStatus === 'sending'}
+                className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50"
+              >
+                {resendStatus === 'sending' ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Sending...</>
+                ) : resendStatus === 'sent' ? (
+                  <><Check className="h-3 w-3 text-green-600" /> Invite Resent</>
+                ) : resendStatus === 'error' ? (
+                  <><MailPlus className="h-3 w-3 text-red-500" /> Failed - Retry</>
+                ) : (
+                  <><MailPlus className="h-3 w-3" /> Resend Invite</>
+                )}
+              </button>
             </div>
           ) : (
             <p className="text-sm text-gray-400">No invite code</p>
@@ -527,7 +628,7 @@ export default function CreatorDetailPage() {
       {/* Tabs */}
       <div className="rounded-xl bg-white shadow-card overflow-hidden">
         <div className="flex border-b border-border">
-          {(['overview', 'uploads', 'deals', 'activity'] as const).map((tab) => (
+          {(['overview', 'uploads', 'deals', 'chat', 'activity'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -538,7 +639,7 @@ export default function CreatorDetailPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700',
               )}
             >
-              {tab === 'deals' ? `Deals (${deals?.length ?? 0})` : tab === 'uploads' ? `Uploads (${uploads?.length ?? 0})` : tab}
+              {tab === 'deals' ? `Deals (${deals?.length ?? 0})` : tab === 'uploads' ? `Uploads (${uploads?.length ?? 0})` : tab === 'chat' ? 'Chat' : tab}
             </button>
           ))}
         </div>
@@ -714,6 +815,65 @@ export default function CreatorDetailPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Chat Tab */}
+        {activeTab === 'chat' && (
+          <div className="flex flex-col h-[500px]">
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {chatLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                </div>
+              ) : chatMessages.length === 0 ? (
+                <div className="text-center py-12">
+                  <MessageCircle className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No messages yet. Start the conversation with this creator.</p>
+                </div>
+              ) : (
+                chatMessages.map((msg: any) => {
+                  const isAdmin = msg.senderRole === 'admin';
+                  return (
+                    <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${
+                        isAdmin
+                          ? 'bg-purple-600 text-white rounded-br-md'
+                          : 'bg-gray-100 text-gray-900 rounded-bl-md'
+                      }`}>
+                        {!isAdmin && (
+                          <p className="text-xs font-medium text-purple-600 mb-0.5">{msg.senderName}</p>
+                        )}
+                        <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                        <p className={`text-[10px] mt-1 ${isAdmin ? 'text-purple-200' : 'text-gray-400'}`}>
+                          {new Date(msg.createdAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Chat input */}
+            <form onSubmit={handleSendChat} className="shrink-0 flex items-center gap-2 p-4 border-t border-border">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Type a message..."
+                className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+              />
+              <button
+                type="submit"
+                disabled={!chatInput.trim() || chatSending}
+                className="shrink-0 h-10 w-10 rounded-xl bg-purple-600 flex items-center justify-center text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
+              >
+                {chatSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </button>
+            </form>
           </div>
         )}
 
