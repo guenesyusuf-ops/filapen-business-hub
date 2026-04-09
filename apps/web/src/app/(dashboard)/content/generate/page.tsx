@@ -21,6 +21,7 @@ import {
   Type,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
 import {
   useGenerateContent,
   useCreateContent,
@@ -221,6 +222,17 @@ export default function GenerateContentPage() {
   const brandVoicesQuery = useBrandVoices();
   const brandVoices = brandVoicesQuery.data?.items ?? [];
 
+  // Fetch products from Finance Hub for auto-fill (Feature 3)
+  const { data: productsData } = useQuery({
+    queryKey: ['finance', 'products', 'all-for-generator'],
+    queryFn: () =>
+      fetch('/api/finance/products?startDate=2020-01-01&endDate=2030-01-01&pageSize=100')
+        .then((r) => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const products = productsData?.products ?? [];
+
+  const [selectedProductId, setSelectedProductId] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [formState, setFormState] = useState({
     type: 'headline',
@@ -411,6 +423,44 @@ export default function GenerateContentPage() {
               {/* --- Product Information --- */}
               <div className="pt-2 border-t border-border">
                 <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">Product Information</p>
+              </div>
+
+              {/* Product Dropdown - Auto-fill from Finance Hub */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Produkt aus System waehlen
+                </label>
+                <select
+                  value={selectedProductId}
+                  onChange={(e) => {
+                    const pid = e.target.value;
+                    setSelectedProductId(pid);
+                    if (pid) {
+                      const product = products.find((p: any) => p.productId === pid);
+                      if (product) {
+                        setFormState((s) => ({
+                          ...s,
+                          product: product.title,
+                          productDescription: product.description || `${product.title}${product.sku ? ` - ${product.sku}` : ''}`,
+                          pricePoint: product.unitsSold && product.grossRevenue
+                            ? `${(product.grossRevenue / product.unitsSold).toFixed(2)} EUR`
+                            : '',
+                        }));
+                      }
+                    }
+                  }}
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                >
+                  <option value="">Manuell eingeben...</option>
+                  {products.map((p: any) => (
+                    <option key={p.productId} value={p.productId}>
+                      {p.title} {p.sku ? `(${p.sku})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xxs text-gray-400 mt-1">
+                  Waehle ein Produkt aus dem Finance Hub, um die Felder automatisch auszufuellen.
+                </p>
               </div>
 
               {/* Product Name */}

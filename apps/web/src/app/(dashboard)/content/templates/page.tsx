@@ -11,8 +11,10 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
 import { useTemplates, useCreateTemplate } from '@/hooks/content/useTemplates';
 import type { ContentTemplate } from '@/hooks/content/useTemplates';
 import {
@@ -38,7 +40,20 @@ function CreateTemplateModal({
     type: 'headline',
     promptTemplate: '',
     category: '',
+    productName: '',
+    performanceNotes: '',
   });
+
+  // Fetch products from Finance Hub
+  const { data: productsData } = useQuery({
+    queryKey: ['finance', 'products', 'all-for-templates'],
+    queryFn: () =>
+      fetch('/api/finance/products?startDate=2020-01-01&endDate=2030-01-01&pageSize=100')
+        .then((r) => r.json()),
+    staleTime: 5 * 60 * 1000,
+    enabled: open,
+  });
+  const products = productsData?.products ?? [];
 
   const handleSubmit = useCallback(async () => {
     if (!form.name.trim() || !form.promptTemplate.trim()) return;
@@ -47,9 +62,11 @@ function CreateTemplateModal({
       type: form.type,
       promptTemplate: form.promptTemplate,
       category: form.category || undefined,
+      productName: form.productName || undefined,
+      performanceNotes: form.performanceNotes || undefined,
     } as any);
     onClose();
-    setForm({ name: '', type: 'headline', promptTemplate: '', category: '' });
+    setForm({ name: '', type: 'headline', promptTemplate: '', category: '', productName: '', performanceNotes: '' });
   }, [form, createMutation, onClose]);
 
   if (!open) return null;
@@ -100,20 +117,52 @@ function CreateTemplateModal({
               />
             </div>
           </div>
+          {/* Product Dropdown */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Produkt zuordnen</label>
+            <select
+              value={form.productName}
+              onChange={(e) => setForm({ ...form, productName: e.target.value })}
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+            >
+              <option value="">Kein Produkt zugeordnet</option>
+              {products.map((p: any) => (
+                <option key={p.productId} value={p.title}>
+                  {p.title} {p.sku ? `(${p.sku})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              Prompt Template
+              Winning Example / Prompt Template
             </label>
             <textarea
               value={form.promptTemplate}
               onChange={(e) => setForm({ ...form, promptTemplate: e.target.value })}
               rows={5}
-              placeholder="Use {variable} syntax for dynamic fields..."
+              placeholder="Erfolgreicher Text-Beispiel oder Template mit {variable} Syntax..."
               className="w-full rounded-lg border border-border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
             />
             <p className="text-xxs text-gray-400 mt-1">
-              Use curly braces for variables: {'{product}'}, {'{audience}'}, {'{benefit}'}
+              Trage hier erfolgreiche Texte ein, die als Referenz fuer die KI dienen.
+              Oder nutze {'{product}'}, {'{audience}'}, {'{benefit}'} als Variablen.
             </p>
+          </div>
+
+          {/* Performance Notes */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Warum funktioniert es? (optional)
+            </label>
+            <textarea
+              value={form.performanceNotes}
+              onChange={(e) => setForm({ ...form, performanceNotes: e.target.value })}
+              rows={2}
+              placeholder="z.B. Hohe CTR durch emotionalen Hook, Social Proof im ersten Satz..."
+              className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+            />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-5">
@@ -157,6 +206,12 @@ function TemplateCard({ template }: { template: ContentTemplate }) {
             <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-50 px-2 py-0.5 text-xxs font-medium text-blue-600">
               <Shield className="h-2.5 w-2.5" />
               System
+            </span>
+          )}
+          {template.productName && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xxs font-medium text-emerald-600">
+              <Package className="h-2.5 w-2.5" />
+              {template.productName}
             </span>
           )}
         </div>
