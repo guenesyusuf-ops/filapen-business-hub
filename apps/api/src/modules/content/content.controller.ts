@@ -14,6 +14,7 @@ import {
 import { ContentService } from './content.service';
 import { TemplateService } from './template.service';
 import { BrandVoiceService } from './brand-voice.service';
+import { AdLibraryService } from './ad-library.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -25,6 +26,7 @@ export class ContentController {
     private readonly contentService: ContentService,
     private readonly templateService: TemplateService,
     private readonly brandVoiceService: BrandVoiceService,
+    private readonly adLibraryService: AdLibraryService,
   ) {}
 
   // =========================================================================
@@ -75,6 +77,31 @@ export class ContentController {
     } catch (error) {
       this.logger.error('Failed to get content stats', error);
       throw new HttpException('Failed to load content stats', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // AD LIBRARY
+  // =========================================================================
+
+  @Get('content/ad-library/search')
+  async searchAdLibrary(
+    @Query('q') q: string,
+    @Query('country') country?: string,
+    @Query('limit') limitStr?: string,
+  ) {
+    if (!q || !q.trim()) {
+      return { data: [], hasMore: false, configured: true };
+    }
+    try {
+      return await this.adLibraryService.searchAds({
+        searchTerm: q.trim(),
+        country: country || 'DE',
+        limit: limitStr ? parseInt(limitStr, 10) : 20,
+      });
+    } catch (error) {
+      this.logger.error('Failed to search Ad Library', error);
+      throw new HttpException('Failed to search Ad Library', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

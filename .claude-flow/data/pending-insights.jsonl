@@ -323,3 +323,10 @@
 {"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/content/generate/page.tsx","timestamp":1775767552204,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/content/generate/page.tsx","timestamp":1775767568273,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/packages/database/prisma/migrations/add_product_name_to_content_templates.sql","timestamp":1775767600579,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/ad-library.service.ts","timestamp":1775767993174,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.controller.ts","timestamp":1775767998165,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.controller.ts","timestamp":1775767999403,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.controller.ts","timestamp":1775768008444,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.module.ts","timestamp":1775768014845,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/hooks/content/useAdLibrary.ts","timestamp":1775768024528,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/content/library/page.tsx","timestamp":1775768147380,"sessionId":null}
