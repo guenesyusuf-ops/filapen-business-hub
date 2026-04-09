@@ -448,43 +448,45 @@ export default function DashboardLayout({
   const router = useRouter();
   const { sidebarCollapsed, toggleSidebar } = useFinanceUI();
   const { theme, setTheme } = useThemeStore();
-  const { token, user, logout } = useAuthStore();
-  const [hydrated, setHydrated] = useState(false);
+  const { logout } = useAuthStore();
+
+  // Read localStorage directly — no Zustand hydration timing needed
   const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentToken, setCurrentToken] = useState<string | null>(null);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
-  // Wait for Zustand to hydrate from localStorage before checking auth.
-  // On first SSR render the persisted store is empty; the persist middleware
-  // restores values asynchronously. Without this guard the layout would
-  // redirect to /login before the token is available.
   useEffect(() => {
-    // Simple reliable hydration check: wait one tick for localStorage restore
-    const timer = setTimeout(() => setHydrated(true), 50);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Auth check: redirect to login if no token, or if user is not active
-  useEffect(() => {
-    if (!hydrated) return; // wait for store hydration
-    if (!token) {
-      router.replace('/login');
-    } else if (user && user.status !== 'active') {
-      // Non-active users (pending, rejected) get sent back to login
-      // which will show the appropriate status screen
-      router.replace('/login');
-    } else {
-      setAuthChecked(true);
+    try {
+      const stored = localStorage.getItem('filapen-auth');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const state = parsed?.state;
+        if (state?.token && state?.user) {
+          if (state.user.status !== 'active') {
+            router.replace('/login');
+            return;
+          }
+          setCurrentToken(state.token);
+          setCurrentUser(state.user);
+          setAuthChecked(true);
+          return;
+        }
+      }
+    } catch {
+      // corrupted storage — fall through to redirect
     }
-  }, [hydrated, token, user, router]);
+    // No valid auth — redirect to login
+    router.replace('/login');
+  }, [router]);
 
   // Fetch pending approval count for admin badge
   useEffect(() => {
-    if (!token || !user) return;
-    // Only fetch for admin/owner roles
-    if (user.role !== 'owner' && user.role !== 'admin') return;
+    if (!currentToken || !currentUser) return;
+    if (currentUser.role !== 'owner' && currentUser.role !== 'admin') return;
 
     fetch('/api/admin/pending-users/count', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${currentToken}` },
     })
       .then((res) => res.json())
       .then((data) => {
@@ -495,7 +497,7 @@ export default function DashboardLayout({
       .catch(() => {
         // Silently fail — badge just won't show
       });
-  }, [token, user]);
+  }, [currentToken, currentUser]);
 
   // Re-apply theme on mount (handles SSR hydration and system preference changes)
   useEffect(() => {
@@ -526,14 +528,14 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden bg-surface-secondary dark:bg-[#0f1117]">
       {/* Sidebar */}
-      <Sidebar collapsed={sidebarCollapsed} user={user} pendingApprovalCount={pendingApprovalCount} />
+      <Sidebar collapsed={sidebarCollapsed} user={currentUser} pendingApprovalCount={pendingApprovalCount} />
 
       {/* Main area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar
           onToggleSidebar={toggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
-          user={user}
+          user={currentUser}
           onLogout={handleLogout}
         />
 

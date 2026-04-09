@@ -14,10 +14,6 @@ import {
   Play,
   X,
   UserCircle,
-  Mail,
-  Copy,
-  Check,
-  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDollars, formatNumber } from '@filapen/shared/src/utils/money';
@@ -62,7 +58,8 @@ function formatFollowers(n: number): string {
 // Add Creator Modal
 // ---------------------------------------------------------------------------
 
-function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void; }) {
+  const router = useRouter();
   const createMutation = useCreateCreator();
   const [form, setForm] = useState({
     name: '',
@@ -116,7 +113,7 @@ function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void
         },
       };
       createMutation.mutate(payload, {
-        onSuccess: () => {
+        onSuccess: (newCreator: any) => {
           onClose();
           setForm({
             name: '', firstContact: '', email: '', platform: 'instagram', niche: '', status: 'prospect',
@@ -124,6 +121,10 @@ function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void
             compensation: 'Commission', commissionRate: '', fixAmount: '',
             kids: false, kidsAges: '', kidsOnVideo: false, notes: '', creatorNotes: '',
           });
+          // Navigate to the new creator's profile page
+          if (newCreator?.id) {
+            router.push(`/creators/list/${newCreator.id}`);
+          }
         },
       });
     },
@@ -322,233 +323,9 @@ function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void
 }
 
 // ---------------------------------------------------------------------------
-// Invite Creator Modal
-// ---------------------------------------------------------------------------
-
-function InviteCreatorModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const createMutation = useCreateCreator();
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    platform: 'instagram' as Creator['platform'],
-    firstContact: '',
-  });
-  const [inviteResult, setInviteResult] = useState<{ code: string; link: string; emailSent: boolean } | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      createMutation.mutate(
-        {
-          name: form.name,
-          email: form.email,
-          platform: form.platform,
-          firstContact: form.firstContact || undefined,
-          status: 'prospect' as const,
-        } as any,
-        {
-          onSuccess: (creator: any) => {
-            const code = creator.inviteCode || '';
-            const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-            const link = `${baseUrl}/creator-portal?code=${code}`;
-            setInviteResult({ code, link, emailSent: !!creator.emailSent });
-          },
-        },
-      );
-    },
-    [createMutation, form],
-  );
-
-  const handleCopyLink = useCallback(() => {
-    if (!inviteResult) return;
-    navigator.clipboard.writeText(inviteResult.link);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
-  }, [inviteResult]);
-
-  const handleClose = useCallback(() => {
-    setForm({ name: '', email: '', platform: 'instagram', firstContact: '' });
-    setInviteResult(null as any);
-    setCopiedLink(false);
-    onClose();
-  }, [onClose]);
-
-  if (!open) return null;
-
-  const inputCls = 'w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500';
-  const labelCls = 'block text-xs font-medium text-gray-700 mb-1';
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={handleClose} />
-      <div className="relative bg-white rounded-xl shadow-dropdown w-full max-w-md mx-4 animate-slide-up">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-purple-600" />
-            <h2 className="text-base font-semibold text-gray-900">Invite Creator</h2>
-          </div>
-          <button onClick={handleClose} className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-surface-secondary">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {!inviteResult ? (
-          <form onSubmit={handleSubmit} className="p-5 space-y-4">
-            <div>
-              <label className={labelCls}>Creator Name *</label>
-              <input
-                type="text"
-                required
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className={inputCls}
-                placeholder="e.g. Anna Schmidt"
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Email *</label>
-              <input
-                type="email"
-                required
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className={inputCls}
-                placeholder="creator@email.com"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Platform</label>
-                <select
-                  value={form.platform}
-                  onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value as Creator['platform'] }))}
-                  className={inputCls}
-                >
-                  <option value="instagram">Instagram</option>
-                  <option value="tiktok">TikTok</option>
-                  <option value="youtube">YouTube</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>Erstkontakt</label>
-                <select
-                  value={form.firstContact}
-                  onChange={(e) => setForm((f) => ({ ...f, firstContact: e.target.value }))}
-                  className={inputCls}
-                >
-                  <option value="">Bitte ausw&auml;hlen</option>
-                  <option value="Email">Email</option>
-                  <option value="Meta Ads">Meta Ads</option>
-                  <option value="Empfehlung">Empfehlung</option>
-                  <option value="Sonstige">Sonstige</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-surface-secondary transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={createMutation.isPending}
-                className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors disabled:opacity-50"
-              >
-                {createMutation.isPending ? 'Sending...' : 'Send Invite'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="p-5 space-y-4">
-            <div className="text-center">
-              <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-3">
-                {inviteResult.emailSent ? (
-                  <Mail className="h-6 w-6 text-green-600" />
-                ) : (
-                  <Check className="h-6 w-6 text-green-600" />
-                )}
-              </div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                {inviteResult.emailSent ? 'Invite Email Sent!' : 'Creator Invited!'}
-              </h3>
-              <p className="text-xs text-gray-500">
-                {inviteResult.emailSent
-                  ? 'An email has been sent to the creator with portal access.'
-                  : 'Share this link with the creator to give them portal access.'}
-              </p>
-            </div>
-
-            {inviteResult.emailSent && (
-              <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-xs text-green-700 text-center">
-                Email sent successfully. The link below can also be shared manually.
-              </div>
-            )}
-
-            {!inviteResult.emailSent && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700 text-center">
-                Email not configured. Copy the link below and share it manually.
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Invite Code</label>
-              <code className="block rounded-lg bg-purple-50 px-3 py-2 text-sm font-mono font-bold text-purple-700 tracking-widest text-center">
-                {inviteResult.code}
-              </code>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Invite Link</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={inviteResult.link}
-                  readOnly
-                  className="flex-1 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs font-mono text-gray-700"
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                />
-                <button
-                  onClick={handleCopyLink}
-                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
-                >
-                  {copiedLink ? (
-                    <>
-                      <Check className="h-3.5 w-3.5" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy Link
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={handleClose}
-                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
+// InviteCreatorModal removed — invite functionality moved to creator detail page
 
 function CreatorListPageInner() {
   const router = useRouter();
@@ -562,7 +339,6 @@ function CreatorListPageInner() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(searchParams.get('action') === 'add');
-  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const params: CreatorsListParams = useMemo(
     () => ({ search, status, niche, platform, sortBy, sortOrder, page, pageSize: 25 }),
@@ -606,13 +382,6 @@ function CreatorListPageInner() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
-          >
-            <Mail className="h-3.5 w-3.5" />
-            Invite Creator
-          </button>
           <button
             onClick={() => setShowAddModal(true)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-accent-creator px-3 py-2 text-sm font-medium text-white hover:bg-accent-creator-dark transition-colors"
@@ -889,9 +658,6 @@ function CreatorListPageInner() {
 
       {/* Add Creator Modal */}
       <AddCreatorModal open={showAddModal} onClose={() => setShowAddModal(false)} />
-
-      {/* Invite Creator Modal */}
-      <InviteCreatorModal open={showInviteModal} onClose={() => setShowInviteModal(false)} />
     </div>
   );
 }

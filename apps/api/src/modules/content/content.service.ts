@@ -276,6 +276,8 @@ export class ContentService {
   // -----------------------------------------------------------------------
 
   async generate(orgId: string, data: GenerateContentDto) {
+    this.logger.log(`Generating content: AI=${!!this.aiGenerator}, type=${data.type}, language=${data.language || 'Deutsch'}`);
+
     // Try AI generation first (returns null if no API key or on error)
     const aiResult = await this.aiGenerator.generate({
       language: data.language || 'Deutsch',
@@ -425,12 +427,40 @@ export class ContentService {
 
   private generateWithTemplates(data: GenerateContentDto) {
     const count = Math.min(Math.max(data.count || 3, 1), 10);
-    const type = data.type || 'headline';
-
+    const primaryType = data.type || 'headline';
     const context = PromptEngine.buildContext(data);
-    const result = PromptEngine.generateAll(context, type, count);
 
-    const items = result.items.map((item) => ({
+    // Generate the primary type
+    const primaryResult = PromptEngine.generateAll(context, primaryType, count);
+
+    // Also generate all other content types so users get a complete set
+    const allTypes = ['headline', 'primary_text', 'cta', 'hook'];
+    const additionalItems: any[] = [];
+
+    for (const t of allTypes) {
+      if (t === primaryType) continue; // skip the primary type, already generated
+      try {
+        const extra = PromptEngine.generateAll(context, t, t === 'headline' ? 5 : t === 'cta' ? 5 : 3);
+        for (const item of extra.items) {
+          additionalItems.push({
+            type: item.type,
+            title: item.title,
+            body: item.body,
+            framework: item.framework,
+            platform: item.platform,
+            tone: item.tone,
+            wordCount: item.wordCount,
+            charCount: item.charCount,
+            aiGenerated: true,
+            aiModel: 'filapen-v2',
+          });
+        }
+      } catch {
+        // If a type fails, continue with others
+      }
+    }
+
+    const primaryItems = primaryResult.items.map((item) => ({
       type: item.type,
       title: item.title,
       body: item.body,
@@ -443,10 +473,15 @@ export class ContentService {
       aiModel: 'filapen-v2',
     }));
 
+    const allItems = [...primaryItems, ...additionalItems];
+
     return {
-      items,
-      angles: result.angles,
-      meta: result.meta,
+      items: allItems,
+      angles: primaryResult.angles,
+      meta: {
+        ...primaryResult.meta,
+        totalGenerated: allItems.length,
+      },
     };
   }
 

@@ -278,6 +278,22 @@ const MOCK_STATS: CreatorStats = {
 
 const API_BASE = '/api';
 
+function getStoredToken(): string | null {
+  try {
+    const stored = localStorage.getItem('filapen-auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed?.state?.token || null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function fetchApi<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(path, window.location.origin);
   if (params) {
@@ -285,7 +301,7 @@ async function fetchApi<T>(path: string, params?: Record<string, string>): Promi
       if (v) url.searchParams.set(k, v);
     });
   }
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: authHeaders() });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
@@ -295,7 +311,7 @@ async function fetchApi<T>(path: string, params?: Record<string, string>): Promi
 async function postApi<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -305,7 +321,7 @@ async function postApi<T>(path: string, body: unknown): Promise<T> {
 async function putApi<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -337,12 +353,15 @@ export function useCreators(params: CreatorsListParams = {}) {
         // Also normalize followerCount -> followers
         const items = (raw.items ?? raw.data ?? []).map((c: any) => ({
           ...c,
+          handle: c.handle || `@${(c.name || '').toLowerCase().replace(/\s+/g, '')}`,
           followers: c.followers ?? c.followerCount ?? 0,
           engagementRate: c.engagementRate ?? 0,
           avgEngagement: c.avgEngagement ?? c.engagementRate ?? 0,
           score: c.score ?? 0,
           totalDeals: c.totalDeals ?? 0,
           totalSpend: c.totalSpend ?? 0,
+          tags: c.tags ?? [],
+          niche: c.niche || '',
         }));
         return {
           data: items,
@@ -409,12 +428,15 @@ export function useCreator(id: string | undefined) {
         // Normalize followerCount -> followers
         return {
           ...raw,
+          handle: raw.handle || `@${(raw.name || '').toLowerCase().replace(/\s+/g, '')}`,
           followers: raw.followers ?? raw.followerCount ?? 0,
           engagementRate: raw.engagementRate ?? 0,
           avgEngagement: raw.avgEngagement ?? raw.engagementRate ?? 0,
           score: raw.score ?? 0,
           totalDeals: raw.totalDeals ?? 0,
           totalSpend: raw.totalSpend ?? 0,
+          tags: raw.tags ?? [],
+          niche: raw.niche || '',
         } as Creator;
       } catch {
         const creator = MOCK_CREATORS.find((c) => c.id === id);
