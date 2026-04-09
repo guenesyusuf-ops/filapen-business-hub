@@ -12,7 +12,7 @@ import { HealthController } from './health.controller';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['../../.env', '.env'],
+      envFilePath: process.env.NODE_ENV === 'production' ? [] : ['../../.env', '.env'],
     }),
 
     PrismaModule,

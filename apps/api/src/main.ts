@@ -51,7 +51,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const port = config.get<number>('PORT', 4000);
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   logger.log(`Filapen API running on http://localhost:${port}`);
   logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
