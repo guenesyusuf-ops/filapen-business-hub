@@ -502,9 +502,18 @@ export function useDeleteCreator() {
     mutationFn: async (id: string) => {
       const res = await fetch(`${API_BASE}/creators/${id}`, {
         method: 'DELETE',
-        headers: authHeaders(),
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
       });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+      // Handle both JSON and empty responses (200 with body or 204 no content)
+      if (res.status === 204 || res.headers.get('content-length') === '0') {
+        return true;
+      }
+      try {
+        await res.json();
+      } catch {
+        // Response is not JSON — that's fine, delete succeeded
+      }
       return true;
     },
     onSuccess: () => {

@@ -413,17 +413,17 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
           </div>
         </Link>
         <Link
-          href="/creator-portal/chat"
+          href="/creator-portal/briefings"
           className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Chat with Admin</h3>
+              <h3 className="text-sm font-semibold text-gray-900">Briefings</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Message your team manager
+                View your briefings
               </p>
             </div>
-            <MessageCircle className="h-4 w-4 text-gray-400 group-hover:text-violet-600 transition-colors" />
+            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-violet-600 transition-colors" />
           </div>
         </Link>
       </div>

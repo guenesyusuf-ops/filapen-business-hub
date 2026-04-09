@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { ChatWidget } from '@/components/creators/ChatWidget';
 
 interface PortalCreator {
   id: string;
@@ -137,11 +138,6 @@ export default function CreatorPortalLayout({
               active={pathname === '/creator-portal/briefings'}
             />
             <NavTab
-              href="/creator-portal/chat"
-              label="Chat"
-              active={pathname === '/creator-portal/chat'}
-            />
-            <NavTab
               href="/creator-portal/profile"
               label="Profile"
               active={pathname === '/creator-portal/profile'}
@@ -151,6 +147,15 @@ export default function CreatorPortalLayout({
       )}
 
       <main className="max-w-6xl mx-auto p-6">{children}</main>
+
+      {/* Floating Chat Widget — visible on all portal pages */}
+      {isLoggedIn && creator && (
+        <ChatWidget
+          creatorId={creator.id}
+          creatorName={creator.name}
+          role="creator"
+        />
+      )}
     </div>
   );
 }
