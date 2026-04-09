@@ -49,7 +49,7 @@ export class ShopifyService {
     });
 
     const scopes = 'read_orders,read_products,read_inventory';
-    const redirectUri = `${apiUrl}/auth/shopify/callback`;
+    const redirectUri = `${apiUrl}/api/auth/shopify/callback`;
 
     const params = new URLSearchParams({
       client_id: clientId,
