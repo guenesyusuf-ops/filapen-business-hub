@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { PromptEngine } from './prompt-engine';
+import { AiGeneratorService } from './ai-generator.service';
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -62,6 +63,15 @@ export interface GenerateContentDto {
   marketInsights?: string;
   brandVoiceId?: string;
   count?: number;
+  useEmojis?: boolean;
+  headlineRequirements?: string;
+  primaryTextRequirements?: string;
+  linkDescriptionRequirements?: string;
+  ctaRequirements?: string;
+  headlineCount?: number;
+  primaryTextCount?: number;
+  linkDescriptionCount?: number;
+  ctaCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +82,10 @@ export interface GenerateContentDto {
 export class ContentService {
   private readonly logger = new Logger(ContentService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiGenerator: AiGeneratorService,
+  ) {}
 
   async list(orgId: string, params: ListContentParams) {
     const {
@@ -259,18 +272,164 @@ export class ContentService {
   }
 
   // -----------------------------------------------------------------------
-  // Elite AI Generation (sophisticated template engine, no external API)
-  // Uses proven copywriting frameworks: AIDA, PAS, BAB, Story, 4P
+  // AI Generation — Claude API first, template engine fallback
   // -----------------------------------------------------------------------
 
   async generate(orgId: string, data: GenerateContentDto) {
+    // Try AI generation first (returns null if no API key or on error)
+    const aiResult = await this.aiGenerator.generate({
+      language: data.language || 'Deutsch',
+      useEmojis: data.useEmojis || false,
+      productName: data.product,
+      productDescription: data.productDescription,
+      keyBenefits: data.keyBenefits,
+      usps: data.usps,
+      pricePoint: data.pricePoint,
+      targetPersona: data.targetPersona || data.audience,
+      painPoints: data.painPoints,
+      desires: data.desiresGoals,
+      awarenessLevel: data.awarenessLevel,
+      funnelStage: data.funnelStage,
+      competitorNames: data.competitorNames,
+      keyDifferentiators: data.keyDifferentiators,
+      marketInsights: data.marketInsights,
+      adAngle: data.angle,
+      emotionalTrigger: data.emotionalTrigger,
+      tone: data.tone,
+      headlineRequirements: data.headlineRequirements,
+      primaryTextRequirements: data.primaryTextRequirements,
+      linkDescriptionRequirements: data.linkDescriptionRequirements,
+      ctaRequirements: data.ctaRequirements,
+      headlineCount: data.headlineCount || data.count || 5,
+      primaryTextCount: data.primaryTextCount || 3,
+      linkDescriptionCount: data.linkDescriptionCount || 3,
+      ctaCount: data.ctaCount || 5,
+      bestPerformingHook: data.bestPerformingHook,
+      topCompetitorAdCopy: data.topCompetitorAdCopy,
+    });
+
+    if (aiResult) {
+      return this.formatAiResult(aiResult, data);
+    }
+
+    // Fallback to template engine
+    return this.generateWithTemplates(data);
+  }
+
+  private formatAiResult(aiResult: import('./ai-generator.service').AiGenerateResult, data: GenerateContentDto) {
+    const items: any[] = [];
+    const type = data.type || 'headline';
+
+    // Headlines
+    for (const h of aiResult.headlines) {
+      items.push({
+        type: 'headline',
+        title: h.length > 60 ? h.slice(0, 57) + '...' : h,
+        body: h,
+        framework: data.angle || 'AI',
+        platform: 'meta',
+        tone: data.tone || 'Professional',
+        wordCount: h.split(/\s+/).length,
+        charCount: h.length,
+        aiGenerated: true,
+        aiModel: aiResult.aiModel,
+      });
+    }
+
+    // Primary Texts
+    for (const t of aiResult.primaryTexts) {
+      items.push({
+        type: 'primary_text',
+        title: t.length > 60 ? t.slice(0, 57) + '...' : t,
+        body: t,
+        framework: data.angle || 'AI',
+        platform: 'meta',
+        tone: data.tone || 'Professional',
+        wordCount: t.split(/\s+/).length,
+        charCount: t.length,
+        aiGenerated: true,
+        aiModel: aiResult.aiModel,
+      });
+    }
+
+    // Link Descriptions
+    for (const ld of aiResult.linkDescriptions) {
+      items.push({
+        type: 'brief',
+        title: 'Link Description',
+        body: ld,
+        framework: 'benefit_led',
+        platform: 'meta',
+        tone: data.tone || 'Professional',
+        wordCount: ld.split(/\s+/).length,
+        charCount: ld.length,
+        aiGenerated: true,
+        aiModel: aiResult.aiModel,
+      });
+    }
+
+    // CTAs
+    for (const cta of aiResult.ctas) {
+      items.push({
+        type: 'cta',
+        title: cta,
+        body: cta,
+        framework: 'command',
+        platform: 'meta',
+        tone: data.tone || 'Professional',
+        wordCount: cta.split(/\s+/).length,
+        charCount: cta.length,
+        aiGenerated: true,
+        aiModel: aiResult.aiModel,
+      });
+    }
+
+    // Hooks
+    for (const hook of aiResult.hooks) {
+      items.push({
+        type: 'hook',
+        title: hook.length > 60 ? hook.slice(0, 57) + '...' : hook,
+        body: hook,
+        framework: 'pattern_interrupt',
+        platform: 'meta',
+        tone: data.tone || 'Professional',
+        wordCount: hook.split(/\s+/).length,
+        charCount: hook.length,
+        aiGenerated: true,
+        aiModel: aiResult.aiModel,
+      });
+    }
+
+    // Map AI angles to the expected shape
+    const angles = aiResult.angles.map((a) => ({
+      name: a.name,
+      description: a.description,
+      emotion: a.emotion,
+      bestFor: type,
+      example: a.example,
+    }));
+
+    const frameworks = [...new Set(items.map((i) => i.framework))];
+
+    return {
+      items,
+      angles,
+      meta: {
+        totalGenerated: items.length,
+        frameworks,
+        language: data.language || 'Deutsch',
+        aiPowered: true,
+      },
+    };
+  }
+
+  private generateWithTemplates(data: GenerateContentDto) {
     const count = Math.min(Math.max(data.count || 3, 1), 10);
     const type = data.type || 'headline';
 
     const context = PromptEngine.buildContext(data);
     const result = PromptEngine.generateAll(context, type, count);
 
-    // Map to the response shape expected by the frontend
     const items = result.items.map((item) => ({
       type: item.type,
       title: item.title,

@@ -247,6 +247,15 @@ export default function GenerateContentPage() {
     marketInsights: '',
     brandVoiceId: '',
     count: 5,
+    useEmojis: false,
+    headlineRequirements: '',
+    primaryTextRequirements: '',
+    linkDescriptionRequirements: '',
+    ctaRequirements: '',
+    headlineCount: 5,
+    primaryTextCount: 3,
+    linkDescriptionCount: 3,
+    ctaCount: 5,
   });
 
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
@@ -277,6 +286,15 @@ export default function GenerateContentPage() {
       marketInsights: formState.marketInsights || undefined,
       brandVoiceId: formState.brandVoiceId || undefined,
       count: formState.count,
+      useEmojis: formState.useEmojis,
+      headlineRequirements: formState.headlineRequirements || undefined,
+      primaryTextRequirements: formState.primaryTextRequirements || undefined,
+      linkDescriptionRequirements: formState.linkDescriptionRequirements || undefined,
+      ctaRequirements: formState.ctaRequirements || undefined,
+      headlineCount: formState.headlineCount,
+      primaryTextCount: formState.primaryTextCount,
+      linkDescriptionCount: formState.linkDescriptionCount,
+      ctaCount: formState.ctaCount,
     });
   }, [formState, generateMutation]);
 
@@ -289,7 +307,7 @@ export default function GenerateContentPage() {
           title: variant.title,
           body: variant.body,
           aiGenerated: true,
-          aiModel: 'filapen-v2',
+          aiModel: variant.aiModel || 'filapen-v2',
           brandVoiceId: formState.brandVoiceId || undefined,
           status: 'draft',
         } as any);
@@ -689,6 +707,142 @@ export default function GenerateContentPage() {
                 </select>
               </div>
 
+              {/* --- AI Requirements --- */}
+              <div className="pt-2 border-t border-border">
+                <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">AI Requirements</p>
+              </div>
+
+              {/* Emoji Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600">Emojis verwenden?</label>
+                  <p className="text-xxs text-gray-400 mt-0.5">KI verwendet passende Emojis im Text</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormState((s) => ({ ...s, useEmojis: !s.useEmojis }))}
+                  className={cn(
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                    formState.useEmojis ? 'bg-accent-content' : 'bg-gray-200',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'inline-block h-4 w-4 rounded-full bg-white transition-transform',
+                      formState.useEmojis ? 'translate-x-6' : 'translate-x-1',
+                    )}
+                  />
+                </button>
+              </div>
+
+              {/* Headline Requirements */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Anforderungen - Headline
+                </label>
+                <textarea
+                  value={formState.headlineRequirements}
+                  onChange={(e) => setFormState((s) => ({ ...s, headlineRequirements: e.target.value }))}
+                  rows={2}
+                  placeholder="z.B. Max. 40 Zeichen, Frage als Hook, Zahl einbauen..."
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                />
+              </div>
+
+              {/* Primary Text Requirements */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Anforderungen - Primartext
+                </label>
+                <textarea
+                  value={formState.primaryTextRequirements}
+                  onChange={(e) => setFormState((s) => ({ ...s, primaryTextRequirements: e.target.value }))}
+                  rows={2}
+                  placeholder="z.B. Max. 500 Zeichen, PAS-Struktur, mit Social Proof..."
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                />
+              </div>
+
+              {/* Link Description Requirements */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Anforderungen - Linkbeschreibung
+                </label>
+                <textarea
+                  value={formState.linkDescriptionRequirements}
+                  onChange={(e) => setFormState((s) => ({ ...s, linkDescriptionRequirements: e.target.value }))}
+                  rows={2}
+                  placeholder="z.B. Neugierig machen, max. 30 Zeichen, Benefit betonen..."
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                />
+              </div>
+
+              {/* CTA Requirements */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Anforderungen - CTA
+                </label>
+                <textarea
+                  value={formState.ctaRequirements}
+                  onChange={(e) => setFormState((s) => ({ ...s, ctaRequirements: e.target.value }))}
+                  rows={2}
+                  placeholder="z.B. Zielgerichtet, NICHT 'Klick hier', Urgency einbauen..."
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                />
+              </div>
+
+              {/* Count Selectors */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Anzahl Headlines</label>
+                  <select
+                    value={formState.headlineCount}
+                    onChange={(e) => setFormState((s) => ({ ...s, headlineCount: parseInt(e.target.value) }))}
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  >
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Anzahl Primartexte</label>
+                  <select
+                    value={formState.primaryTextCount}
+                    onChange={(e) => setFormState((s) => ({ ...s, primaryTextCount: parseInt(e.target.value) }))}
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  >
+                    {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Anzahl Linkbeschreibungen</label>
+                  <select
+                    value={formState.linkDescriptionCount}
+                    onChange={(e) => setFormState((s) => ({ ...s, linkDescriptionCount: parseInt(e.target.value) }))}
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  >
+                    {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Anzahl CTAs</label>
+                  <select
+                    value={formState.ctaCount}
+                    onChange={(e) => setFormState((s) => ({ ...s, ctaCount: parseInt(e.target.value) }))}
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  >
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               {/* --- Performance Data (optional) --- */}
               <div className="pt-2 border-t border-border">
                 <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">Performance Data (optional)</p>
@@ -768,12 +922,12 @@ export default function GenerateContentPage() {
                 {generateMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating elite content...
+                    Claude AI generiert...
                   </>
                 ) : (
                   <>
-                    <Wand2 className="h-4 w-4" />
-                    Generate Content
+                    <Sparkles className="h-4 w-4" />
+                    Mit KI generieren
                   </>
                 )}
               </button>
@@ -805,10 +959,10 @@ export default function GenerateContentPage() {
                 <Wand2 className="h-8 w-8 text-accent-content" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Generating elite content...
+                Generating with Claude AI...
               </h3>
               <p className="text-sm text-gray-500">
-                Crafting {formState.count} variant{formState.count > 1 ? 's' : ''} using proven copywriting frameworks.
+                Performance Copywriter erstellt {formState.headlineCount} Headlines, {formState.primaryTextCount} Primartexte, {formState.ctaCount} CTAs...
               </p>
             </div>
           )}

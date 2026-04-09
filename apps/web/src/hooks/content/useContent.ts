@@ -80,6 +80,15 @@ export interface GenerateContentDto {
   marketInsights?: string;
   brandVoiceId?: string;
   count?: number;
+  useEmojis?: boolean;
+  headlineRequirements?: string;
+  primaryTextRequirements?: string;
+  linkDescriptionRequirements?: string;
+  ctaRequirements?: string;
+  headlineCount?: number;
+  primaryTextCount?: number;
+  linkDescriptionCount?: number;
+  ctaCount?: number;
 }
 
 export interface GeneratedItem {
