@@ -495,3 +495,20 @@ export function useUpdateCreator() {
     },
   });
 }
+
+export function useDeleteCreator() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API_BASE}/creators/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creators'] });
+    },
+  });
+}

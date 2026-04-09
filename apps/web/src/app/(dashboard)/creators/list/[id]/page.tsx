@@ -28,10 +28,11 @@ import {
   Loader2,
   MailPlus,
   MessageCircle,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDollars, formatNumber } from '@filapen/shared/src/utils/money';
-import { useCreator, useUpdateCreator, useResendInvite } from '@/hooks/creators/useCreators';
+import { useCreator, useUpdateCreator, useResendInvite, useDeleteCreator } from '@/hooks/creators/useCreators';
 import { useDeals, DEAL_STAGE_LABELS, DEAL_STAGE_COLORS } from '@/hooks/creators/useDeals';
 import type { DealStage } from '@/hooks/creators/useDeals';
 import {
@@ -135,8 +136,10 @@ export default function CreatorDetailPage() {
   const { data: deals } = useDeals({ creatorId: id });
   const updateMutation = useUpdateCreator();
   const resendMutation = useResendInvite();
+  const deleteMutation = useDeleteCreator();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'uploads' | 'deals' | 'chat' | 'activity'>('overview');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
@@ -324,7 +327,49 @@ export default function CreatorDetailPage() {
               <Handshake className="h-3.5 w-3.5" />
               Create Deal
             </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
           </div>
+
+          {/* Delete Confirmation */}
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setShowDeleteConfirm(false)} />
+              <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 animate-scale-in">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <h3 className="text-center text-lg font-semibold text-gray-900">Delete Creator?</h3>
+                <p className="text-center text-sm text-gray-500 mt-2">
+                  This will permanently delete <strong>{creator.name}</strong> and revoke their portal access. All deals, uploads, and chat history will also be removed.
+                </p>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteMutation.mutate(creator.id, {
+                        onSuccess: () => router.push('/creators/list'),
+                      });
+                    }}
+                    disabled={deleteMutation.isPending}
+                    className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {deleteMutation.isPending ? 'Deleting...' : 'Delete Creator'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
