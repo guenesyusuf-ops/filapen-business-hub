@@ -330,3 +330,5 @@
 {"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.module.ts","timestamp":1775768014845,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/hooks/content/useAdLibrary.ts","timestamp":1775768024528,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/content/library/page.tsx","timestamp":1775768147380,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/ai-generator.service.ts","timestamp":1775770777481,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/content.service.ts","timestamp":1775770787676,"sessionId":null}

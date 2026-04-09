@@ -333,9 +333,11 @@ export class ContentService {
     });
 
     if (aiResult) {
+      this.logger.log('AI generation SUCCESS — using Claude output');
       return this.formatAiResult(aiResult, data);
     }
 
+    this.logger.warn('AI generation returned null — using template engine fallback');
     // Fallback to template engine
     return this.generateWithTemplates(data);
   }
