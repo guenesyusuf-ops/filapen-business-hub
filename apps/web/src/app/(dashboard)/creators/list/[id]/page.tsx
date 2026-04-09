@@ -27,6 +27,11 @@ import {
   Loader2,
   MailPlus,
   Trash2,
+  Radio,
+  Power,
+  Calendar,
+  X,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDollars, formatNumber } from '@filapen/shared/src/utils/money';
@@ -36,6 +41,8 @@ import type { DealStage } from '@/hooks/creators/useDeals';
 import {
   useCreatorUploads,
   useDeleteUpload,
+  useGoLiveUpload,
+  useGoOfflineUpload,
   UPLOAD_TABS,
   UPLOAD_TAB_LABELS,
 } from '@/hooks/creators/useUploads';
@@ -148,6 +155,15 @@ export default function CreatorDetailPage() {
 
   const { data: uploads } = useCreatorUploads(id, uploadTab);
   const deleteUpload = useDeleteUpload();
+  const goLiveMutation = useGoLiveUpload();
+  const goOfflineMutation = useGoOfflineUpload();
+
+  const [goLiveUploadId, setGoLiveUploadId] = useState<string | null>(null);
+  const [goLiveDate, setGoLiveDate] = useState('');
+  const [showAddContract, setShowAddContract] = useState(false);
+  const [contractName, setContractName] = useState('');
+  const [contractUrl, setContractUrl] = useState('');
+  const [deleteUploadConfirm, setDeleteUploadConfirm] = useState<string | null>(null);
 
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
@@ -182,6 +198,58 @@ export default function CreatorDetailPage() {
     updateMutation.mutate({ id: creator.id, data: { notes } });
     setEditingNotes(false);
   }, [creator, notes, updateMutation]);
+
+  const handleGoLive = useCallback(() => {
+    if (!goLiveUploadId || !goLiveDate) return;
+    goLiveMutation.mutate(
+      { uploadId: goLiveUploadId, liveDate: goLiveDate },
+      {
+        onSuccess: () => {
+          setGoLiveUploadId(null);
+          setGoLiveDate('');
+        },
+      },
+    );
+  }, [goLiveUploadId, goLiveDate, goLiveMutation]);
+
+  const handleGoOffline = useCallback((uploadId: string) => {
+    if (confirm('Content offline setzen?')) {
+      goOfflineMutation.mutate(uploadId);
+    }
+  }, [goOfflineMutation]);
+
+  const handleConfirmDeleteUpload = useCallback(() => {
+    if (!deleteUploadConfirm) return;
+    deleteUpload.mutate(deleteUploadConfirm);
+    setDeleteUploadConfirm(null);
+    setLightboxUpload(null);
+  }, [deleteUploadConfirm, deleteUpload]);
+
+  const handleAddContract = useCallback(() => {
+    if (!creator || !contractName) return;
+    const existing = Array.isArray(creator.contracts) ? creator.contracts : [];
+    const newContracts = [
+      ...existing,
+      { name: contractName, url: contractUrl || '', uploadedAt: new Date().toISOString() },
+    ];
+    updateMutation.mutate(
+      { id: creator.id, data: { contracts: newContracts } as any },
+      {
+        onSuccess: () => {
+          setContractName('');
+          setContractUrl('');
+          setShowAddContract(false);
+        },
+      },
+    );
+  }, [creator, contractName, contractUrl, updateMutation]);
+
+  const handleDeleteContract = useCallback((index: number) => {
+    if (!creator) return;
+    const existing = Array.isArray(creator.contracts) ? [...creator.contracts] : [];
+    existing.splice(index, 1);
+    updateMutation.mutate({ id: creator.id, data: { contracts: existing } as any });
+  }, [creator, updateMutation]);
 
   if (isLoading) return <DetailSkeleton />;
   if (!creator) {
@@ -510,31 +578,110 @@ export default function CreatorDetailPage() {
         </div>
       </div>
 
-      {/* Contracts */}
-      {creator.contracts && Array.isArray(creator.contracts) && creator.contracts.length > 0 && (
-        <div className="rounded-xl bg-white p-5 shadow-card">
-          <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-3 flex items-center gap-1.5">
+      {/* Contracts / Vertrage */}
+      <div className="rounded-xl bg-white p-5 shadow-card">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
             <FileText className="h-3 w-3" />
-            Contracts
+            Vertr&auml;ge
           </h3>
+          <button
+            onClick={() => setShowAddContract(true)}
+            className="inline-flex items-center gap-1 text-xs text-accent-creator hover:underline"
+          >
+            <Plus className="h-3 w-3" />
+            Vertrag hinzuf&uuml;gen
+          </button>
+        </div>
+        {creator.contracts && Array.isArray(creator.contracts) && creator.contracts.length > 0 ? (
           <div className="space-y-2">
             {(creator.contracts as any[]).map((contract: any, i: number) => (
-              <a
+              <div
                 key={i}
-                href={contract.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-lg border border-gray-100 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 rounded-lg border border-gray-100 px-3 py-2 text-sm text-gray-700"
               >
-                <FileText className="h-3.5 w-3.5 text-gray-400" />
-                <span className="flex-1">{contract.name || 'Contract'}</span>
+                <FileText className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                {contract.url ? (
+                  <a
+                    href={contract.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 hover:text-accent-creator hover:underline truncate"
+                  >
+                    {contract.name || 'Vertrag'}
+                  </a>
+                ) : (
+                  <span className="flex-1 truncate">{contract.name || 'Vertrag'}</span>
+                )}
                 {contract.uploadedAt && (
-                  <span className="text-xs text-gray-400">
-                    {new Date(contract.uploadedAt).toLocaleDateString()}
+                  <span className="text-xs text-gray-400 shrink-0">
+                    {new Date(contract.uploadedAt).toLocaleDateString('de-DE')}
                   </span>
                 )}
-              </a>
+                <button
+                  onClick={() => {
+                    if (confirm('Vertrag entfernen?')) handleDeleteContract(i);
+                  }}
+                  className="shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
             ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">Keine Vertr&auml;ge vorhanden</p>
+        )}
+      </div>
+
+      {/* Add Contract Modal */}
+      {showAddContract && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowAddContract(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 animate-scale-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-gray-900">Vertrag hinzuf&uuml;gen</h3>
+              <button onClick={() => setShowAddContract(false)} className="p-1 rounded-md text-gray-400 hover:text-gray-600">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={contractName}
+                  onChange={(e) => setContractName(e.target.value)}
+                  placeholder="z.B. Rahmenvertrag 2026"
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-creator/30 focus:border-accent-creator"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">URL / Referenz (optional)</label>
+                <input
+                  type="text"
+                  value={contractUrl}
+                  onChange={(e) => setContractUrl(e.target.value)}
+                  placeholder="https://... oder Dateiname"
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-creator/30 focus:border-accent-creator"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setShowAddContract(false)}
+                className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleAddContract}
+                disabled={!contractName || updateMutation.isPending}
+                className="flex-1 rounded-lg bg-accent-creator px-4 py-2 text-sm font-medium text-white hover:bg-accent-creator-dark disabled:opacity-50 transition-colors"
+              >
+                {updateMutation.isPending ? 'Speichern...' : 'Speichern'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -696,42 +843,82 @@ export default function CreatorDetailPage() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {uploads.map((upload) => (
-                    <button
+                    <div
                       key={upload.id}
-                      onClick={() => setLightboxUpload(upload)}
                       className="group relative aspect-square rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-gray-50"
                     >
-                      {upload.fileType === 'image' ? (
-                        <img
-                          src={upload.fileUrl}
-                          alt={upload.fileName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : upload.fileType === 'video' ? (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                          <Play className="h-8 w-8 text-white opacity-75" />
-                        </div>
-                      ) : upload.fileType === 'link' ? (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Link2 className="h-8 w-8 text-gray-400" />
-                        </div>
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <FileText className="h-8 w-8 text-gray-400" />
-                        </div>
-                      )}
-                      {/* Overlay */}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <p className="text-xs text-white truncate">{upload.fileName}</p>
+                      <button
+                        onClick={() => setLightboxUpload(upload)}
+                        className="w-full h-full"
+                      >
+                        {upload.fileType === 'image' ? (
+                          <img
+                            src={upload.fileUrl}
+                            alt={upload.fileName}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : upload.fileType === 'video' ? (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                            <Play className="h-8 w-8 text-white opacity-75" />
+                          </div>
+                        ) : upload.fileType === 'link' ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Link2 className="h-8 w-8 text-gray-400" />
+                          </div>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <FileText className="h-8 w-8 text-gray-400" />
+                          </div>
+                        )}
+                      </button>
+                      {/* Overlay with info */}
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <p className="text-xs text-white truncate">{upload.label || upload.fileName}</p>
                         {upload.commentCount > 0 && (
                           <span className="text-[10px] text-white/80">{upload.commentCount} comments</span>
                         )}
                       </div>
+                      {/* Live badge */}
+                      {upload.liveStatus === 'live' && (
+                        <div className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-green-500 px-1.5 py-0.5">
+                          <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                          <span className="text-[9px] font-bold text-white">LIVE</span>
+                        </div>
+                      )}
                       {/* Unseen badge */}
                       {!upload.seenByAdmin && (
                         <div className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-purple-500" />
                       )}
-                    </button>
+                      {/* Action buttons (visible on hover) */}
+                      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {upload.liveStatus === 'live' ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleGoOffline(upload.id); }}
+                            className="flex items-center gap-0.5 rounded-md bg-red-500 px-1.5 py-1 text-[9px] font-medium text-white shadow-sm hover:bg-red-600 transition-colors"
+                            title="Offline setzen"
+                          >
+                            <Power className="h-2.5 w-2.5" />
+                            Offline
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setGoLiveUploadId(upload.id); }}
+                            className="flex items-center gap-0.5 rounded-md bg-green-500 px-1.5 py-1 text-[9px] font-medium text-white shadow-sm hover:bg-green-600 transition-colors"
+                            title="Go Live"
+                          >
+                            <Radio className="h-2.5 w-2.5" />
+                            Live
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteUploadConfirm(upload.id); }}
+                          className="flex items-center justify-center rounded-md bg-red-500 p-1 text-white shadow-sm hover:bg-red-600 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -806,6 +993,77 @@ export default function CreatorDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Go Live Date Picker Modal */}
+      {goLiveUploadId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setGoLiveUploadId(null); setGoLiveDate(''); }} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 animate-scale-in">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mx-auto mb-4">
+              <Radio className="h-5 w-5 text-green-600" />
+            </div>
+            <h3 className="text-center text-lg font-semibold text-gray-900">Wann geht der Content live?</h3>
+            <p className="text-center text-sm text-gray-500 mt-2">
+              W&auml;hle das Live-Datum f&uuml;r diesen Content.
+            </p>
+            <div className="mt-4">
+              <input
+                type="date"
+                value={goLiveDate}
+                onChange={(e) => setGoLiveDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
+              />
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => { setGoLiveUploadId(null); setGoLiveDate(''); }}
+                className="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleGoLive}
+                disabled={!goLiveDate || goLiveMutation.isPending}
+                className="flex-1 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {goLiveMutation.isPending ? 'Wird gesetzt...' : 'Go Live'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Upload Confirmation */}
+      {deleteUploadConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteUploadConfirm(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 animate-scale-in">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
+              <Trash2 className="h-5 w-5 text-red-600" />
+            </div>
+            <h3 className="text-center text-lg font-semibold text-gray-900">Upload l&ouml;schen?</h3>
+            <p className="text-center text-sm text-gray-500 mt-2">
+              Dieser Upload wird unwiderruflich gel&ouml;scht.
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setDeleteUploadConfirm(null)}
+                className="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleConfirmDeleteUpload}
+                disabled={deleteUpload.isPending}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deleteUpload.isPending ? 'L\u00f6schen...' : 'L\u00f6schen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Upload Zone Modal */}
       {showUploadZone && (

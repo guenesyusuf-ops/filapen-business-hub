@@ -22,6 +22,10 @@ export interface CreatorUpload {
   batch?: string;
   storageKey?: string;
   seenByAdmin: boolean;
+  liveStatus?: string | null;
+  liveDate?: string | null;
+  liveApprovedAt?: string | null;
+  liveApprovedBy?: string | null;
   commentCount: number;
   createdAt: string;
   creator?: {
@@ -61,6 +65,22 @@ export const UPLOAD_TAB_LABELS: Record<UploadTab, string> = {
 
 const API_BASE = '/api';
 
+function getStoredToken(): string | null {
+  try {
+    const stored = localStorage.getItem('filapen-auth');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed?.state?.token || null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function fetchApi<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(path, window.location.origin);
   if (params) {
@@ -68,7 +88,7 @@ async function fetchApi<T>(path: string, params?: Record<string, string>): Promi
       if (v) url.searchParams.set(k, v);
     });
   }
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: authHeaders() });
   if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
   return res.json();
 }
@@ -76,7 +96,17 @@ async function fetchApi<T>(path: string, params?: Record<string, string>): Promi
 async function postApi<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+async function putApi<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -84,7 +114,10 @@ async function postApi<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function deleteApi<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { method: 'DELETE' });
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -92,7 +125,7 @@ async function deleteApi<T>(path: string): Promise<T> {
 async function patchApi<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -233,5 +266,64 @@ export function useMarkCommentsRead() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['upload-comments', variables.uploadId] });
     },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Unseen Count Hook
+// ---------------------------------------------------------------------------
+
+export function useUnseenUploadCount() {
+  return useQuery<{ count: number }>({
+    queryKey: ['creator-uploads', 'unseen-count'],
+    queryFn: async () => {
+      return fetchApi<{ count: number }>(`${API_BASE}/creator-uploads/unseen-count`);
+    },
+    staleTime: 15 * 1000,
+    refetchInterval: 30 * 1000,
+    retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Go Live / Go Offline Hooks
+// ---------------------------------------------------------------------------
+
+export function useGoLiveUpload() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ uploadId, liveDate }: { uploadId: string; liveDate: string }) => {
+      return putApi<CreatorUpload>(`/creator-uploads/${uploadId}/go-live`, { liveDate });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creator-uploads'] });
+    },
+  });
+}
+
+export function useGoOfflineUpload() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (uploadId: string) => {
+      return putApi<CreatorUpload>(`/creator-uploads/${uploadId}/go-offline`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creator-uploads'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Live Uploads Hook
+// ---------------------------------------------------------------------------
+
+export function useLiveUploads() {
+  return useQuery<CreatorUpload[]>({
+    queryKey: ['creator-uploads', 'live'],
+    queryFn: async () => {
+      return fetchApi<CreatorUpload[]>(`${API_BASE}/creator-uploads/live`);
+    },
+    staleTime: 15 * 1000,
+    retry: 1,
   });
 }

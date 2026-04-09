@@ -322,20 +322,23 @@ export class CreatorController {
   // CREATOR UPLOADS
   // =========================================================================
 
-  @Get('creator-uploads')
-  async listUploads(
-    @Query('creatorId') creatorId: string,
-    @Query('tab') tab?: string,
-  ) {
-    if (!creatorId) {
-      throw new HttpException('creatorId query parameter is required', HttpStatus.BAD_REQUEST);
-    }
+  @Get('creator-uploads/unseen-count')
+  async getUnseenUploadCount() {
     try {
-      return await this.uploadService.list(DEV_ORG_ID, { creatorId, tab });
+      return await this.uploadService.unseenCount(DEV_ORG_ID);
     } catch (error) {
-      if (error instanceof HttpException) throw error;
-      this.logger.error('Failed to list uploads', error);
-      throw new HttpException('Failed to load uploads', HttpStatus.INTERNAL_SERVER_ERROR);
+      this.logger.error('Failed to get unseen upload count', error);
+      throw new HttpException('Failed to get unseen count', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('creator-uploads/live')
+  async listLiveUploads() {
+    try {
+      return await this.uploadService.listLive(DEV_ORG_ID);
+    } catch (error) {
+      this.logger.error('Failed to list live uploads', error);
+      throw new HttpException('Failed to load live uploads', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -355,6 +358,23 @@ export class CreatorController {
     }
   }
 
+  @Get('creator-uploads')
+  async listUploads(
+    @Query('creatorId') creatorId: string,
+    @Query('tab') tab?: string,
+  ) {
+    if (!creatorId) {
+      throw new HttpException('creatorId query parameter is required', HttpStatus.BAD_REQUEST);
+    }
+    try {
+      return await this.uploadService.list(DEV_ORG_ID, { creatorId, tab });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to list uploads', error);
+      throw new HttpException('Failed to load uploads', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Post('creator-uploads')
   async createUpload(@Body() body: any) {
     try {
@@ -366,6 +386,58 @@ export class CreatorController {
         error.message || 'Failed to create upload',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  @Put('creator-uploads/:id/go-live')
+  async goLiveUpload(@Param('id') id: string, @Body() body: { liveDate: string }) {
+    if (!body.liveDate) {
+      throw new HttpException('liveDate is required', HttpStatus.BAD_REQUEST);
+    }
+    try {
+      const result = await this.uploadService.goLive(DEV_ORG_ID, id, body.liveDate);
+      // Send chat notification to creator
+      try {
+        const dateStr = new Date(body.liveDate).toLocaleDateString('de-DE', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+        await this.chatService.sendMessage(DEV_ORG_ID, result.creatorId, {
+          message: `Dein Content '${result.label || result.fileName}' geht am ${dateStr} live! 🎉`,
+          senderRole: 'admin',
+          senderName: 'Filapen Team',
+        });
+      } catch (chatErr) {
+        this.logger.warn('Failed to send go-live chat notification', chatErr);
+      }
+      return result;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to go live', error);
+      throw new HttpException('Failed to set upload live', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Put('creator-uploads/:id/go-offline')
+  async goOfflineUpload(@Param('id') id: string) {
+    try {
+      const result = await this.uploadService.goOffline(DEV_ORG_ID, id);
+      // Send chat notification to creator
+      try {
+        await this.chatService.sendMessage(DEV_ORG_ID, result.creatorId, {
+          message: `Dein Content '${result.label || result.fileName}' ist jetzt offline. Deine Analyse kommt bald.`,
+          senderRole: 'admin',
+          senderName: 'Filapen Team',
+        });
+      } catch (chatErr) {
+        this.logger.warn('Failed to send go-offline chat notification', chatErr);
+      }
+      return result;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to go offline', error);
+      throw new HttpException('Failed to set upload offline', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

@@ -135,6 +135,83 @@ export class UploadService {
     };
   }
 
+  async unseenCount(orgId: string) {
+    const count = await this.prisma.creatorUpload.count({
+      where: { orgId, seenByAdmin: false },
+    });
+    return { count };
+  }
+
+  async goLive(orgId: string, uploadId: string, liveDate: string) {
+    const existing = await this.prisma.creatorUpload.findFirst({
+      where: { id: uploadId, orgId },
+      include: { creator: { select: { id: true, name: true } } },
+    });
+    if (!existing) {
+      throw new NotFoundException('Upload not found');
+    }
+
+    const updated = await this.prisma.creatorUpload.update({
+      where: { id: uploadId },
+      data: {
+        liveStatus: 'live',
+        liveDate: new Date(liveDate),
+        liveApprovedAt: new Date(),
+      },
+      include: {
+        _count: { select: { comments: true } },
+        creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
+      },
+    });
+
+    return {
+      ...this.serialize(updated),
+      creator: (updated as any).creator,
+    };
+  }
+
+  async goOffline(orgId: string, uploadId: string) {
+    const existing = await this.prisma.creatorUpload.findFirst({
+      where: { id: uploadId, orgId },
+      include: { creator: { select: { id: true, name: true } } },
+    });
+    if (!existing) {
+      throw new NotFoundException('Upload not found');
+    }
+
+    const updated = await this.prisma.creatorUpload.update({
+      where: { id: uploadId },
+      data: {
+        liveStatus: 'inactive',
+      },
+      include: {
+        _count: { select: { comments: true } },
+        creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
+      },
+    });
+
+    return {
+      ...this.serialize(updated),
+      creator: (updated as any).creator,
+    };
+  }
+
+  async listLive(orgId: string) {
+    const uploads = await this.prisma.creatorUpload.findMany({
+      where: { orgId, liveStatus: 'live' },
+      orderBy: { liveDate: 'asc' },
+      include: {
+        creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
+        _count: { select: { comments: true } },
+      },
+    });
+
+    return uploads.map((u) => ({
+      ...this.serialize(u),
+      creator: (u as any).creator,
+    }));
+  }
+
   private serialize(upload: any) {
     return {
       id: upload.id,
@@ -152,6 +229,10 @@ export class UploadService {
       batch: upload.batch,
       storageKey: upload.storageKey,
       seenByAdmin: upload.seenByAdmin,
+      liveStatus: upload.liveStatus || null,
+      liveDate: upload.liveDate ? upload.liveDate.toISOString() : null,
+      liveApprovedAt: upload.liveApprovedAt ? upload.liveApprovedAt.toISOString() : null,
+      liveApprovedBy: upload.liveApprovedBy || null,
       commentCount: upload._count?.comments ?? 0,
       createdAt: upload.createdAt.toISOString(),
     };

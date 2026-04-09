@@ -10,6 +10,10 @@ import {
   Plus,
   ArrowRight,
   Clock,
+  Bell,
+  Radio,
+  Upload,
+  Power,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDollars, formatNumber } from '@filapen/shared/src/utils/money';
@@ -18,6 +22,8 @@ import { useCreatorStats } from '@/hooks/creators/useCreators';
 import { usePipelineStats } from '@/hooks/creators/useDeals';
 import { DEAL_STAGE_LABELS, DEAL_STAGE_COLORS } from '@/hooks/creators/useDeals';
 import type { DealStage } from '@/hooks/creators/useDeals';
+import { useAllUploads, useUnseenUploadCount, useLiveUploads, useGoOfflineUpload } from '@/hooks/creators/useUploads';
+import type { CreatorUpload } from '@/hooks/creators/useUploads';
 
 // ---------------------------------------------------------------------------
 // Status Distribution Chart (simple donut via CSS)
@@ -231,6 +237,204 @@ function RecentActivity({
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'gerade eben';
+  if (mins < 60) return `vor ${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `vor ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `vor ${days}d`;
+  return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+}
+
+const TAB_BADGE_COLORS: Record<string, string> = {
+  bilder: 'bg-blue-50 text-blue-700',
+  videos: 'bg-purple-50 text-purple-700',
+  roh: 'bg-amber-50 text-amber-700',
+  auswertung: 'bg-green-50 text-green-700',
+};
+
+// ---------------------------------------------------------------------------
+// Recent Uploads Card
+// ---------------------------------------------------------------------------
+
+function RecentUploadsCard({
+  uploads,
+  loading,
+  onNavigate,
+}: {
+  uploads: CreatorUpload[];
+  loading: boolean;
+  onNavigate: (creatorId: string) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-xl bg-white p-5 shadow-card animate-pulse">
+        <div className="h-4 w-36 rounded bg-gray-200 mb-4" />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 py-3">
+            <div className="h-8 w-8 rounded-full bg-gray-200" />
+            <div className="flex-1">
+              <div className="h-3 w-40 rounded bg-gray-200 mb-1" />
+              <div className="h-2.5 w-24 rounded bg-gray-100" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (uploads.length === 0) {
+    return (
+      <div className="rounded-xl bg-white p-5 shadow-card">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Upload className="h-4 w-4 text-gray-400" />
+          Recent Uploads
+        </h3>
+        <div className="text-center py-8 text-sm text-gray-400">No uploads yet</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-white p-5 shadow-card">
+      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <Upload className="h-4 w-4 text-gray-400" />
+        Recent Uploads
+      </h3>
+      <div className="space-y-0 divide-y divide-gray-50">
+        {uploads.slice(0, 10).map((upload) => (
+          <button
+            key={upload.id}
+            onClick={() => onNavigate(upload.creatorId)}
+            className="flex items-start gap-3 py-3 first:pt-0 last:pb-0 w-full text-left hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
+          >
+            <div className="flex items-center justify-center h-8 w-8 rounded-full bg-accent-creator-light text-accent-creator font-medium text-xs shrink-0">
+              {upload.creator?.name?.charAt(0) ?? '?'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-900 truncate">
+                  {upload.label || upload.fileName}
+                </p>
+                {!upload.seenByAdmin && (
+                  <span className="inline-flex items-center rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700">
+                    Neu
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-gray-500">
+                  {upload.creator?.name ?? 'Unknown'}
+                </span>
+                <span className={cn('inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium capitalize', TAB_BADGE_COLORS[upload.tab] ?? 'bg-gray-50 text-gray-600')}>
+                  {upload.tab}
+                </span>
+                <span className="text-[10px] text-gray-400">{timeAgo(upload.createdAt)}</span>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Live Content Card
+// ---------------------------------------------------------------------------
+
+function LiveContentCard({
+  uploads,
+  loading,
+  onGoOffline,
+  onNavigate,
+  offlinePending,
+}: {
+  uploads: CreatorUpload[];
+  loading: boolean;
+  onGoOffline: (id: string) => void;
+  onNavigate: (creatorId: string) => void;
+  offlinePending: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-xl bg-white p-5 shadow-card animate-pulse">
+        <div className="h-4 w-32 rounded bg-gray-200 mb-4" />
+        <div className="h-40 rounded bg-gray-100" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-white p-5 shadow-card">
+      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <Radio className="h-4 w-4 text-green-500" />
+        Live Content
+        {uploads.length > 0 && (
+          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+            {uploads.length}
+          </span>
+        )}
+      </h3>
+      {uploads.length === 0 ? (
+        <div className="text-center py-8 text-sm text-gray-400">No live content</div>
+      ) : (
+        <div className="space-y-0 divide-y divide-gray-50">
+          {uploads.map((upload) => (
+            <div
+              key={upload.id}
+              className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <button
+                onClick={() => onNavigate(upload.creatorId)}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left hover:bg-gray-50 rounded-lg transition-colors"
+              >
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-accent-creator-light text-accent-creator font-medium text-xs shrink-0">
+                  {upload.creator?.name?.charAt(0) ?? '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-900 truncate">
+                    {upload.label || upload.fileName}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-gray-500">{upload.creator?.name}</span>
+                    <div className="flex items-center gap-1">
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                      <span className="text-[10px] text-green-600 font-medium">Live</span>
+                    </div>
+                    {upload.liveDate && (
+                      <span className="text-[10px] text-gray-400">
+                        {new Date(upload.liveDate).toLocaleDateString('de-DE')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('Content offline setzen?')) onGoOffline(upload.id);
+                }}
+                disabled={offlinePending}
+                className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1.5 text-[10px] font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                <Power className="h-3 w-3" />
+                Offline
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
@@ -238,10 +442,15 @@ export default function CreatorHubOverview() {
   const router = useRouter();
   const statsQuery = useCreatorStats();
   const pipelineQuery = usePipelineStats();
+  const unseenQuery = useUnseenUploadCount();
+  const recentUploadsQuery = useAllUploads({ pageSize: 10 });
+  const liveUploadsQuery = useLiveUploads();
+  const goOfflineMutation = useGoOfflineUpload();
 
   const stats = statsQuery.data;
   const pipeline = pipelineQuery.data;
   const loading = statsQuery.isLoading || pipelineQuery.isLoading;
+  const unseenCount = unseenQuery.data?.count ?? 0;
 
   const handleAddCreator = useCallback(() => {
     router.push('/creators/list?action=add');
@@ -251,12 +460,28 @@ export default function CreatorHubOverview() {
     router.push('/creators/deals?action=new');
   }, [router]);
 
+  const handleNavigateToCreator = useCallback((creatorId: string) => {
+    router.push(`/creators/list/${creatorId}`);
+  }, [router]);
+
+  const handleGoOffline = useCallback((uploadId: string) => {
+    goOfflineMutation.mutate(uploadId);
+  }, [goOfflineMutation]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Creator Hub</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-gray-900">Creator Hub</h1>
+            {unseenCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-700">
+                <Bell className="h-3 w-3" />
+                {unseenCount} neue Uploads
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 mt-0.5">
             Manage creators, deals, and campaign briefings
           </p>
@@ -343,6 +568,22 @@ export default function CreatorHubOverview() {
         activities={stats?.recentActivity ?? []}
         loading={statsQuery.isLoading}
       />
+
+      {/* Recent Uploads + Live Content Row */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <RecentUploadsCard
+          uploads={recentUploadsQuery.data?.items ?? []}
+          loading={recentUploadsQuery.isLoading}
+          onNavigate={handleNavigateToCreator}
+        />
+        <LiveContentCard
+          uploads={liveUploadsQuery.data ?? []}
+          loading={liveUploadsQuery.isLoading}
+          onGoOffline={handleGoOffline}
+          onNavigate={handleNavigateToCreator}
+          offlinePending={goOfflineMutation.isPending}
+        />
+      </div>
 
       {/* Quick Links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

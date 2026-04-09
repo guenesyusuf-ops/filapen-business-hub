@@ -518,8 +518,12 @@ model CreatorUpload {
   label       String?  @db.VarChar(255)
   batch       String?  @db.VarChar(255)
   storageKey  String?  @map("storage_key") @db.Text
-  seenByAdmin Boolean  @default(false) @map("seen_by_admin")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  seenByAdmin    Boolean   @default(false) @map("seen_by_admin")
+  liveStatus     String?   @map("live_status") @db.VarChar(20)
+  liveDate       DateTime? @map("live_date") @db.Date
+  liveApprovedAt DateTime? @map("live_approved_at") @db.Timestamptz
+  liveApprovedBy String?   @map("live_approved_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   creator      Creator         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
@@ -527,6 +531,7 @@ model CreatorUpload {
 
   @@index([orgId, creatorId])
   @@index([creatorId, tab])
+  @@index([orgId, liveStatus])
   @@map("creator_uploads")
 }
 

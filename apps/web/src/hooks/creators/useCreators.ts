@@ -414,6 +414,7 @@ export function useCreators(params: CreatorsListParams = {}) {
       }
     },
     staleTime: 30 * 1000,
+    refetchOnMount: true,
     retry: 1,
   });
 }
@@ -460,6 +461,7 @@ export function useCreatorStats() {
       }
     },
     staleTime: 60 * 1000,
+    refetchOnMount: true,
     retry: 1,
   });
 }
