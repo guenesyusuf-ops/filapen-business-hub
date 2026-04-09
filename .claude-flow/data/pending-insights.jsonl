@@ -258,3 +258,4 @@
 {"type":"edit","file":"/Users/yumaya/filapen/packages/database/prisma/migrations/add_first_contact_and_chat.sql","timestamp":1775760916789,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/hooks/creators/useCreators.ts","timestamp":1775761002693,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/hooks/creators/useCreators.ts","timestamp":1775761009621,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/layout.tsx","timestamp":1775762268498,"sessionId":null}

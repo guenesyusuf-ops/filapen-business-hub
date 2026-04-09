@@ -458,18 +458,9 @@ export default function DashboardLayout({
   // restores values asynchronously. Without this guard the layout would
   // redirect to /login before the token is available.
   useEffect(() => {
-    // Zustand persist exposes onFinishHydration / onRehydrateStorage,
-    // but the simplest cross-version approach is a one-tick delay.
-    const unsub = useAuthStore.persist.onFinishHydration?.(() => {
-      setHydrated(true);
-    });
-    // If already hydrated (e.g. client-side navigation), set immediately
-    if (useAuthStore.persist.hasHydrated?.()) {
-      setHydrated(true);
-    }
-    return () => {
-      if (typeof unsub === 'function') unsub();
-    };
+    // Simple reliable hydration check: wait one tick for localStorage restore
+    const timer = setTimeout(() => setHydrated(true), 50);
+    return () => clearTimeout(timer);
   }, []);
 
   // Auth check: redirect to login if no token, or if user is not active
