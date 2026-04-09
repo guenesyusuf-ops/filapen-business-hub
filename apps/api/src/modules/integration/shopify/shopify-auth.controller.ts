@@ -79,7 +79,10 @@ export class ShopifyAuthController {
     @Query('hmac') hmac: string,
     @Res() res: Response,
   ): Promise<void> {
-    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      this.configService.get<string>('APP_URL') ||
+      'http://localhost:3000';
 
     try {
       if (!code || !shop || !state) {
