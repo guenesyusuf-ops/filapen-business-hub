@@ -6,8 +6,6 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -27,8 +25,6 @@ export class ShopifyService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @InjectQueue('shopify-sync') private readonly syncQueue: Queue,
-    @InjectQueue('webhook-process') private readonly webhookQueue: Queue,
     private readonly configService: ConfigService,
   ) {}
 
@@ -137,18 +133,13 @@ export class ShopifyService {
     // 5. Register webhooks with Shopify
     await this.registerWebhooks(normalizedShop, tokenResponse.access_token);
 
-    // 6. Enqueue initial backfill job
-    await this.syncQueue.add(
-      'backfill',
-      { integrationId: integration.id },
-      {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 30_000 },
-        removeOnComplete: 100,
-        removeOnFail: 200,
-      },
-    );
-
+    // 6. Start initial backfill (synchronous for now — no Redis queue)
+    this.logger.log(`Starting backfill for integration ${integration.id}`);
+    this.backfill(integration.id).catch((err) => {
+      this.logger.error(`Backfill failed for ${integration.id}: ${err.message}`);
+    });
+    // Previously queued via BullMQ:
+    // await this.syncQueue.add('backfill', { integrationId: integration.id }, {
     this.logger.log(
       `Shopify integration created for org ${orgId}, shop ${normalizedShop}`,
     );
@@ -1225,20 +1216,7 @@ export class ShopifyService {
    */
   private async enqueueReaggregation(orgId: string, date: Date): Promise<void> {
     const dateStr = date.toISOString().split('T')[0];
-    const jobId = `reaggregate:${orgId}:${dateStr}`;
-
-    await this.syncQueue.add(
-      'reaggregate',
-      { orgId, date: dateStr },
-      {
-        jobId,
-        delay: 5_000, // 5-second debounce
-        removeOnComplete: 50,
-        removeOnFail: 100,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 10_000 },
-      },
-    );
+    this.logger.log(`Reaggregation needed for org=${orgId} date=${dateStr}`);
   }
 
   /**

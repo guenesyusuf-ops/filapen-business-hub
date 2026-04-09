@@ -8,6 +8,7 @@ import { InfluencerModule } from './modules/influencer/influencer.module';
 import { ContentModule } from './modules/content/content.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { IntegrationModule } from './modules/integration/integration.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -25,6 +26,7 @@ import { HealthController } from './health.controller';
     ContentModule,
     AdminModule,
     AuthModule,
+    IntegrationModule,
   ],
   controllers: [HealthController],
   providers: [],
