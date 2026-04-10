@@ -611,6 +611,7 @@ export class ShopifyService {
 
     const imageUrl =
       shopifyProduct.image?.src ?? shopifyProduct.images?.[0]?.src ?? null;
+    const description = shopifyProduct.body_html ?? null;
 
     await this.prisma.$transaction(async (tx) => {
       // Upsert product
@@ -620,6 +621,7 @@ export class ShopifyService {
         },
         update: {
           title: shopifyProduct.title,
+          description,
           handle: shopifyProduct.handle ?? null,
           imageUrl,
           status: (statusMap[shopifyProduct.status] as any) ?? 'active',
@@ -632,6 +634,7 @@ export class ShopifyService {
           shopId: shop.id,
           externalId: externalProductId,
           title: shopifyProduct.title,
+          description,
           handle: shopifyProduct.handle ?? null,
           imageUrl,
           status: (statusMap[shopifyProduct.status] as any) ?? 'active',

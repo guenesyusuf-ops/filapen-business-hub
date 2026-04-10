@@ -85,6 +85,44 @@ export class DashboardController {
   }
 
   // =========================================================================
+  // GET /api/finance/products/catalog
+  // =========================================================================
+  //
+  // Raw product catalog (title, description, image, variants with price /
+  // barcode / SKU / inventory). Independent of order data — returns all
+  // products synced from Shopify (or other sources) for this org.
+  //
+  @Get('products/catalog')
+  async getProductCatalog(
+    @Query('search') search?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+    @Query('page') pageStr?: string,
+    @Query('pageSize') pageSizeStr?: string,
+  ) {
+    const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(pageSizeStr || '60', 10) || 60));
+    const validSortBy = ['title', 'price', 'createdAt'] as const;
+    const sortField = (validSortBy.includes(sortBy as any)
+      ? sortBy
+      : 'title') as 'title' | 'price' | 'createdAt';
+    const direction = (sortOrder === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
+
+    try {
+      return await this.productService.listCatalog(DEV_ORG_ID, {
+        search: search?.trim() || undefined,
+        sortBy: sortField,
+        sortOrder: direction,
+        page,
+        pageSize,
+      });
+    } catch (error) {
+      this.logger.error('Failed to load product catalog', error);
+      throw new HttpException('Failed to load product catalog', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
   // GET /api/finance/products
   // =========================================================================
 
@@ -348,6 +386,176 @@ export class DashboardController {
     } catch (error) {
       this.logger.error('Failed to get revenue breakdown', error);
       throw new HttpException('Failed to load revenue breakdown', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // GET /api/finance/revenue-breakdown
+  // Shopify-style "Aufschlüsselung des Gesamtumsatzes" + stündlicher Verlauf
+  // Query: ?date=YYYY-MM-DD (required) &end=YYYY-MM-DD (optional, defaults to date)
+  // All calculations are anchored to Europe/Berlin day boundaries.
+  // =========================================================================
+
+  @Get('revenue-breakdown')
+  async getShopifyRevenueBreakdown(
+    @Query('date') dateStr?: string,
+    @Query('end') endStr?: string,
+  ) {
+    // Default to today (server day) if no date supplied.
+    const startDate = dateStr ?? new Date().toISOString().slice(0, 10);
+    const endDate = endStr ?? startDate;
+
+    // Strict YYYY-MM-DD validation — these values go into raw SQL casts.
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+      throw new HttpException(
+        'Invalid date format. Expected YYYY-MM-DD',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      // -----------------------------------------------------------------
+      // Aggregated totals (Shopify breakdown)
+      //
+      //   Gesamtumsatz (totalSales) = SUM(total_price) - SUM(total_refunded)
+      //   Steuern (taxes)           = SUM(total_tax)
+      //   Versand (shipping)        = SUM(total_shipping)
+      //   Nettoumsatz (netSales)    = totalSales - taxes - shipping
+      //   Rabatte (discounts)       = SUM(total_discounts)
+      //   Rückgaben (returns)       = SUM(total_refunded)
+      //   Bruttoumsatz (grossSales) = netSales + discounts + returns
+      //
+      // -----------------------------------------------------------------
+      const breakdownRows = await this.prisma.$queryRaw<
+        Array<{
+          gross_sales: string | null;
+          discounts: string | null;
+          returns: string | null;
+          net_sales: string | null;
+          shipping: string | null;
+          taxes: string | null;
+          total_sales: string | null;
+        }>
+      >`
+        WITH bounds AS (
+          SELECT
+            (${startDate}::date)::timestamp AT TIME ZONE 'Europe/Berlin' AS start_ts,
+            ((${endDate}::date + INTERVAL '1 day'))::timestamp AT TIME ZONE 'Europe/Berlin' AS end_ts
+        ),
+        filtered AS (
+          SELECT
+            COALESCE(total_price, 0)     AS total_price,
+            COALESCE(total_tax, 0)       AS total_tax,
+            COALESCE(total_shipping, 0)  AS total_shipping,
+            COALESCE(total_discounts, 0) AS total_discounts,
+            COALESCE(total_refunded, 0)  AS total_refunded
+          FROM orders, bounds
+          WHERE org_id = ${DEV_ORG_ID}::uuid
+            AND placed_at >= bounds.start_ts
+            AND placed_at <  bounds.end_ts
+            AND status != 'cancelled'
+        )
+        SELECT
+          (COALESCE(SUM(total_price), 0)
+            - COALESCE(SUM(total_tax), 0)
+            - COALESCE(SUM(total_shipping), 0)
+            - COALESCE(SUM(total_refunded), 0)
+            + COALESCE(SUM(total_discounts), 0)
+            + COALESCE(SUM(total_refunded), 0)
+          )::text AS gross_sales,
+          COALESCE(SUM(total_discounts), 0)::text AS discounts,
+          COALESCE(SUM(total_refunded), 0)::text  AS returns,
+          (COALESCE(SUM(total_price), 0)
+            - COALESCE(SUM(total_tax), 0)
+            - COALESCE(SUM(total_shipping), 0)
+            - COALESCE(SUM(total_refunded), 0)
+          )::text AS net_sales,
+          COALESCE(SUM(total_shipping), 0)::text  AS shipping,
+          COALESCE(SUM(total_tax), 0)::text       AS taxes,
+          (COALESCE(SUM(total_price), 0) - COALESCE(SUM(total_refunded), 0))::text AS total_sales
+        FROM filtered
+      `;
+
+      const row = breakdownRows[0] ?? {
+        gross_sales: '0',
+        discounts: '0',
+        returns: '0',
+        net_sales: '0',
+        shipping: '0',
+        taxes: '0',
+        total_sales: '0',
+      };
+
+      const toNumber = (v: string | null): number => {
+        const n = v == null ? 0 : Number(v);
+        return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+      };
+
+      const breakdown = {
+        grossSales: toNumber(row.gross_sales),
+        discounts: toNumber(row.discounts),
+        returns: toNumber(row.returns),
+        netSales: toNumber(row.net_sales),
+        shipping: toNumber(row.shipping),
+        returnFees: 0, // Shopify lists separately; not tracked in orders table
+        taxes: toNumber(row.taxes),
+        totalSales: toNumber(row.total_sales),
+      };
+
+      // -----------------------------------------------------------------
+      // Hourly series (0-23) in Europe/Berlin. Always produces 24 rows.
+      // -----------------------------------------------------------------
+      const hourlyRows = await this.prisma.$queryRaw<
+        Array<{ hour: number; revenue: string | null; orders: bigint }>
+      >`
+        WITH bounds AS (
+          SELECT
+            (${startDate}::date)::timestamp AT TIME ZONE 'Europe/Berlin' AS start_ts,
+            ((${endDate}::date + INTERVAL '1 day'))::timestamp AT TIME ZONE 'Europe/Berlin' AS end_ts
+        ),
+        hours AS (
+          SELECT generate_series(0, 23) AS hour
+        ),
+        agg AS (
+          SELECT
+            EXTRACT(HOUR FROM (placed_at AT TIME ZONE 'Europe/Berlin'))::int AS hour,
+            SUM(COALESCE(total_price, 0) - COALESCE(total_refunded, 0)) AS revenue,
+            COUNT(*) AS orders
+          FROM orders, bounds
+          WHERE org_id = ${DEV_ORG_ID}::uuid
+            AND placed_at >= bounds.start_ts
+            AND placed_at <  bounds.end_ts
+            AND status != 'cancelled'
+          GROUP BY 1
+        )
+        SELECT
+          h.hour,
+          COALESCE(a.revenue, 0)::text  AS revenue,
+          COALESCE(a.orders, 0)::bigint AS orders
+        FROM hours h
+        LEFT JOIN agg a ON a.hour = h.hour
+        ORDER BY h.hour ASC
+      `;
+
+      const hourly = hourlyRows.map((r) => {
+        const revenue = toNumber(r.revenue);
+        const orders = Number(r.orders);
+        const aov = orders > 0 ? Math.round((revenue / orders) * 100) / 100 : 0;
+        return { hour: Number(r.hour), revenue, orders, aov };
+      });
+
+      return {
+        range: { start: startDate, end: endDate, timezone: 'Europe/Berlin' },
+        breakdown,
+        hourly,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get Shopify revenue breakdown', error);
+      throw new HttpException(
+        'Failed to load revenue breakdown',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 

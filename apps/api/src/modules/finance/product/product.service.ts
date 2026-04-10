@@ -184,6 +184,138 @@ export class ProductService {
   }
 
   /**
+   * List the raw product catalog (title, description, image, variants with
+   * price/barcode/SKU/inventory). Does NOT require order data — returns
+   * all products synced from Shopify (or other sources) for this org.
+   */
+  async listCatalog(
+    orgId: string,
+    params: {
+      search?: string;
+      sortBy?: 'title' | 'price' | 'createdAt';
+      sortOrder?: 'asc' | 'desc';
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ) {
+    const {
+      search,
+      sortBy = 'title',
+      sortOrder = 'asc',
+      page = 1,
+      pageSize = 60,
+    } = params;
+
+    const where: Prisma.ProductWhereInput = {
+      orgId,
+      ...(search
+        ? {
+            OR: [
+              { title: { contains: search, mode: 'insensitive' as const } },
+              { vendor: { contains: search, mode: 'insensitive' as const } },
+              { category: { contains: search, mode: 'insensitive' as const } },
+              {
+                variants: {
+                  some: {
+                    OR: [
+                      { sku: { contains: search, mode: 'insensitive' as const } },
+                      { barcode: { contains: search, mode: 'insensitive' as const } },
+                    ],
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    // Sorting: Prisma can sort by title/createdAt directly. For price we
+    // fetch and sort in memory (variant-based) — acceptable at current scale.
+    const orderBy: Prisma.ProductOrderByWithRelationInput =
+      sortBy === 'title'
+        ? { title: sortOrder }
+        : sortBy === 'createdAt'
+          ? { createdAt: sortOrder }
+          : { title: 'asc' };
+
+    const [total, products] = await this.prisma.$transaction([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          variants: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+              id: true,
+              title: true,
+              sku: true,
+              barcode: true,
+              price: true,
+              compareAtPrice: true,
+              inventoryQuantity: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    let items = products.map((p) => {
+      const variants = p.variants.map((v) => ({
+        id: v.id,
+        title: v.title,
+        sku: v.sku,
+        barcode: v.barcode,
+        price: Number(v.price),
+        compareAtPrice: v.compareAtPrice ? Number(v.compareAtPrice) : null,
+        inventoryQuantity: v.inventoryQuantity,
+      }));
+
+      const prices = variants.map((v) => v.price).filter((n) => !isNaN(n));
+      const minPrice = prices.length ? Math.min(...prices) : 0;
+      const maxPrice = prices.length ? Math.max(...prices) : 0;
+      const totalInventory = variants.reduce(
+        (sum, v) => sum + (v.inventoryQuantity || 0),
+        0,
+      );
+
+      return {
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        handle: p.handle,
+        imageUrl: p.imageUrl,
+        status: p.status,
+        category: p.category,
+        vendor: p.vendor,
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString(),
+        variants,
+        minPrice,
+        maxPrice,
+        totalInventory,
+      };
+    });
+
+    // Post-sort for price since we computed minPrice in memory
+    if (sortBy === 'price') {
+      items = items.sort((a, b) =>
+        sortOrder === 'asc' ? a.minPrice - b.minPrice : b.minPrice - a.minPrice,
+      );
+    }
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
+  /**
    * Get a single product with all its variants.
    */
   async getProduct(orgId: string, productId: string) {
