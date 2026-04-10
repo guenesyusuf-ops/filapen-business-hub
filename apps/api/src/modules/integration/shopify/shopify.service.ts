@@ -330,7 +330,7 @@ export class ShopifyService {
       shopifyOrder.shipping_address?.province_code ??
       null;
 
-    // Execute in a transaction
+    // Execute in a transaction (extended timeout for orders with many line items/refunds)
     const result = await this.prisma.$transaction(async (tx) => {
       // Check if order already exists
       const existingOrder = await tx.order.findUnique({
@@ -474,7 +474,7 @@ export class ShopifyService {
       }
 
       return { orderId: order.id, action };
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     // Enqueue reaggregation for the affected date (outside transaction)
     await this.enqueueReaggregation(orgId, placedAt);
@@ -570,7 +570,7 @@ export class ShopifyService {
 
       // Trigger reaggregation
       await this.enqueueReaggregation(orgId, order.placedAt);
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     this.logger.log(
       `Processed refund ${externalRefundId} for order ${externalOrderId} ($${refundAmount})`,
@@ -687,7 +687,7 @@ export class ShopifyService {
           },
         });
       }
-    });
+    }, { timeout: 30000, maxWait: 10000 });
 
     this.logger.log(
       `Upserted product ${shopifyProduct.title} (${shopifyProduct.variants.length} variants)`,
