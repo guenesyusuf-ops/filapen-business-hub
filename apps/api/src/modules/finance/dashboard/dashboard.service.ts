@@ -92,9 +92,9 @@ export class DashboardService {
     newCustomerRate: number;
     blendedRoas: number;
   }> {
-    const channelFilter = channel && channel !== 'all'
-      ? `AND channel = '${channel}'`
-      : '';
+    // Always filter by channel — default to 'all' which is the pre-aggregated total
+    const effectiveChannel = channel || 'all';
+    const channelFilter = `AND channel = '${effectiveChannel}'`;
 
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{

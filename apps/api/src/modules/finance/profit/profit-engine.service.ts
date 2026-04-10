@@ -102,10 +102,10 @@ export class ProfitEngineService {
       return cached;
     }
 
-    // 2. Query DailyAggregate
-    const channelFilter = channel
-      ? Prisma.sql`AND channel = ${channel}::channel`
-      : Prisma.empty;
+    // 2. Query DailyAggregate — ALWAYS filter by channel to prevent summing
+    // multiple channel rows. Default to 'all' which is the pre-aggregated total.
+    const effectiveChannel = channel || 'all';
+    const channelFilter = Prisma.sql`AND channel = ${effectiveChannel}::channel`;
 
     const rows = await this.prisma.$queryRaw<AggregateRow[]>`
       SELECT
@@ -360,9 +360,9 @@ export class ProfitEngineService {
     }>(cacheKey);
     if (cached) return cached;
 
-    const channelFilter = channel
-      ? Prisma.sql`AND channel = ${channel}::channel`
-      : Prisma.empty;
+    // Always filter by channel to prevent summing multiple channel rows
+    const effectiveChannel = channel || 'all';
+    const channelFilter = Prisma.sql`AND channel = ${effectiveChannel}::channel`;
 
     const rows = await this.prisma.$queryRaw<DailyRow[]>`
       SELECT
