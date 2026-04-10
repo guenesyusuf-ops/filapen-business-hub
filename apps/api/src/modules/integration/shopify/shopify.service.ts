@@ -1174,10 +1174,17 @@ export class ShopifyService {
   private encryptCredentials(
     data: Record<string, string>,
   ): Record<string, string> {
-    const encryptionKey = this.configService.getOrThrow<string>(
-      'CREDENTIALS_ENCRYPTION_KEY',
-    );
-    const key = Buffer.from(encryptionKey, 'hex');
+    const encryptionKey =
+      this.configService.get<string>('CREDENTIALS_ENCRYPTION_KEY') ||
+      this.configService.get<string>('ENCRYPTION_KEY') ||
+      this.configService.get<string>('API_SECRET');
+    if (!encryptionKey) {
+      throw new Error('No encryption key configured (CREDENTIALS_ENCRYPTION_KEY or ENCRYPTION_KEY or API_SECRET)');
+    }
+    // Ensure 32-byte key for AES-256: hash if not already 64 hex chars
+    const key = encryptionKey.length === 64
+      ? Buffer.from(encryptionKey, 'hex')
+      : crypto.createHash('sha256').update(encryptionKey).digest();
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 
@@ -1200,10 +1207,16 @@ export class ShopifyService {
   decryptCredentials(
     encryptedData: Record<string, string>,
   ): { accessToken: string; shopDomain: string; scope: string } {
-    const encryptionKey = this.configService.getOrThrow<string>(
-      'CREDENTIALS_ENCRYPTION_KEY',
-    );
-    const key = Buffer.from(encryptionKey, 'hex');
+    const encryptionKey =
+      this.configService.get<string>('CREDENTIALS_ENCRYPTION_KEY') ||
+      this.configService.get<string>('ENCRYPTION_KEY') ||
+      this.configService.get<string>('API_SECRET');
+    if (!encryptionKey) {
+      throw new Error('No encryption key configured');
+    }
+    const key = encryptionKey.length === 64
+      ? Buffer.from(encryptionKey, 'hex')
+      : crypto.createHash('sha256').update(encryptionKey).digest();
     const iv = Buffer.from(encryptedData.iv, 'hex');
     const authTag = Buffer.from(encryptedData.authTag, 'hex');
 
