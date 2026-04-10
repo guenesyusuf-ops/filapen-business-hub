@@ -716,6 +716,34 @@ export class ShopifyService {
     );
     const rateLimiter = this.getRateLimiter(shopDomain);
 
+    // Check if another backfill is already running for this integration
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const runningSync = await this.prisma.syncLog.findFirst({
+      where: {
+        integrationId,
+        status: 'started',
+        startedAt: { gte: fiveMinutesAgo },
+      },
+    });
+    if (runningSync) {
+      this.logger.warn(
+        `Sync already in progress for integration ${integrationId} (since ${runningSync.startedAt}). Skipping.`,
+      );
+      return { orders: 0, products: 0 };
+    }
+
+    // Mark any older "started" syncs as failed (zombies from crashed processes)
+    await this.prisma.syncLog.updateMany({
+      where: {
+        integrationId,
+        status: 'started',
+      },
+      data: {
+        status: 'failed',
+        completedAt: new Date(),
+      },
+    });
+
     // Create sync log
     const syncLog = await this.prisma.syncLog.create({
       data: {
