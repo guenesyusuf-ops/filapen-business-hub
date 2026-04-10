@@ -213,10 +213,22 @@ function ConnectedCard({
       {/* Status */}
       <div className="mt-5 space-y-2">
         <div className="flex items-center gap-2 text-xs">
-          <span className="flex items-center gap-1.5 text-green-400">
-            <span className="h-2 w-2 rounded-full bg-green-400" />
-            Verbunden
-          </span>
+          {integration.syncStatus === 'syncing' ? (
+            <span className="flex items-center gap-1.5 text-blue-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Synchronisiert...
+            </span>
+          ) : integration.syncStatus === 'failed' ? (
+            <span className="flex items-center gap-1.5 text-red-400">
+              <AlertCircle className="h-3 w-3" />
+              Sync fehlgeschlagen
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-green-400">
+              <span className="h-2 w-2 rounded-full bg-green-400" />
+              Verbunden
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <Clock className="h-3.5 w-3.5" />
@@ -226,23 +238,29 @@ function ConnectedCard({
 
       {/* Actions */}
       <div className="flex gap-2 mt-5">
-        <button
-          onClick={() => syncMutation.mutate(integration.id)}
-          disabled={syncMutation.isPending}
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
-            syncMutation.isPending
-              ? 'bg-[#222] text-gray-500 cursor-not-allowed'
-              : 'bg-white text-black hover:bg-gray-200',
-          )}
-        >
-          {syncMutation.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-          {syncMutation.isPending ? 'Synchronisiert...' : 'Sync'}
-        </button>
+        {(() => {
+          const isSyncing =
+            syncMutation.isPending || integration.syncStatus === 'syncing';
+          return (
+            <button
+              onClick={() => syncMutation.mutate(integration.id)}
+              disabled={isSyncing}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
+                isSyncing
+                  ? 'bg-[#222] text-gray-500 cursor-not-allowed'
+                  : 'bg-white text-black hover:bg-gray-200',
+              )}
+            >
+              {isSyncing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {isSyncing ? 'Synchronisiert...' : 'Sync'}
+            </button>
+          );
+        })()}
         <button
           onClick={() => disconnectMutation.mutate(integration.id)}
           disabled={disconnectMutation.isPending}

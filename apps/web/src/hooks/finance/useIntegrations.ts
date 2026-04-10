@@ -42,6 +42,7 @@ export interface Integration {
   id: string;
   type: string;
   status: string;
+  syncStatus?: 'idle' | 'syncing' | 'failed';
   lastSyncedAt: string | null;
   createdAt: string;
 }
@@ -56,6 +57,13 @@ export function useIntegrations() {
     queryFn: () => fetchApi<Integration[]>(API_BASE),
     staleTime: 60_000,
     retry: 2,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data?.some((i) => i.syncStatus === 'syncing')) {
+        return 5000;
+      }
+      return false;
+    },
   });
 }
 

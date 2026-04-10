@@ -56,6 +56,14 @@ export class IntegrationController {
 
       const connectedTypes = new Set(connected.map((i) => i.type));
 
+      // Compute sync statuses for all connected integrations in parallel
+      const syncStatuses = await Promise.all(
+        connected.map((i) => this.computeSyncStatus(i.id)),
+      );
+      const syncStatusById = new Map(
+        connected.map((i, idx) => [i.id, syncStatuses[idx]]),
+      );
+
       // Build a combined list: connected integrations + available (not yet connected) types
       const connectedList = connected.map((i) => ({
         id: i.id,
@@ -63,6 +71,7 @@ export class IntegrationController {
         label: KNOWN_INTEGRATION_TYPES.find((k) => k.type === i.type)?.label ?? i.type,
         description: KNOWN_INTEGRATION_TYPES.find((k) => k.type === i.type)?.description ?? '',
         status: i.status,
+        syncStatus: syncStatusById.get(i.id) ?? 'idle',
         lastSyncedAt: i.lastSyncedAt?.toISOString() ?? null,
         createdAt: i.createdAt.toISOString(),
         scopes: i.scopes,
@@ -76,6 +85,7 @@ export class IntegrationController {
           label: k.label,
           description: k.description,
           status: 'available' as const,
+          syncStatus: 'idle' as const,
           lastSyncedAt: null,
           createdAt: null,
           scopes: [],
@@ -86,6 +96,38 @@ export class IntegrationController {
       this.logger.error('Failed to list integrations', error);
       throw new HttpException('Failed to load integrations', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Compute the current sync status based on the most recent SyncLog entry.
+   * Returns one of: 'idle' | 'syncing' | 'failed'.
+   * - 'syncing' if latest log is 'started' and startedAt is < 10 minutes ago
+   * - 'failed'  if latest log is 'failed'
+   * - 'idle'    otherwise (including completed or stale 'started' logs)
+   */
+  private async computeSyncStatus(
+    integrationId: string,
+  ): Promise<'idle' | 'syncing' | 'failed'> {
+    const latest = await this.prisma.syncLog.findFirst({
+      where: { integrationId },
+      orderBy: { startedAt: 'desc' },
+      select: { status: true, startedAt: true },
+    });
+
+    if (!latest) return 'idle';
+
+    if (latest.status === 'started') {
+      const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+      if (latest.startedAt.getTime() >= tenMinutesAgo) {
+        return 'syncing';
+      }
+      // Stale 'started' log (crashed sync) -> treat as idle
+      return 'idle';
+    }
+
+    if (latest.status === 'failed') return 'failed';
+
+    return 'idle';
   }
 
   // =========================================================================
@@ -119,10 +161,13 @@ export class IntegrationController {
         throw new NotFoundException(`Integration ${id} not found`);
       }
 
+      const syncStatus = await this.computeSyncStatus(integration.id);
+
       return {
         id: integration.id,
         type: integration.type,
         status: integration.status,
+        syncStatus,
         scopes: integration.scopes,
         errorLog: integration.errorLog,
         lastSyncedAt: integration.lastSyncedAt?.toISOString() ?? null,
