@@ -224,13 +224,14 @@ export default function GenerateContentPage() {
 
   // Fetch products from Finance Hub for auto-fill (Feature 3)
   const { data: productsData } = useQuery({
-    queryKey: ['finance', 'products', 'all-for-generator'],
-    queryFn: () =>
-      fetch('/api/finance/products?startDate=2020-01-01&endDate=2030-01-01&pageSize=100')
-        .then((r) => r.json()),
+    queryKey: ['finance', 'products', 'catalog-for-generator'],
+    queryFn: () => {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      return fetch(`${apiUrl}/api/finance/products/catalog?pageSize=200`).then((r) => r.json());
+    },
     staleTime: 5 * 60 * 1000,
   });
-  const products = productsData?.products ?? [];
+  const products = productsData?.items ?? [];
 
   const [selectedProductId, setSelectedProductId] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -436,15 +437,26 @@ export default function GenerateContentPage() {
                     const pid = e.target.value;
                     setSelectedProductId(pid);
                     if (pid) {
-                      const product = products.find((p: any) => p.productId === pid);
+                      const product = products.find((p: any) => p.id === pid);
                       if (product) {
+                        // Strip HTML from description
+                        const cleanDescription = (product.description || '')
+                          .replace(/<[^>]*>/g, ' ')
+                          .replace(/&nbsp;/g, ' ')
+                          .replace(/&amp;/g, '&')
+                          .replace(/&lt;/g, '<')
+                          .replace(/&gt;/g, '>')
+                          .replace(/\s+/g, ' ')
+                          .trim();
+                        // Format price range
+                        const priceText = product.minPrice === product.maxPrice
+                          ? `${product.minPrice.toFixed(2)} EUR`
+                          : `${product.minPrice.toFixed(2)} - ${product.maxPrice.toFixed(2)} EUR`;
                         setFormState((s) => ({
                           ...s,
                           product: product.title,
-                          productDescription: product.description || `${product.title}${product.sku ? ` - ${product.sku}` : ''}`,
-                          pricePoint: product.unitsSold && product.grossRevenue
-                            ? `${(product.grossRevenue / product.unitsSold).toFixed(2)} EUR`
-                            : '',
+                          productDescription: cleanDescription || product.title,
+                          pricePoint: priceText,
                         }));
                       }
                     }
@@ -453,13 +465,13 @@ export default function GenerateContentPage() {
                 >
                   <option value="">Manuell eingeben...</option>
                   {products.map((p: any) => (
-                    <option key={p.productId} value={p.productId}>
-                      {p.title} {p.sku ? `(${p.sku})` : ''}
+                    <option key={p.id} value={p.id}>
+                      {p.title}
                     </option>
                   ))}
                 </select>
                 <p className="text-xxs text-gray-400 mt-1">
-                  Waehle ein Produkt aus dem Finance Hub, um die Felder automatisch auszufuellen.
+                  Waehle ein Produkt, um Name, Beschreibung und Preis automatisch auszufuellen.
                 </p>
               </div>
 
