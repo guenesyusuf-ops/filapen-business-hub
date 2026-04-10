@@ -8,6 +8,7 @@ import { PnLWaterfallChart } from '@/components/finance/dashboard/PnLWaterfallCh
 import { RevenueTimeChart } from '@/components/finance/dashboard/RevenueTimeChart';
 import { ChannelTable } from '@/components/finance/dashboard/ChannelTable';
 import { AlertsSidebar } from '@/components/finance/dashboard/AlertsSidebar';
+import { ShopifyRevenueBreakdownSection } from '@/components/finance/dashboard/ShopifyRevenueBreakdown';
 import { DashboardGrid, type WidgetDefinition } from '@/components/shared/DashboardGrid';
 import {
   useDashboardOverview,
@@ -147,6 +148,19 @@ export function FinanceDashboard() {
 
       {/* Customizable Widget Grid */}
       <DashboardGrid page="/finance" widgets={widgets} />
+
+      {/* Shopify-style Aufschlüsselung des Gesamtumsatzes */}
+      <div className="mt-2">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Umsatzaufschlüsselung
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            Detailansicht im Shopify-Stil – alle Werte in Europe/Berlin Zeitzone
+          </p>
+        </div>
+        <ShopifyRevenueBreakdownSection />
+      </div>
     </div>
   );
 }

@@ -62,3 +62,51 @@ export function useRevenueBreakdown() {
     retry: 2,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Shopify-style Aufschlüsselung des Gesamtumsatzes + stündlicher Verlauf
+// ---------------------------------------------------------------------------
+
+export interface ShopifyBreakdownTotals {
+  grossSales: number;
+  discounts: number;
+  returns: number;
+  netSales: number;
+  shipping: number;
+  returnFees: number;
+  taxes: number;
+  totalSales: number;
+}
+
+export interface ShopifyHourlyPoint {
+  hour: number;
+  revenue: number;
+  orders: number;
+  aov: number;
+}
+
+export interface ShopifyRevenueBreakdownResponse {
+  range: { start: string; end: string; timezone: string };
+  breakdown: ShopifyBreakdownTotals;
+  hourly: ShopifyHourlyPoint[];
+}
+
+export function useShopifyRevenueBreakdown() {
+  const { dateRange } = useFinanceUI();
+
+  return useQuery<ShopifyRevenueBreakdownResponse>({
+    queryKey: [
+      'finance',
+      'shopify-revenue-breakdown',
+      dateRange.start.toISOString(),
+      dateRange.end.toISOString(),
+    ],
+    queryFn: () =>
+      fetchApi<ShopifyRevenueBreakdownResponse>(`${API_BASE}/revenue-breakdown`, {
+        date: formatDate(dateRange.start),
+        end: formatDate(dateRange.end),
+      }),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+}
