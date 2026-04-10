@@ -232,28 +232,23 @@ export class IntegrationController {
 
   @Post('rebuild-aggregates')
   async rebuildAggregates() {
-    try {
-      const end = new Date();
-      const start = new Date();
-      start.setMonth(start.getMonth() - 12);
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 12);
 
-      this.logger.log(`Rebuilding aggregates for last 12 months`);
+    this.logger.log(`Triggering aggregate rebuild for last 12 months (background)`);
 
-      // Run synchronously so caller knows when it's done
-      await this.aggregationService.rebuildRange(DEV_ORG_ID, start, end);
+    // Fire-and-forget so HTTP doesn't timeout for large date ranges
+    this.aggregationService
+      .rebuildRange(DEV_ORG_ID, start, end)
+      .then(() => this.logger.log('Aggregate rebuild completed'))
+      .catch((err) => this.logger.error('Aggregate rebuild failed', err));
 
-      return {
-        success: true,
-        message: 'Aggregates rebuilt for the last 12 months',
-        from: start.toISOString(),
-        to: end.toISOString(),
-      };
-    } catch (error) {
-      this.logger.error('Failed to rebuild aggregates', error);
-      throw new HttpException(
-        `Failed to rebuild aggregates: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    return {
+      success: true,
+      message: 'Aggregate rebuild started in background',
+      from: start.toISOString(),
+      to: end.toISOString(),
+    };
   }
 }

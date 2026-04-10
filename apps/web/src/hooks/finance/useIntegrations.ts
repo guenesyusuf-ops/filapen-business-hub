@@ -3,10 +3,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
-// Generic fetch helpers
+// Generic fetch helpers — point to the absolute API URL (Railway)
 // ---------------------------------------------------------------------------
 
-const API_BASE = '/api/finance';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = `${API_URL}/api/integrations`;
 
 async function fetchApi<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -52,7 +53,7 @@ export interface Integration {
 export function useIntegrations() {
   return useQuery<Integration[]>({
     queryKey: ['finance', 'integrations'],
-    queryFn: () => fetchApi<Integration[]>(`${API_BASE}/integrations`),
+    queryFn: () => fetchApi<Integration[]>(API_BASE),
     staleTime: 60_000,
     retry: 2,
   });
@@ -66,7 +67,7 @@ export function useDisconnectIntegration() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      mutateApi<void>(`${API_BASE}/integrations/${id}/disconnect`, 'POST'),
+      mutateApi<void>(`${API_BASE}/${id}/disconnect`, 'POST'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['finance', 'integrations'] });
     },
@@ -81,9 +82,24 @@ export function useSyncIntegration() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      mutateApi<void>(`${API_BASE}/integrations/${id}/sync`, 'POST'),
+      mutateApi<void>(`${API_BASE}/${id}/sync`, 'POST'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['finance', 'integrations'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Mutation: rebuild aggregates (computes daily_aggregates from orders)
+// ---------------------------------------------------------------------------
+
+export function useRebuildAggregates() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      mutateApi<{ success: boolean }>(`${API_BASE}/rebuild-aggregates`, 'POST'),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
     },
   });
 }
