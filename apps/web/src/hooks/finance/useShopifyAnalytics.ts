@@ -71,17 +71,15 @@ export interface ShopifyAnalyticsOverview {
 // Hook
 // ---------------------------------------------------------------------------
 
-const API_BASE = '/api/finance/shopify-analytics';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = `${API_URL}/api/finance/shopify-analytics`;
 
 async function fetchOverview(
   start: string,
   end: string,
 ): Promise<ShopifyAnalyticsOverview> {
-  const url = new URL(`${API_BASE}/overview`, window.location.origin);
-  url.searchParams.set('start', start);
-  url.searchParams.set('end', end);
-
-  const res = await fetch(url.toString());
+  const params = new URLSearchParams({ start, end });
+  const res = await fetch(`${API_BASE}/overview?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
