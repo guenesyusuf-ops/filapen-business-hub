@@ -786,6 +786,13 @@ export class ShopifyService {
           totalOrders++;
         }
 
+        // Update lastSyncedAt progressively after each page so the dashboard
+        // shows progress and we don't lose state if the process crashes mid-sync
+        await this.prisma.integration.update({
+          where: { id: integrationId },
+          data: { lastSyncedAt: new Date() },
+        });
+
         nextOrdersUrl = response.pagination.nextPageUrl;
       }
 
