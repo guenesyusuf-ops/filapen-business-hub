@@ -617,20 +617,22 @@ model Shop {
 }
 
 model Product {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId       String        @map("org_id") @db.Uuid
-  shopId      String        @map("shop_id") @db.Uuid
-  externalId  String        @map("external_id") @db.VarChar(255)
-  title       String        @db.VarChar(500)
-  description String?       @db.Text
-  handle      String?       @db.VarChar(500)
-  sku         String?       @db.VarChar(255)
-  imageUrl    String?       @map("image_url") @db.Text
-  status      ProductStatus @default(active)
-  category    String?       @db.VarChar(255)
-  vendor      String?       @db.VarChar(255)
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String        @map("org_id") @db.Uuid
+  shopId        String        @map("shop_id") @db.Uuid
+  externalId    String        @map("external_id") @db.VarChar(255)
+  title         String        @db.VarChar(500)
+  description   String?       @db.Text
+  handle        String?       @db.VarChar(500)
+  sku           String?       @db.VarChar(255)
+  imageUrl      String?       @map("image_url") @db.Text
+  status        ProductStatus @default(active)
+  category      String?       @db.VarChar(255)
+  vendor        String?       @db.VarChar(255)
+  internalNotes String?       @map("internal_notes") @db.Text
+  internalTags  String[]      @default([]) @map("internal_tags")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   shop         Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)

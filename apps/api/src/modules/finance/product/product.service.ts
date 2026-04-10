@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { AggregationService } from '../profit/aggregation.service';
 import { Prisma } from '@prisma/client';
 import type { ProductProfitability } from '@filapen/shared/src/types/finance';
 
@@ -45,7 +46,10 @@ export interface CogsCoverage {
 export class ProductService {
   private readonly logger = new Logger(ProductService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aggregationService: AggregationService,
+  ) {}
 
   /**
    * List products with profitability data aggregated from order line items
@@ -333,6 +337,115 @@ export class ProductService {
     }
 
     return product;
+  }
+
+  /**
+   * Get product detail for the detail page — product + all variants
+   * ordered by title. Throws NotFoundException if the product does not
+   * belong to the given org.
+   */
+  async getProductDetail(orgId: string, productId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, orgId },
+      include: {
+        variants: {
+          orderBy: { title: 'asc' },
+        },
+      },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    return product;
+  }
+
+  /**
+   * Update user-editable internal fields (internalNotes, internalTags)
+   * on a product. Does NOT touch Shopify-synced fields.
+   */
+  async updateProductInternal(
+    orgId: string,
+    productId: string,
+    data: { internalNotes?: string | null; internalTags?: string[] },
+  ) {
+    const existing = await this.prisma.product.findFirst({
+      where: { id: productId, orgId },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Product not found');
+
+    const patch: Prisma.ProductUpdateInput = {};
+    if (data.internalNotes !== undefined) {
+      patch.internalNotes = data.internalNotes;
+    }
+    if (data.internalTags !== undefined) {
+      patch.internalTags = data.internalTags;
+    }
+
+    return this.prisma.product.update({
+      where: { id: productId },
+      data: patch,
+      include: {
+        variants: {
+          orderBy: { title: 'asc' },
+        },
+      },
+    });
+  }
+
+  /**
+   * Update COGS and/or COGS currency for a variant, then trigger
+   * aggregate rebuild for all affected dates.
+   */
+  async updateVariantCogs(
+    orgId: string,
+    variantId: string,
+    data: { cogs?: number | null; cogsCurrency?: string | null },
+  ) {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, orgId },
+    });
+    if (!variant) {
+      throw new NotFoundException(`Variant ${variantId} not found`);
+    }
+
+    let affectedDates: Date[] = [];
+
+    // If a numeric COGS value was provided, re-use the existing
+    // updateCogs path so line_items are propagated consistently.
+    if (data.cogs != null && !Number.isNaN(Number(data.cogs))) {
+      affectedDates = await this.updateCogs(orgId, variantId, Number(data.cogs));
+    }
+
+    // Update currency (and — if needed — stamp updatedAt) separately.
+    if (data.cogsCurrency !== undefined) {
+      await this.prisma.productVariant.update({
+        where: { id: variantId },
+        data: {
+          cogsCurrency: data.cogsCurrency,
+          cogsUpdatedAt: new Date(),
+        },
+      });
+    }
+
+    // Trigger a rebuild over the affected date range. We do this
+    // fire-and-forget-ish (await but log errors) so the user still
+    // gets a successful mutation response.
+    if (affectedDates.length > 0) {
+      const start = affectedDates[0];
+      const end = affectedDates[affectedDates.length - 1];
+      try {
+        await this.aggregationService.rebuildRange(orgId, start, end);
+      } catch (err) {
+        this.logger.error(
+          `rebuildRange failed for variant ${variantId}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    return this.prisma.productVariant.findUnique({
+      where: { id: variantId },
+    });
   }
 
   /**

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Query,
   Param,
   Body,
@@ -119,6 +120,82 @@ export class DashboardController {
     } catch (error) {
       this.logger.error('Failed to load product catalog', error);
       throw new HttpException('Failed to load product catalog', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // GET /api/finance/products/catalog/:id
+  // =========================================================================
+  //
+  // Returns a single product with all variants, including user-editable
+  // fields (internalNotes, internalTags, cogs, cogsCurrency). Used by the
+  // product detail page under /finance/products/[id].
+  //
+  @Get('products/catalog/:id')
+  async getProductCatalogDetail(@Param('id') id: string) {
+    try {
+      return await this.productService.getProductDetail(DEV_ORG_ID, id);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to load product detail', error);
+      throw new HttpException(
+        'Failed to load product detail',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // =========================================================================
+  // PATCH /api/finance/products/:id
+  // =========================================================================
+  //
+  // Update internal user-editable product fields (notes, tags). Never
+  // touches Shopify-synced fields.
+  //
+  @Patch('products/:id')
+  async updateProductInternal(
+    @Param('id') id: string,
+    @Body() body: { internalNotes?: string | null; internalTags?: string[] },
+  ) {
+    try {
+      return await this.productService.updateProductInternal(DEV_ORG_ID, id, {
+        internalNotes: body?.internalNotes,
+        internalTags: body?.internalTags,
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to update product', error);
+      throw new HttpException(
+        'Failed to update product',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // =========================================================================
+  // PATCH /api/finance/variants/:id
+  // =========================================================================
+  //
+  // Update user-editable variant fields (cogs, cogsCurrency). Triggers
+  // aggregate rebuild for affected dates.
+  //
+  @Patch('variants/:id')
+  async updateVariantCogs(
+    @Param('id') id: string,
+    @Body() body: { cogs?: number | null; cogsCurrency?: string | null },
+  ) {
+    try {
+      return await this.productService.updateVariantCogs(DEV_ORG_ID, id, {
+        cogs: body?.cogs,
+        cogsCurrency: body?.cogsCurrency,
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to update variant', error);
+      throw new HttpException(
+        'Failed to update variant',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 

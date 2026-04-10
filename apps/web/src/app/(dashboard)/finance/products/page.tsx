@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Package, ImageIcon, Barcode, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -110,7 +111,10 @@ function ProductCard({ product }: { product: CatalogProduct }) {
   const hasPriceRange = product.minPrice !== product.maxPrice;
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-xl border border-[#222] bg-[#111] transition-all duration-200 hover:border-[#333] hover:shadow-[0_0_0_1px_rgba(255,255,255,0.05)]">
+    <Link
+      href={`/finance/products/${product.id}`}
+      className="group flex flex-col overflow-hidden rounded-xl border border-[#222] bg-[#111] transition-all duration-200 hover:border-[#333] hover:shadow-[0_0_0_1px_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+    >
       {/* Image */}
       <div className="relative aspect-square w-full overflow-hidden bg-[#0a0a0a]">
         {product.imageUrl ? (
@@ -193,7 +197,7 @@ function ProductCard({ product }: { product: CatalogProduct }) {
           </div>
         )}
       </div>
-    </div>
+    </Link>
   );
 }
 
