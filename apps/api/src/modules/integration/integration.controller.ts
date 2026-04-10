@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShopifyService } from './shopify/shopify.service';
+import { AggregationService } from '../finance/profit/aggregation.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -30,6 +31,7 @@ export class IntegrationController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly shopifyService: ShopifyService,
+    private readonly aggregationService: AggregationService,
   ) {}
 
   // =========================================================================
@@ -195,10 +197,20 @@ export class IntegrationController {
       }
 
       if (integration.type === 'shopify') {
-        // Fire-and-forget: backfill runs in the background
-        this.shopifyService.backfill(id).catch((err) => {
-          this.logger.error(`Background sync failed for integration ${id}`, err);
-        });
+        // Fire-and-forget: backfill + aggregate rebuild in background
+        this.shopifyService
+          .backfill(id)
+          .then(async () => {
+            this.logger.log(`Backfill done for ${id}, rebuilding aggregates...`);
+            const end = new Date();
+            const start = new Date();
+            start.setMonth(start.getMonth() - 12);
+            await this.aggregationService.rebuildRange(DEV_ORG_ID, start, end);
+            this.logger.log(`Aggregates rebuilt for ${id}`);
+          })
+          .catch((err) => {
+            this.logger.error(`Background sync failed for integration ${id}`, err);
+          });
       } else {
         throw new HttpException(
           `Manual sync not yet supported for type: ${integration.type}`,
@@ -211,6 +223,37 @@ export class IntegrationController {
       if (error instanceof NotFoundException || error instanceof HttpException) throw error;
       this.logger.error(`Failed to trigger sync for integration ${id}`, error);
       throw new HttpException('Failed to trigger sync', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // POST /api/integrations/rebuild-aggregates — Rebuild dashboard aggregates
+  // =========================================================================
+
+  @Post('rebuild-aggregates')
+  async rebuildAggregates() {
+    try {
+      const end = new Date();
+      const start = new Date();
+      start.setMonth(start.getMonth() - 12);
+
+      this.logger.log(`Rebuilding aggregates for last 12 months`);
+
+      // Run synchronously so caller knows when it's done
+      await this.aggregationService.rebuildRange(DEV_ORG_ID, start, end);
+
+      return {
+        success: true,
+        message: 'Aggregates rebuilt for the last 12 months',
+        from: start.toISOString(),
+        to: end.toISOString(),
+      };
+    } catch (error) {
+      this.logger.error('Failed to rebuild aggregates', error);
+      throw new HttpException(
+        `Failed to rebuild aggregates: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }
