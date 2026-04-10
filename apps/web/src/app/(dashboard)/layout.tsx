@@ -40,6 +40,8 @@ import {
   Palette,
   ExternalLink,
   ShieldCheck,
+  Store,
+  ShoppingBag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -82,6 +84,15 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.creativeAnalysis', href: '/finance/creative-analysis', icon: Palette },
       { labelKey: 'nav.integrations', href: '/finance/integrations', icon: Plug },
       { labelKey: 'nav.reports', href: '/finance/reports', icon: FileText },
+    ],
+  },
+  {
+    labelKey: 'nav.channelsHub',
+    href: '/channels',
+    icon: Store,
+    children: [
+      { labelKey: 'nav.overview', href: '/channels', icon: BarChart3 },
+      { labelKey: 'nav.shopify', href: '/channels/shopify', icon: ShoppingBag },
     ],
   },
   {
@@ -144,6 +155,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
     const initial = new Set<string>();
     if (pathname.startsWith('/finance')) {
       initial.add('nav.financeHub');
+    }
+    if (pathname.startsWith('/channels')) {
+      initial.add('nav.channelsHub');
     }
     if (pathname.startsWith('/creators')) {
       initial.add('nav.creatorHub');

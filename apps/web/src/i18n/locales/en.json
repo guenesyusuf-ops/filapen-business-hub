@@ -60,7 +60,9 @@
     "general": "General",
     "team": "Team",
     "approvals": "Approvals",
-    "creatorPortal": "Creator Portal"
+    "creatorPortal": "Creator Portal",
+    "channelsHub": "Channels",
+    "shopify": "Shopify"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",

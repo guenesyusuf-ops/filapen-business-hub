@@ -9,6 +9,7 @@ import { AlertModule } from './alert/alert.module';
 import { AttributionModule } from './attribution/attribution.module';
 import { CohortModule } from './cohort/cohort.module';
 import { BenchmarkModule } from './benchmark/benchmark.module';
+import { ShopifyAnalyticsModule } from './shopify-analytics/shopify-analytics.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { BenchmarkModule } from './benchmark/benchmark.module';
     AttributionModule,
     CohortModule,
     BenchmarkModule,
+    ShopifyAnalyticsModule,
   ],
   exports: [
     ProfitCalculationModule,
