@@ -40,7 +40,14 @@ export class ShopifyService {
   getAuthUrl(orgId: string, shopDomain: string): string {
     const clientId = this.configService.getOrThrow<string>('SHOPIFY_API_KEY');
     const apiUrl = this.configService.getOrThrow<string>('API_URL');
-    const secret = this.configService.getOrThrow<string>('API_SECRET');
+    const secret =
+      this.configService.get<string>('API_SECRET') ||
+      this.configService.get<string>('SHOPIFY_API_SECRET');
+    if (!secret) {
+      throw new BadRequestException(
+        'Missing API_SECRET or SHOPIFY_API_SECRET environment variable',
+      );
+    }
 
     const normalizedShop = this.normalizeShopDomain(shopDomain);
 

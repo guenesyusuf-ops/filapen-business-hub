@@ -34,34 +34,50 @@ export class ShopifyAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ): void {
-    if (!shop) {
+    try {
+      if (!shop) {
+        throw new BadRequestException(
+          'Missing required query parameter: shop',
+        );
+      }
+
+      if (!orgId) {
+        throw new BadRequestException(
+          'Missing required query parameter: orgId',
+        );
+      }
+
+      // Validate shop domain format to prevent open redirect
+      const normalizedShop = shop
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '');
+      if (!normalizedShop.endsWith('.myshopify.com')) {
+        throw new BadRequestException(
+          'Invalid shop domain. Must be a .myshopify.com domain.',
+        );
+      }
+
+      const authUrl = this.shopifyService.getAuthUrl(orgId, normalizedShop);
+
+      this.logger.log(
+        `Initiating Shopify OAuth for org ${orgId}, shop ${normalizedShop}`,
+      );
+
+      res.redirect(authUrl);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(
+        `Shopify install failed: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       throw new BadRequestException(
-        'Missing required query parameter: shop',
+        'Failed to initiate Shopify OAuth. Please check that all required environment variables are configured.',
       );
     }
-
-    if (!orgId) {
-      throw new BadRequestException(
-        'Missing required query parameter: orgId',
-      );
-    }
-
-    // Validate shop domain format to prevent open redirect
-    const shopPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
-    const normalizedShop = shop.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
-    if (!normalizedShop.endsWith('.myshopify.com')) {
-      throw new BadRequestException(
-        'Invalid shop domain. Must be a .myshopify.com domain.',
-      );
-    }
-
-    const authUrl = this.shopifyService.getAuthUrl(orgId, normalizedShop);
-
-    this.logger.log(
-      `Initiating Shopify OAuth for org ${orgId}, shop ${normalizedShop}`,
-    );
-
-    res.redirect(authUrl);
   }
 
   /**

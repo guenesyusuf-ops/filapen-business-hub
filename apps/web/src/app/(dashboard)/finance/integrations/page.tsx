@@ -1,206 +1,264 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   ShoppingBag,
-  Globe,
   BarChart3,
+  Search,
+  PlayCircle,
+  Package,
+  Plug,
   RefreshCw,
-  Unplug,
+  Unlink,
   CheckCircle2,
-  XCircle,
+  AlertCircle,
   Clock,
   Loader2,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useIntegrations, type Integration } from '@/hooks/finance/useIntegrations';
+import {
+  useIntegrations,
+  useDisconnectIntegration,
+  useSyncIntegration,
+  useConnectIntegration,
+  type Integration,
+} from '@/hooks/finance/useIntegrations';
 
 // ---------------------------------------------------------------------------
-// Integration metadata
+// Platform definitions
 // ---------------------------------------------------------------------------
 
-interface IntegrationMeta {
+interface PlatformDef {
+  type: string;
   label: string;
   description: string;
   icon: React.ReactNode;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  dataLabel: (integration: Integration) => string;
+  iconBg: string;
+  comingSoon: boolean;
 }
 
-const INTEGRATION_META: Record<string, IntegrationMeta> = {
-  shopify: {
+const PLATFORMS: PlatformDef[] = [
+  {
+    type: 'shopify',
     label: 'Shopify',
-    description: 'E-commerce orders, products, and customer data',
-    icon: <ShoppingBag className="h-5 w-5" />,
-    color: '#5E8E3E',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200',
-    dataLabel: () => '5,233 orders synced',
+    description: 'E-Commerce Daten: Bestellungen, Produkte, Umsatz',
+    icon: <ShoppingBag className="h-6 w-6" />,
+    iconBg: 'bg-green-500/10 text-green-400',
+    comingSoon: false,
   },
-  meta: {
+  {
+    type: 'meta',
     label: 'Meta Ads',
-    description: 'Facebook & Instagram ad campaigns and spend',
-    icon: <Globe className="h-5 w-5" />,
-    color: '#1877F2',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-    dataLabel: () => '3 campaigns, $12.4K total spend',
+    description: 'Facebook & Instagram Werbe-Daten',
+    icon: <BarChart3 className="h-6 w-6" />,
+    iconBg: 'bg-blue-500/10 text-blue-400',
+    comingSoon: true,
   },
-  google: {
+  {
+    type: 'google',
     label: 'Google Ads',
-    description: 'Google search and display ad campaigns',
-    icon: <BarChart3 className="h-5 w-5" />,
-    color: '#EA4335',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200',
-    dataLabel: () => '2 campaigns, $8.7K total spend',
+    description: 'Google Werbe-Daten & Attribution',
+    icon: <Search className="h-6 w-6" />,
+    iconBg: 'bg-red-500/10 text-red-400',
+    comingSoon: true,
   },
-};
+  {
+    type: 'tiktok',
+    label: 'TikTok Ads',
+    description: 'TikTok Werbe-Daten',
+    icon: <PlayCircle className="h-6 w-6" />,
+    iconBg: 'bg-pink-500/10 text-pink-400',
+    comingSoon: true,
+  },
+  {
+    type: 'amazon',
+    label: 'Amazon',
+    description: 'Amazon Marketplace Daten',
+    icon: <Package className="h-6 w-6" />,
+    iconBg: 'bg-orange-500/10 text-orange-400',
+    comingSoon: true,
+  },
+];
 
 // ---------------------------------------------------------------------------
-// Helper: relative time
+// Relative time helper
 // ---------------------------------------------------------------------------
 
 function relativeTime(dateStr: string | null): string {
-  if (!dateStr) return 'Never';
+  if (!dateStr) return 'Nie';
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+  if (diffMin < 1) return 'Gerade eben';
+  if (diffMin < 60) return `vor ${diffMin} Min.`;
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+  if (diffHr < 24) return `vor ${diffHr} Std.`;
   const diffDay = Math.floor(diffHr / 24);
-  return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+  return `vor ${diffDay} Tag${diffDay === 1 ? '' : 'en'}`;
+}
+
+// ---------------------------------------------------------------------------
+// Toast / Banner component
+// ---------------------------------------------------------------------------
+
+function CallbackBanner() {
+  const searchParams = useSearchParams();
+  const [visible, setVisible] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    const shopifyStatus = searchParams.get('shopify');
+    if (!shopifyStatus) return;
+
+    if (shopifyStatus === 'connected') {
+      setMessage('Shopify erfolgreich verbunden!');
+      setIsError(false);
+      setVisible(true);
+    } else if (shopifyStatus === 'error') {
+      const errorText = searchParams.get('error') || 'Unbekannter Fehler';
+      setMessage(`Shopify-Verbindung fehlgeschlagen: ${errorText}`);
+      setIsError(true);
+      setVisible(true);
+    }
+
+    timerRef.current = setTimeout(() => setVisible(false), 5000);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [searchParams]);
+
+  if (!visible) return null;
+
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between rounded-lg border px-4 py-3 text-sm',
+        isError
+          ? 'border-red-500/30 bg-red-500/10 text-red-400'
+          : 'border-green-500/30 bg-green-500/10 text-green-400',
+      )}
+    >
+      <div className="flex items-center gap-2">
+        {isError ? (
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+        ) : (
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+        )}
+        <span>{message}</span>
+      </div>
+      <button
+        onClick={() => setVisible(false)}
+        className="rounded p-0.5 hover:bg-white/10 transition-colors"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Skeleton
 // ---------------------------------------------------------------------------
 
-function IntegrationCardSkeleton() {
+function CardSkeleton() {
   return (
-    <div className="rounded-xl bg-white p-6 shadow-card animate-pulse">
+    <div className="rounded-xl border border-[#222] bg-[#111] p-6 animate-pulse">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-10 w-10 rounded-lg bg-gray-200" />
+        <div className="h-12 w-12 rounded-lg bg-[#222]" />
         <div>
-          <div className="h-4 w-24 rounded bg-gray-200 mb-1" />
-          <div className="h-3 w-40 rounded bg-gray-200" />
+          <div className="h-4 w-24 rounded bg-[#222] mb-2" />
+          <div className="h-3 w-40 rounded bg-[#222]" />
         </div>
       </div>
-      <div className="space-y-3">
-        <div className="h-3 w-32 rounded bg-gray-200" />
-        <div className="h-3 w-28 rounded bg-gray-200" />
-        <div className="h-3 w-36 rounded bg-gray-200" />
-      </div>
-      <div className="flex gap-2 mt-5">
-        <div className="h-8 w-24 rounded-lg bg-gray-200" />
-        <div className="h-8 w-24 rounded-lg bg-gray-200" />
-      </div>
+      <div className="h-3 w-32 rounded bg-[#222] mt-6" />
+      <div className="h-9 w-28 rounded-lg bg-[#222] mt-4" />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Integration Card
+// Connected integration card
 // ---------------------------------------------------------------------------
 
-function IntegrationCard({
+function ConnectedCard({
+  platform,
   integration,
-  onSync,
-  syncing,
 }: {
+  platform: PlatformDef;
   integration: Integration;
-  onSync: (id: string) => void;
-  syncing: boolean;
 }) {
-  const meta = INTEGRATION_META[integration.type] ?? {
-    label: integration.type,
-    description: 'Third-party integration',
-    icon: <Globe className="h-5 w-5" />,
-    color: '#6B7280',
-    bgColor: 'bg-gray-50',
-    borderColor: 'border-gray-200',
-    dataLabel: () => 'Connected',
-  };
-
-  const isConnected = integration.status === 'connected';
+  const syncMutation = useSyncIntegration();
+  const disconnectMutation = useDisconnectIntegration();
 
   return (
-    <div className="group rounded-xl bg-white p-6 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200">
+    <div className="rounded-xl border border-[#222] bg-[#111] p-6 hover:border-[#333] transition-colors">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div
-            className={cn('flex items-center justify-center h-10 w-10 rounded-lg', meta.bgColor)}
-            style={{ color: meta.color }}
-          >
-            {meta.icon}
+          <div className={cn('flex items-center justify-center h-12 w-12 rounded-lg', platform.iconBg)}>
+            {platform.icon}
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">{meta.label}</h3>
-            <p className="text-xs text-gray-500">{meta.description}</p>
+            <h3 className="text-sm font-semibold text-white">{platform.label}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{platform.description}</p>
           </div>
         </div>
-
-        {/* Status badge */}
-        <span
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
-            isConnected
-              ? 'bg-emerald-50 text-emerald-700'
-              : 'bg-gray-100 text-gray-500',
-          )}
-        >
-          {isConnected ? (
-            <CheckCircle2 className="h-3 w-3" />
-          ) : (
-            <XCircle className="h-3 w-3" />
-          )}
-          {isConnected ? 'Connected' : 'Disconnected'}
-        </span>
       </div>
 
-      {/* Details */}
-      <div className="space-y-2 mb-5">
+      {/* Status */}
+      <div className="mt-5 space-y-2">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="flex items-center gap-1.5 text-green-400">
+            <span className="h-2 w-2 rounded-full bg-green-400" />
+            Verbunden
+          </span>
+        </div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <Clock className="h-3.5 w-3.5" />
-          <span>Last synced: {relativeTime(integration.lastSyncedAt)}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-gray-700 font-medium">
-          <BarChart3 className="h-3.5 w-3.5 text-gray-400" />
-          <span>{meta.dataLabel(integration)}</span>
+          <span>Letzter Sync: {relativeTime(integration.lastSyncedAt)}</span>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 mt-5">
         <button
-          onClick={() => onSync(integration.id)}
-          disabled={!isConnected || syncing}
+          onClick={() => syncMutation.mutate(integration.id)}
+          disabled={syncMutation.isPending}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
-            isConnected && !syncing
-              ? 'bg-primary text-white hover:bg-primary-700'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed',
+            syncMutation.isPending
+              ? 'bg-[#222] text-gray-500 cursor-not-allowed'
+              : 'bg-white text-black hover:bg-gray-200',
           )}
         >
-          {syncing ? (
+          {syncMutation.isPending ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
           )}
-          {syncing ? 'Syncing...' : 'Sync Now'}
+          {syncMutation.isPending ? 'Synchronisiert...' : 'Sync'}
         </button>
         <button
-          disabled
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-gray-400 cursor-not-allowed"
+          onClick={() => disconnectMutation.mutate(integration.id)}
+          disabled={disconnectMutation.isPending}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-lg border border-[#333] px-3 py-2 text-xs font-medium transition-colors',
+            disconnectMutation.isPending
+              ? 'text-gray-600 cursor-not-allowed'
+              : 'text-gray-400 hover:text-red-400 hover:border-red-500/30',
+          )}
         >
-          <Unplug className="h-3.5 w-3.5" />
-          Disconnect
+          {disconnectMutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Unlink className="h-3.5 w-3.5" />
+          )}
+          Trennen
         </button>
       </div>
     </div>
@@ -208,87 +266,154 @@ function IntegrationCard({
 }
 
 // ---------------------------------------------------------------------------
-// Sync History Table
+// Shopify connect card (with domain input)
 // ---------------------------------------------------------------------------
 
-interface SyncLog {
-  integration: string;
-  status: string;
-  time: string;
-  records: string;
-  duration: string;
-}
+function ShopifyConnectCard({ platform }: { platform: PlatformDef }) {
+  const { connect } = useConnectIntegration();
+  const [showInput, setShowInput] = useState(false);
 
-const MOCK_SYNC_LOGS: SyncLog[] = [
-  { integration: 'Shopify', status: 'success', time: '5 minutes ago', records: '127 orders', duration: '12s' },
-  { integration: 'Meta Ads', status: 'success', time: '1 hour ago', records: '3 campaigns', duration: '8s' },
-  { integration: 'Google Ads', status: 'success', time: '2 hours ago', records: '2 campaigns', duration: '6s' },
-  { integration: 'Shopify', status: 'success', time: '6 hours ago', records: '89 orders', duration: '9s' },
-  { integration: 'Meta Ads', status: 'warning', time: '12 hours ago', records: '3 campaigns (partial)', duration: '15s' },
-  { integration: 'Shopify', status: 'success', time: '1 day ago', records: '156 orders', duration: '14s' },
-];
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const domain = (formData.get('shopDomain') as string)?.trim();
+    if (domain) {
+      connect('shopify', domain);
+    }
+  };
 
-function SyncHistoryTable() {
   return (
-    <div className="rounded-xl bg-white shadow-card overflow-hidden">
-      <div className="px-6 py-4 border-b border-border">
-        <h3 className="text-sm font-semibold text-gray-900">Sync History</h3>
-        <p className="text-xs text-gray-500 mt-0.5">Recent synchronization activity</p>
+    <div className="rounded-xl border border-[#222] bg-[#111] p-6 hover:border-[#333] transition-colors">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className={cn('flex items-center justify-center h-12 w-12 rounded-lg', platform.iconBg)}>
+            {platform.icon}
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-white">{platform.label}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{platform.description}</p>
+          </div>
+        </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border bg-surface-secondary">
-              <th className="px-6 py-3 text-left text-xxs font-medium uppercase tracking-wider text-gray-500">
-                Integration
-              </th>
-              <th className="px-6 py-3 text-left text-xxs font-medium uppercase tracking-wider text-gray-500">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xxs font-medium uppercase tracking-wider text-gray-500">
-                Time
-              </th>
-              <th className="px-6 py-3 text-left text-xxs font-medium uppercase tracking-wider text-gray-500">
-                Records
-              </th>
-              <th className="px-6 py-3 text-left text-xxs font-medium uppercase tracking-wider text-gray-500">
-                Duration
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {MOCK_SYNC_LOGS.map((log, i) => (
-              <tr key={i} className="hover:bg-surface-secondary transition-colors">
-                <td className="px-6 py-3 text-sm text-gray-900 font-medium">{log.integration}</td>
-                <td className="px-6 py-3">
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-                      log.status === 'success'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : log.status === 'warning'
-                          ? 'bg-amber-50 text-amber-700'
-                          : 'bg-red-50 text-red-700',
-                    )}
-                  >
-                    {log.status === 'success' ? (
-                      <CheckCircle2 className="h-3 w-3" />
-                    ) : (
-                      <Clock className="h-3 w-3" />
-                    )}
-                    {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
-                  </span>
-                </td>
-                <td className="px-6 py-3 text-xs text-gray-500">{log.time}</td>
-                <td className="px-6 py-3 text-xs text-gray-700">{log.records}</td>
-                <td className="px-6 py-3 text-xs text-gray-500">{log.duration}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      {/* Status */}
+      <div className="mt-5">
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="h-2 w-2 rounded-full bg-gray-600" />
+          Nicht verbunden
+        </div>
+      </div>
+
+      {/* Connect */}
+      <div className="mt-5">
+        {showInput ? (
+          <form onSubmit={handleSubmit} className="space-y-2">
+            <input
+              name="shopDomain"
+              type="text"
+              placeholder="meinshop.myshopify.com"
+              required
+              autoFocus
+              className="w-full rounded-lg border border-[#333] bg-[#0a0a0a] px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-[#555] focus:outline-none transition-colors"
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white hover:bg-green-500 transition-colors"
+              >
+                <Plug className="h-3.5 w-3.5" />
+                Verbinden
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowInput(false)}
+                className="inline-flex items-center rounded-lg border border-[#333] px-3 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setShowInput(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-medium text-black hover:bg-gray-200 transition-colors"
+          >
+            <Plug className="h-3.5 w-3.5" />
+            Verbinden
+          </button>
+        )}
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Coming soon card
+// ---------------------------------------------------------------------------
+
+function ComingSoonCard({ platform }: { platform: PlatformDef }) {
+  return (
+    <div className="rounded-xl border border-[#222] bg-[#111] p-6 opacity-60">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className={cn('flex items-center justify-center h-12 w-12 rounded-lg', platform.iconBg)}>
+            {platform.icon}
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-white">{platform.label}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{platform.description}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Status */}
+      <div className="mt-5">
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="h-2 w-2 rounded-full bg-gray-600" />
+          Nicht verbunden
+        </div>
+      </div>
+
+      {/* Coming soon badge */}
+      <div className="mt-5">
+        <span className="inline-flex items-center rounded-full border border-[#333] px-3 py-1.5 text-xs font-medium text-gray-500">
+          Demnachst verfugbar
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Platform card router
+// ---------------------------------------------------------------------------
+
+function PlatformCard({
+  platform,
+  integration,
+}: {
+  platform: PlatformDef;
+  integration?: Integration;
+}) {
+  // Connected
+  if (integration && integration.status === 'connected') {
+    return <ConnectedCard platform={platform} integration={integration} />;
+  }
+
+  // Coming soon
+  if (platform.comingSoon) {
+    return <ComingSoonCard platform={platform} />;
+  }
+
+  // Shopify — connectable
+  if (platform.type === 'shopify') {
+    return <ShopifyConnectCard platform={platform} />;
+  }
+
+  // Fallback
+  return <ComingSoonCard platform={platform} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -297,56 +422,52 @@ function SyncHistoryTable() {
 
 export default function IntegrationsPage() {
   const { data: integrations, isLoading, isError, error } = useIntegrations();
-  const [syncingId, setSyncingId] = useState<string | null>(null);
 
-  const handleSync = useCallback((id: string) => {
-    setSyncingId(id);
-    // Simulate sync
-    setTimeout(() => {
-      setSyncingId(null);
-    }, 2000);
-  }, []);
+  // Build a lookup map: type -> integration
+  const integrationMap = new Map<string, Integration>();
+  integrations?.forEach((i) => integrationMap.set(i.type, i));
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Page Header */}
+      {/* Callback banner */}
+      <CallbackBanner />
+
+      {/* Page header */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Integrations</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Integrationen</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Manage your connected data sources and sync settings
+          Verbinde deine Datenquellen um Umsatz, Kosten und Werbe-Performance an einem Ort zu sehen.
         </p>
       </div>
 
       {/* Error banner */}
       {isError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <strong>Error loading integrations.</strong>{' '}
-          {(error as Error)?.message ?? 'Please try again.'}
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
+          <strong>Fehler beim Laden der Integrationen.</strong>{' '}
+          {(error as Error)?.message ?? 'Bitte versuche es erneut.'}
         </div>
       )}
 
-      {/* Integration Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {/* Platform grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {isLoading ? (
           <>
-            <IntegrationCardSkeleton />
-            <IntegrationCardSkeleton />
-            <IntegrationCardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
           </>
         ) : (
-          integrations?.map((integration) => (
-            <IntegrationCard
-              key={integration.id}
-              integration={integration}
-              onSync={handleSync}
-              syncing={syncingId === integration.id}
+          PLATFORMS.map((platform) => (
+            <PlatformCard
+              key={platform.type}
+              platform={platform}
+              integration={integrationMap.get(platform.type)}
             />
           ))
         )}
       </div>
-
-      {/* Sync History */}
-      <SyncHistoryTable />
     </div>
   );
 }
