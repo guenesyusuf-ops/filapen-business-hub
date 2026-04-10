@@ -63,7 +63,8 @@ export class AggregationService {
     await this.prisma.$transaction(
       async (tx) => {
         // Acquire advisory lock within the transaction
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
+        // Use $executeRaw because pg_advisory_xact_lock returns void which $queryRaw can't deserialize
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
 
         // -------------------------------------------------------------------
         // 1. Order metrics (for shopify_dtc channel)
