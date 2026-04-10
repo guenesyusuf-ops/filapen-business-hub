@@ -1,13 +1,14 @@
 /**
- * Format a value in cents as a currency string.
+ * Format a value in cents as a currency string (German locale, EUR default).
+ * Always shows full precision to the cent — no abbreviation.
  *
  * @param cents - Amount in cents (integer)
- * @param currency - ISO 4217 currency code, defaults to "USD"
- * @returns Formatted currency string, e.g. "$1,234.56"
+ * @param currency - ISO 4217 currency code, defaults to "EUR"
+ * @returns Formatted currency string, e.g. "1.234,56 €"
  */
-export function formatCurrency(cents: number, currency: string = 'USD'): string {
+export function formatCurrency(cents: number, currency: string = 'EUR'): string {
   const dollars = centsToDollars(cents);
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -16,27 +17,15 @@ export function formatCurrency(cents: number, currency: string = 'USD'): string 
 }
 
 /**
- * Format a dollar value as a compact currency string.
- * For values >= 1M shows "$1.1M", >= 1K shows "$12.3K", else "$123.45".
+ * Format a euro value as a full-precision currency string.
+ * NO abbreviation — always shows exact value to the cent.
  *
- * @param dollars - Amount in dollars (float)
- * @param currency - ISO 4217 currency code, defaults to "USD"
- * @returns Formatted compact currency string
+ * @param dollars - Amount in euros/dollars (float)
+ * @param currency - ISO 4217 currency code, defaults to "EUR"
+ * @returns Formatted currency string, e.g. "1.234,56 €"
  */
-export function formatDollars(dollars: number, currency: string = 'USD'): string {
-  const abs = Math.abs(dollars);
-  const sign = dollars < 0 ? '-' : '';
-
-  if (abs >= 1_000_000) {
-    const val = abs / 1_000_000;
-    return `${sign}$${val >= 10 ? val.toFixed(1) : val.toFixed(2)}M`;
-  }
-  if (abs >= 1_000) {
-    const val = abs / 1_000;
-    return `${sign}$${val >= 100 ? val.toFixed(0) : val.toFixed(1)}K`;
-  }
-
-  return new Intl.NumberFormat('en-US', {
+export function formatDollars(dollars: number, currency: string = 'EUR'): string {
+  return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -45,14 +34,14 @@ export function formatDollars(dollars: number, currency: string = 'USD'): string
 }
 
 /**
- * Format a dollar value as a full (non-compact) currency string.
+ * Format a euro value as a full (non-compact) currency string.
  *
- * @param dollars - Amount in dollars (float)
- * @param currency - ISO 4217 currency code, defaults to "USD"
- * @returns Formatted currency string, e.g. "$1,234.56"
+ * @param dollars - Amount in euros (float)
+ * @param currency - ISO 4217 currency code, defaults to "EUR"
+ * @returns Formatted currency string, e.g. "1.234,56 €"
  */
-export function formatDollarsFull(dollars: number, currency: string = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
+export function formatDollarsFull(dollars: number, currency: string = 'EUR'): string {
+  return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -86,10 +75,10 @@ export function formatPercent(value: number, decimals: number = 1): string {
 }
 
 /**
- * Format a number with locale-aware thousand separators.
+ * Format a number with German locale thousand separators.
  */
 export function formatNumber(value: number): string {
-  return new Intl.NumberFormat('en-US').format(value);
+  return new Intl.NumberFormat('de-DE').format(value);
 }
 
 /**

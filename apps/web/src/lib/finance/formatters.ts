@@ -5,12 +5,12 @@
  * but these helpers provide additional convenience for dashboard display.
  */
 
-export function formatCurrency(cents: number, currency = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
+export function formatCurrency(cents: number, currency = 'EUR'): string {
+  return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(cents / 100);
 }
 
@@ -19,7 +19,7 @@ export function formatPercent(value: number, decimals = 1): string {
 }
 
 export function formatNumber(value: number): string {
-  return new Intl.NumberFormat('en-US').format(value);
+  return new Intl.NumberFormat('de-DE').format(value);
 }
 
 export function formatROAS(value: number | null): string {
