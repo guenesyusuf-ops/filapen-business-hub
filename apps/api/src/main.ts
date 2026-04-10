@@ -3,6 +3,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as compression from 'compression';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -27,6 +28,7 @@ async function bootstrap() {
     console.log('[Startup] Creating NestJS application...');
 
     const app = await NestFactory.create(AppModule, {
+      rawBody: true,
       logger:
         process.env.NODE_ENV === 'production'
           ? ['error', 'warn', 'log']
@@ -34,6 +36,14 @@ async function bootstrap() {
     });
 
     console.log('[Startup] NestJS created, configuring...');
+
+    // Raw body parser for Shopify webhooks (needed for HMAC verification).
+    // Must be registered before the global JSON body parser so the raw
+    // payload is preserved on req.rawBody for the webhook controller.
+    app.use(
+      '/api/webhooks/shopify',
+      express.raw({ type: 'application/json' }),
+    );
 
     app.use(helmet());
     app.use(compression());

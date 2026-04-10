@@ -1,6 +1,7 @@
 import {
   Injectable,
   Logger,
+  Optional,
   UnauthorizedException,
   BadRequestException,
   InternalServerErrorException,
@@ -9,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { AggregationService } from '../../finance/profit/aggregation.service';
 import { ShopifyRateLimiter } from './shopify-rate-limiter';
 import {
   ShopifyOrder,
@@ -26,6 +28,7 @@ export class ShopifyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    @Optional() private readonly aggregationService?: AggregationService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -55,7 +58,8 @@ export class ShopifyService {
       expiresIn: '10m',
     });
 
-    const scopes = 'read_orders,read_products,read_inventory';
+    const scopes =
+      'read_orders,read_products,read_inventory,read_reports,read_analytics,read_customers';
     const redirectUri = `${apiUrl}/api/auth/shopify/callback`;
 
     const params = new URLSearchParams({
@@ -1274,7 +1278,18 @@ export class ShopifyService {
    */
   private async enqueueReaggregation(orgId: string, date: Date): Promise<void> {
     const dateStr = date.toISOString().split('T')[0];
-    this.logger.log(`Reaggregation needed for org=${orgId} date=${dateStr}`);
+    if (this.aggregationService) {
+      try {
+        await this.aggregationService.recalculate(orgId, date);
+        this.logger.debug(`Reaggregation completed for org=${orgId} date=${dateStr}`);
+      } catch (err) {
+        this.logger.error(`Reaggregation failed for org=${orgId} date=${dateStr}`, err);
+      }
+    } else {
+      this.logger.warn(
+        `AggregationService not available - skipping reaggregation for org=${orgId} date=${dateStr}`,
+      );
+    }
   }
 
   /**
