@@ -200,6 +200,163 @@ export class DashboardController {
   }
 
   // =========================================================================
+  // GET /api/finance/products/sales-summary
+  // =========================================================================
+  //
+  // Aggregates sales per product across a date range, optionally filtered
+  // by channel (e.g. 'shopify'). Computes salesCount, revenue and the
+  // percentage share of each product vs. total revenue. Returns the top
+  // 20 products sorted by revenue DESC.
+  //
+  // Query:
+  //   ?start=YYYY-MM-DD  (default: 30 days ago)
+  //   ?end=YYYY-MM-DD    (default: today)
+  //   ?channel=all|shopify|...  (default: all)
+  //
+  @Get('products/sales-summary')
+  async getProductSalesSummary(
+    @Query('start') startStr?: string,
+    @Query('end') endStr?: string,
+    @Query('channel') channel?: string,
+  ) {
+    // Default to last 30 days if no date supplied.
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const startDate = startStr ?? thirtyDaysAgo.toISOString().slice(0, 10);
+    const endDate = endStr ?? today.toISOString().slice(0, 10);
+
+    // Strict YYYY-MM-DD validation — these values go into raw SQL casts.
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+      throw new HttpException(
+        'Invalid date format. Expected YYYY-MM-DD',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Normalize channel filter — currently we only support Shopify, but we
+    // write it channel-agnostic so future channels (amazon, tiktok) can be
+    // added via the shops.platform enum.
+    const normalizedChannel =
+      !channel || channel === 'all' || channel === '' ? null : channel;
+
+    // Map UI channel keys → shops.platform / source filter.
+    let platformFilter: string | null = null;
+    if (normalizedChannel === 'shopify' || normalizedChannel === 'shopify_dtc') {
+      platformFilter = 'shopify';
+    } else if (normalizedChannel) {
+      // Fallback: pass through for other channels once supported.
+      platformFilter = normalizedChannel;
+    }
+
+    try {
+      const rows = await this.prisma.$queryRaw<
+        Array<{
+          product_id: string | null;
+          title: string;
+          sales_count: bigint;
+          revenue: string | null;
+        }>
+      >`
+        WITH bounds AS (
+          SELECT
+            (${startDate}::date)::timestamp AT TIME ZONE 'Europe/Berlin' AS start_ts,
+            ((${endDate}::date + INTERVAL '1 day'))::timestamp AT TIME ZONE 'Europe/Berlin' AS end_ts
+        ),
+        filtered AS (
+          SELECT
+            oli.order_id,
+            oli.product_variant_id,
+            oli.line_total,
+            oli.title               AS line_title,
+            o.subtotal_price        AS order_subtotal,
+            o.total_refunded        AS order_refunded
+          FROM order_line_items oli
+          JOIN orders o ON oli.order_id = o.id
+          JOIN shops  s ON o.shop_id    = s.id, bounds
+          WHERE o.org_id = ${DEV_ORG_ID}::uuid
+            AND o.placed_at >= bounds.start_ts
+            AND o.placed_at <  bounds.end_ts
+            AND o.status != 'cancelled'
+            AND (${platformFilter}::text IS NULL OR s.platform::text = ${platformFilter}::text)
+        ),
+        per_line AS (
+          SELECT
+            f.order_id,
+            f.product_variant_id,
+            f.line_title,
+            f.line_total,
+            -- Proportional refund allocation by line share of order subtotal.
+            CASE
+              WHEN f.order_subtotal > 0
+                THEN ROUND(f.order_refunded * (f.line_total / f.order_subtotal), 2)
+              ELSE 0
+            END AS line_refund
+          FROM filtered f
+        ),
+        joined AS (
+          SELECT
+            p.id              AS product_id,
+            COALESCE(p.title, pl.line_title) AS title,
+            pl.order_id,
+            pl.line_total,
+            pl.line_refund
+          FROM per_line pl
+          LEFT JOIN product_variants pv ON pl.product_variant_id = pv.id
+          LEFT JOIN products         p  ON pv.product_id         = p.id
+        )
+        SELECT
+          product_id,
+          title,
+          COUNT(DISTINCT order_id)::bigint AS sales_count,
+          (COALESCE(SUM(line_total), 0) - COALESCE(SUM(line_refund), 0))::text AS revenue
+        FROM joined
+        GROUP BY product_id, title
+        ORDER BY (COALESCE(SUM(line_total), 0) - COALESCE(SUM(line_refund), 0)) DESC
+        LIMIT 20
+      `;
+
+      const toNumber = (v: string | null): number => {
+        const n = v == null ? 0 : Number(v);
+        return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+      };
+
+      const products = rows.map((row) => ({
+        productId: row.product_id,
+        title: row.title,
+        salesCount: Number(row.sales_count),
+        revenue: toNumber(row.revenue),
+        percentage: 0, // filled in below
+      }));
+
+      const totalRevenue = Math.round(
+        products.reduce((s, p) => s + p.revenue, 0) * 100,
+      ) / 100;
+
+      const productsWithPercentage = products.map((p) => ({
+        ...p,
+        percentage:
+          totalRevenue > 0
+            ? Math.round((p.revenue / totalRevenue) * 10000) / 100
+            : 0,
+      }));
+
+      return {
+        totalRevenue,
+        products: productsWithPercentage,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get product sales summary', error);
+      throw new HttpException(
+        'Failed to load product sales summary',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  // =========================================================================
   // GET /api/finance/products
   // =========================================================================
 

@@ -8,6 +8,8 @@ import { PnLWaterfallChart } from '@/components/finance/dashboard/PnLWaterfallCh
 import { RevenueTimeChart } from '@/components/finance/dashboard/RevenueTimeChart';
 import { ChannelTable } from '@/components/finance/dashboard/ChannelTable';
 import { AlertsSidebar } from '@/components/finance/dashboard/AlertsSidebar';
+import { ProductSalesWidget } from '@/components/finance/dashboard/ProductSalesWidget';
+import { ShopifyAnalyticsClient } from '@/components/channels/shopify/ShopifyAnalyticsClient';
 import { DashboardGrid, type WidgetDefinition } from '@/components/shared/DashboardGrid';
 import {
   useDashboardOverview,
@@ -16,8 +18,15 @@ import {
 } from '@/hooks/finance/useDashboard';
 import { useFinanceUI } from '@/stores/finance-ui';
 
+// Any of these channel keys activates the Shopify deep-dive view. We match
+// both "shopify" (task spec) and "shopify_dtc" (legacy DB channel key).
+const SHOPIFY_CHANNEL_KEYS = new Set(['shopify', 'shopify_dtc']);
+
 export function FinanceDashboard() {
-  const { setChannel } = useFinanceUI();
+  const { selectedChannel, setChannel } = useFinanceUI();
+  const isShopifyView =
+    selectedChannel != null && SHOPIFY_CHANNEL_KEYS.has(selectedChannel);
+
   const dashboardQuery = useDashboardOverview();
   const channelsQuery = useChannelPerformance();
   const alertsQuery = useFinanceAlerts();
@@ -106,6 +115,12 @@ export function FinanceDashboard() {
           />
         ),
       },
+      {
+        id: 'product-sales',
+        title: 'Verkäufe pro Produkt',
+        size: 'full' as const,
+        component: <ProductSalesWidget />,
+      },
     ],
     [
       kpis,
@@ -137,16 +152,20 @@ export function FinanceDashboard() {
         </div>
       </div>
 
-      {/* Global error banner */}
-      {hasError && (
+      {/* Global error banner (only in aggregate view) */}
+      {!isShopifyView && hasError && (
         <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 p-4 text-sm text-red-700 dark:text-red-300">
           <strong>Error loading data.</strong>{' '}
           {dashboardQuery.error?.message ?? channelsQuery.error?.message ?? 'Please try again.'}
         </div>
       )}
 
-      {/* Customizable Widget Grid */}
-      <DashboardGrid page="/finance" widgets={widgets} />
+      {/* Channel-conditional content */}
+      {isShopifyView ? (
+        <ShopifyAnalyticsClient />
+      ) : (
+        <DashboardGrid page="/finance" widgets={widgets} />
+      )}
     </div>
   );
 }
