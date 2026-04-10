@@ -86,7 +86,7 @@ export class AggregationService {
                                                  AS refund_count
           FROM orders o
           WHERE o.org_id = ${orgId}::uuid
-            AND DATE(o.placed_at) = ${dateStr}::date
+            AND DATE(o.placed_at AT TIME ZONE 'Europe/Berlin') = ${dateStr}::date
             AND o.status != 'cancelled'
         `;
         const om = orderMetrics[0];
@@ -99,7 +99,7 @@ export class AggregationService {
           FROM order_line_items oli
           INNER JOIN orders o ON o.id = oli.order_id
           WHERE oli.org_id = ${orgId}::uuid
-            AND DATE(o.placed_at) = ${dateStr}::date
+            AND DATE(o.placed_at AT TIME ZONE 'Europe/Berlin') = ${dateStr}::date
             AND o.status != 'cancelled'
         `;
         const totalCogs = Number(cogsResult[0].total_cogs);
@@ -136,7 +136,7 @@ export class AggregationService {
           FROM shipping_costs sc
           INNER JOIN orders o ON o.id = sc.order_id
           WHERE sc.org_id = ${orgId}::uuid
-            AND DATE(o.placed_at) = ${dateStr}::date
+            AND DATE(o.placed_at AT TIME ZONE 'Europe/Berlin') = ${dateStr}::date
             AND o.status != 'cancelled'
         `;
         const totalShipping = Number(shippingResult[0].total_shipping_cost);
