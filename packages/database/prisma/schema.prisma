@@ -590,6 +590,20 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
+model CalendarNote {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String    @map("org_id") @db.Uuid
+  date       DateTime  @db.Date
+  content    String    @db.Text
+  reminderAt DateTime? @map("reminder_at") @db.Timestamptz
+  createdBy  String    @map("created_by") @db.VarChar(255)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([orgId, date])
+  @@map("calendar_notes")
+}
+
 // =============================================================================
 // FINANCE HUB MODELS
 // =============================================================================

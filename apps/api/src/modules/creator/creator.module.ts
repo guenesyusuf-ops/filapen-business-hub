@@ -6,10 +6,13 @@ import { UploadService } from './upload.service';
 import { CommentService } from './comment.service';
 import { ProjectService } from './project.service';
 import { ChatService } from './chat.service';
+import { DashboardService } from './dashboard.service';
+import { CalendarNoteService } from './calendar-note.service';
 import { CreatorController } from './creator.controller';
+import { DashboardController } from './dashboard.controller';
 
 @Module({
-  controllers: [CreatorController],
+  controllers: [CreatorController, DashboardController],
   providers: [
     CreatorService,
     DealService,
@@ -18,6 +21,8 @@ import { CreatorController } from './creator.controller';
     CommentService,
     ProjectService,
     ChatService,
+    DashboardService,
+    CalendarNoteService,
   ],
   exports: [
     CreatorService,
@@ -27,6 +32,8 @@ import { CreatorController } from './creator.controller';
     CommentService,
     ProjectService,
     ChatService,
+    DashboardService,
+    CalendarNoteService,
   ],
 })
 export class CreatorModule {}
