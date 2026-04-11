@@ -29,6 +29,7 @@ export interface Creator {
   tags: string[];
   notes?: string;
   inviteCode?: string;
+  age?: number;
   kids?: boolean;
   kidsAges?: string;
   kidsOnVideo?: boolean;

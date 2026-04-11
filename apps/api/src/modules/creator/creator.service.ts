@@ -24,6 +24,7 @@ export interface CreateCreatorDto {
   tags?: string[];
   status?: string;
   score?: number;
+  age?: number;
   kids?: boolean;
   kidsAges?: string;
   kidsOnVideo?: boolean;
@@ -196,6 +197,7 @@ export class CreatorService {
         status: (data.status as any) || 'prospect',
         score: data.score ?? 0,
         inviteCode,
+        age: data.age ?? null,
         kids: data.kids ?? false,
         kidsAges: data.kidsAges || null,
         kidsOnVideo: data.kidsOnVideo ?? false,
@@ -249,6 +251,7 @@ export class CreatorService {
     if (data.tags !== undefined) updateData.tags = data.tags;
     if (data.status !== undefined) updateData.status = data.status as any;
     if (data.score !== undefined) updateData.score = data.score;
+    if (data.age !== undefined) updateData.age = data.age ?? null;
     if (data.kids !== undefined) updateData.kids = data.kids;
     if (data.kidsAges !== undefined) updateData.kidsAges = data.kidsAges || null;
     if (data.kidsOnVideo !== undefined) updateData.kidsOnVideo = data.kidsOnVideo;
@@ -375,6 +378,7 @@ export class CreatorService {
       totalDeals: creator.totalDeals,
       totalSpend: Number(creator.totalSpend),
       inviteCode: creator.inviteCode,
+      age: creator.age ?? null,
       kids: creator.kids,
       kidsAges: creator.kidsAges,
       kidsOnVideo: creator.kidsOnVideo,

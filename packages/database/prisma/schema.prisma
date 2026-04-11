@@ -431,6 +431,7 @@ model Creator {
   updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   inviteCode    String?   @unique @map("invite_code") @db.VarChar(20)
+  age           Int?
   kids          Boolean   @default(false)
   kidsAges      String?   @map("kids_ages") @db.VarChar(100)
   kidsOnVideo   Boolean   @default(false) @map("kids_on_video")
