@@ -5,11 +5,19 @@ import { PrismaService } from '../../prisma/prisma.service';
 // DTOs
 // ---------------------------------------------------------------------------
 
+export type CampaignType = 'discount' | 'launch' | 'push' | 'other';
+
 export interface CreateProjectDto {
   name: string;
+  campaignType?: CampaignType;
+  action?: string;
+  startDate?: string; // ISO date
+  productId?: string;
+  neededCreators?: number;
   description?: string;
-  status?: string;
+  budget?: number;
   deadline?: string;
+  status?: string;
   creatorIds?: string[];
   tags?: string[];
 }
@@ -30,21 +38,63 @@ export class ProjectService {
     const projects = await this.prisma.creatorProject.findMany({
       where: { orgId },
       orderBy: { createdAt: 'desc' },
+      include: {
+        product: {
+          select: {
+            id: true,
+            title: true,
+            imageUrl: true,
+            handle: true,
+          },
+        },
+        _count: {
+          select: { invitations: true },
+        },
+      },
     });
 
-    return projects.map(this.serialize);
+    return projects.map((p) => ({
+      ...this.serialize(p),
+      invitationsCount: (p as any)._count?.invitations ?? 0,
+    }));
   }
 
   async getById(orgId: string, projectId: string) {
     const project = await this.prisma.creatorProject.findFirst({
       where: { id: projectId, orgId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            title: true,
+            imageUrl: true,
+            handle: true,
+          },
+        },
+        invitations: {
+          orderBy: { invitedAt: 'desc' },
+          include: {
+            creator: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                handle: true,
+                platform: true,
+                avatarUrl: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!project) {
       throw new NotFoundException('Project not found');
     }
 
-    // Fetch assigned creators
+    // Fetch assigned creators (legacy creatorIds field)
     let creators: any[] = [];
     if (project.creatorIds.length > 0) {
       creators = await this.prisma.creator.findMany({
@@ -63,6 +113,15 @@ export class ProjectService {
     return {
       ...this.serialize(project),
       creators,
+      invitations: (project as any).invitations.map((inv: any) => ({
+        id: inv.id,
+        status: inv.status,
+        invitedAt: inv.invitedAt.toISOString(),
+        respondedAt: inv.respondedAt ? inv.respondedAt.toISOString() : null,
+        expiresAt: inv.expiresAt.toISOString(),
+        message: inv.message,
+        creator: inv.creator,
+      })),
     };
   }
 
@@ -76,6 +135,22 @@ export class ProjectService {
         deadline: data.deadline ? new Date(data.deadline) : null,
         creatorIds: data.creatorIds || [],
         tags: data.tags || [],
+        campaignType: data.campaignType || null,
+        action: data.action || null,
+        startDate: data.startDate ? new Date(data.startDate) : null,
+        productId: data.productId || null,
+        neededCreators: data.neededCreators ?? 0,
+        budget: data.budget !== undefined && data.budget !== null ? (data.budget as any) : null,
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            title: true,
+            imageUrl: true,
+            handle: true,
+          },
+        },
       },
     });
 
@@ -99,10 +174,30 @@ export class ProjectService {
     }
     if (data.creatorIds !== undefined) updateData.creatorIds = data.creatorIds;
     if (data.tags !== undefined) updateData.tags = data.tags;
+    if (data.campaignType !== undefined) updateData.campaignType = data.campaignType || null;
+    if (data.action !== undefined) updateData.action = data.action || null;
+    if (data.startDate !== undefined) {
+      updateData.startDate = data.startDate ? new Date(data.startDate) : null;
+    }
+    if (data.productId !== undefined) updateData.productId = data.productId || null;
+    if (data.neededCreators !== undefined) updateData.neededCreators = data.neededCreators;
+    if (data.budget !== undefined) {
+      updateData.budget = data.budget === null ? null : (data.budget as any);
+    }
 
     const project = await this.prisma.creatorProject.update({
       where: { id: projectId },
       data: updateData,
+      include: {
+        product: {
+          select: {
+            id: true,
+            title: true,
+            imageUrl: true,
+            handle: true,
+          },
+        },
+      },
     });
 
     return this.serialize(project);
@@ -130,6 +225,23 @@ export class ProjectService {
       deadline: project.deadline ? project.deadline.toISOString().slice(0, 10) : null,
       creatorIds: project.creatorIds,
       tags: project.tags,
+      campaignType: project.campaignType ?? null,
+      action: project.action ?? null,
+      startDate: project.startDate ? project.startDate.toISOString().slice(0, 10) : null,
+      productId: project.productId ?? null,
+      neededCreators: project.neededCreators ?? 0,
+      budget:
+        project.budget !== undefined && project.budget !== null
+          ? Number(project.budget)
+          : null,
+      product: project.product
+        ? {
+            id: project.product.id,
+            title: project.product.title,
+            imageUrl: project.product.imageUrl,
+            handle: project.product.handle,
+          }
+        : null,
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
     };

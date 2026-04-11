@@ -92,6 +92,86 @@ export class EmailService {
     }
   }
 
+  async sendProjectInvitationEmail(params: {
+    to: string;
+    creatorName: string;
+    projectName: string;
+    portalLink: string;
+  }): Promise<boolean> {
+    if (!this.apiKey) {
+      this.logger.warn(
+        `Email not sent (no RESEND_API_KEY): Project invite '${params.projectName}' -> ${params.to}`,
+      );
+      this.logger.log(`Portal link: ${params.portalLink}`);
+      return false;
+    }
+
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: this.fromEmail,
+          to: [params.to],
+          subject: `Du wurdest zu '${params.projectName}' eingeladen`,
+          html: this.buildProjectInvitationHtml(params),
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.text();
+        this.logger.error(`Failed to send project invitation email: ${error}`);
+        return false;
+      }
+
+      this.logger.log(
+        `Project invitation email sent to ${params.to} for '${params.projectName}'`,
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(`Project invitation email error: ${error}`);
+      return false;
+    }
+  }
+
+  private buildProjectInvitationHtml(params: {
+    creatorName: string;
+    projectName: string;
+    portalLink: string;
+  }): string {
+    return `
+      <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <div style="display: inline-block; width: 40px; height: 40px; background: #7C3AED; border-radius: 10px; line-height: 40px; color: white; font-weight: bold; font-size: 18px;">F</div>
+        </div>
+        <h1 style="font-size: 22px; font-weight: 600; color: #111; text-align: center; margin-bottom: 12px;">
+          Hi ${params.creatorName},
+        </h1>
+        <p style="font-size: 15px; color: #444; text-align: center; margin-bottom: 8px; line-height: 1.5;">
+          du wurdest zum neuen Projekt eingeladen:
+        </p>
+        <p style="font-size: 18px; font-weight: 600; color: #111; text-align: center; margin-bottom: 28px;">
+          ${params.projectName}
+        </p>
+        <p style="font-size: 14px; color: #666; text-align: center; margin-bottom: 28px; line-height: 1.5;">
+          Logge dich ins Creator Portal ein, um die Details zu sehen und zu entscheiden, ob du mitmachen moechtest.
+        </p>
+        <div style="text-align: center; margin-bottom: 32px;">
+          <a href="${params.portalLink}" style="display: inline-block; background: #7C3AED; color: white; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 14px; font-weight: 600;">
+            Einladung ansehen
+          </a>
+        </div>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
+        <p style="font-size: 12px; color: #999; text-align: center;">
+          Filapen Business Hub - Creator Portal
+        </p>
+      </div>
+    `;
+  }
+
   private buildInviteHtml(params: {
     creatorName: string;
     inviteCode: string;

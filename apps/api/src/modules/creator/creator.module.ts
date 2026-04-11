@@ -8,11 +8,14 @@ import { ProjectService } from './project.service';
 import { ChatService } from './chat.service';
 import { DashboardService } from './dashboard.service';
 import { CalendarNoteService } from './calendar-note.service';
+import { InvitationService } from './invitation.service';
+import { InvitationScheduler } from './invitation.scheduler';
 import { CreatorController } from './creator.controller';
 import { DashboardController } from './dashboard.controller';
+import { InvitationController } from './invitation.controller';
 
 @Module({
-  controllers: [CreatorController, DashboardController],
+  controllers: [CreatorController, DashboardController, InvitationController],
   providers: [
     CreatorService,
     DealService,
@@ -23,6 +26,8 @@ import { DashboardController } from './dashboard.controller';
     ChatService,
     DashboardService,
     CalendarNoteService,
+    InvitationService,
+    InvitationScheduler,
   ],
   exports: [
     CreatorService,
@@ -34,6 +39,7 @@ import { DashboardController } from './dashboard.controller';
     ChatService,
     DashboardService,
     CalendarNoteService,
+    InvitationService,
   ],
 })
 export class CreatorModule {}

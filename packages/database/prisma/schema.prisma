@@ -334,6 +334,7 @@ model Organization {
   contentTemplates    ContentTemplate[]
   contentPieces       ContentPiece[]
   teamInvites         TeamInvite[]
+  invitations         ProjectInvitation[]
 
   @@map("organizations")
 }
@@ -447,6 +448,7 @@ model Creator {
   deals        Deal[]
   uploads      CreatorUpload[]
   chatMessages ChatMessage[]
+  invitations  ProjectInvitation[]
 
   @@unique([orgId, email], map: "uq_creator_org_email")
   @@index([orgId])
@@ -556,21 +558,50 @@ model UploadComment {
 }
 
 model CreatorProject {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId       String    @map("org_id") @db.Uuid
-  name        String    @db.VarChar(255)
-  description String?   @db.Text
-  status      String    @default("active") @db.VarChar(50)
-  deadline    DateTime? @db.Date
-  creatorIds  String[]  @default([]) @map("creator_ids")
-  tags        String[]  @default([])
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String    @map("org_id") @db.Uuid
+  name           String    @db.VarChar(255)
+  description    String?   @db.Text
+  status         String    @default("active") @db.VarChar(50)
+  deadline       DateTime? @db.Date
+  creatorIds     String[]  @default([]) @map("creator_ids")
+  tags           String[]  @default([])
+  campaignType   String?   @map("campaign_type") @db.VarChar(50)
+  action         String?   @db.Text
+  startDate      DateTime? @map("start_date") @db.Date
+  productId      String?   @map("product_id") @db.Uuid
+  neededCreators Int       @default(0) @map("needed_creators")
+  budget         Decimal?  @db.Decimal(12, 2)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product      Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  invitations  ProjectInvitation[]
 
   @@index([orgId])
   @@map("creator_projects")
+}
+
+model ProjectInvitation {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String    @map("org_id") @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  creatorId   String    @map("creator_id") @db.Uuid
+  status      String    @default("pending") @db.VarChar(20)
+  invitedAt   DateTime  @default(now()) @map("invited_at") @db.Timestamptz
+  respondedAt DateTime? @map("responded_at") @db.Timestamptz
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  message     String?   @db.Text
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  project      CreatorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator      Creator        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, creatorId])
+  @@index([orgId, status])
+  @@index([creatorId, status])
+  @@map("project_invitations")
 }
 
 model ChatMessage {
@@ -649,9 +680,10 @@ model Product {
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  shop         Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  variants     ProductVariant[]
+  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  variants        ProductVariant[]
+  creatorProjects CreatorProject[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
