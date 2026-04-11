@@ -48,6 +48,11 @@ async function bootstrap() {
     app.use(helmet());
     app.use(compression());
 
+    // Increase body size limit to allow base64-encoded avatar uploads
+    // (typical 256x256 JPEG data URL is 30-80kb; leave headroom).
+    app.use(express.json({ limit: '10mb' }));
+    app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
     // CORS
     const corsOrigin = process.env.APP_URL || 'http://localhost:3000';
     const origins = corsOrigin.split(',').map((o) => o.trim());

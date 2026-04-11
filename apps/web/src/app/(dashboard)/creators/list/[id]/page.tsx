@@ -50,6 +50,7 @@ import type { UploadTab, CreatorUpload } from '@/hooks/creators/useUploads';
 import { Lightbox } from '@/components/creators/Lightbox';
 import { UploadZone } from '@/components/creators/UploadZone';
 import { ChatWidget } from '@/components/creators/ChatWidget';
+import { AvatarUpload } from '@/components/creators/AvatarUpload';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -281,9 +282,12 @@ export default function CreatorDetailPage() {
       <div className="rounded-xl bg-white p-6 shadow-card">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-accent-creator-light flex items-center justify-center text-accent-creator font-bold text-xl shrink-0">
-              {creator.name.charAt(0)}
-            </div>
+            <AvatarUpload
+              creatorId={creator.id}
+              name={creator.name}
+              currentAvatarUrl={creator.avatarUrl}
+              size={80}
+            />
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-lg font-semibold text-gray-900">{creator.name}</h1>

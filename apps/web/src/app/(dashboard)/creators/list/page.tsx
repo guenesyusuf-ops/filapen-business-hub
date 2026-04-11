@@ -14,6 +14,10 @@ import {
   UserCircle,
   CheckCircle2,
   MapPin,
+  Percent,
+  Euro,
+  Eye,
+  User as UserIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCreators, useCreateCreator } from '@/hooks/creators/useCreators';
@@ -55,6 +59,17 @@ function formatFollowers(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+function formatEur(n: number): string {
+  const rounded = Math.round(n);
+  return `${rounded.toLocaleString('de-DE')} \u20ac`;
+}
+
+function formatProvision(raw: string): string {
+  const t = raw.trim();
+  if (!t) return t;
+  return t.endsWith('%') ? t : `${t}%`;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,20 +234,50 @@ function CreatorCard({ creator, onClick }: { creator: Creator; onClick: () => vo
               </span>
             )}
 
-            {/* 5. Age */}
+            {/* 5. Age (with icon) */}
             {creator.age != null && creator.age > 0 && (
               <span
                 className={cn(
                   BADGE_BASE,
-                  'bg-gray-50 text-gray-700 border-gray-200 dark:bg-white/5 dark:text-gray-300 dark:border-white/10',
+                  'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-500/10 dark:text-slate-300 dark:border-slate-500/20',
                 )}
+                title={`${creator.age} Jahre`}
               >
+                <UserIcon className="h-3 w-3" />
                 {creator.age}J
               </span>
             )}
 
-            {/* 6. Compensation model */}
-            {creator.compensation && (
+            {/* 6a. Provision (%) */}
+            {creator.provision && (
+              <span
+                className={cn(
+                  BADGE_BASE,
+                  'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20',
+                )}
+                title="Provision"
+              >
+                <Percent className="h-3 w-3" />
+                {formatProvision(creator.provision)}
+              </span>
+            )}
+
+            {/* 6b. Fix amount (€) */}
+            {creator.fixAmount != null && creator.fixAmount > 0 && (
+              <span
+                className={cn(
+                  BADGE_BASE,
+                  'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20',
+                )}
+                title="Fixbetrag"
+              >
+                <Euro className="h-3 w-3" />
+                {formatEur(creator.fixAmount)}
+              </span>
+            )}
+
+            {/* 6c. Compensation model label (only if provision/fix NOT set) */}
+            {creator.compensation && !creator.provision && !(creator.fixAmount && creator.fixAmount > 0) && (
               <span
                 className={cn(
                   BADGE_BASE,
@@ -258,6 +303,20 @@ function CreatorCard({ creator, onClick }: { creator: Creator; onClick: () => vo
                   .filter(Boolean)
                   .map((a) => `${a}J`)
                   .join(', ')}
+              </span>
+            )}
+
+            {/* 7b. Kids on video */}
+            {creator.kidsOnVideo && (
+              <span
+                className={cn(
+                  BADGE_BASE,
+                  'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
+                )}
+                title="Kinder werden im Video gezeigt"
+              >
+                <Eye className="h-3 w-3" />
+                Kinder im Video
               </span>
             )}
 
