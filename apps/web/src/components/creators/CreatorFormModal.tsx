@@ -4,17 +4,25 @@ import { useState, useEffect, useCallback, KeyboardEvent } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Creator } from '@/hooks/creators/useCreators';
-import { useUpdateCreator } from '@/hooks/creators/useCreators';
+import {
+  useCreateCreator,
+  useUpdateCreator,
+} from '@/hooks/creators/useCreators';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface EditCreatorModalProps {
+export type CreatorFormMode = 'create' | 'edit';
+
+interface CreatorFormModalProps {
   open: boolean;
-  creator: Creator | undefined;
   onClose: () => void;
-  onSaved?: () => void;
+  mode: CreatorFormMode;
+  /** Required when mode === 'edit'. Ignored in create mode. */
+  creator?: Creator;
+  /** Called after a successful create/update with the returned creator. */
+  onSuccess?: (creator: Creator) => void;
 }
 
 interface FormState {
@@ -52,7 +60,7 @@ const EMPTY_STATE: FormState = {
   name: '',
   email: '',
   phone: '',
-  platform: '',
+  platform: 'instagram',
   handle: '',
   followerCount: '',
   engagementRate: '',
@@ -183,25 +191,33 @@ const sectionCls =
 // Component
 // ---------------------------------------------------------------------------
 
-export function EditCreatorModal({
+export function CreatorFormModal({
   open,
-  creator,
   onClose,
-  onSaved,
-}: EditCreatorModalProps) {
+  mode,
+  creator,
+  onSuccess,
+}: CreatorFormModalProps) {
+  const createMutation = useCreateCreator();
   const updateMutation = useUpdateCreator();
-  const [form, setForm] = useState<FormState>(() => creatorToFormState(creator));
+  const [form, setForm] = useState<FormState>(() =>
+    mode === 'edit' ? creatorToFormState(creator) : { ...EMPTY_STATE },
+  );
   const [tagInput, setTagInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Re-initialize form when the modal opens or the underlying creator changes.
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  // Re-initialize form when the modal opens or underlying data changes.
   useEffect(() => {
     if (open) {
-      setForm(creatorToFormState(creator));
+      setForm(
+        mode === 'edit' ? creatorToFormState(creator) : { ...EMPTY_STATE },
+      );
       setTagInput('');
       setError(null);
     }
-  }, [open, creator]);
+  }, [open, creator, mode]);
 
   const update = useCallback(
     <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -211,24 +227,25 @@ export function EditCreatorModal({
   );
 
   // Tags: add via Enter or comma
-  const commitTag = useCallback(
-    (raw: string) => {
-      const clean = raw.trim().replace(/^#/, '');
-      if (!clean) return;
-      setForm((f) =>
-        f.tags.includes(clean) ? f : { ...f, tags: [...f.tags, clean] },
-      );
-      setTagInput('');
-    },
-    [],
-  );
+  const commitTag = useCallback((raw: string) => {
+    const clean = raw.trim().replace(/^#/, '');
+    if (!clean) return;
+    setForm((f) =>
+      f.tags.includes(clean) ? f : { ...f, tags: [...f.tags, clean] },
+    );
+    setTagInput('');
+  }, []);
 
   const handleTagKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter' || e.key === ',') {
         e.preventDefault();
         commitTag(tagInput);
-      } else if (e.key === 'Backspace' && tagInput === '' && form.tags.length > 0) {
+      } else if (
+        e.key === 'Backspace' &&
+        tagInput === '' &&
+        form.tags.length > 0
+      ) {
         // Remove last tag
         setForm((f) => ({ ...f, tags: f.tags.slice(0, -1) }));
       }
@@ -244,8 +261,12 @@ export function EditCreatorModal({
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      if (!creator) return;
       setError(null);
+
+      if (mode === 'edit' && !creator) {
+        setError('Kein Creator zum Bearbeiten ausgewählt');
+        return;
+      }
 
       // Flush pending tag input
       const pendingTags = [...form.tags];
@@ -294,46 +315,74 @@ export function EditCreatorModal({
         return;
       }
 
-      updateMutation.mutate(
-        { id: creator.id, data: payload as Partial<Creator> },
-        {
-          onSuccess: () => {
-            onClose();
-            onSaved?.();
+      const onOk = (result: Creator) => {
+        onClose();
+        onSuccess?.(result);
+      };
+      const onErr = (err: unknown) => {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : mode === 'create'
+              ? 'Anlegen fehlgeschlagen'
+              : 'Speichern fehlgeschlagen';
+        setError(msg);
+      };
+
+      if (mode === 'create') {
+        createMutation.mutate(payload as Partial<Creator>, {
+          onSuccess: onOk,
+          onError: onErr,
+        });
+      } else {
+        updateMutation.mutate(
+          { id: creator!.id, data: payload as Partial<Creator> },
+          {
+            onSuccess: onOk,
+            onError: onErr,
           },
-          onError: (err: unknown) => {
-            const msg =
-              err instanceof Error ? err.message : 'Speichern fehlgeschlagen';
-            setError(msg);
-          },
-        },
-      );
+        );
+      }
     },
-    [creator, form, tagInput, updateMutation, onClose, onSaved],
+    [
+      mode,
+      creator,
+      form,
+      tagInput,
+      createMutation,
+      updateMutation,
+      onClose,
+      onSuccess,
+    ],
   );
 
-  if (!open || !creator) return null;
+  if (!open) return null;
+  if (mode === 'edit' && !creator) return null;
+
+  const title = mode === 'create' ? 'Creator anlegen' : 'Creator bearbeiten';
+  const subtitle =
+    mode === 'create'
+      ? 'Neuen Creator zum Hub hinzufügen'
+      : (creator?.name ?? '');
+  const primaryLabel = mode === 'create' ? 'Anlegen' : 'Speichern';
+  const primaryPendingLabel =
+    mode === 'create' ? 'Anlegen...' : 'Speichert...';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
 
       {/* Modal */}
-      <div
-        className="relative z-50 w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/8 shadow-xl animate-scale-in"
-      >
+      <div className="relative z-50 w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/8 shadow-xl animate-scale-in">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-white/10 shrink-0">
           <div>
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              Creator bearbeiten
+              {title}
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-              {creator.name}
+              {subtitle}
             </p>
           </div>
           <button
@@ -708,16 +757,16 @@ export function EditCreatorModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={updateMutation.isPending}
+            disabled={isPending}
             className="inline-flex items-center gap-1.5 rounded-lg bg-accent-creator px-4 py-2 text-sm font-medium text-white hover:bg-accent-creator-dark disabled:opacity-50 transition-colors"
           >
-            {updateMutation.isPending ? (
+            {isPending ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Speichert...
+                {primaryPendingLabel}
               </>
             ) : (
-              'Speichern'
+              primaryLabel
             )}
           </button>
         </div>
@@ -726,4 +775,4 @@ export function EditCreatorModal({
   );
 }
 
-export default EditCreatorModal;
+export default CreatorFormModal;

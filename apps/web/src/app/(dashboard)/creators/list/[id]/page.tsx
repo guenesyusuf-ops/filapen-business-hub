@@ -51,7 +51,7 @@ import { Lightbox } from '@/components/creators/Lightbox';
 import { UploadZone } from '@/components/creators/UploadZone';
 import { ChatWidget } from '@/components/creators/ChatWidget';
 import { AvatarUpload } from '@/components/creators/AvatarUpload';
-import { EditCreatorModal } from '@/components/creators/EditCreatorModal';
+import { CreatorFormModal } from '@/components/creators/CreatorFormModal';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -351,8 +351,9 @@ export default function CreatorDetailPage() {
       </div>
 
       {/* Edit Creator Modal */}
-      <EditCreatorModal
+      <CreatorFormModal
         open={showEditModal}
+        mode="edit"
         creator={creator}
         onClose={() => setShowEditModal(false)}
       />

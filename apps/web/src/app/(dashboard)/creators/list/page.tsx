@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, Suspense } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Search,
@@ -10,7 +10,6 @@ import {
   Camera,
   Music,
   Play,
-  X,
   UserCircle,
   CheckCircle2,
   MapPin,
@@ -20,8 +19,9 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCreators, useCreateCreator } from '@/hooks/creators/useCreators';
+import { useCreators } from '@/hooks/creators/useCreators';
 import type { Creator, CreatorsListParams } from '@/hooks/creators/useCreators';
+import { CreatorFormModal } from '@/components/creators/CreatorFormModal';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -365,273 +365,10 @@ function CreatorCard({ creator, onClick }: { creator: Creator; onClick: () => vo
   );
 }
 
-// ---------------------------------------------------------------------------
-// Add Creator Modal
-// ---------------------------------------------------------------------------
-
-function AddCreatorModal({ open, onClose }: { open: boolean; onClose: () => void; }) {
-  const router = useRouter();
-  const createMutation = useCreateCreator();
-  const [form, setForm] = useState({
-    name: '',
-    firstContact: '' as string,
-    email: '',
-    platform: 'instagram' as Creator['platform'],
-    niche: '',
-    status: 'prospect' as Creator['status'],
-    // New fields
-    age: '',
-    gender: '',
-    country: '',
-    instagramHandle: '',
-    tiktokHandle: '',
-    youtubeHandle: '',
-    compensation: 'Commission',
-    commissionRate: '',
-    fixAmount: '',
-    kids: false,
-    kidsAges: '',
-    kidsOnVideo: false,
-    notes: '',
-    creatorNotes: '',
-  });
-
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      const payload: any = {
-        name: form.name,
-        firstContact: form.firstContact || undefined,
-        email: form.email,
-        platform: form.platform,
-        niche: form.niche,
-        status: form.status,
-        compensation: form.compensation,
-        provision: form.commissionRate || undefined,
-        fixAmount: form.fixAmount ? parseFloat(form.fixAmount) : undefined,
-        kids: form.kids,
-        kidsAges: form.kids ? form.kidsAges : undefined,
-        kidsOnVideo: form.kids ? form.kidsOnVideo : undefined,
-        notes: form.notes || undefined,
-        creatorNotes: form.creatorNotes || undefined,
-        location: form.country || undefined,
-        contracts: {
-          age: form.age || undefined,
-          gender: form.gender || undefined,
-          instagramHandle: form.instagramHandle || undefined,
-          tiktokHandle: form.tiktokHandle || undefined,
-          youtubeHandle: form.youtubeHandle || undefined,
-        },
-      };
-      createMutation.mutate(payload, {
-        onSuccess: (newCreator: any) => {
-          onClose();
-          setForm({
-            name: '', firstContact: '', email: '', platform: 'instagram', niche: '', status: 'prospect',
-            age: '', gender: '', country: '', instagramHandle: '', tiktokHandle: '', youtubeHandle: '',
-            compensation: 'Commission', commissionRate: '', fixAmount: '',
-            kids: false, kidsAges: '', kidsOnVideo: false, notes: '', creatorNotes: '',
-          });
-          // Navigate to the new creator's profile page
-          if (newCreator?.id) {
-            router.push(`/creators/list/${newCreator.id}`);
-          }
-        },
-      });
-    },
-    [createMutation, form, onClose],
-  );
-
-  if (!open) return null;
-
-  const inputCls = 'w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-creator/30 focus:border-accent-creator';
-  const labelCls = 'block text-xs font-medium text-gray-700 mb-1';
-  const sectionCls = 'text-xxs font-semibold text-gray-400 uppercase tracking-wider pt-3 pb-1 border-t border-border';
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-dropdown w-full max-w-lg mx-4 animate-slide-up max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
-          <h2 className="text-base font-semibold text-gray-900">Add Creator</h2>
-          <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-surface-secondary">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-3 overflow-y-auto flex-1">
-          {/* Basic Info */}
-          <div>
-            <label className={labelCls}>Name</label>
-            <input type="text" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="Creator name" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Erstkontakt</label>
-              <select value={form.firstContact} onChange={(e) => setForm((f) => ({ ...f, firstContact: e.target.value }))} className={inputCls}>
-                <option value="">Bitte ausw&auml;hlen</option>
-                <option value="Email">Email</option>
-                <option value="Meta Ads">Meta Ads</option>
-                <option value="Empfehlung">Empfehlung</option>
-                <option value="Sonstige">Sonstige</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Primary Platform</label>
-              <select value={form.platform} onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value as Creator['platform'] }))} className={inputCls}>
-                <option value="instagram">Instagram</option>
-                <option value="tiktok">TikTok</option>
-                <option value="youtube">YouTube</option>
-                <option value="twitter">Twitter</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Email</label>
-            <input type="email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} placeholder="creator@email.com" />
-          </div>
-
-          {/* Demographics */}
-          <p className={sectionCls}>Demographics</p>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelCls}>Age</label>
-              <input type="text" value={form.age} onChange={(e) => setForm((f) => ({ ...f, age: e.target.value }))} className={inputCls} placeholder="e.g. 28" />
-            </div>
-            <div>
-              <label className={labelCls}>Gender</label>
-              <select value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className={inputCls}>
-                <option value="">Select</option>
-                <option value="Female">Female</option>
-                <option value="Male">Male</option>
-                <option value="Non-Binary">Non-Binary</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Country</label>
-              <input type="text" value={form.country} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))} className={inputCls} placeholder="e.g. Germany" />
-            </div>
-          </div>
-
-          {/* Social Handles */}
-          <p className={sectionCls}>Social Handles</p>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelCls}>Instagram</label>
-              <input type="text" value={form.instagramHandle} onChange={(e) => setForm((f) => ({ ...f, instagramHandle: e.target.value }))} className={inputCls} placeholder="@handle" />
-            </div>
-            <div>
-              <label className={labelCls}>TikTok</label>
-              <input type="text" value={form.tiktokHandle} onChange={(e) => setForm((f) => ({ ...f, tiktokHandle: e.target.value }))} className={inputCls} placeholder="@handle" />
-            </div>
-            <div>
-              <label className={labelCls}>YouTube</label>
-              <input type="text" value={form.youtubeHandle} onChange={(e) => setForm((f) => ({ ...f, youtubeHandle: e.target.value }))} className={inputCls} placeholder="@channel" />
-            </div>
-          </div>
-
-          {/* Content & Status */}
-          <p className={sectionCls}>Content & Status</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Content Niche</label>
-              <select value={form.niche} onChange={(e) => setForm((f) => ({ ...f, niche: e.target.value }))} className={inputCls}>
-                <option value="">Select niche</option>
-                <option value="Beauty">Beauty</option>
-                <option value="Fitness">Fitness</option>
-                <option value="Tech">Tech</option>
-                <option value="Fashion">Fashion</option>
-                <option value="Food">Food</option>
-                <option value="Travel">Travel</option>
-                <option value="Gaming">Gaming</option>
-                <option value="Lifestyle">Lifestyle</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Status</label>
-              <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as Creator['status'] }))} className={inputCls}>
-                <option value="prospect">Prospect</option>
-                <option value="outreach">Outreach</option>
-                <option value="active">Active</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Compensation */}
-          <p className={sectionCls}>Compensation</p>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelCls}>Model</label>
-              <select value={form.compensation} onChange={(e) => setForm((f) => ({ ...f, compensation: e.target.value }))} className={inputCls}>
-                <option value="Commission">Commission</option>
-                <option value="Fixed">Fixed</option>
-                <option value="Both">Both</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Commission (%)</label>
-              <input type="text" value={form.commissionRate} onChange={(e) => setForm((f) => ({ ...f, commissionRate: e.target.value }))} className={inputCls} placeholder="e.g. 15" disabled={form.compensation === 'Fixed'} />
-            </div>
-            <div>
-              <label className={labelCls}>Fixed Amount</label>
-              <input type="number" value={form.fixAmount} onChange={(e) => setForm((f) => ({ ...f, fixAmount: e.target.value }))} className={inputCls} placeholder="e.g. 500" disabled={form.compensation === 'Commission'} />
-            </div>
-          </div>
-
-          {/* Kids */}
-          <p className={sectionCls}>Family</p>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.kids} onChange={(e) => setForm((f) => ({ ...f, kids: e.target.checked }))} className="rounded border-border text-accent-creator focus:ring-accent-creator/30" />
-              Has Kids
-            </label>
-            {form.kids && (
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={form.kidsOnVideo} onChange={(e) => setForm((f) => ({ ...f, kidsOnVideo: e.target.checked }))} className="rounded border-border text-accent-creator focus:ring-accent-creator/30" />
-                Kids on Video
-              </label>
-            )}
-          </div>
-          {form.kids && (
-            <div>
-              <label className={labelCls}>Kids Ages</label>
-              <input type="text" value={form.kidsAges} onChange={(e) => setForm((f) => ({ ...f, kidsAges: e.target.value }))} className={inputCls} placeholder="e.g. 3, 7" />
-            </div>
-          )}
-
-          {/* Notes */}
-          <p className={sectionCls}>Notes</p>
-          <div>
-            <label className={labelCls}>Admin Notes (internal only)</label>
-            <textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className={inputCls + ' resize-none'} placeholder="Internal notes about this creator..." />
-          </div>
-          <div>
-            <label className={labelCls}>Creator Notes (visible to creator)</label>
-            <textarea value={form.creatorNotes} onChange={(e) => setForm((f) => ({ ...f, creatorNotes: e.target.value }))} rows={2} className={inputCls + ' resize-none'} placeholder="Notes visible to the creator..." />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-surface-secondary transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={createMutation.isPending}
-              className="rounded-lg bg-accent-creator px-4 py-2 text-sm font-medium text-white hover:bg-accent-creator-dark transition-colors disabled:opacity-50"
-            >
-              {createMutation.isPending ? 'Adding...' : 'Add Creator'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+// Legacy AddCreatorModal removed — replaced by the unified
+// <CreatorFormModal mode="create" /> component from
+// '@/components/creators/CreatorFormModal' so that create and edit share
+// exactly the same fields, sections and UX.
 
 // ---------------------------------------------------------------------------
 // Main Page
@@ -826,7 +563,16 @@ function CreatorListPageInner() {
       )}
 
       {/* Add Creator Modal */}
-      <AddCreatorModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+      <CreatorFormModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        mode="create"
+        onSuccess={(newCreator) => {
+          if (newCreator?.id) {
+            router.push(`/creators/list/${newCreator.id}`);
+          }
+        }}
+      />
     </div>
   );
 }
