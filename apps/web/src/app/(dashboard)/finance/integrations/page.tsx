@@ -167,16 +167,16 @@ function CallbackBanner() {
 
 function CardSkeleton() {
   return (
-    <div className="rounded-xl border border-[#222] bg-[#111] p-6 animate-pulse">
+    <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-6 shadow-card dark:shadow-[var(--card-shadow)] animate-pulse">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-12 w-12 rounded-lg bg-[#222]" />
+        <div className="h-12 w-12 rounded-lg bg-gray-100 dark:bg-white/5" />
         <div>
-          <div className="h-4 w-24 rounded bg-[#222] mb-2" />
-          <div className="h-3 w-40 rounded bg-[#222]" />
+          <div className="h-4 w-24 rounded bg-gray-100 dark:bg-white/5 mb-2" />
+          <div className="h-3 w-40 rounded bg-gray-100 dark:bg-white/5" />
         </div>
       </div>
-      <div className="h-3 w-32 rounded bg-[#222] mt-6" />
-      <div className="h-9 w-28 rounded-lg bg-[#222] mt-4" />
+      <div className="h-3 w-32 rounded bg-gray-100 dark:bg-white/5 mt-6" />
+      <div className="h-9 w-28 rounded-lg bg-gray-100 dark:bg-white/5 mt-4" />
     </div>
   );
 }
@@ -196,7 +196,7 @@ function ConnectedCard({
   const disconnectMutation = useDisconnectIntegration();
 
   return (
-    <div className="rounded-xl border border-[#222] bg-[#111] p-6 hover:border-[#333] transition-colors">
+    <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-6 shadow-card dark:shadow-[var(--card-shadow)] hover:border-gray-300 dark:hover:border-white/10 transition-colors">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -204,8 +204,8 @@ function ConnectedCard({
             {platform.icon}
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">{platform.label}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{platform.description}</p>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{platform.label}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{platform.description}</p>
           </div>
         </div>
       </div>
@@ -214,23 +214,23 @@ function ConnectedCard({
       <div className="mt-5 space-y-2">
         <div className="flex items-center gap-2 text-xs">
           {integration.syncStatus === 'syncing' ? (
-            <span className="flex items-center gap-1.5 text-blue-400">
+            <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
               <Loader2 className="h-3 w-3 animate-spin" />
               Synchronisiert...
             </span>
           ) : integration.syncStatus === 'failed' ? (
-            <span className="flex items-center gap-1.5 text-red-400">
+            <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
               <AlertCircle className="h-3 w-3" />
               Sync fehlgeschlagen
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 text-green-400">
-              <span className="h-2 w-2 rounded-full bg-green-400" />
+            <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+              <span className="h-2 w-2 rounded-full bg-green-500 dark:bg-green-400" />
               Verbunden
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
           <Clock className="h-3.5 w-3.5" />
           <span>Letzter Sync: {relativeTime(integration.lastSyncedAt)}</span>
         </div>
@@ -248,8 +248,8 @@ function ConnectedCard({
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
                 isSyncing
-                  ? 'bg-[#222] text-gray-500 cursor-not-allowed'
-                  : 'bg-white text-black hover:bg-gray-200',
+                  ? 'bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-900 dark:bg-white text-white dark:text-black hover:bg-gray-700 dark:hover:bg-gray-200',
               )}
             >
               {isSyncing ? (
@@ -265,10 +265,10 @@ function ConnectedCard({
           onClick={() => disconnectMutation.mutate(integration.id)}
           disabled={disconnectMutation.isPending}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg border border-[#333] px-3 py-2 text-xs font-medium transition-colors',
+            'inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/10 px-3 py-2 text-xs font-medium transition-colors',
             disconnectMutation.isPending
-              ? 'text-gray-600 cursor-not-allowed'
-              : 'text-gray-400 hover:text-red-400 hover:border-red-500/30',
+              ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              : 'text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-500/30',
           )}
         >
           {disconnectMutation.isPending ? (
@@ -301,7 +301,7 @@ function ShopifyConnectCard({ platform }: { platform: PlatformDef }) {
   };
 
   return (
-    <div className="rounded-xl border border-[#222] bg-[#111] p-6 hover:border-[#333] transition-colors">
+    <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-6 shadow-card dark:shadow-[var(--card-shadow)] hover:border-gray-300 dark:hover:border-white/10 transition-colors">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -309,16 +309,16 @@ function ShopifyConnectCard({ platform }: { platform: PlatformDef }) {
             {platform.icon}
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">{platform.label}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{platform.description}</p>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{platform.label}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{platform.description}</p>
           </div>
         </div>
       </div>
 
       {/* Status */}
       <div className="mt-5">
-        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className="h-2 w-2 rounded-full bg-gray-600" />
+        <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+          <span className="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-600" />
           Nicht verbunden
         </div>
       </div>
@@ -333,7 +333,7 @@ function ShopifyConnectCard({ platform }: { platform: PlatformDef }) {
               placeholder="meinshop.myshopify.com"
               required
               autoFocus
-              className="w-full rounded-lg border border-[#333] bg-[#0a0a0a] px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-[#555] focus:outline-none transition-colors"
+              className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/30 px-3 py-2 text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:border-gray-400 dark:focus:border-white/30 focus:outline-none transition-colors"
             />
             <div className="flex gap-2">
               <button
@@ -346,7 +346,7 @@ function ShopifyConnectCard({ platform }: { platform: PlatformDef }) {
               <button
                 type="button"
                 onClick={() => setShowInput(false)}
-                className="inline-flex items-center rounded-lg border border-[#333] px-3 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+                className="inline-flex items-center rounded-lg border border-gray-200 dark:border-white/10 px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 Abbrechen
               </button>
@@ -355,7 +355,7 @@ function ShopifyConnectCard({ platform }: { platform: PlatformDef }) {
         ) : (
           <button
             onClick={() => setShowInput(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-medium text-black hover:bg-gray-200 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 dark:bg-white px-3 py-2 text-xs font-medium text-white dark:text-black hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors"
           >
             <Plug className="h-3.5 w-3.5" />
             Verbinden
@@ -372,7 +372,7 @@ function ShopifyConnectCard({ platform }: { platform: PlatformDef }) {
 
 function ComingSoonCard({ platform }: { platform: PlatformDef }) {
   return (
-    <div className="rounded-xl border border-[#222] bg-[#111] p-6 opacity-60">
+    <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-6 shadow-card dark:shadow-[var(--card-shadow)] opacity-60">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -380,23 +380,23 @@ function ComingSoonCard({ platform }: { platform: PlatformDef }) {
             {platform.icon}
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">{platform.label}</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{platform.description}</p>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{platform.label}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{platform.description}</p>
           </div>
         </div>
       </div>
 
       {/* Status */}
       <div className="mt-5">
-        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className="h-2 w-2 rounded-full bg-gray-600" />
+        <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+          <span className="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-600" />
           Nicht verbunden
         </div>
       </div>
 
       {/* Coming soon badge */}
       <div className="mt-5">
-        <span className="inline-flex items-center rounded-full border border-[#333] px-3 py-1.5 text-xs font-medium text-gray-500">
+        <span className="inline-flex items-center rounded-full border border-gray-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
           Demnachst verfugbar
         </span>
       </div>
@@ -453,14 +453,14 @@ export default function IntegrationsPage() {
       {/* Page header */}
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Integrationen</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
           Verbinde deine Datenquellen um Umsatz, Kosten und Werbe-Performance an einem Ort zu sehen.
         </p>
       </div>
 
       {/* Error banner */}
       {isError && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
+        <div className="rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-400">
           <strong>Fehler beim Laden der Integrationen.</strong>{' '}
           {(error as Error)?.message ?? 'Bitte versuche es erneut.'}
         </div>

@@ -94,7 +94,7 @@ function RoleSelector({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-36 rounded-lg bg-white dark:bg-[#232640] shadow-lg border border-gray-200 dark:border-white/10 py-1">
+          <div className="absolute right-0 z-20 mt-1 w-36 rounded-lg bg-white dark:bg-[var(--card-bg)] shadow-lg border border-gray-200 dark:border-white/10 py-1">
             {APPROVAL_ROLE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -141,7 +141,7 @@ function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onCancel} />
-      <div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl p-6 animate-scale-in">
+      <div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-2xl p-6 animate-scale-in border border-gray-200 dark:border-white/8">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">{message}</p>
         <div className="flex justify-end gap-2">

@@ -63,11 +63,11 @@ const BREAKDOWN_ROWS: BreakdownRow[] = [
 
 function BreakdownTable({ data }: { data: ShopifyBreakdownTotals }) {
   return (
-    <div className="rounded-xl border border-white/5 bg-[#111] p-6">
-      <h3 className="mb-4 text-sm font-semibold text-white">
+    <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-6 shadow-card dark:shadow-[var(--card-shadow)]">
+      <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
         Aufschlüsselung des Gesamtumsatzes
       </h3>
-      <div className="divide-y divide-white/5">
+      <div className="divide-y divide-gray-100 dark:divide-white/5">
         {BREAKDOWN_ROWS.map((row) => {
           const raw = data[row.key] ?? 0;
           const isEmph = row.emphasis === 'subtotal' || row.emphasis === 'total';
@@ -79,13 +79,13 @@ function BreakdownTable({ data }: { data: ShopifyBreakdownTotals }) {
               key={row.key}
               className={[
                 'flex items-center justify-between py-3',
-                isTotal ? 'border-t border-white/10 pt-4 mt-1' : '',
+                isTotal ? 'border-t border-gray-200 dark:border-white/10 pt-4 mt-1' : '',
               ].join(' ')}
             >
               <span
                 className={[
                   'text-sm',
-                  isEmph ? 'font-semibold text-white' : 'text-gray-400',
+                  isEmph ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400',
                 ].join(' ')}
               >
                 {row.label}
@@ -94,12 +94,12 @@ function BreakdownTable({ data }: { data: ShopifyBreakdownTotals }) {
                 className={[
                   'tabular-nums',
                   isTotal
-                    ? 'text-base font-bold text-white'
+                    ? 'text-base font-bold text-gray-900 dark:text-white'
                     : isEmph
-                      ? 'text-sm font-semibold text-white'
+                      ? 'text-sm font-semibold text-gray-900 dark:text-white'
                       : row.sign === 'negative'
-                        ? 'text-sm text-red-400'
-                        : 'text-sm text-gray-200',
+                        ? 'text-sm text-red-600 dark:text-red-400'
+                        : 'text-sm text-gray-700 dark:text-gray-200',
                 ].join(' ')}
               >
                 {display}
@@ -226,8 +226,8 @@ function HourlyChart({
   };
 
   return (
-    <div className="rounded-xl border border-white/5 bg-[#111] p-6">
-      <h3 className="mb-4 text-sm font-semibold text-white">{title}</h3>
+    <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-6 shadow-card dark:shadow-[var(--card-shadow)]">
+      <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
       <ReactECharts
         option={option}
         style={{ height: '260px', width: '100%' }}
@@ -245,12 +245,12 @@ function BreakdownSkeleton() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="h-[480px] animate-pulse rounded-xl border border-white/5 bg-[#111]" />
-        <div className="h-[330px] animate-pulse rounded-xl border border-white/5 bg-[#111]" />
+        <div className="h-[480px] animate-pulse rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]" />
+        <div className="h-[330px] animate-pulse rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]" />
       </div>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="h-[330px] animate-pulse rounded-xl border border-white/5 bg-[#111]" />
-        <div className="h-[330px] animate-pulse rounded-xl border border-white/5 bg-[#111]" />
+        <div className="h-[330px] animate-pulse rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]" />
+        <div className="h-[330px] animate-pulse rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]" />
       </div>
     </div>
   );
@@ -269,7 +269,7 @@ export function ShopifyRevenueBreakdownSection() {
 
   if (isError || !data) {
     return (
-      <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-6 text-sm text-red-300">
+      <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-6 text-sm text-red-700 dark:text-red-300">
         <strong>Fehler beim Laden der Umsatzaufschlüsselung.</strong>{' '}
         {error instanceof Error ? error.message : 'Bitte erneut versuchen.'}
       </div>

@@ -41,7 +41,7 @@ interface SectionProps {
 function Section({ title, children }: SectionProps) {
   return (
     <section className="space-y-4">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
         {title}
       </h2>
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -60,12 +60,12 @@ function LoadingGrid() {
     <div className="space-y-10">
       {[0, 1, 2, 3, 4, 5].map((s) => (
         <div key={s} className="space-y-4">
-          <div className="h-3 w-40 animate-pulse rounded bg-white/5" />
+          <div className="h-3 w-40 animate-pulse rounded bg-gray-100 dark:bg-white/5" />
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((c) => (
               <div
                 key={c}
-                className="h-[340px] animate-pulse rounded-xl border border-white/5 bg-[#111]"
+                className="h-[340px] animate-pulse rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]"
               />
             ))}
           </div>
@@ -86,12 +86,12 @@ export function ShopifyAnalyticsClient() {
   const header = (
     <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/5 bg-[#111]">
-          <ShoppingBag className="h-5 w-5 text-emerald-400" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]">
+          <ShoppingBag className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-white">Shopify Analytics</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Shopify Analytics</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             Replica des Shopify Admin Analytics Dashboards
           </p>
         </div>
@@ -102,7 +102,7 @@ export function ShopifyAnalyticsClient() {
 
   if (isLoading) {
     return (
-      <div className="text-white">
+      <div className="text-gray-900 dark:text-white">
         {header}
         <LoadingGrid />
       </div>
@@ -111,9 +111,9 @@ export function ShopifyAnalyticsClient() {
 
   if (isError || !data) {
     return (
-      <div className="text-white">
+      <div className="text-gray-900 dark:text-white">
         {header}
-        <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-6 text-sm text-red-300">
+        <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-6 text-sm text-red-700 dark:text-red-300">
           <strong>Fehler beim Laden der Shopify Analytics.</strong>{' '}
           {error instanceof Error ? error.message : 'Bitte erneut versuchen.'}
         </div>
@@ -196,7 +196,7 @@ export function ShopifyAnalyticsClient() {
       : 0;
 
   return (
-    <div className="text-white">
+    <div className="text-gray-900 dark:text-white">
       {header}
 
       <div className="space-y-10">

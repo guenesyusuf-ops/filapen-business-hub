@@ -72,18 +72,18 @@ function ReadOnlyField({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-[11px] uppercase tracking-wider text-gray-500">
+      <label className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
         {label}
       </label>
       <div
         title="Aus Shopify synchronisiert"
         className={cn(
-          'w-full cursor-not-allowed rounded-lg border border-white/5 bg-[#0a0a0a] px-3 py-2',
-          'text-sm text-gray-300 opacity-60',
+          'w-full cursor-not-allowed rounded-lg border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-black/30 px-3 py-2',
+          'text-sm text-gray-600 dark:text-gray-300 opacity-70',
           multiline ? 'min-h-[120px] whitespace-pre-wrap' : 'truncate',
         )}
       >
-        {value || <span className="italic text-gray-600">—</span>}
+        {value || <span className="italic text-gray-400 dark:text-gray-500">—</span>}
       </div>
     </div>
   );
@@ -123,21 +123,21 @@ function TagsInput({
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-[#0a0a0a] px-2 py-2',
-        'focus-within:border-white/30 transition-colors',
+        'flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/30 px-2 py-2',
+        'focus-within:border-gray-400 dark:focus-within:border-white/30 transition-colors',
       )}
     >
       {value.map((tag, idx) => (
         <span
           key={`${tag}-${idx}`}
-          className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-[#161616] px-2 py-0.5 text-xs text-gray-200"
+          className="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-2 py-0.5 text-xs text-gray-700 dark:text-gray-200"
         >
-          <Tag className="h-3 w-3 text-gray-500" />
+          <Tag className="h-3 w-3 text-gray-400 dark:text-gray-500" />
           {tag}
           <button
             type="button"
             onClick={() => removeAt(idx)}
-            className="ml-0.5 text-gray-500 hover:text-white"
+            className="ml-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white"
             aria-label={`Tag ${tag} entfernen`}
           >
             <X className="h-3 w-3" />
@@ -158,7 +158,7 @@ function TagsInput({
         }}
         onBlur={commit}
         placeholder={value.length ? '' : 'Tag hinzufügen, Enter drücken...'}
-        className="flex-1 min-w-[120px] bg-transparent text-sm text-white outline-none placeholder-gray-500"
+        className="flex-1 min-w-[120px] bg-transparent text-sm text-gray-900 dark:text-white outline-none placeholder-gray-400 dark:placeholder-gray-500"
       />
     </div>
   );
@@ -201,22 +201,22 @@ function VariantRow({
   };
 
   return (
-    <tr className="border-b border-white/5 hover:bg-white/[0.02]">
-      <td className="px-3 py-3 text-sm text-white">{variant.title}</td>
-      <td className="px-3 py-3 text-xs font-mono text-gray-400">
-        {variant.sku || <span className="italic text-gray-600">—</span>}
+    <tr className="border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+      <td className="px-3 py-3 text-sm text-gray-900 dark:text-white">{variant.title}</td>
+      <td className="px-3 py-3 text-xs font-mono text-gray-500 dark:text-gray-400">
+        {variant.sku || <span className="italic text-gray-400 dark:text-gray-500">—</span>}
       </td>
-      <td className="px-3 py-3 text-xs font-mono text-gray-400">
-        {variant.barcode || <span className="italic text-gray-600">—</span>}
+      <td className="px-3 py-3 text-xs font-mono text-gray-500 dark:text-gray-400">
+        {variant.barcode || <span className="italic text-gray-400 dark:text-gray-500">—</span>}
       </td>
       <td
-        className="px-3 py-3 text-sm text-gray-300 opacity-60"
+        className="px-3 py-3 text-sm text-gray-500 dark:text-gray-300 opacity-70"
         title="Aus Shopify synchronisiert"
       >
         {formatPrice(toNumber(variant.price))}
       </td>
       <td
-        className="px-3 py-3 text-sm text-gray-300 opacity-60"
+        className="px-3 py-3 text-sm text-gray-500 dark:text-gray-300 opacity-70"
         title="Aus Shopify synchronisiert"
       >
         {variant.inventoryQuantity}
@@ -230,9 +230,9 @@ function VariantRow({
           onChange={(e) => setCogs(e.target.value)}
           placeholder="0.00"
           className={cn(
-            'w-24 rounded-md border border-white/10 bg-[#0a0a0a] px-2 py-1.5',
-            'text-sm text-white placeholder-gray-600',
-            'focus:border-white/30 focus:outline-none',
+            'w-24 rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-black/30 px-2 py-1.5',
+            'text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500',
+            'focus:border-gray-400 dark:focus:border-white/30 focus:outline-none',
           )}
         />
       </td>
@@ -241,8 +241,8 @@ function VariantRow({
           value={currency}
           onChange={(e) => setCurrency(e.target.value)}
           className={cn(
-            'rounded-md border border-white/10 bg-[#0a0a0a] px-2 py-1.5',
-            'text-sm text-white focus:border-white/30 focus:outline-none',
+            'rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-black/30 px-2 py-1.5',
+            'text-sm text-gray-900 dark:text-white focus:border-gray-400 dark:focus:border-white/30 focus:outline-none',
           )}
         >
           {CURRENCIES.map((c) => (
@@ -261,8 +261,8 @@ function VariantRow({
             'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium',
             'transition-colors',
             isDirty && !updateVariant.isPending
-              ? 'border-white/20 bg-white/10 text-white hover:bg-white/15'
-              : 'cursor-not-allowed border-white/5 bg-transparent text-gray-600',
+              ? 'border-gray-300 dark:border-white/20 bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/15'
+              : 'cursor-not-allowed border-gray-200 dark:border-white/8 bg-transparent text-gray-400 dark:text-gray-500',
           )}
         >
           {updateVariant.isPending ? (
@@ -321,13 +321,13 @@ export default function ProductDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-full bg-[#0a0a0a] p-6 text-white">
+      <div className="min-h-full p-6 text-gray-900 dark:text-white">
         <div className="mx-auto max-w-[1400px] space-y-4">
-          <div className="h-5 w-32 animate-pulse rounded bg-white/5" />
-          <div className="h-8 w-96 animate-pulse rounded bg-white/5" />
+          <div className="h-5 w-32 animate-pulse rounded bg-gray-100 dark:bg-white/5" />
+          <div className="h-8 w-96 animate-pulse rounded bg-gray-100 dark:bg-white/5" />
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="h-96 animate-pulse rounded-xl border border-white/5 bg-[#111]" />
-            <div className="h-96 animate-pulse rounded-xl border border-white/5 bg-[#111]" />
+            <div className="h-96 animate-pulse rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]" />
+            <div className="h-96 animate-pulse rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]" />
           </div>
         </div>
       </div>
@@ -336,17 +336,17 @@ export default function ProductDetailPage() {
 
   if (isError || !product) {
     return (
-      <div className="min-h-full bg-[#0a0a0a] p-6 text-white">
+      <div className="min-h-full p-6 text-gray-900 dark:text-white">
         <div className="mx-auto max-w-[1400px]">
           <Link
             href="/finance/products"
-            className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white"
+            className="inline-flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             Zurück zur Übersicht
           </Link>
-          <div className="mt-6 rounded-xl border border-red-900/50 bg-red-950/20 p-6 text-center">
-            <p className="text-sm text-red-300">
+          <div className="mt-6 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 p-6 text-center">
+            <p className="text-sm text-red-700 dark:text-red-300">
               {isError
                 ? `Fehler beim Laden: ${(error as Error)?.message ?? 'Unbekannt'}`
                 : 'Produkt nicht gefunden.'}
@@ -362,22 +362,22 @@ export default function ProductDetailPage() {
   // -------------------------------------------------------------------------
 
   return (
-    <div className="min-h-full bg-[#0a0a0a] text-white">
+    <div className="min-h-full text-gray-900 dark:text-white">
       <div className="mx-auto max-w-[1400px] space-y-6 p-6">
         {/* Header */}
-        <div className="flex flex-col gap-3 border-b border-white/5 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-gray-200 dark:border-white/8 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <Link
               href="/finance/products"
-              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Zurück zu Produkten
             </Link>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
               {product.title}
             </h1>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {product.variants.length}{' '}
               {product.variants.length === 1 ? 'Variante' : 'Varianten'}
               {product.vendor ? ` · ${product.vendor}` : ''}
@@ -392,8 +392,8 @@ export default function ProductDetailPage() {
             className={cn(
               'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
               isProductDirty && !updateProduct.isPending
-                ? 'border-white/20 bg-white/10 text-white hover:bg-white/15'
-                : 'cursor-not-allowed border-white/5 bg-transparent text-gray-600',
+                ? 'border-gray-300 dark:border-white/20 bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/15'
+                : 'cursor-not-allowed border-gray-200 dark:border-white/8 bg-transparent text-gray-400 dark:text-gray-500',
             )}
           >
             {updateProduct.isPending ? (
@@ -408,16 +408,16 @@ export default function ProductDetailPage() {
         {/* Grid: left = read-only Shopify info, right = editable internal fields */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* LEFT: Shopify read-only side */}
-          <div className="space-y-4 rounded-xl border border-white/5 bg-[#111] p-5">
+          <div className="space-y-4 rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-5 shadow-card dark:shadow-[var(--card-shadow)]">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">Shopify Daten</h2>
-              <span className="text-[10px] uppercase tracking-wider text-gray-500">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Shopify Daten</h2>
+              <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 Read-only
               </span>
             </div>
 
             {/* Image */}
-            <div className="aspect-square w-full overflow-hidden rounded-lg border border-white/5 bg-[#0a0a0a]">
+            <div className="aspect-square w-full overflow-hidden rounded-lg border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-black/30">
               {product.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -427,7 +427,7 @@ export default function ProductDetailPage() {
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
-                  <ImageIcon className="h-12 w-12 text-[#333]" />
+                  <ImageIcon className="h-12 w-12 text-gray-300 dark:text-white/20" />
                 </div>
               )}
             </div>
@@ -441,16 +441,16 @@ export default function ProductDetailPage() {
           </div>
 
           {/* RIGHT: editable */}
-          <div className="space-y-4 rounded-xl border border-white/5 bg-[#111] p-5">
+          <div className="space-y-4 rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-5 shadow-card dark:shadow-[var(--card-shadow)]">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">Interne Daten</h2>
-              <span className="text-[10px] uppercase tracking-wider text-gray-500">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Interne Daten</h2>
+              <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 Editierbar
               </span>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] uppercase tracking-wider text-gray-500">
+              <label className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 Interne Notizen
               </label>
               <textarea
@@ -459,20 +459,20 @@ export default function ProductDetailPage() {
                 rows={8}
                 placeholder="Interne Notizen zu diesem Produkt..."
                 className={cn(
-                  'w-full rounded-lg border border-white/10 bg-[#0a0a0a] px-3 py-2',
-                  'text-sm text-white placeholder-gray-600',
-                  'focus:border-white/30 focus:outline-none',
+                  'w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/30 px-3 py-2',
+                  'text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500',
+                  'focus:border-gray-400 dark:focus:border-white/30 focus:outline-none',
                   'min-h-[180px] resize-y',
                 )}
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] uppercase tracking-wider text-gray-500">
+              <label className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 Interne Tags
               </label>
               <TagsInput value={tags} onChange={setTags} />
-              <p className="text-[10px] text-gray-600">
+              <p className="text-[10px] text-gray-500 dark:text-gray-500">
                 Enter oder Komma zum Hinzufügen · Backspace zum Entfernen
               </p>
             </div>
@@ -480,39 +480,39 @@ export default function ProductDetailPage() {
         </div>
 
         {/* Variants table */}
-        <div className="rounded-xl border border-white/5 bg-[#111]">
-          <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
-            <h2 className="text-sm font-semibold text-white">Varianten</h2>
-            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+        <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]">
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/8 px-5 py-3">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Varianten</h2>
+            <span className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
               COGS pro Variante editierbar
             </span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b border-white/5 bg-[#0d0d0d] text-left">
-                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                <tr className="border-b border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/5 text-left">
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Titel
                   </th>
-                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     SKU
                   </th>
-                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     EAN
                   </th>
-                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Preis
                   </th>
-                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Lager
                   </th>
-                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     COGS
                   </th>
-                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Währung
                   </th>
-                  <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                  <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Aktion
                   </th>
                 </tr>
@@ -529,7 +529,7 @@ export default function ProductDetailPage() {
                   <tr>
                     <td
                       colSpan={8}
-                      className="px-3 py-6 text-center text-sm text-gray-500"
+                      className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
                     >
                       Keine Varianten vorhanden.
                     </td>

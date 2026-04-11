@@ -31,28 +31,28 @@ export function ProductSalesWidget() {
   const { data, isLoading, isError, error } = useProductSales();
 
   return (
-    <div className="rounded-xl border border-white/5 bg-[#111] p-5 text-white shadow-sm">
+    <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-5 text-gray-900 dark:text-white shadow-card dark:shadow-[var(--card-shadow)]">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/5 bg-white/[0.03]">
-            <Package className="h-4 w-4 text-emerald-400" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/[0.03]">
+            <Package className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               Verkäufe pro Produkt
             </h3>
-            <p className="text-[11px] text-gray-500">
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
               Umsatz nach Produkt im gewählten Zeitraum
             </p>
           </div>
         </div>
         {data && !isLoading && !isError && (
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-gray-500">
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
               Gesamtumsatz
             </div>
-            <div className="text-sm font-semibold text-white">
+            <div className="text-sm font-semibold text-gray-900 dark:text-white">
               {eurFormatter.format(data.totalRevenue)}
             </div>
           </div>
@@ -65,21 +65,21 @@ export function ProductSalesWidget() {
           {[0, 1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-10 animate-pulse rounded-md bg-white/[0.03]"
+              className="h-10 animate-pulse rounded-md bg-gray-100 dark:bg-white/[0.03]"
             />
           ))}
         </div>
       )}
 
       {isError && (
-        <div className="rounded-md border border-red-900/50 bg-red-950/30 p-4 text-xs text-red-300">
+        <div className="rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-4 text-xs text-red-700 dark:text-red-300">
           <strong>Fehler beim Laden der Produktverkäufe.</strong>{' '}
           {error instanceof Error ? error.message : 'Bitte erneut versuchen.'}
         </div>
       )}
 
       {!isLoading && !isError && data && data.products.length === 0 && (
-        <div className="py-10 text-center text-xs text-gray-500">
+        <div className="py-10 text-center text-xs text-gray-500 dark:text-gray-400">
           Keine Produktverkäufe im gewählten Zeitraum.
         </div>
       )}
@@ -87,21 +87,21 @@ export function ProductSalesWidget() {
       {!isLoading && !isError && data && data.products.length > 0 && (
         <div className="max-h-[440px] overflow-y-auto">
           <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 bg-[#111]">
-              <tr className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500">
-                <th className="border-b border-white/5 py-2 pr-3 text-left w-8">
+            <thead className="sticky top-0 bg-white dark:bg-[var(--card-bg)]">
+              <tr className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
+                <th className="border-b border-gray-200 dark:border-white/8 py-2 pr-3 text-left w-8">
                   #
                 </th>
-                <th className="border-b border-white/5 py-2 pr-3 text-left">
+                <th className="border-b border-gray-200 dark:border-white/8 py-2 pr-3 text-left">
                   Produkt
                 </th>
-                <th className="border-b border-white/5 py-2 pr-3 text-right w-24">
+                <th className="border-b border-gray-200 dark:border-white/8 py-2 pr-3 text-right w-24">
                   Verkäufe
                 </th>
-                <th className="border-b border-white/5 py-2 pr-3 text-right w-32">
+                <th className="border-b border-gray-200 dark:border-white/8 py-2 pr-3 text-right w-32">
                   Umsatz
                 </th>
-                <th className="border-b border-white/5 py-2 text-right w-44">
+                <th className="border-b border-gray-200 dark:border-white/8 py-2 text-right w-44">
                   Anteil
                 </th>
               </tr>
@@ -110,26 +110,26 @@ export function ProductSalesWidget() {
               {data.products.map((row, idx) => (
                 <tr
                   key={`${row.productId ?? 'np'}-${idx}`}
-                  className="group hover:bg-white/[0.02]"
+                  className="group hover:bg-gray-50 dark:hover:bg-white/[0.02]"
                 >
-                  <td className="border-b border-white/5 py-2.5 pr-3 text-xs text-gray-500">
+                  <td className="border-b border-gray-100 dark:border-white/5 py-2.5 pr-3 text-xs text-gray-500 dark:text-gray-400">
                     {idx + 1}
                   </td>
                   <td
-                    className="max-w-0 truncate border-b border-white/5 py-2.5 pr-3 text-xs text-white"
+                    className="max-w-0 truncate border-b border-gray-100 dark:border-white/5 py-2.5 pr-3 text-xs text-gray-900 dark:text-white"
                     title={row.title}
                   >
                     {row.title}
                   </td>
-                  <td className="border-b border-white/5 py-2.5 pr-3 text-right text-xs tabular-nums text-gray-300">
+                  <td className="border-b border-gray-100 dark:border-white/5 py-2.5 pr-3 text-right text-xs tabular-nums text-gray-700 dark:text-gray-300">
                     {intFormatter.format(row.salesCount)}
                   </td>
-                  <td className="border-b border-white/5 py-2.5 pr-3 text-right text-xs tabular-nums text-white">
+                  <td className="border-b border-gray-100 dark:border-white/5 py-2.5 pr-3 text-right text-xs tabular-nums text-gray-900 dark:text-white">
                     {eurFormatter.format(row.revenue)}
                   </td>
-                  <td className="border-b border-white/5 py-2.5 text-right text-xs tabular-nums text-gray-300">
+                  <td className="border-b border-gray-100 dark:border-white/5 py-2.5 text-right text-xs tabular-nums text-gray-700 dark:text-gray-300">
                     <div className="flex items-center justify-end gap-2">
-                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/[0.05]">
+                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-white/[0.05]">
                         <div
                           className="h-full rounded-full bg-emerald-500"
                           style={{

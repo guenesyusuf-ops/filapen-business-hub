@@ -33,27 +33,27 @@ function Card({ label, value, icon, loading, subtitle, onClick, highlight }: Car
     <Comp
       onClick={onClick}
       className={[
-        'group flex flex-col justify-between rounded-2xl border border-white/5 bg-[#111] p-5 text-left transition-colors',
-        clickable ? 'cursor-pointer hover:bg-white/[0.04] hover:border-white/10' : '',
-        highlight ? 'ring-1 ring-white/10' : '',
+        'group flex flex-col justify-between rounded-2xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-5 text-left shadow-card dark:shadow-[var(--card-shadow)] transition-colors',
+        clickable ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.04] hover:border-gray-300 dark:hover:border-white/10' : '',
+        highlight ? 'ring-1 ring-gray-200 dark:ring-white/10' : '',
       ].join(' ')}
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-white/50">{label}</span>
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/70">
+        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-white/50">{label}</span>
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-white/70">
           {icon}
         </span>
       </div>
       <div className="mt-4">
         {loading ? (
-          <div className="h-8 w-16 animate-pulse rounded bg-white/10" />
+          <div className="h-8 w-16 animate-pulse rounded bg-gray-100 dark:bg-white/10" />
         ) : (
-          <div className="text-3xl font-semibold text-white">
+          <div className="text-3xl font-semibold text-gray-900 dark:text-white">
             {numberFormatter.format(value ?? 0)}
           </div>
         )}
         {subtitle && !loading && (
-          <p className="mt-1 text-xs text-white/40">{subtitle}</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-white/40">{subtitle}</p>
         )}
       </div>
     </Comp>
@@ -72,7 +72,7 @@ export function StatCards({ stats, loading, onUploadsClick }: StatCardsProps) {
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-white">Content in Zahlen</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Content in Zahlen</h2>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card

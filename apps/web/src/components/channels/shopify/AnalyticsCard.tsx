@@ -65,22 +65,22 @@ export function AnalyticsCard({
   return (
     <div
       className={[
-        'rounded-xl border border-white/5 bg-[#111] p-6 flex flex-col',
+        'rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-6 flex flex-col shadow-card dark:shadow-[var(--card-shadow)] transition-all duration-300 ease-out hover:shadow-card-hover hover:-translate-y-[2px]',
         className ?? '',
       ].join(' ')}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
         {action}
       </div>
 
       {bigNumber != null && (
         <div className="mb-4">
-          <div className="text-2xl font-bold text-white tabular-nums">
+          <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
             {bigNumber}
           </div>
           {bigNumberSubLabel && (
-            <div className="mt-0.5 text-xs text-gray-500">{bigNumberSubLabel}</div>
+            <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{bigNumberSubLabel}</div>
           )}
         </div>
       )}

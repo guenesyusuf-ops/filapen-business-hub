@@ -28,7 +28,7 @@ export default function CreatorHubDashboardPage() {
   const recentQuery = useRecentCreators();
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] px-4 py-6 text-white sm:px-6 lg:px-8">
+    <div className="min-h-screen px-4 py-6 text-gray-900 dark:text-white sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Main column (2/3) */}
         <div className="space-y-6 lg:col-span-2">

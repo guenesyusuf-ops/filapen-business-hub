@@ -104,7 +104,7 @@ function InviteModal({ onClose, onInvite }: { onClose: () => void; onInvite: (em
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl p-6 animate-scale-in">
+      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-2xl p-6 animate-scale-in border border-gray-200 dark:border-white/8">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Invite Team Member</h2>
           <button
@@ -222,7 +222,7 @@ function ActionMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg bg-white dark:bg-[#232640] shadow-dropdown border border-border dark:border-white/10 py-1 animate-scale-in">
+          <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg bg-white dark:bg-[var(--card-bg)] shadow-dropdown border border-gray-200 dark:border-white/10 py-1 animate-scale-in">
             <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
               Change Role
             </div>

@@ -25,36 +25,36 @@ function formatDateLabel(value: string): string {
 
 function statusBadge(status: string): string {
   const s = status.toLowerCase();
-  if (s.includes('refund')) return 'bg-red-500/10 text-red-400 border-red-500/30';
-  if (s.includes('partial')) return 'bg-amber-500/10 text-amber-300 border-amber-500/30';
-  return 'bg-white/5 text-gray-300 border-white/10';
+  if (s.includes('refund')) return 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30';
+  if (s.includes('partial')) return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30';
+  return 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-white/10';
 }
 
 export function ReturnsTable({ rows }: { rows: ReturnRow[] }) {
   return (
     <AnalyticsCard title="Rückgaben">
       {rows.length === 0 ? (
-        <div className="flex h-[260px] items-center justify-center text-sm text-gray-500">
+        <div className="flex h-[260px] items-center justify-center text-sm text-gray-500 dark:text-gray-400">
           Keine Rückgaben im gewählten Zeitraum
         </div>
       ) : (
         <div className="max-h-[320px] overflow-y-auto scrollbar-thin">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-[#111] text-[11px] uppercase tracking-wide text-gray-500">
-              <tr className="border-b border-white/5">
+            <thead className="sticky top-0 bg-white dark:bg-[var(--card-bg)] text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <tr className="border-b border-gray-200 dark:border-white/8">
                 <th className="py-2 pr-3 text-left font-medium">Datum</th>
                 <th className="py-2 pr-3 text-left font-medium">Bestellung</th>
                 <th className="py-2 pr-3 text-left font-medium">Produkt</th>
                 <th className="py-2 text-left font-medium">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
               {rows.map((r, i) => (
-                <tr key={`${r.orderNumber}-${i}`} className="text-gray-300">
-                  <td className="py-2 pr-3 tabular-nums text-xs text-gray-400">
+                <tr key={`${r.orderNumber}-${i}`} className="text-gray-700 dark:text-gray-300">
+                  <td className="py-2 pr-3 tabular-nums text-xs text-gray-500 dark:text-gray-400">
                     {formatDateLabel(r.date)}
                   </td>
-                  <td className="py-2 pr-3 text-xs font-medium text-white">
+                  <td className="py-2 pr-3 text-xs font-medium text-gray-900 dark:text-white">
                     #{r.orderNumber}
                   </td>
                   <td className="py-2 pr-3 text-xs">

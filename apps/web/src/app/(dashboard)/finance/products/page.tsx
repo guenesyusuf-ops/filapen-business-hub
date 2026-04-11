@@ -113,10 +113,10 @@ function ProductCard({ product }: { product: CatalogProduct }) {
   return (
     <Link
       href={`/finance/products/${product.id}`}
-      className="group flex flex-col overflow-hidden rounded-xl border border-[#222] bg-[#111] transition-all duration-200 hover:border-[#333] hover:shadow-[0_0_0_1px_rgba(255,255,255,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+      className="group flex flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)] transition-all duration-200 hover:border-gray-300 dark:hover:border-white/10 hover:shadow-card-hover hover:-translate-y-[2px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30"
     >
       {/* Image */}
-      <div className="relative aspect-square w-full overflow-hidden bg-[#0a0a0a]">
+      <div className="relative aspect-square w-full overflow-hidden bg-gray-50 dark:bg-black/30">
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -127,11 +127,11 @@ function ProductCard({ product }: { product: CatalogProduct }) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <ImageIcon className="h-10 w-10 text-[#333]" />
+            <ImageIcon className="h-10 w-10 text-gray-300 dark:text-white/20" />
           </div>
         )}
         {product.status !== 'active' && (
-          <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gray-300 backdrop-blur">
+          <span className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gray-100 backdrop-blur">
             {product.status === 'draft' ? 'Entwurf' : 'Archiviert'}
           </span>
         )}
@@ -140,13 +140,13 @@ function ProductCard({ product }: { product: CatalogProduct }) {
       {/* Content */}
       <div className="flex flex-1 flex-col gap-2 p-4">
         {/* Title */}
-        <h3 className="line-clamp-2 text-sm font-semibold text-white leading-snug" title={product.title}>
+        <h3 className="line-clamp-2 text-sm font-semibold text-gray-900 dark:text-white leading-snug" title={product.title}>
           {product.title}
         </h3>
 
         {/* Description */}
         {description && (
-          <p className="line-clamp-2 text-xs text-gray-400 leading-relaxed">
+          <p className="line-clamp-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
             {truncate(description, 140)}
           </p>
         )}
@@ -155,33 +155,33 @@ function ProductCard({ product }: { product: CatalogProduct }) {
         <div className="mt-auto flex items-baseline gap-2 pt-2">
           {primaryVariant ? (
             <>
-              <span className="text-base font-semibold text-white">
+              <span className="text-base font-semibold text-gray-900 dark:text-white">
                 {formatPrice(product.minPrice)}
               </span>
               {hasPriceRange && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   – {formatPrice(product.maxPrice)}
                 </span>
               )}
               {primaryVariant.compareAtPrice && primaryVariant.compareAtPrice > primaryVariant.price && (
-                <span className="text-xs text-gray-500 line-through">
+                <span className="text-xs text-gray-500 dark:text-gray-400 line-through">
                   {formatPrice(primaryVariant.compareAtPrice)}
                 </span>
               )}
             </>
           ) : (
-            <span className="text-xs text-gray-500">Kein Preis</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Kein Preis</span>
           )}
         </div>
 
         {/* Meta row: variants + inventory */}
-        <div className="flex items-center gap-3 text-[11px] text-gray-500">
+        <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
           <span>
             {product.variants.length === 1
               ? '1 Variante'
               : `${product.variants.length} Varianten`}
           </span>
-          <span className="h-1 w-1 rounded-full bg-[#333]" />
+          <span className="h-1 w-1 rounded-full bg-gray-300 dark:bg-white/20" />
           <span>
             {product.totalInventory} auf Lager
           </span>
@@ -190,7 +190,7 @@ function ProductCard({ product }: { product: CatalogProduct }) {
         {/* EAN badge */}
         {ean && (
           <div className="flex items-center gap-1.5 pt-1">
-            <div className="inline-flex items-center gap-1 rounded-md border border-[#222] bg-[#0a0a0a] px-2 py-0.5 text-[10px] font-mono text-gray-400">
+            <div className="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-black/30 px-2 py-0.5 text-[10px] font-mono text-gray-600 dark:text-gray-400">
               <Barcode className="h-3 w-3" />
               <span>{ean}</span>
             </div>
@@ -207,13 +207,13 @@ function ProductCard({ product }: { product: CatalogProduct }) {
 
 function CardSkeleton() {
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-[#222] bg-[#111]">
-      <div className="aspect-square w-full animate-pulse bg-[#1a1a1a]" />
+    <div className="flex flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)]">
+      <div className="aspect-square w-full animate-pulse bg-gray-100 dark:bg-white/5" />
       <div className="space-y-3 p-4">
-        <div className="h-4 w-3/4 animate-pulse rounded bg-[#1a1a1a]" />
-        <div className="h-3 w-full animate-pulse rounded bg-[#1a1a1a]" />
-        <div className="h-3 w-2/3 animate-pulse rounded bg-[#1a1a1a]" />
-        <div className="h-5 w-20 animate-pulse rounded bg-[#1a1a1a]" />
+        <div className="h-4 w-3/4 animate-pulse rounded bg-gray-100 dark:bg-white/5" />
+        <div className="h-3 w-full animate-pulse rounded bg-gray-100 dark:bg-white/5" />
+        <div className="h-3 w-2/3 animate-pulse rounded bg-gray-100 dark:bg-white/5" />
+        <div className="h-5 w-20 animate-pulse rounded bg-gray-100 dark:bg-white/5" />
       </div>
     </div>
   );
@@ -243,17 +243,17 @@ function SortButton({
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
         active
-          ? 'border-[#333] bg-[#1a1a1a] text-white'
-          : 'border-[#222] bg-[#111] text-gray-400 hover:border-[#333] hover:text-gray-200',
+          ? 'border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
+          : 'border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/10 hover:text-gray-900 dark:hover:text-gray-200',
       )}
     >
       {label}
       {active && (
-        <span className="text-[10px] text-gray-500">
+        <span className="text-[10px] text-gray-500 dark:text-gray-400">
           {currentOrder === 'asc' ? '↑' : '↓'}
         </span>
       )}
-      {!active && <ArrowUpDown className="h-3 w-3 text-gray-600" />}
+      {!active && <ArrowUpDown className="h-3 w-3 text-gray-400 dark:text-gray-500" />}
     </button>
   );
 }
@@ -295,16 +295,16 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="min-h-full bg-[#0a0a0a] text-white">
+    <div className="min-h-full text-gray-900 dark:text-white">
       <div className="mx-auto max-w-[1600px] space-y-6 p-1">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-gray-400" />
-              <h1 className="text-2xl font-semibold tracking-tight text-white">Produkte</h1>
+              <Package className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">Produkte</h1>
             </div>
-            <p className="mt-1 text-sm text-gray-400">
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {isLoading
                 ? 'Lade Produktkatalog...'
                 : `${total} ${total === 1 ? 'Produkt' : 'Produkte'} aus Shopify synchronisiert`}
@@ -313,16 +313,16 @@ export default function ProductsPage() {
 
           {/* Search */}
           <div className="relative w-full sm:w-80">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Produkte suchen (Titel, SKU, EAN, Marke)..."
               className={cn(
-                'w-full rounded-lg border border-[#222] bg-[#111] py-2 pl-9 pr-3',
-                'text-sm text-white placeholder-gray-500',
-                'focus:border-[#444] focus:outline-none focus:ring-1 focus:ring-[#444]',
+                'w-full rounded-lg border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] py-2 pl-9 pr-3',
+                'text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500',
+                'focus:border-gray-400 dark:focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-white/10',
                 'transition-colors',
               )}
             />
@@ -330,8 +330,8 @@ export default function ProductsPage() {
         </div>
 
         {/* Filter / Sort toolbar */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-[#222] pb-4">
-          <span className="mr-1 text-xs uppercase tracking-wider text-gray-500">Sortieren:</span>
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 dark:border-white/8 pb-4">
+          <span className="mr-1 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">Sortieren:</span>
           <SortButton
             label="Name"
             field="title"
@@ -357,13 +357,13 @@ export default function ProductsPage() {
 
         {/* Error */}
         {isError && (
-          <div className="rounded-xl border border-red-900/50 bg-red-950/20 p-6 text-center">
-            <p className="text-sm text-red-300">
+          <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 p-6 text-center">
+            <p className="text-sm text-red-700 dark:text-red-300">
               Fehler beim Laden der Produkte: {(error as Error)?.message ?? 'Unbekannter Fehler'}
             </p>
             <button
               onClick={() => refetch()}
-              className="mt-3 rounded-lg border border-red-800 bg-red-950/40 px-4 py-1.5 text-xs text-red-200 hover:bg-red-900/40"
+              className="mt-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-4 py-1.5 text-xs text-red-700 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-900/40"
             >
               Erneut versuchen
             </button>
@@ -378,9 +378,9 @@ export default function ProductsPage() {
             ))}
           </div>
         ) : products.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#222] bg-[#0a0a0a] py-20 text-center">
-            <Package className="mb-3 h-10 w-10 text-[#333]" />
-            <p className="text-sm text-gray-400">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-[var(--card-bg)] py-20 text-center">
+            <Package className="mb-3 h-10 w-10 text-gray-300 dark:text-white/20" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               {debouncedSearch
                 ? `Keine Produkte für "${debouncedSearch}" gefunden`
                 : 'Noch keine Produkte synchronisiert'}
@@ -388,7 +388,7 @@ export default function ProductsPage() {
             {debouncedSearch && (
               <button
                 onClick={() => setSearchInput('')}
-                className="mt-3 text-xs text-gray-500 hover:text-gray-300 underline"
+                className="mt-3 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline"
               >
                 Suche zurücksetzen
               </button>
