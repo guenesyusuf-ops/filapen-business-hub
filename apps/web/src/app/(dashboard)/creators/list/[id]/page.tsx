@@ -51,6 +51,7 @@ import { Lightbox } from '@/components/creators/Lightbox';
 import { UploadZone } from '@/components/creators/UploadZone';
 import { ChatWidget } from '@/components/creators/ChatWidget';
 import { AvatarUpload } from '@/components/creators/AvatarUpload';
+import { EditCreatorModal } from '@/components/creators/EditCreatorModal';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -147,6 +148,7 @@ export default function CreatorDetailPage() {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'uploads' | 'deals' | 'activity'>('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
@@ -330,6 +332,13 @@ export default function CreatorDetailPage() {
               Create Deal
             </button>
             <button
+              onClick={() => setShowEditModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Edit className="h-3.5 w-3.5" />
+              Creator bearbeiten
+            </button>
+            <button
               onClick={() => setShowDeleteConfirm(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
             >
@@ -340,6 +349,13 @@ export default function CreatorDetailPage() {
 
         </div>
       </div>
+
+      {/* Edit Creator Modal */}
+      <EditCreatorModal
+        open={showEditModal}
+        creator={creator}
+        onClose={() => setShowEditModal(false)}
+      />
 
       {/* Delete Confirmation — rendered outside the header card to avoid flex layout issues */}
       {showDeleteConfirm && (
