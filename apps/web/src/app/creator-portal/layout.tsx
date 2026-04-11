@@ -128,6 +128,11 @@ export default function CreatorPortalLayout({
               active={pathname === '/creator-portal/uploads'}
             />
             <NavTab
+              href="/creator-portal/invitations"
+              label="Einladungen"
+              active={pathname === '/creator-portal/invitations'}
+            />
+            <NavTab
               href="/creator-portal/deals"
               label="My Deals"
               active={pathname === '/creator-portal/deals'}

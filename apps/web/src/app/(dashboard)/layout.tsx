@@ -23,7 +23,6 @@ import {
   Bell,
   UserCircle,
   Users,
-  Handshake,
   Heart,
   Eye,
   ListChecks,
@@ -102,9 +101,8 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { labelKey: 'nav.overview', href: '/creators', icon: BarChart3 },
       { labelKey: 'nav.creators', href: '/creators/list', icon: UserCircle },
-      { labelKey: 'nav.deals', href: '/creators/deals', icon: Handshake },
-      { labelKey: 'nav.briefings', href: '/creators/briefings', icon: FileText },
       { labelKey: 'nav.projects', href: '/creators/projects', icon: ListChecks },
+      { labelKey: 'nav.briefings', href: '/creators/briefings', icon: FileText },
       { labelKey: 'nav.uploads', href: '/creators/uploads', icon: Layers },
       { labelKey: 'nav.creatorPortal', href: '/creator-portal', icon: ExternalLink },
     ],
