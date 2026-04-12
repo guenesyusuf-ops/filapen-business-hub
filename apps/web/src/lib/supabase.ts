@@ -34,7 +34,9 @@ export async function uploadToSupabase(
         const publicUrl = `${supabaseUrl}/storage/v1/object/public/creator-uploads/${path}`;
         resolve(publicUrl);
       } else {
-        reject(new Error(`Upload fehlgeschlagen: ${xhr.status} ${xhr.statusText}`));
+        const body = xhr.responseText || '';
+        console.error('Supabase Storage Error:', xhr.status, body);
+        reject(new Error(`Storage Upload fehlgeschlagen (${xhr.status}): ${body.slice(0, 200)}`));
       }
     });
 

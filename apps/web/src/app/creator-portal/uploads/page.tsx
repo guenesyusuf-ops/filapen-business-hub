@@ -367,8 +367,13 @@ export default function PortalUploadsPage() {
       setUploadProduct('');
       setUploadCategory('bilder');
       fetchUploads();
-    } catch {
-      // ignore
+    } catch (error) {
+      console.error('Upload fehlgeschlagen:', error);
+      setUploadError(
+        error instanceof Error
+          ? `Upload fehlgeschlagen: ${error.message}`
+          : 'Upload fehlgeschlagen. Bitte versuche es erneut.',
+      );
     } finally {
       setUploading(false);
     }
