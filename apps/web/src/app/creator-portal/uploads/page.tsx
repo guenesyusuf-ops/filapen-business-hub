@@ -307,8 +307,6 @@ export default function PortalUploadsPage() {
   const handleUploadSubmit = useCallback(async () => {
     setUploadError('');
     if (!creator) { setUploadError('Creator nicht geladen'); return; }
-    if (!activeFolder) { setUploadError('Bitte waehle zuerst einen Ordner/Batch aus'); return; }
-    if (!uploadLabel.trim()) { setUploadError('Bitte gib ein Label ein'); return; }
     if (!selectedFile && !uploadLink.trim()) { setUploadError('Bitte waehle eine Datei aus oder gib einen Link ein'); return; }
     setUploading(true);
 
@@ -355,8 +353,8 @@ export default function PortalUploadsPage() {
           mimeType,
           fileSize,
           tab: uploadCategory,
-          batch: activeFolder,
-          label: uploadLabel.trim(),
+          batch: activeFolder || 'Allgemein',
+          label: uploadLabel.trim() || selectedFile?.name || 'Upload',
           product: uploadProduct.trim() || undefined,
           category: uploadCategory,
         }),
