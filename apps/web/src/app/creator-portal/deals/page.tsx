@@ -16,7 +16,7 @@ interface PortalDeal {
   createdAt: string;
 }
 
-const API_BASE = '/api';
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
 
 const STAGE_COLORS: Record<string, string> = {
   lead: '#6b7280',

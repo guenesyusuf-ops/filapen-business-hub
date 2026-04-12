@@ -67,7 +67,7 @@ interface FolderMeta {
   createdAt: string;
 }
 
-const API_BASE = '/api';
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
 
 const CATEGORIES = [
   { value: 'bilder', label: 'Bilder' },
