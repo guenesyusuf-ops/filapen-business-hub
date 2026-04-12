@@ -302,9 +302,14 @@ export default function PortalUploadsPage() {
   ]);
 
   // Upload file into active folder
+  const [uploadError, setUploadError] = useState('');
+
   const handleUploadSubmit = useCallback(async () => {
-    if (!creator || !activeFolder) return;
-    if (!uploadLabel.trim()) return;
+    setUploadError('');
+    if (!creator) { setUploadError('Creator nicht geladen'); return; }
+    if (!activeFolder) { setUploadError('Bitte waehle zuerst einen Ordner/Batch aus'); return; }
+    if (!uploadLabel.trim()) { setUploadError('Bitte gib ein Label ein'); return; }
+    if (!selectedFile && !uploadLink.trim()) { setUploadError('Bitte waehle eine Datei aus oder gib einen Link ein'); return; }
     setUploading(true);
 
     try {
@@ -746,20 +751,21 @@ export default function PortalUploadsPage() {
                   )}
                 </div>
               </div>
+              {uploadError && (
+                <div className="mx-5 mb-0 mt-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                  {uploadError}
+                </div>
+              )}
               <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
                 <button
-                  onClick={() => setShowUpload(false)}
+                  onClick={() => { setShowUpload(false); setUploadError(''); }}
                   className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
                   Abbrechen
                 </button>
                 <button
                   onClick={handleUploadSubmit}
-                  disabled={
-                    uploading ||
-                    !uploadLabel.trim() ||
-                    (!selectedFile && !uploadLink.trim())
-                  }
+                  disabled={uploading}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
                 >
                   {uploading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
