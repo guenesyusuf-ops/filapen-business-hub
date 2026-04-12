@@ -52,7 +52,7 @@ function LoginPageInner() {
     }
 
     // Check if setup is required
-    fetch('/api/auth/status')
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/status`)
       .then((res) => res.json())
       .then((data) => {
         if (data.setupRequired) {
@@ -74,7 +74,7 @@ function LoginPageInner() {
 
       try {
         const isRegistration = mode === 'register' || mode === 'signup' || mode === 'invite';
-        const endpoint = isRegistration ? '/api/auth/register' : '/api/auth/login';
+        const endpoint = isRegistration ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/register` : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/login`;
 
         const payload: Record<string, string> = {
           email: form.email,

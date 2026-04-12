@@ -42,7 +42,7 @@ export interface WatchlistItemDetail {
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
-const API_BASE = '/api';
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
 
 async function fetchApi<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);

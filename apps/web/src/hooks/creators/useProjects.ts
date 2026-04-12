@@ -121,7 +121,7 @@ export interface ProjectInvitation {
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
-const API_BASE = '/api';
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
 
 function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;

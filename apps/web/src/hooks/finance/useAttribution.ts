@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useFinanceUI } from '@/stores/finance-ui';
 import { formatDate } from '@filapen/shared/src/utils/date';
 
-const API_BASE = '/api/finance';
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/finance`;
 
 async function fetchApi<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(path, window.location.origin);

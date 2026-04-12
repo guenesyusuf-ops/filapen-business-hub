@@ -48,7 +48,7 @@ function CreateTemplateModal({
   const { data: productsData } = useQuery({
     queryKey: ['finance', 'products', 'all-for-templates'],
     queryFn: () =>
-      fetch('/api/finance/products?startDate=2020-01-01&endDate=2030-01-01&pageSize=100')
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/finance/products?startDate=2020-01-01&endDate=2030-01-01&pageSize=100`)
         .then((r) => r.json()),
     staleTime: 5 * 60 * 1000,
     enabled: open,

@@ -226,7 +226,7 @@ const MOCK_PIPELINE: PipelineStats = {
 // Fetch helper
 // ---------------------------------------------------------------------------
 
-const API_BASE = '/api';
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
 
 async function fetchApi<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(path, window.location.origin);

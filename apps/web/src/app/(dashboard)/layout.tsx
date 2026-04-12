@@ -497,7 +497,7 @@ export default function DashboardLayout({
     if (!currentToken || !currentUser) return;
     if (currentUser.role !== 'owner' && currentUser.role !== 'admin') return;
 
-    fetch('/api/admin/pending-users/count', {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/pending-users/count`, {
       headers: { Authorization: `Bearer ${currentToken}` },
     })
       .then((res) => res.json())

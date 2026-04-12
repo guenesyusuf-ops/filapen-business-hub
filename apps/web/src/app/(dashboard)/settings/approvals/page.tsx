@@ -215,8 +215,8 @@ export default function ApprovalsPage() {
     try {
       const headers = getAuthHeaders();
       const [pendingRes, reviewedRes] = await Promise.all([
-        fetch('/api/admin/pending-users', { headers }),
-        fetch('/api/admin/reviewed-users', { headers }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/pending-users`, { headers }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/reviewed-users`, { headers }),
       ]);
 
       if (pendingRes.ok) {
@@ -247,7 +247,7 @@ export default function ApprovalsPage() {
           'Content-Type': 'application/json',
         };
         const role = selectedRoles[user.id] || 'viewer';
-        const res = await fetch(`/api/admin/approve-user/${user.id}`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/approve-user/${user.id}`, {
           method: 'PUT',
           headers,
           body: JSON.stringify({ role }),
@@ -279,7 +279,7 @@ export default function ApprovalsPage() {
         ...getAuthHeaders(),
         'Content-Type': 'application/json',
       };
-      const res = await fetch(`/api/admin/reject-user/${user.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/reject-user/${user.id}`, {
         method: 'PUT',
         headers,
       });
