@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Upload, Link2, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { uploadToSupabase } from '@/lib/supabase';
 import { useCreateUpload, UPLOAD_TABS, UPLOAD_TAB_LABELS } from '@/hooks/creators/useUploads';
 import type { UploadTab } from '@/hooks/creators/useUploads';
 
@@ -31,6 +32,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createUpload = useCreateUpload();
@@ -65,6 +67,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
 
   const handleSubmit = useCallback(async () => {
     setUploading(true);
+    setProgress(0);
 
     try {
       if (mode === 'link') {
@@ -80,13 +83,19 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
           batch: batch || undefined,
         });
       } else if (selectedFile) {
-        // For MVP: create a placeholder URL. In production, upload to Supabase Storage first.
-        // This creates the metadata record. The actual file URL should come from Supabase Storage upload.
-        const fileUrl = URL.createObjectURL(selectedFile);
+        // Generate unique storage path
+        const timestamp = Date.now();
+        const sanitizedName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `uploads/${creatorId}/${timestamp}-${sanitizedName}`;
+
+        // Upload to Supabase Storage with progress tracking
+        const publicUrl = await uploadToSupabase(selectedFile, storagePath, setProgress);
+
+        // Save metadata to DB
         await createUpload.mutateAsync({
           creatorId,
           fileName: selectedFile.name,
-          fileUrl,
+          fileUrl: publicUrl,
           fileType: getFileType(selectedFile),
           mimeType: selectedFile.type,
           fileSize: selectedFile.size,
@@ -94,28 +103,30 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
           label: label || undefined,
           product: product || undefined,
           batch: batch || undefined,
+          storageKey: storagePath,
         });
       }
 
       onSuccess?.();
       onClose();
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error('Upload fehlgeschlagen:', error);
     } finally {
       setUploading(false);
+      setProgress(0);
     }
   }, [mode, linkUrl, selectedFile, creatorId, tab, label, product, batch, createUpload, getFileType, onClose, onSuccess]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl mx-4 overflow-hidden">
+      <div className="relative z-10 w-full max-w-lg bg-white dark:bg-[var(--card-bg)] rounded-2xl shadow-2xl mx-4 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-gray-900">Upload Content</h3>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Inhalt hochladen</h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -129,20 +140,20 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
               className={cn(
                 'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors',
                 mode === 'file'
-                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                  : 'bg-gray-50 text-gray-500 border border-transparent hover:bg-gray-100',
+                  ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                  : 'bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-100 dark:hover:bg-white/10',
               )}
             >
               <Upload className="h-3.5 w-3.5" />
-              File Upload
+              Datei hochladen
             </button>
             <button
               onClick={() => setMode('link')}
               className={cn(
                 'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors',
                 mode === 'link'
-                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                  : 'bg-gray-50 text-gray-500 border border-transparent hover:bg-gray-100',
+                  ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                  : 'bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-100 dark:hover:bg-white/10',
               )}
             >
               <Link2 className="h-3.5 w-3.5" />
@@ -152,60 +163,83 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
 
           {/* File upload area or link input */}
           {mode === 'file' ? (
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={cn(
-                'flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed cursor-pointer transition-colors',
-                isDragOver
-                  ? 'border-purple-400 bg-purple-50'
-                  : selectedFile
-                    ? 'border-green-300 bg-green-50'
-                    : 'border-gray-200 bg-gray-50 hover:border-purple-300',
-              )}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={handleFileSelect}
-                accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
-              />
-              {selectedFile ? (
-                <div className="text-center">
-                  <p className="text-sm font-medium text-green-700">{selectedFile.name}</p>
-                  <p className="text-xs text-green-500 mt-1">
-                    {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB
-                  </p>
+            <>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  'flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed cursor-pointer transition-colors',
+                  isDragOver
+                    ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20'
+                    : selectedFile
+                      ? 'border-green-300 bg-green-50 dark:border-green-600 dark:bg-green-900/20'
+                      : 'border-gray-200 dark:border-white/20 bg-gray-50 dark:bg-white/5 hover:border-purple-300 dark:hover:border-purple-500',
+                )}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx"
+                />
+                {selectedFile ? (
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-green-700 dark:text-green-400">{selectedFile.name}</p>
+                    <p className="text-xs text-green-500 dark:text-green-500 mt-1">
+                      {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <Upload className="h-8 w-8 text-gray-300 dark:text-gray-500 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Ziehen & ablegen oder <span className="text-purple-600 dark:text-purple-400 font-medium">Datei waehlen</span>
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Bilder, Videos, Dokumente
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              {uploading && (
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    <span>Wird hochgeladen...</span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-gray-100 dark:bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-purple-600 transition-all duration-300 ease-out"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  {progress === 100 && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                      Upload erfolgreich! Wird gespeichert...
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <div className="text-center">
-                  <Upload className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">
-                    Drag & drop or <span className="text-purple-600 font-medium">browse</span>
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Images, Videos, Documents
-                  </p>
-                </div>
               )}
-            </div>
+            </>
           ) : (
             <input
               type="url"
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               placeholder="https://..."
-              className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+              className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
             />
           )}
 
           {/* Tab selection */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
-              Category
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+              Kategorie
             </label>
             <div className="flex gap-1.5">
               {UPLOAD_TABS.map((t) => (
@@ -216,7 +250,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
                     'flex-1 rounded-lg py-1.5 text-xs font-medium transition-colors',
                     tab === t
                       ? 'bg-purple-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                      : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/20',
                   )}
                 >
                   {UPLOAD_TAB_LABELS[t]}
@@ -228,45 +262,45 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
           {/* Metadata fields */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Label</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Label</label>
               <input
                 type="text"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="e.g. Draft 1"
-                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                placeholder="z.B. Entwurf 1"
+                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Product</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Produkt</label>
               <input
                 type="text"
                 value={product}
                 onChange={(e) => setProduct(e.target.value)}
-                placeholder="e.g. Serum"
-                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                placeholder="z.B. Serum"
+                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Batch</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Batch</label>
               <input
                 type="text"
                 value={batch}
                 onChange={(e) => setBatch(e.target.value)}
-                placeholder="e.g. Batch A"
-                className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                placeholder="z.B. Batch A"
+                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
               />
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 dark:border-white/10 bg-gray-50 dark:bg-white/5">
           <button
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            className="rounded-lg border border-gray-200 dark:border-white/20 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
           >
-            Cancel
+            Abbrechen
           </button>
           <button
             onClick={handleSubmit}
@@ -274,7 +308,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
             className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {uploading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Upload
+            Hochladen
           </button>
         </div>
       </div>
