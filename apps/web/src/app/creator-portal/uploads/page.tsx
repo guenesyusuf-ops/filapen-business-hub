@@ -559,15 +559,64 @@ export default function PortalUploadsPage() {
           </div>
         )}
 
-        {/* Comments panel */}
+        {/* Media Preview + Comments */}
         {selectedUpload && (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50">
-              <MessageCircle className="h-4 w-4 text-violet-600" />
-              <span className="text-sm font-medium text-gray-900">
-                Kommentare - {selectedUpload.label || selectedUpload.fileName}
-              </span>
+          <div className="space-y-4">
+            {/* Media Player */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="bg-gray-900 flex items-center justify-center min-h-[300px]">
+                {selectedUpload.fileType === 'video' ? (
+                  <video
+                    key={selectedUpload.id}
+                    src={selectedUpload.fileUrl}
+                    controls
+                    className="max-w-full max-h-[500px] rounded"
+                  />
+                ) : selectedUpload.fileType === 'image' ? (
+                  <img
+                    src={selectedUpload.fileUrl}
+                    alt={selectedUpload.fileName}
+                    className="max-w-full max-h-[500px] object-contain"
+                  />
+                ) : selectedUpload.fileType === 'link' ? (
+                  <a
+                    href={selectedUpload.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:underline text-sm p-4"
+                  >
+                    {selectedUpload.fileUrl}
+                  </a>
+                ) : (
+                  <div className="text-center p-8">
+                    <FileText className="h-12 w-12 text-gray-500 mx-auto mb-2" />
+                    <p className="text-gray-400 text-sm">{selectedUpload.fileName}</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-gray-50">
+                <span className="text-xs font-medium text-gray-700 truncate">
+                  {selectedUpload.label || selectedUpload.fileName}
+                </span>
+                <a
+                  href={selectedUpload.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-violet-600 hover:underline"
+                >
+                  Herunterladen
+                </a>
+              </div>
             </div>
+
+            {/* Comments */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <MessageCircle className="h-4 w-4 text-violet-600" />
+                <span className="text-sm font-medium text-gray-900">
+                  Kommentare - {selectedUpload.label || selectedUpload.fileName}
+                </span>
+              </div>
             <div className="max-h-64 overflow-y-auto px-4 py-3 space-y-3">
               {comments.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-4">Noch keine Kommentare</p>
@@ -634,6 +683,7 @@ export default function PortalUploadsPage() {
                 <Send className="h-4 w-4" />
               </button>
             </div>
+          </div>
           </div>
         )}
 
