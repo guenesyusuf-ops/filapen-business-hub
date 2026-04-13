@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
+import { API_URL } from '@/lib/api';
 import {
   LayoutDashboard,
   DollarSign,
@@ -497,7 +498,7 @@ export default function DashboardLayout({
     if (!currentToken || !currentUser) return;
     if (currentUser.role !== 'owner' && currentUser.role !== 'admin') return;
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/pending-users/count`, {
+    fetch(`${API_URL}/api/admin/pending-users/count`, {
       headers: { Authorization: `Bearer ${currentToken}` },
     })
       .then((res) => res.json())

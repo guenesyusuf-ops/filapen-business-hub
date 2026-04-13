@@ -20,7 +20,9 @@ interface ChatWidgetProps {
   role: 'creator' | 'admin';
 }
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
+import { API_URL } from '@/lib/api';
+
+const API_BASE = `${API_URL}/api`;
 
 function formatTime(iso: string) {
   const d = new Date(iso);

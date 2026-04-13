@@ -12,6 +12,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import Link from 'next/link';
+import { API_URL } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,7 +29,7 @@ interface PortalCreator {
   inviteCode: string;
 }
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
+const API_BASE = `${API_URL}/api`;
 
 // ---------------------------------------------------------------------------
 // Login Screen

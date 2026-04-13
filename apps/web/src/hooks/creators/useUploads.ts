@@ -63,7 +63,9 @@ export const UPLOAD_TAB_LABELS: Record<UploadTab, string> = {
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
+import { API_URL } from '@/lib/api';
+
+const API_BASE = `${API_URL}/api`;
 
 function getStoredToken(): string | null {
   try {

@@ -14,6 +14,7 @@ import {
   Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { API_URL } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { useTemplates, useCreateTemplate } from '@/hooks/content/useTemplates';
 import type { ContentTemplate } from '@/hooks/content/useTemplates';
@@ -48,7 +49,7 @@ function CreateTemplateModal({
   const { data: productsData } = useQuery({
     queryKey: ['finance', 'products', 'all-for-templates'],
     queryFn: () =>
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/finance/products?startDate=2020-01-01&endDate=2030-01-01&pageSize=100`)
+      fetch(`${API_URL}/api/finance/products?startDate=2020-01-01&endDate=2030-01-01&pageSize=100`)
         .then((r) => r.json()),
     staleTime: 5 * 60 * 1000,
     enabled: open,

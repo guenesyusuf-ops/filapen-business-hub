@@ -6,7 +6,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 // Calendar notes API client (absolute URL; avoids Vercel proxy issues)
 // ---------------------------------------------------------------------------
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_URL } from '@/lib/api';
+
 const API_BASE = `${API_URL}/api/calendar-notes`;
 
 export interface CalendarNote {

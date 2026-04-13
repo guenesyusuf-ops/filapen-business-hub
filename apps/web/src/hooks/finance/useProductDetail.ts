@@ -45,7 +45,9 @@ export interface ProductDetail {
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/finance`;
+import { API_URL } from '@/lib/api';
+
+const API_BASE = `${API_URL}/api/finance`;
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(new URL(path, window.location.origin).toString());

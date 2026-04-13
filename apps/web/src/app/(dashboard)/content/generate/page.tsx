@@ -21,6 +21,7 @@ import {
   Type,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { API_URL } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import {
   useGenerateContent,
@@ -226,8 +227,7 @@ export default function GenerateContentPage() {
   const { data: productsData } = useQuery({
     queryKey: ['finance', 'products', 'catalog-for-generator'],
     queryFn: () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      return fetch(`${apiUrl}/api/finance/products/catalog?pageSize=200`).then((r) => r.json());
+      return fetch(`${API_URL}/api/finance/products/catalog?pageSize=200`).then((r) => r.json());
     },
     staleTime: 5 * 60 * 1000,
   });

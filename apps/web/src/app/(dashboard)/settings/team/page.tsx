@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAuthHeaders } from '@/stores/auth';
+import { API_URL } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -265,7 +266,7 @@ export default function TeamSettingsPage() {
   const fetchTeam = useCallback(async () => {
     try {
       const headers = getAuthHeaders();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/team`, { headers });
+      const res = await fetch(`${API_URL}/api/admin/team`, { headers });
       if (res.ok) {
         const data = await res.json();
         setMembers(
@@ -293,7 +294,7 @@ export default function TeamSettingsPage() {
         ...getAuthHeaders(),
         'Content-Type': 'application/json',
       };
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/team/invite`, {
+      const res = await fetch(`${API_URL}/api/admin/team/invite`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ email, role }),
@@ -312,7 +313,7 @@ export default function TeamSettingsPage() {
         ...getAuthHeaders(),
         'Content-Type': 'application/json',
       };
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/team/${id}/role`, {
+      await fetch(`${API_URL}/api/admin/team/${id}/role`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ role }),
@@ -328,7 +329,7 @@ export default function TeamSettingsPage() {
   const handleRemove = async (id: string) => {
     try {
       const headers = getAuthHeaders();
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/admin/team/${id}`, {
+      await fetch(`${API_URL}/api/admin/team/${id}`, {
         method: 'DELETE',
         headers,
       });

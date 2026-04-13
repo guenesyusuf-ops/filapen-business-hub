@@ -5,12 +5,13 @@ import type {
   PaymentMethod,
   FixedCost,
 } from '@filapen/shared/src/types/finance';
+import { API_URL } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
 // Generic fetch helpers
 // ---------------------------------------------------------------------------
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/finance/costs`;
+const API_BASE = `${API_URL}/api/finance/costs`;
 
 async function fetchApi<T>(path: string): Promise<T> {
   const res = await fetch(new URL(path, window.location.origin).toString());

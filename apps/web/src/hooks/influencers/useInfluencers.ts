@@ -83,7 +83,9 @@ export interface PaginatedResponse<T> {
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
-const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || ''}/api`;
+import { API_URL } from '@/lib/api';
+
+const API_BASE = `${API_URL}/api`;
 
 async function fetchApi<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(path, window.location.origin);

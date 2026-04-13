@@ -71,7 +71,8 @@ export interface ShopifyAnalyticsOverview {
 // Hook
 // ---------------------------------------------------------------------------
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_URL } from '@/lib/api';
+
 const API_BASE = `${API_URL}/api/finance/shopify-analytics`;
 
 async function fetchOverview(

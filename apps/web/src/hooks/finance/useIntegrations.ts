@@ -1,12 +1,12 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { API_URL } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
 // Generic fetch helpers — point to the absolute API URL (Railway)
 // ---------------------------------------------------------------------------
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 const API_BASE = `${API_URL}/api/integrations`;
 
 async function fetchApi<T>(path: string): Promise<T> {
@@ -117,7 +117,7 @@ export function useRebuildAggregates() {
 // ---------------------------------------------------------------------------
 
 export function useConnectIntegration() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const apiUrl = API_URL || 'http://localhost:4000';
   const orgId = '00000000-0000-0000-0000-000000000001';
 
   const connect = (type: string, shopDomain?: string) => {

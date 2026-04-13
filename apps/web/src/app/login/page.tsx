@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth';
+import { API_URL } from '@/lib/api';
 
 type PageMode = 'login' | 'register' | 'signup' | 'invite' | 'pending' | 'rejected' | 'loading';
 
@@ -52,7 +53,7 @@ function LoginPageInner() {
     }
 
     // Check if setup is required
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/status`)
+    fetch(`${API_URL}/api/auth/status`)
       .then((res) => res.json())
       .then((data) => {
         if (data.setupRequired) {
@@ -74,7 +75,7 @@ function LoginPageInner() {
 
       try {
         const isRegistration = mode === 'register' || mode === 'signup' || mode === 'invite';
-        const endpoint = isRegistration ? `${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/register` : `${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/login`;
+        const endpoint = isRegistration ? `${API_URL}/api/auth/register` : `${API_URL}/api/auth/login`;
 
         const payload: Record<string, string> = {
           email: form.email,

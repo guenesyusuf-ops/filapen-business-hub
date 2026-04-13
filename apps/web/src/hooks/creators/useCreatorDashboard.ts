@@ -7,7 +7,8 @@ import { useQuery } from '@tanstack/react-query';
 // server-to-server routing bug (we always hit the absolute API URL).
 // ---------------------------------------------------------------------------
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_URL } from '@/lib/api';
+
 const API_BASE = `${API_URL}/api`;
 
 async function fetchApi<T>(path: string): Promise<T> {
