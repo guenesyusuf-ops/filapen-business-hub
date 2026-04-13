@@ -19,6 +19,11 @@ export async function uploadToSupabase(
   path: string,
   onProgress: (pct: number) => void,
 ): Promise<string> {
+  // Guard against undefined IDs in path
+  if (!path || path.includes('undefined') || path.includes('null')) {
+    return Promise.reject(new Error('Ungueltiger Upload-Pfad. Bitte logge dich erneut ein.'));
+  }
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const url = `${supabaseUrl}/storage/v1/object/creator-uploads/${path}`;

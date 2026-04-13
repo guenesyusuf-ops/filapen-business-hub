@@ -308,7 +308,7 @@ export default function PortalUploadsPage() {
 
   const handleUploadSubmit = useCallback(async () => {
     setUploadError('');
-    if (!creator) { setUploadError('Creator nicht geladen'); return; }
+    if (!creator?.id) { setUploadError('Creator nicht geladen. Bitte logge dich erneut ein.'); return; }
     if (!selectedFile && !uploadLink.trim()) { setUploadError('Bitte waehle eine Datei aus oder gib einen Link ein'); return; }
     setUploading(true);
 
