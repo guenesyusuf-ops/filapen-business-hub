@@ -25,53 +25,45 @@ const dateFormatter = new Intl.DateTimeFormat('de-DE', {
 // Compensation badge helpers
 // ---------------------------------------------------------------------------
 
-function getCompensationBadge(row: CreatorAnalyticsRow): {
-  label: string;
-  colorClass: string;
-  bgClass: string;
-} {
-  const comp = row.compensation?.toLowerCase() ?? '';
+const BADGE = 'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium';
 
-  if (comp.includes('fix') || comp === 'fixpreis') {
-    const amount = row.fixAmount != null ? ` ${Number(row.fixAmount).toLocaleString('de-DE')} \u20AC` : '';
-    return {
-      label: `Fixpreis${amount}`,
-      colorClass: 'text-blue-600 dark:text-blue-400',
-      bgClass: 'bg-blue-50 dark:bg-blue-500/10',
-    };
+function CompensationBadges({ row }: { row: CreatorAnalyticsRow }) {
+  const badges: React.ReactNode[] = [];
+
+  if (row.fixAmount != null && Number(row.fixAmount) > 0) {
+    badges.push(
+      <span key="fix" className={`${BADGE} bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20`}>
+        {Number(row.fixAmount).toLocaleString('de-DE')} €
+      </span>
+    );
   }
 
-  if (comp.includes('revenue') || comp.includes('share') || comp === 'revenue share') {
-    const prov = row.provision ? ` ${row.provision}` : '';
-    return {
-      label: `Rev. Share${prov}`,
-      colorClass: 'text-green-600 dark:text-green-400',
-      bgClass: 'bg-green-50 dark:bg-green-500/10',
-    };
+  if (row.provision) {
+    const prov = row.provision.trim().endsWith('%') ? row.provision.trim() : `${row.provision.trim()}%`;
+    badges.push(
+      <span key="prov" className={`${BADGE} bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20`}>
+        {prov}
+      </span>
+    );
   }
 
-  if (comp.includes('gratis') || comp.includes('produkt') || comp === 'gratisprodukt') {
-    return {
-      label: 'Gratisprodukt',
-      colorClass: 'text-orange-600 dark:text-orange-400',
-      bgClass: 'bg-orange-50 dark:bg-orange-500/10',
-    };
+  if (badges.length === 0 && row.compensation) {
+    const comp = row.compensation.toLowerCase();
+    const color = comp.includes('gratis')
+      ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-500/20'
+      : 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10';
+    badges.push(
+      <span key="comp" className={`${BADGE} ${color}`}>
+        {row.compensation}
+      </span>
+    );
   }
 
-  if (comp) {
-    const extra = row.provision ? ` ${row.provision}` : row.fixAmount != null ? ` ${Number(row.fixAmount).toLocaleString('de-DE')} \u20AC` : '';
-    return {
-      label: `${row.compensation}${extra}`,
-      colorClass: 'text-gray-600 dark:text-white/60',
-      bgClass: 'bg-gray-100 dark:bg-white/5',
-    };
+  if (badges.length === 0) {
+    return <span className="text-gray-400 dark:text-white/30">&mdash;</span>;
   }
 
-  return {
-    label: '\u2014',
-    colorClass: 'text-gray-400 dark:text-white/30',
-    bgClass: 'bg-gray-100 dark:bg-white/5',
-  };
+  return <div className="flex flex-wrap gap-1">{badges}</div>;
 }
 
 export function CreatorsAnalyticsTable({ rows, loading }: Props) {
@@ -128,7 +120,6 @@ export function CreatorsAnalyticsTable({ rows, loading }: Props) {
             ) : (
               rows.map((row) => {
                 const uploadDate = new Date(row.latestUploadAt);
-                const badge = getCompensationBadge(row);
                 return (
                   <tr
                     key={row.creatorId}
@@ -157,9 +148,7 @@ export function CreatorsAnalyticsTable({ rows, loading }: Props) {
                       {row.batch || <span className="text-gray-400 dark:text-white/30">&mdash;</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badge.bgClass} ${badge.colorClass}`}>
-                        {badge.label}
-                      </span>
+                      <CompensationBadges row={row} />
                     </td>
                     <td className="px-5 py-3 text-right text-gray-600 dark:text-white/60">
                       {dateFormatter.format(uploadDate)}
