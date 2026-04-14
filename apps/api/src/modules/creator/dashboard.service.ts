@@ -92,6 +92,8 @@ export class DashboardService {
     const uploads = await this.prisma.creatorUpload.findMany({
       where: {
         orgId,
+        // Exclude folder metadata entries (not real uploads)
+        NOT: { fileName: { startsWith: '__folder__' } },
         OR: [
           { liveStatus: { not: 'live' } },
           { liveStatus: null },
