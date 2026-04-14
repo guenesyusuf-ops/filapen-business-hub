@@ -139,7 +139,9 @@ export default function CreatorInvitationsPage() {
   }
 
   const pending = (invitations ?? []).filter((i) => i.status === 'pending');
-  const other = (invitations ?? []).filter((i) => i.status !== 'pending');
+  // Show only accepted/expired in history; declined are shown greyed out
+  const other = (invitations ?? []).filter((i) => i.status !== 'pending' && i.status !== 'declined');
+  const declined = (invitations ?? []).filter((i) => i.status === 'declined');
 
   return (
     <div className="space-y-6">
@@ -291,6 +293,46 @@ export default function CreatorInvitationsPage() {
                       }}
                     >
                       {INVITATION_STATUS_LABELS[status] || status}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Declined — greyed out */}
+      {declined.length > 0 && (
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+            Abgelehnt ({declined.length})
+          </h2>
+          <div className="rounded-xl bg-gray-50 border border-gray-200 shadow-card overflow-hidden opacity-60">
+            <div className="divide-y divide-gray-100">
+              {declined.map((inv) => {
+                const ct = (inv.project?.campaignType ?? 'other') as ProjectCampaignType;
+                return (
+                  <div
+                    key={inv.id}
+                    className="flex items-center justify-between px-5 py-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 flex-shrink-0">
+                        <FolderKanban className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-500 truncate">
+                          {inv.project?.name ?? 'Projekt'}
+                        </p>
+                        <p className="text-[11px] text-gray-400">
+                          {CAMPAIGN_TYPE_LABELS[ct] || ct} •{' '}
+                          {formatDate(inv.respondedAt ?? inv.invitedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium text-white bg-gray-400">
+                      Abgelehnt
                     </span>
                   </div>
                 );

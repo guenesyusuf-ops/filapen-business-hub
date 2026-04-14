@@ -11,6 +11,8 @@ import { DashboardService } from './dashboard.service';
 import { CalendarNoteService } from './calendar-note.service';
 import { InvitationService } from './invitation.service';
 import { InvitationScheduler } from './invitation.scheduler';
+import { ProjectDocumentService } from './project-document.service';
+import { ProjectDocumentController } from './project-document.controller';
 import { CreatorController } from './creator.controller';
 import { DashboardController } from './dashboard.controller';
 import { InvitationController } from './invitation.controller';
@@ -18,7 +20,7 @@ import { StorageModule } from '../../common/storage/storage.module';
 
 @Module({
   imports: [StorageModule],
-  controllers: [CreatorController, DashboardController, InvitationController],
+  controllers: [CreatorController, DashboardController, InvitationController, ProjectDocumentController],
   providers: [
     CreatorService,
     DealService,
@@ -32,6 +34,7 @@ import { StorageModule } from '../../common/storage/storage.module';
     CalendarNoteService,
     InvitationService,
     InvitationScheduler,
+    ProjectDocumentService,
   ],
   exports: [
     CreatorService,
@@ -45,6 +48,7 @@ import { StorageModule } from '../../common/storage/storage.module';
     DashboardService,
     CalendarNoteService,
     InvitationService,
+    ProjectDocumentService,
   ],
 })
 export class CreatorModule {}

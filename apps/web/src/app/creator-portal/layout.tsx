@@ -284,7 +284,7 @@ export default function CreatorPortalLayout({
             />
             <NavTab
               href="/creator-portal/deals"
-              label="My Deals"
+              label="Meine Projekte"
               active={pathname === '/creator-portal/deals'}
             />
             <NavTab

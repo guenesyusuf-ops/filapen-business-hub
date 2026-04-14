@@ -596,6 +596,7 @@ model CreatorProject {
   organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   product      Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
   invitations  ProjectInvitation[]
+  documents    ProjectDocument[]
 
   @@index([orgId])
   @@map("creator_projects")
@@ -620,6 +621,23 @@ model ProjectInvitation {
   @@index([orgId, status])
   @@index([creatorId, status])
   @@map("project_invitations")
+}
+
+model ProjectDocument {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  projectId  String   @map("project_id") @db.Uuid
+  type       String   @db.VarChar(50)
+  fileName   String   @map("file_name") @db.VarChar(255)
+  fileUrl    String   @map("file_url") @db.Text
+  storageKey String?  @map("storage_key") @db.Text
+  fileSize   Int?     @map("file_size")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  project CreatorProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_documents")
 }
 
 model ChatMessage {

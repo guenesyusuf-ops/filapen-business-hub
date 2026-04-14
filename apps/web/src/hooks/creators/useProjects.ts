@@ -86,8 +86,8 @@ export const INVITATION_STATUS_LABELS: Record<InvitationStatus, string> = {
 export const INVITATION_STATUS_COLORS: Record<InvitationStatus, string> = {
   pending: '#2563EB',
   accepted: '#059669',
-  declined: '#6B7280',
-  expired: '#DC2626',
+  declined: '#DC2626',
+  expired: '#6B7280',
 };
 
 export interface ProjectInvitation {

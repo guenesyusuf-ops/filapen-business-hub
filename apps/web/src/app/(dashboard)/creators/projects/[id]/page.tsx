@@ -14,6 +14,10 @@ import {
   XCircle,
   Clock,
   AlertTriangle,
+  FileText,
+  Upload,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -29,6 +33,12 @@ import {
 } from '@/hooks/creators/useProjects';
 import { useCreators } from '@/hooks/creators/useCreators';
 import { InviteCreatorsModal } from '@/components/creators/InviteCreatorsModal';
+import {
+  useProjectDocuments,
+  useUploadProjectDocument,
+  useDeleteProjectDocument,
+  type ProjectDocument,
+} from '@/hooks/creators/useProjectDocuments';
 
 function formatDate(input?: string) {
   if (!input) return '—';
@@ -262,6 +272,9 @@ export default function ProjectDetailPage() {
         )}
       </div>
 
+      {/* Documents Section */}
+      <ProjectDocumentsSection projectId={id} />
+
       {/* Invite Modal */}
       <InviteCreatorsModal
         open={showInvite}
@@ -306,6 +319,125 @@ function StatCard({
       <div className="text-xl font-semibold text-gray-900 dark:text-white">
         {value}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Documents Section
+// ---------------------------------------------------------------------------
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  briefing: 'Briefings',
+  skript: 'Skripte',
+  sonstige: 'Sonstige',
+};
+
+function ProjectDocumentsSection({ projectId }: { projectId: string }) {
+  const { data: documents, isLoading } = useProjectDocuments(projectId);
+  const uploadMutation = useUploadProjectDocument();
+  const deleteMutation = useDeleteProjectDocument();
+
+  const handleUpload = (type: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      await uploadMutation.mutateAsync({ projectId, type, file });
+    };
+    input.click();
+  };
+
+  const handleDelete = async (docId: string) => {
+    if (!confirm('Dokument wirklich loeschen?')) return;
+    await deleteMutation.mutateAsync({ projectId, docId });
+  };
+
+  const grouped = {
+    briefing: (documents ?? []).filter((d) => d.type === 'briefing'),
+    skript: (documents ?? []).filter((d) => d.type === 'skript'),
+    sonstige: (documents ?? []).filter((d) => d.type === 'sonstige'),
+  };
+
+  return (
+    <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/8 shadow-card overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/8">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
+          <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+          Dokumente
+        </h3>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-10">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-purple-500 border-t-transparent mx-auto" />
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-100 dark:divide-white/5">
+          {(['briefing', 'skript', 'sonstige'] as const).map((type) => (
+            <div key={type} className="px-5 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  {DOC_TYPE_LABELS[type]}
+                </h4>
+                <button
+                  onClick={() => handleUpload(type)}
+                  disabled={uploadMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-md bg-purple-50 dark:bg-purple-500/10 px-2 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 disabled:opacity-40 transition-colors"
+                >
+                  {uploadMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Upload className="h-3 w-3" />
+                  )}
+                  PDF hochladen
+                </button>
+              </div>
+              {grouped[type].length === 0 ? (
+                <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+                  Keine Dokumente
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {grouped[type].map((doc) => (
+                    <li
+                      key={doc.id}
+                      className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-white/[0.03] px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <a
+                          href={doc.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 truncate"
+                        >
+                          {doc.fileName}
+                        </a>
+                        {doc.fileSize && (
+                          <span className="text-[10px] text-gray-400 flex-shrink-0">
+                            {(doc.fileSize / 1024).toFixed(0)} KB
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleDelete(doc.id)}
+                        disabled={deleteMutation.isPending}
+                        className="p-1 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
+                        title="Loeschen"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
