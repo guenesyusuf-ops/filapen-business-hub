@@ -154,15 +154,12 @@ export class UploadService {
   async listFolders(orgId: string, params: { creatorId?: string; tab?: string }) {
     const { creatorId, tab } = params;
 
-    // Build base where clause — exclude __folder__ metadata entries
-    const where: any = {
-      orgId,
-      NOT: { fileName: { startsWith: '__folder__' } },
-    };
+    // Get ALL uploads including __folder__ metadata entries
+    // We need __folder__ entries to discover folders that have no real files yet
+    const where: any = { orgId };
     if (creatorId) where.creatorId = creatorId;
     if (tab) where.tab = tab;
 
-    // Get all uploads with creator info
     const uploads = await this.prisma.creatorUpload.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -171,7 +168,7 @@ export class UploadService {
       },
     });
 
-    // Group by batch
+    // Group by batch — __folder__ entries create the folder, real files count as fileCount
     const folderMap = new Map<string, {
       batch: string;
       name: string;
@@ -185,29 +182,47 @@ export class UploadService {
 
     for (const u of uploads) {
       const batchKey = u.batch || '__none__';
-      const batchName = u.batch || 'Unsortiert';
+      const isMetadata = u.fileName?.startsWith('__folder__');
+
+      // Try to extract folder name from metadata label
+      let folderName = u.batch || 'Unsortiert';
+      if (isMetadata && u.label) {
+        try {
+          const meta = JSON.parse(u.label);
+          if (meta.name) folderName = meta.name;
+        } catch { /* label is not JSON, use batch name */ }
+      }
+
       const existing = folderMap.get(batchKey);
 
       if (!existing) {
         folderMap.set(batchKey, {
           batch: batchKey,
-          name: batchName,
+          name: folderName,
           createdAt: u.createdAt.toISOString(),
-          fileCount: 1,
-          previewUrl: (u.fileType === 'image' || u.fileType === 'video') ? u.fileUrl : null,
+          fileCount: isMetadata ? 0 : 1,
+          previewUrl: (!isMetadata && (u.fileType === 'image' || u.fileType === 'video')) ? u.fileUrl : null,
           creatorName: (u as any).creator?.name || null,
           creatorId: u.creatorId,
-          unseenCount: u.seenByAdmin ? 0 : 1,
+          unseenCount: (isMetadata || u.seenByAdmin) ? 0 : 1,
         });
       } else {
-        existing.fileCount += 1;
-        if (!existing.previewUrl && (u.fileType === 'image' || u.fileType === 'video')) {
-          existing.previewUrl = u.fileUrl;
+        // Update folder name from metadata if we haven't found it yet
+        if (isMetadata && existing.name === existing.batch) {
+          try {
+            const meta = JSON.parse(u.label || '');
+            if (meta.name) existing.name = meta.name;
+          } catch { /* ignore */ }
         }
-        if (!u.seenByAdmin) {
-          existing.unseenCount += 1;
+        if (!isMetadata) {
+          existing.fileCount += 1;
+          if (!existing.previewUrl && (u.fileType === 'image' || u.fileType === 'video')) {
+            existing.previewUrl = u.fileUrl;
+          }
+          if (!u.seenByAdmin) {
+            existing.unseenCount += 1;
+          }
         }
-        // Use earliest date
         if (u.createdAt.toISOString() < existing.createdAt) {
           existing.createdAt = u.createdAt.toISOString();
         }
