@@ -152,12 +152,14 @@ export function useCreatorUploads(creatorId: string | undefined, tab?: string) {
   });
 }
 
-export function useAllUploads(params: { tab?: string; page?: number; pageSize?: number } = {}) {
+export function useAllUploads(params: { tab?: string; batch?: string; creatorId?: string; page?: number; pageSize?: number } = {}) {
   return useQuery({
     queryKey: ['creator-uploads', 'all', params],
     queryFn: async () => {
       const queryParams: Record<string, string> = {};
       if (params.tab) queryParams.tab = params.tab;
+      if (params.batch) queryParams.batch = params.batch;
+      if (params.creatorId) queryParams.creatorId = params.creatorId;
       if (params.page) queryParams.page = String(params.page);
       if (params.pageSize) queryParams.pageSize = String(params.pageSize);
       return fetchApi<{
@@ -167,6 +169,35 @@ export function useAllUploads(params: { tab?: string; page?: number; pageSize?: 
         pageSize: number;
         totalPages: number;
       }>(`${API_BASE}/creator-uploads/all`, queryParams);
+    },
+    staleTime: 15 * 1000,
+    retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Folder Types & Hook
+// ---------------------------------------------------------------------------
+
+export interface UploadFolder {
+  batch: string;
+  name: string;
+  createdAt: string;
+  fileCount: number;
+  previewUrl: string | null;
+  creatorName: string | null;
+  creatorId: string | null;
+  unseenCount: number;
+}
+
+export function useUploadFolders(params: { creatorId?: string; tab?: string } = {}) {
+  return useQuery<UploadFolder[]>({
+    queryKey: ['creator-uploads', 'folders', params],
+    queryFn: async () => {
+      const queryParams: Record<string, string> = {};
+      if (params.creatorId) queryParams.creatorId = params.creatorId;
+      if (params.tab) queryParams.tab = params.tab;
+      return fetchApi<UploadFolder[]>(`${API_BASE}/creator-uploads/folders`, queryParams);
     },
     staleTime: 15 * 1000,
     retry: 1,

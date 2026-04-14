@@ -344,16 +344,31 @@ export class CreatorController {
     }
   }
 
+  @Get('creator-uploads/folders')
+  async listUploadFolders(
+    @Query('creatorId') creatorId?: string,
+    @Query('tab') tab?: string,
+  ) {
+    try {
+      return await this.uploadService.listFolders(DEV_ORG_ID, { creatorId, tab });
+    } catch (error) {
+      this.logger.error('Failed to list upload folders', error);
+      throw new HttpException('Failed to load folders', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Get('creator-uploads/all')
   async listAllUploads(
     @Query('tab') tab?: string,
+    @Query('batch') batch?: string,
+    @Query('creatorId') creatorId?: string,
     @Query('page') pageStr?: string,
     @Query('pageSize') pageSizeStr?: string,
   ) {
     const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeStr || '25', 10) || 25));
     try {
-      return await this.uploadService.listAll(DEV_ORG_ID, { tab, page, pageSize });
+      return await this.uploadService.listAll(DEV_ORG_ID, { tab, batch, creatorId, page, pageSize });
     } catch (error) {
       this.logger.error('Failed to list all uploads', error);
       throw new HttpException('Failed to load uploads', HttpStatus.INTERNAL_SERVER_ERROR);

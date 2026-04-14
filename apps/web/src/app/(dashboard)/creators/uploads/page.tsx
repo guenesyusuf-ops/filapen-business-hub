@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Upload,
   Image,
@@ -10,44 +9,168 @@ import {
   Link2,
   Play,
   MessageCircle,
+  Folder,
+  ArrowLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useAllUploads,
+  useUploadFolders,
   UPLOAD_TABS,
   UPLOAD_TAB_LABELS,
 } from '@/hooks/creators/useUploads';
-import type { UploadTab, CreatorUpload } from '@/hooks/creators/useUploads';
+import type { UploadTab, CreatorUpload, UploadFolder } from '@/hooks/creators/useUploads';
 import { Lightbox } from '@/components/creators/Lightbox';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Folder Card
+// ---------------------------------------------------------------------------
+
+function FolderCard({
+  folder,
+  onClick,
+}: {
+  folder: UploadFolder;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative flex flex-col rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-white"
+    >
+      {/* Preview */}
+      <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
+        {folder.previewUrl ? (
+          <img
+            src={folder.previewUrl}
+            alt={folder.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <Folder className="h-12 w-12 text-gray-300" />
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="px-3 py-2.5 text-left">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <Folder className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+          <p className="text-sm font-medium text-gray-900 truncate">
+            {folder.name}
+          </p>
+        </div>
+        <p className="text-xs text-gray-500">
+          {folder.fileCount} {folder.fileCount === 1 ? 'Datei' : 'Dateien'}
+        </p>
+        <p className="text-xs text-gray-400">{formatDate(folder.createdAt)}</p>
+        {folder.creatorName && (
+          <p className="text-xs text-gray-400 truncate mt-0.5">
+            {folder.creatorName}
+          </p>
+        )}
+      </div>
+
+      {/* Unseen badge */}
+      {folder.unseenCount > 0 && (
+        <div className="absolute top-2 right-2 flex items-center justify-center min-w-[20px] h-5 rounded-full bg-purple-500 px-1.5">
+          <span className="text-[10px] font-bold text-white">
+            {folder.unseenCount}
+          </span>
+        </div>
+      )}
+    </button>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // All Uploads Page
 // ---------------------------------------------------------------------------
 
 export default function AllUploadsPage() {
-  const router = useRouter();
   const [tab, setTab] = useState<UploadTab | undefined>(undefined);
+  const [activeBatch, setActiveBatch] = useState<string | null>(null);
+  const [activeBatchName, setActiveBatchName] = useState<string>('');
   const [page, setPage] = useState(1);
-  const [lightboxUpload, setLightboxUpload] = useState<CreatorUpload | null>(null);
+  const [lightboxUpload, setLightboxUpload] = useState<CreatorUpload | null>(
+    null,
+  );
 
-  const { data, isLoading } = useAllUploads({ tab, page, pageSize: 24 });
+  // Folder list (first level)
+  const { data: folders, isLoading: foldersLoading } = useUploadFolders({
+    tab,
+  });
+
+  // Files inside a batch (second level)
+  const { data: filesData, isLoading: filesLoading } = useAllUploads({
+    tab,
+    batch: activeBatch ?? undefined,
+    page,
+    pageSize: 24,
+  });
+
+  const showFolders = activeBatch === null;
+  const isLoading = showFolders ? foldersLoading : filesLoading;
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">All Uploads</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Browse uploads from all creators
-          </p>
+          {showFolders ? (
+            <>
+              <h1 className="text-xl font-semibold text-gray-900">
+                Alle Uploads
+              </h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Ordner aller Creator durchsuchen
+              </p>
+            </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setActiveBatch(null);
+                  setActiveBatchName('');
+                  setPage(1);
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Zurueck
+              </button>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  {activeBatchName}
+                </h1>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {filesData?.total ?? 0} Dateien in diesem Ordner
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tab filter */}
       <div className="flex gap-2">
         <button
-          onClick={() => { setTab(undefined); setPage(1); }}
+          onClick={() => {
+            setTab(undefined);
+            setPage(1);
+            setActiveBatch(null);
+          }}
           className={cn(
             'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
             !tab
@@ -55,12 +178,16 @@ export default function AllUploadsPage() {
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
           )}
         >
-          All
+          Alle
         </button>
         {UPLOAD_TABS.map((t) => (
           <button
             key={t}
-            onClick={() => { setTab(t); setPage(1); }}
+            onClick={() => {
+              setTab(t);
+              setPage(1);
+              setActiveBatch(null);
+            }}
             className={cn(
               'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
               tab === t
@@ -77,22 +204,57 @@ export default function AllUploadsPage() {
       {isLoading && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="aspect-square rounded-xl bg-gray-100 animate-pulse" />
+            <div
+              key={i}
+              className="aspect-square rounded-xl bg-gray-100 animate-pulse"
+            />
           ))}
         </div>
       )}
 
-      {/* Grid */}
-      {!isLoading && data && (
+      {/* ============================================================= */}
+      {/* FOLDER VIEW (first level) */}
+      {/* ============================================================= */}
+      {!isLoading && showFolders && folders && (
         <>
-          {data.items.length === 0 ? (
+          {folders.length === 0 ? (
             <div className="text-center py-16">
               <Upload className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm text-gray-500">No uploads found</p>
+              <p className="text-sm text-gray-500">Keine Uploads vorhanden</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {folders.map((folder) => (
+                <FolderCard
+                  key={folder.batch}
+                  folder={folder}
+                  onClick={() => {
+                    setActiveBatch(folder.batch);
+                    setActiveBatchName(folder.name);
+                    setPage(1);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ============================================================= */}
+      {/* FILE VIEW (second level — inside a folder) */}
+      {/* ============================================================= */}
+      {!isLoading && !showFolders && filesData && (
+        <>
+          {filesData.items.length === 0 ? (
+            <div className="text-center py-16">
+              <Upload className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">
+                Keine Dateien in diesem Ordner
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {data.items.map((upload) => (
+              {filesData.items.map((upload) => (
                 <button
                   key={upload.id}
                   onClick={() => setLightboxUpload(upload)}
@@ -120,9 +282,13 @@ export default function AllUploadsPage() {
 
                   {/* Overlay */}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-[10px] text-white/90 truncate">{upload.fileName}</p>
+                    <p className="text-[10px] text-white/90 truncate">
+                      {upload.fileName}
+                    </p>
                     {upload.creator && (
-                      <p className="text-[10px] text-white/70 truncate">{upload.creator.name}</p>
+                      <p className="text-[10px] text-white/70 truncate">
+                        {upload.creator.name}
+                      </p>
                     )}
                     {upload.commentCount > 0 && (
                       <span className="inline-flex items-center gap-0.5 text-[10px] text-white/80 mt-0.5">
@@ -149,24 +315,26 @@ export default function AllUploadsPage() {
           )}
 
           {/* Pagination */}
-          {data.totalPages > 1 && (
+          {filesData.totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 pt-4">
               <button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
               >
-                Previous
+                Zurueck
               </button>
               <span className="text-sm text-gray-500">
-                Page {page} of {data.totalPages}
+                Seite {page} von {filesData.totalPages}
               </span>
               <button
-                onClick={() => setPage(Math.min(data.totalPages, page + 1))}
-                disabled={page === data.totalPages}
+                onClick={() =>
+                  setPage(Math.min(filesData.totalPages, page + 1))
+                }
+                disabled={page === filesData.totalPages}
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
               >
-                Next
+                Weiter
               </button>
             </div>
           )}

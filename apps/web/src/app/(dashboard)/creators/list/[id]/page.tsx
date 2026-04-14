@@ -32,6 +32,7 @@ import {
   Calendar,
   X,
   Plus,
+  Folder,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDollars, formatNumber } from '@filapen/shared/src/utils/money';
@@ -40,13 +41,15 @@ import { useDeals, DEAL_STAGE_LABELS, DEAL_STAGE_COLORS } from '@/hooks/creators
 import type { DealStage } from '@/hooks/creators/useDeals';
 import {
   useCreatorUploads,
+  useAllUploads,
+  useUploadFolders,
   useDeleteUpload,
   useGoLiveUpload,
   useGoOfflineUpload,
   UPLOAD_TABS,
   UPLOAD_TAB_LABELS,
 } from '@/hooks/creators/useUploads';
-import type { UploadTab, CreatorUpload } from '@/hooks/creators/useUploads';
+import type { UploadTab, CreatorUpload, UploadFolder } from '@/hooks/creators/useUploads';
 import { Lightbox } from '@/components/creators/Lightbox';
 import { UploadZone } from '@/components/creators/UploadZone';
 import { ChatWidget } from '@/components/creators/ChatWidget';
@@ -155,8 +158,19 @@ export default function CreatorDetailPage() {
   const [uploadTab, setUploadTab] = useState<UploadTab>('bilder');
   const [showUploadZone, setShowUploadZone] = useState(false);
   const [lightboxUpload, setLightboxUpload] = useState<CreatorUpload | null>(null);
+  const [activeBatch, setActiveBatch] = useState<string | null>(null);
+  const [activeBatchName, setActiveBatchName] = useState<string>('');
+  const [folderPage, setFolderPage] = useState(1);
 
   const { data: uploads } = useCreatorUploads(id, uploadTab);
+  const { data: creatorFolders } = useUploadFolders({ creatorId: id, tab: uploadTab });
+  const { data: batchFiles } = useAllUploads({
+    batch: activeBatch ?? undefined,
+    creatorId: id,
+    tab: uploadTab,
+    page: folderPage,
+    pageSize: 24,
+  });
   const deleteUpload = useDeleteUpload();
   const goLiveMutation = useGoLiveUpload();
   const goOfflineMutation = useGoOfflineUpload();
@@ -827,23 +841,39 @@ export default function CreatorDetailPage() {
         {/* Uploads Tab */}
         {activeTab === 'uploads' && (
           <div>
-            {/* Upload sub-tabs */}
+            {/* Upload sub-tabs + back button */}
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
-              <div className="flex gap-1.5">
-                {UPLOAD_TABS.map((t) => (
+              <div className="flex items-center gap-2">
+                {activeBatch !== null && (
                   <button
-                    key={t}
-                    onClick={() => setUploadTab(t)}
-                    className={cn(
-                      'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
-                      uploadTab === t
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                    )}
+                    onClick={() => { setActiveBatch(null); setActiveBatchName(''); setFolderPage(1); }}
+                    className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
                   >
-                    {UPLOAD_TAB_LABELS[t]}
+                    <ArrowLeft className="h-3 w-3" />
+                    Zurueck
                   </button>
-                ))}
+                )}
+                {activeBatch !== null && (
+                  <span className="text-sm font-medium text-gray-900">{activeBatchName}</span>
+                )}
+                {activeBatch === null && (
+                  <div className="flex gap-1.5">
+                    {UPLOAD_TABS.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => { setUploadTab(t); setActiveBatch(null); }}
+                        className={cn(
+                          'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                          uploadTab === t
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                        )}
+                      >
+                        {UPLOAD_TAB_LABELS[t]}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setShowUploadZone(true)}
@@ -854,94 +884,156 @@ export default function CreatorDetailPage() {
               </button>
             </div>
 
-            {/* Upload grid */}
             <div className="p-5">
-              {!uploads || uploads.length === 0 ? (
-                <div className="text-center py-12">
-                  <Upload className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">No uploads in this category</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {uploads.map((upload) => (
-                    <div
-                      key={upload.id}
-                      className="group relative aspect-square rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-gray-50"
-                    >
-                      <button
-                        onClick={() => setLightboxUpload(upload)}
-                        className="w-full h-full"
-                      >
-                        {upload.fileType === 'image' ? (
-                          <img
-                            src={upload.fileUrl}
-                            alt={upload.fileName}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : upload.fileType === 'video' ? (
-                          <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                            <Play className="h-8 w-8 text-white opacity-75" />
-                          </div>
-                        ) : upload.fileType === 'link' ? (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Link2 className="h-8 w-8 text-gray-400" />
-                          </div>
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <FileText className="h-8 w-8 text-gray-400" />
-                          </div>
-                        )}
-                      </button>
-                      {/* Overlay with info */}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        <p className="text-xs text-white truncate">{upload.label || upload.fileName}</p>
-                        {upload.commentCount > 0 && (
-                          <span className="text-[10px] text-white/80">{upload.commentCount} comments</span>
-                        )}
-                      </div>
-                      {/* Live badge */}
-                      {upload.liveStatus === 'live' && (
-                        <div className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-green-500 px-1.5 py-0.5">
-                          <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                          <span className="text-[9px] font-bold text-white">LIVE</span>
-                        </div>
-                      )}
-                      {/* Unseen badge */}
-                      {!upload.seenByAdmin && (
-                        <div className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-purple-500" />
-                      )}
-                      {/* Action buttons (visible on hover) */}
-                      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {upload.liveStatus === 'live' ? (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleGoOffline(upload.id); }}
-                            className="flex items-center gap-0.5 rounded-md bg-red-500 px-1.5 py-1 text-[9px] font-medium text-white shadow-sm hover:bg-red-600 transition-colors"
-                            title="Offline setzen"
-                          >
-                            <Power className="h-2.5 w-2.5" />
-                            Offline
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setGoLiveUploadId(upload.id); }}
-                            className="flex items-center gap-0.5 rounded-md bg-green-500 px-1.5 py-1 text-[9px] font-medium text-white shadow-sm hover:bg-green-600 transition-colors"
-                            title="Go Live"
-                          >
-                            <Radio className="h-2.5 w-2.5" />
-                            Live
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteUploadConfirm(upload.id); }}
-                          className="flex items-center justify-center rounded-md bg-red-500 p-1 text-white shadow-sm hover:bg-red-600 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-2.5 w-2.5" />
-                        </button>
-                      </div>
+              {/* Folder view (first level) */}
+              {activeBatch === null && (
+                <>
+                  {!creatorFolders || creatorFolders.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Upload className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">Keine Uploads in dieser Kategorie</p>
                     </div>
-                  ))}
-                </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {creatorFolders.map((folder) => (
+                        <button
+                          key={folder.batch}
+                          onClick={() => { setActiveBatch(folder.batch); setActiveBatchName(folder.name); setFolderPage(1); }}
+                          className="group relative flex flex-col rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-white text-left"
+                        >
+                          <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
+                            {folder.previewUrl ? (
+                              <img src={folder.previewUrl} alt={folder.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            ) : (
+                              <Folder className="h-10 w-10 text-gray-300" />
+                            )}
+                          </div>
+                          <div className="px-3 py-2">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <Folder className="h-3 w-3 text-purple-500 shrink-0" />
+                              <p className="text-xs font-medium text-gray-900 truncate">{folder.name}</p>
+                            </div>
+                            <p className="text-[11px] text-gray-500">{folder.fileCount} {folder.fileCount === 1 ? 'Datei' : 'Dateien'}</p>
+                            <p className="text-[11px] text-gray-400">{new Date(folder.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                          </div>
+                          {folder.unseenCount > 0 && (
+                            <div className="absolute top-2 right-2 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-purple-500 px-1">
+                              <span className="text-[9px] font-bold text-white">{folder.unseenCount}</span>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* File view (second level — inside a folder) */}
+              {activeBatch !== null && (
+                <>
+                  {!batchFiles || batchFiles.items.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Upload className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">Keine Dateien in diesem Ordner</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {batchFiles.items.map((upload) => (
+                        <div
+                          key={upload.id}
+                          className="group relative aspect-square rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-gray-50"
+                        >
+                          <button
+                            onClick={() => setLightboxUpload(upload)}
+                            className="w-full h-full"
+                          >
+                            {upload.fileType === 'image' ? (
+                              <img src={upload.fileUrl} alt={upload.fileName} className="w-full h-full object-cover" />
+                            ) : upload.fileType === 'video' ? (
+                              <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                                <Play className="h-8 w-8 text-white opacity-75" />
+                              </div>
+                            ) : upload.fileType === 'link' ? (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Link2 className="h-8 w-8 text-gray-400" />
+                              </div>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <FileText className="h-8 w-8 text-gray-400" />
+                              </div>
+                            )}
+                          </button>
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <p className="text-xs text-white truncate">{upload.label || upload.fileName}</p>
+                            {upload.commentCount > 0 && (
+                              <span className="text-[10px] text-white/80">{upload.commentCount} Kommentare</span>
+                            )}
+                          </div>
+                          {upload.liveStatus === 'live' && (
+                            <div className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-green-500 px-1.5 py-0.5">
+                              <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                              <span className="text-[9px] font-bold text-white">LIVE</span>
+                            </div>
+                          )}
+                          {!upload.seenByAdmin && (
+                            <div className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-purple-500" />
+                          )}
+                          <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {upload.liveStatus === 'live' ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleGoOffline(upload.id); }}
+                                className="flex items-center gap-0.5 rounded-md bg-red-500 px-1.5 py-1 text-[9px] font-medium text-white shadow-sm hover:bg-red-600 transition-colors"
+                                title="Offline setzen"
+                              >
+                                <Power className="h-2.5 w-2.5" />
+                                Offline
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setGoLiveUploadId(upload.id); }}
+                                className="flex items-center gap-0.5 rounded-md bg-green-500 px-1.5 py-1 text-[9px] font-medium text-white shadow-sm hover:bg-green-600 transition-colors"
+                                title="Go Live"
+                              >
+                                <Radio className="h-2.5 w-2.5" />
+                                Live
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteUploadConfirm(upload.id); }}
+                              className="flex items-center justify-center rounded-md bg-red-500 p-1 text-white shadow-sm hover:bg-red-600 transition-colors"
+                              title="Loeschen"
+                            >
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Pagination */}
+                  {batchFiles && batchFiles.totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 pt-4">
+                      <button
+                        onClick={() => setFolderPage(Math.max(1, folderPage - 1))}
+                        disabled={folderPage === 1}
+                        className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                      >
+                        Zurueck
+                      </button>
+                      <span className="text-xs text-gray-500">
+                        Seite {folderPage} von {batchFiles.totalPages}
+                      </span>
+                      <button
+                        onClick={() => setFolderPage(Math.min(batchFiles.totalPages, folderPage + 1))}
+                        disabled={folderPage === batchFiles.totalPages}
+                        className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                      >
+                        Weiter
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

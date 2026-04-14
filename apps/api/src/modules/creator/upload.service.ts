@@ -36,7 +36,11 @@ export class UploadService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(orgId: string, params: ListUploadsParams) {
-    const where: any = { orgId, creatorId: params.creatorId };
+    const where: any = {
+      orgId,
+      creatorId: params.creatorId,
+      NOT: { fileName: { startsWith: '__folder__' } },
+    };
     if (params.tab) {
       where.tab = params.tab;
     }
@@ -102,10 +106,21 @@ export class UploadService {
     return { success: true };
   }
 
-  async listAll(orgId: string, params: { tab?: string; page?: number; pageSize?: number }) {
-    const { tab, page = 1, pageSize = 25 } = params;
-    const where: any = { orgId };
+  async listAll(orgId: string, params: { tab?: string; batch?: string; creatorId?: string; page?: number; pageSize?: number }) {
+    const { tab, batch, creatorId, page = 1, pageSize = 25 } = params;
+    const where: any = {
+      orgId,
+      NOT: { fileName: { startsWith: '__folder__' } },
+    };
     if (tab) where.tab = tab;
+    if (creatorId) where.creatorId = creatorId;
+    if (batch !== undefined) {
+      if (batch === '__none__') {
+        where.OR = [{ batch: null }, { batch: '' }];
+      } else {
+        where.batch = batch;
+      }
+    }
 
     const skip = (page - 1) * pageSize;
 
@@ -133,6 +148,79 @@ export class UploadService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  async listFolders(orgId: string, params: { creatorId?: string; tab?: string }) {
+    const { creatorId, tab } = params;
+
+    // Build base where clause — exclude __folder__ metadata entries
+    const where: any = {
+      orgId,
+      NOT: { fileName: { startsWith: '__folder__' } },
+    };
+    if (creatorId) where.creatorId = creatorId;
+    if (tab) where.tab = tab;
+
+    // Get all uploads with creator info
+    const uploads = await this.prisma.creatorUpload.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
+      },
+    });
+
+    // Group by batch
+    const folderMap = new Map<string, {
+      batch: string;
+      name: string;
+      createdAt: string;
+      fileCount: number;
+      previewUrl: string | null;
+      creatorName: string | null;
+      creatorId: string | null;
+      unseenCount: number;
+    }>();
+
+    for (const u of uploads) {
+      const batchKey = u.batch || '__none__';
+      const batchName = u.batch || 'Unsortiert';
+      const existing = folderMap.get(batchKey);
+
+      if (!existing) {
+        folderMap.set(batchKey, {
+          batch: batchKey,
+          name: batchName,
+          createdAt: u.createdAt.toISOString(),
+          fileCount: 1,
+          previewUrl: (u.fileType === 'image' || u.fileType === 'video') ? u.fileUrl : null,
+          creatorName: (u as any).creator?.name || null,
+          creatorId: u.creatorId,
+          unseenCount: u.seenByAdmin ? 0 : 1,
+        });
+      } else {
+        existing.fileCount += 1;
+        if (!existing.previewUrl && (u.fileType === 'image' || u.fileType === 'video')) {
+          existing.previewUrl = u.fileUrl;
+        }
+        if (!u.seenByAdmin) {
+          existing.unseenCount += 1;
+        }
+        // Use earliest date
+        if (u.createdAt.toISOString() < existing.createdAt) {
+          existing.createdAt = u.createdAt.toISOString();
+        }
+      }
+    }
+
+    // Sort folders: newest first, but 'Unsortiert' always last
+    const folders = Array.from(folderMap.values()).sort((a, b) => {
+      if (a.batch === '__none__') return 1;
+      if (b.batch === '__none__') return -1;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+
+    return folders;
   }
 
   async unseenCount(orgId: string) {
