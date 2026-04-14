@@ -7,39 +7,53 @@ const supabaseAnonKey =
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * Upload a file to Supabase Storage using the official JS client.
- * Returns the permanent public URL for the uploaded file.
+ * Upload a file to Cloudflare R2 via the backend API.
+ * Uses XMLHttpRequest for real upload progress tracking.
+ * Returns the response object with url, key, fileName, fileSize, mimeType.
  */
-export async function uploadToSupabase(
+export async function uploadFile(
   file: File,
-  path: string,
   onProgress: (pct: number) => void,
-): Promise<string> {
-  if (!path || path.includes('undefined') || path.includes('null')) {
-    throw new Error('Ungueltiger Upload-Pfad. Bitte logge dich erneut ein.');
-  }
+): Promise<{ url: string; key: string; fileName: string; fileSize: number; mimeType: string }> {
+  const { API_URL } = await import('@/lib/api');
 
-  // Use Supabase JS client for upload — handles auth, content-type, etc.
-  const { data, error } = await supabase.storage
-    .from('creator-uploads')
-    .upload(path, file, {
-      cacheControl: '3600',
-      upsert: true,
-      contentType: file.type,
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
     });
 
-  if (error) {
-    console.error('Supabase upload error:', error);
-    throw new Error(`Upload fehlgeschlagen: ${error.message}`);
-  }
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch {
+          reject(new Error('Ungueltige Server-Antwort'));
+        }
+      } else {
+        reject(new Error(`Upload fehlgeschlagen (${xhr.status})`));
+      }
+    });
 
-  // Signal 100% progress
-  onProgress(100);
+    xhr.addEventListener('error', () => reject(new Error('Upload fehlgeschlagen')));
 
-  // Build public URL
-  const { data: urlData } = supabase.storage
-    .from('creator-uploads')
-    .getPublicUrl(data.path);
-
-  return urlData.publicUrl;
+    xhr.open('POST', `${API_URL}/api/uploads/file`);
+    xhr.send(formData);
+  });
 }
+
+/** @deprecated Use uploadFile instead. Kept for backwards compatibility. */
+export const uploadToSupabase = async (
+  file: File,
+  _path: string,
+  onProgress: (pct: number) => void,
+): Promise<string> => {
+  const result = await uploadFile(file, onProgress);
+  return result.url;
+};

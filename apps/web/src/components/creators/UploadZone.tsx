@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Upload, Link2, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { uploadToSupabase } from '@/lib/supabase';
+import { uploadFile } from '@/lib/supabase';
 import { useCreateUpload, UPLOAD_TABS, UPLOAD_TAB_LABELS } from '@/hooks/creators/useUploads';
 import type { UploadTab } from '@/hooks/creators/useUploads';
 
@@ -83,19 +83,14 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
           batch: batch || undefined,
         });
       } else if (selectedFile) {
-        // Generate unique storage path
-        const timestamp = Date.now();
-        const sanitizedName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const storagePath = `uploads/${creatorId}/${timestamp}-${sanitizedName}`;
-
-        // Upload to Supabase Storage with progress tracking
-        const publicUrl = await uploadToSupabase(selectedFile, storagePath, setProgress);
+        // Upload to R2 via backend with progress tracking
+        const result = await uploadFile(selectedFile, setProgress);
 
         // Save metadata to DB
         await createUpload.mutateAsync({
           creatorId,
           fileName: selectedFile.name,
-          fileUrl: publicUrl,
+          fileUrl: result.url,
           fileType: getFileType(selectedFile),
           mimeType: selectedFile.type,
           fileSize: selectedFile.size,
@@ -103,7 +98,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
           label: label || undefined,
           product: product || undefined,
           batch: batch || undefined,
-          storageKey: storagePath,
+          storageKey: result.key,
         });
       }
 

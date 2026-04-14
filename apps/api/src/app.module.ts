@@ -11,6 +11,7 @@ import { ContentModule } from './modules/content/content.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { IntegrationModule } from './modules/integration/integration.module';
+import { StorageModule } from './common/storage/storage.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -50,6 +51,7 @@ import { HealthController } from './health.controller';
     AdminModule,
     AuthModule,
     IntegrationModule,
+    StorageModule,
   ],
   controllers: [HealthController],
   providers: [],

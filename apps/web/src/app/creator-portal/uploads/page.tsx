@@ -22,7 +22,7 @@ import {
   Video,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { uploadToSupabase } from '@/lib/supabase';
+import { uploadFile } from '@/lib/supabase';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -324,11 +324,9 @@ export default function PortalUploadsPage() {
         fileName = uploadLink.trim();
         fileType = 'link';
       } else if (selectedFile) {
-        // Upload to Supabase Storage for persistent URLs
-        const timestamp = Date.now();
-        const sanitizedName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const storagePath = `uploads/${creator.id}/${timestamp}-${sanitizedName}`;
-        fileUrl = await uploadToSupabase(selectedFile, storagePath, () => {});
+        // Upload to R2 via backend
+        const uploadResult = await uploadFile(selectedFile, () => {});
+        fileUrl = uploadResult.url;
         fileName = selectedFile.name;
         fileType = selectedFile.type.startsWith('image/')
           ? 'image'
