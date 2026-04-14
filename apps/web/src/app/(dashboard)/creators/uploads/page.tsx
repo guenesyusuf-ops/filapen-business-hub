@@ -54,7 +54,7 @@ function FolderCard({
       onClick={onClick}
       className="group relative flex flex-col rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-white cursor-pointer"
     >
-      {/* Delete button */}
+      {/* Delete button — always visible */}
       {onDelete && (
         <button
           onClick={(e) => {
@@ -63,7 +63,7 @@ function FolderCard({
               onDelete();
             }
           }}
-          className="absolute top-2 left-2 z-10 p-1 rounded-md bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+          className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
           title="Ordner loeschen"
         >
           <Trash2 className="h-3.5 w-3.5" />
