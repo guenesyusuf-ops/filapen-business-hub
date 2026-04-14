@@ -281,6 +281,36 @@ function BriefingDetail({
   const deleteAttachmentMutation = useDeleteBriefingAttachment();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Editable fields
+  const [editTitle, setEditTitle] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editInit, setEditInit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
+  if (briefing && !editInit) {
+    setEditTitle(briefing.title || '');
+    setEditNotes(briefing.notes || '');
+    setEditInit(true);
+  }
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMsg('');
+    try {
+      const res = await fetch(`${API_URL}/api/briefings/${briefingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editTitle.trim(), notes: editNotes.trim() }),
+      });
+      if (res.ok) {
+        setSaveMsg('Gespeichert');
+        setTimeout(() => setSaveMsg(''), 2000);
+      }
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
   const handleFileUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files) return;
@@ -325,12 +355,11 @@ function BriefingDetail({
               <FileText className="h-6 w-6 text-gray-300" />
             </div>
           )}
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">{briefing.title}</h2>
+          <div className="flex-1">
             {briefing.product && (
-              <p className="text-sm text-gray-500">{briefing.product.title}</p>
+              <p className="text-xs text-gray-500 mb-1">{briefing.product.title}</p>
             )}
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-400">
               Erstellt am{' '}
               {new Date(briefing.createdAt).toLocaleDateString('de-DE', {
                 day: '2-digit',
@@ -341,13 +370,40 @@ function BriefingDetail({
           </div>
         </div>
 
-        {/* Notes */}
-        {briefing.notes && (
-          <div>
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Notiz</h3>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{briefing.notes}</p>
-          </div>
-        )}
+        {/* Editable: Title */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Titel</label>
+          <input
+            type="text"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+          />
+        </div>
+
+        {/* Editable: Notes */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Notizen</label>
+          <textarea
+            value={editNotes}
+            onChange={(e) => setEditNotes(e.target.value)}
+            placeholder="Hinweise, Anforderungen..."
+            rows={4}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none"
+          />
+        </div>
+
+        {/* Save button */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="text-xs px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
+          >
+            {saving ? 'Speichern...' : 'Aenderungen speichern'}
+          </button>
+          {saveMsg && <span className="text-xs text-green-600">{saveMsg}</span>}
+        </div>
 
         {/* Attachments */}
         <div>
