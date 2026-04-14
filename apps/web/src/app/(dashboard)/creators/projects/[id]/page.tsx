@@ -248,7 +248,7 @@ export default function ProjectDetailPage() {
               className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none"
             />
             <button
-              onClick={() => updateProject.mutate({ id, description: editNotes.trim() || undefined })}
+              onClick={() => updateProject.mutate({ id, data: { description: editNotes.trim() || undefined } as any })}
               disabled={updateProject.isPending}
               className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
             >
@@ -265,7 +265,7 @@ export default function ProjectDetailPage() {
               value={editDeadline}
               onChange={(e) => {
                 setEditDeadline(e.target.value);
-                updateProject.mutate({ id, deadline: e.target.value || undefined });
+                updateProject.mutate({ id, data: { deadline: e.target.value || undefined } as any });
               }}
               className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30"
             />
