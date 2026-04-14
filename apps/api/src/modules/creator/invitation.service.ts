@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../../common/email/email.service';
+import { NotificationService } from './notification.service';
 
 const DEFAULT_EXPIRY_DAYS = 7;
 
@@ -26,6 +27,7 @@ export class InvitationService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly config: ConfigService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async sendBulkInvitations(
@@ -79,6 +81,17 @@ export class InvitationService {
           creatorId: creator.id,
           status: 'pending',
         });
+
+        // Send notification to creator
+        try {
+          await this.notificationService.create(orgId, {
+            creatorId: creator.id,
+            type: 'project_invite',
+            title: 'Neue Projekteinladung',
+            message: `Du wurdest zum Projekt "${project.name}" eingeladen`,
+            metadata: { projectId, invitationId: invitation.id },
+          });
+        } catch { /* notification failure is non-critical */ }
 
         if (creator.email) {
           const sent = await this.sendInvitationEmail(creator, project);

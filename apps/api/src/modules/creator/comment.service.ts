@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationService } from './notification.service';
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -26,7 +27,10 @@ export interface MarkReadDto {
 export class CommentService {
   private readonly logger = new Logger(CommentService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notificationService?: NotificationService,
+  ) {}
 
   async listByUpload(orgId: string, uploadId: string) {
     // Verify upload exists for this org
@@ -62,11 +66,25 @@ export class CommentService {
         authorRole: data.authorRole,
         authorName: data.authorName,
         message: data.message,
-        // If admin writes, mark as read by admin; if creator writes, mark as read by creator
         readByAdmin: data.authorRole === 'admin',
         readByCreator: data.authorRole === 'creator',
       },
     });
+
+    // Notify creator when admin comments
+    if (data.authorRole === 'admin' && upload.creatorId && this.notificationService) {
+      try {
+        await this.notificationService.create(orgId, {
+          creatorId: upload.creatorId,
+          type: 'comment',
+          title: 'Neuer Kommentar',
+          message: `Dein Content "${upload.label || upload.fileName}" wurde kommentiert: "${data.message.slice(0, 100)}"`,
+          metadata: { uploadId: upload.id, commentId: comment.id },
+        });
+      } catch (err) {
+        this.logger.warn('Failed to send comment notification', err);
+      }
+    }
 
     return this.serialize(comment);
   }
