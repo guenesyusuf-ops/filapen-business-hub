@@ -86,8 +86,17 @@ export class DashboardService {
    * Returns analytics-table rows. One row per creator.
    */
   async listCreatorsWithUploads(orgId: string) {
+    // Only show creators that have at least one upload that is NOT live yet.
+    // Once ALL uploads of a creator are set to "live", they disappear from
+    // this list until they upload new (non-live) content.
     const uploads = await this.prisma.creatorUpload.findMany({
-      where: { orgId },
+      where: {
+        orgId,
+        OR: [
+          { liveStatus: { not: 'live' } },
+          { liveStatus: null },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         creator: {
