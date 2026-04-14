@@ -41,7 +41,7 @@ function CompensationBadges({ row }: { row: CreatorAnalyticsRow }) {
   if (row.provision) {
     const prov = row.provision.trim().endsWith('%') ? row.provision.trim() : `${row.provision.trim()}%`;
     badges.push(
-      <span key="prov" className={`${BADGE} bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20`}>
+      <span key="prov" className={`${BADGE} bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:border-violet-500/20`}>
         {prov}
       </span>
     );
