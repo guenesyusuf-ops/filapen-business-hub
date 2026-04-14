@@ -207,11 +207,10 @@ export class UploadService {
   async listFolders(orgId: string, params: { creatorId?: string; tab?: string }) {
     const { creatorId, tab } = params;
 
-    // Get ALL uploads including __folder__ metadata entries
-    // We need __folder__ entries to discover folders that have no real files yet
+    // Fetch ALL uploads (no tab filter on query level) so we can group by batch
+    // and then filter folders by whether they contain files of the requested tab.
     const where: any = { orgId };
     if (creatorId) where.creatorId = creatorId;
-    if (tab) where.tab = tab;
 
     const uploads = await this.prisma.creatorUpload.findMany({
       where,
@@ -222,6 +221,7 @@ export class UploadService {
     });
 
     // Group by batch — __folder__ entries create the folder, real files count as fileCount
+    // Only count files that match the requested tab (if any)
     const folderMap = new Map<string, {
       batch: string;
       name: string;
@@ -236,8 +236,11 @@ export class UploadService {
     for (const u of uploads) {
       const batchKey = u.batch || '__none__';
       const isMetadata = u.fileName?.startsWith('__folder__');
+      const matchesTab = !tab || u.tab === tab;
 
-      // Try to extract folder name from metadata label
+      // Skip non-metadata files that don't match the tab filter
+      if (!isMetadata && !matchesTab) continue;
+
       let folderName = u.batch || 'Unsortiert';
       if (isMetadata && u.label) {
         try {
@@ -260,7 +263,6 @@ export class UploadService {
           unseenCount: (isMetadata || u.seenByAdmin) ? 0 : 1,
         });
       } else {
-        // Update folder name from metadata if we haven't found it yet
         if (isMetadata && existing.name === existing.batch) {
           try {
             const meta = JSON.parse(u.label || '');
@@ -282,8 +284,13 @@ export class UploadService {
       }
     }
 
+    // When filtering by tab, only show folders that have real files of that type
+    // (folders with 0 matching files are hidden)
+    const entries = Array.from(folderMap.values())
+      .filter((f) => !tab || f.fileCount > 0);
+
     // Sort folders: newest first, but 'Unsortiert' always last
-    const folders = Array.from(folderMap.values()).sort((a, b) => {
+    const folders = entries.sort((a, b) => {
       if (a.batch === '__none__') return 1;
       if (b.batch === '__none__') return -1;
       return b.createdAt.localeCompare(a.createdAt);
