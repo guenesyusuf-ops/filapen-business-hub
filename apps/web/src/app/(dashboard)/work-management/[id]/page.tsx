@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { LayoutGrid, List, ArrowLeft, Plus } from 'lucide-react';
+import { Columns3, List, ArrowLeft, Plus } from 'lucide-react';
 import Link from 'next/link';
 import {
   useWmProject,
@@ -139,7 +139,7 @@ export default function ProjectDetailPage() {
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
             )}
           >
-            <LayoutGrid className="h-3.5 w-3.5" />
+            <Columns3 className="h-3.5 w-3.5" />
             Board
           </button>
           <button
