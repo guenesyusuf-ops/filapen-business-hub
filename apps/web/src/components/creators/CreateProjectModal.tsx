@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { X, Loader2, Calendar, FileText, Upload, Trash2 } from 'lucide-react';
-import { API_URL } from '@/lib/api';
+import { useState, useCallback, useEffect } from 'react';
+import { X, Loader2, Calendar } from 'lucide-react';
 import {
   useCreateProject,
   useProductCatalog,
@@ -53,15 +52,6 @@ export function CreateProjectModal({
   const [neededCreators, setNeededCreators] = useState('5');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [uploadStatus, setUploadStatus] = useState('');
-
-  // PDF files per type
-  const [briefingFiles, setBriefingFiles] = useState<File[]>([]);
-  const [skriptFiles, setSkriptFiles] = useState<File[]>([]);
-  const [sonstigeFiles, setSonstigeFiles] = useState<File[]>([]);
-  const briefingRef = useRef<HTMLInputElement>(null);
-  const skriptRef = useRef<HTMLInputElement>(null);
-  const sonstigeRef = useRef<HTMLInputElement>(null);
 
   // Reset when opened
   useEffect(() => {
@@ -73,9 +63,6 @@ export function CreateProjectModal({
       setProductId('');
       setNeededCreators('5');
       setDescription('');
-      setBriefingFiles([]);
-      setSkriptFiles([]);
-      setSonstigeFiles([]);
       setError(null);
     }
   }, [open]);
@@ -97,7 +84,6 @@ export function CreateProjectModal({
       }
 
       try {
-        setUploadStatus('Projekt wird erstellt...');
         const created = await createProject.mutateAsync({
           name: name.trim(),
           campaignType,
@@ -108,40 +94,6 @@ export function CreateProjectModal({
           description: description.trim() || undefined,
         });
 
-        const projectId = created?.id;
-        const allFiles: { file: File; type: string }[] = [
-          ...briefingFiles.map((f) => ({ file: f, type: 'briefing' })),
-          ...skriptFiles.map((f) => ({ file: f, type: 'skript' })),
-          ...sonstigeFiles.map((f) => ({ file: f, type: 'sonstige' })),
-        ];
-
-        if (projectId && allFiles.length > 0) {
-          let uploaded = 0;
-          for (const { file, type } of allFiles) {
-            setUploadStatus(`Dokument ${uploaded + 1}/${allFiles.length} wird hochgeladen...`);
-            try {
-              const fd = new FormData();
-              fd.append('file', file);
-              const res = await fetch(`${API_URL}/api/creator-projects/${projectId}/documents?type=${type}`, {
-                method: 'POST',
-                body: fd,
-              });
-              if (!res.ok) {
-                const body = await res.text().catch(() => '');
-                setError(`PDF "${file.name}" fehlgeschlagen: ${res.status} ${body.slice(0, 100)}`);
-                setUploadStatus('');
-                return; // Stop — don't close modal so user sees error
-              }
-              uploaded++;
-            } catch (uploadErr) {
-              setError(`PDF "${file.name}" Upload-Fehler: ${uploadErr instanceof Error ? uploadErr.message : 'Unbekannt'}`);
-              setUploadStatus('');
-              return;
-            }
-          }
-        }
-
-        setUploadStatus('');
         onSuccess?.(created);
         onClose();
       } catch (err) {
@@ -160,9 +112,6 @@ export function CreateProjectModal({
       productId,
       neededCreators,
       description,
-      briefingFiles,
-      skriptFiles,
-      sonstigeFiles,
       createProject,
       onClose,
       onSuccess,
@@ -175,7 +124,7 @@ export function CreateProjectModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
       <div className="absolute inset-0" onClick={onClose} />
       <div
-        className="relative z-10 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto bg-white dark:bg-[var(--card-bg)] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/8"
+        className="relative z-10 w-full max-w-lg mx-4 bg-white dark:bg-[var(--card-bg)] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -296,73 +245,9 @@ export function CreateProjectModal({
             />
           </div>
 
-          {/* Dokumente */}
-          <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/8">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              Dokumente (optional)
-            </p>
-
-            {/* Briefing */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className={labelCls + ' mb-0'}>Briefings</label>
-                <button type="button" onClick={() => briefingRef.current?.click()} className="text-xs text-purple-600 hover:underline flex items-center gap-1">
-                  <Upload className="h-3 w-3" /> PDF hinzufuegen
-                </button>
-                <input ref={briefingRef} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { if (e.target.files) setBriefingFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ''; }} />
-              </div>
-              {briefingFiles.map((f, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                  <FileText className="h-3 w-3 text-red-500" />
-                  <span className="truncate flex-1">{f.name}</span>
-                  <button type="button" onClick={() => setBriefingFiles((p) => p.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
-                </div>
-              ))}
-            </div>
-
-            {/* Skripte */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className={labelCls + ' mb-0'}>Skripte</label>
-                <button type="button" onClick={() => skriptRef.current?.click()} className="text-xs text-purple-600 hover:underline flex items-center gap-1">
-                  <Upload className="h-3 w-3" /> PDF hinzufuegen
-                </button>
-                <input ref={skriptRef} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { if (e.target.files) setSkriptFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ''; }} />
-              </div>
-              {skriptFiles.map((f, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                  <FileText className="h-3 w-3 text-red-500" />
-                  <span className="truncate flex-1">{f.name}</span>
-                  <button type="button" onClick={() => setSkriptFiles((p) => p.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
-                </div>
-              ))}
-            </div>
-
-            {/* Sonstige */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className={labelCls + ' mb-0'}>Sonstige Dokumente</label>
-                <button type="button" onClick={() => sonstigeRef.current?.click()} className="text-xs text-purple-600 hover:underline flex items-center gap-1">
-                  <Upload className="h-3 w-3" /> PDF hinzufuegen
-                </button>
-                <input ref={sonstigeRef} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { if (e.target.files) setSonstigeFiles((prev) => [...prev, ...Array.from(e.target.files!)]); e.target.value = ''; }} />
-              </div>
-              {sonstigeFiles.map((f, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                  <FileText className="h-3 w-3 text-red-500" />
-                  <span className="truncate flex-1">{f.name}</span>
-                  <button type="button" onClick={() => setSonstigeFiles((p) => p.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {uploadStatus && (
-            <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 px-3 py-2 text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              {uploadStatus}
-            </div>
-          )}
+          <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+            Dokumente (Briefings, Skripte etc.) kannst du nach dem Anlegen im Projekt hochladen.
+          </p>
 
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-500/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">
