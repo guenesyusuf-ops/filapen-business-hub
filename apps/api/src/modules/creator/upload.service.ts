@@ -39,7 +39,8 @@ export class UploadService {
     const where: any = {
       orgId,
       creatorId: params.creatorId,
-      NOT: { fileName: { startsWith: '__folder__' } },
+      // Do NOT filter __folder__ entries here — the Creator Portal
+      // needs them to build its folder structure.
     };
     if (params.tab) {
       where.tab = params.tab;
