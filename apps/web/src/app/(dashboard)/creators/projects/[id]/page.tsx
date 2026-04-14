@@ -23,6 +23,8 @@ import { cn } from '@/lib/utils';
 import {
   useProject,
   useProjectInvitations,
+  useUpdateProject,
+  useDeleteProject,
   CAMPAIGN_TYPE_LABELS,
   CAMPAIGN_TYPE_COLORS,
   INVITATION_STATUS_LABELS,
@@ -83,6 +85,18 @@ export default function ProjectDetailPage() {
   const { data: creatorsData } = useCreators({ pageSize: 500 });
 
   const [showInvite, setShowInvite] = useState(false);
+  const updateProject = useUpdateProject();
+  const deleteProject = useDeleteProject();
+  const [editNotes, setEditNotes] = useState('');
+  const [editDeadline, setEditDeadline] = useState('');
+  const [notesInit, setNotesInit] = useState(false);
+
+  // Init notes & deadline from project
+  if (project && !notesInit) {
+    setEditNotes(project.description || '');
+    setEditDeadline(project.deadline?.slice(0, 10) || project.startDate?.slice(0, 10) || '');
+    setNotesInit(true);
+  }
 
   const creatorLookup = useMemo(() => {
     const map = new Map<string, any>();
@@ -195,13 +209,72 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowInvite(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            Creator einladen
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowInvite(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Creator einladen
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('Projekt wirklich loeschen? Alle Einladungen und Dokumente werden entfernt.')) {
+                  deleteProject.mutate(id, {
+                    onSuccess: () => router.push('/creators/projects'),
+                  });
+                }
+              }}
+              disabled={deleteProject.isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-500/30 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Loeschen
+            </button>
+          </div>
+        </div>
+
+        {/* Notizen + Deadline */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-4 shadow-card dark:shadow-[var(--card-shadow)]">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+              Notizen fuer Creator
+            </label>
+            <textarea
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              placeholder="Wichtige Hinweise, Anforderungen..."
+              rows={4}
+              className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none"
+            />
+            <button
+              onClick={() => updateProject.mutate({ id, description: editNotes.trim() || undefined })}
+              disabled={updateProject.isPending}
+              className="mt-2 text-xs px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
+            >
+              {updateProject.isPending ? 'Speichern...' : 'Notiz speichern'}
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-4 shadow-card dark:shadow-[var(--card-shadow)]">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+              Deadline
+            </label>
+            <input
+              type="date"
+              value={editDeadline}
+              onChange={(e) => {
+                setEditDeadline(e.target.value);
+                updateProject.mutate({ id, deadline: e.target.value || undefined });
+              }}
+              className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-black/20 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+            />
+            {editDeadline && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Deadline: {formatDate(editDeadline)}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
