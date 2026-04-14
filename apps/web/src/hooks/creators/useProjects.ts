@@ -339,7 +339,7 @@ export function useProjectInvitations(projectId: string | undefined) {
     enabled: !!projectId,
     queryFn: async () => {
       const res = await fetch(
-        `${API_BASE}/creator/projects/${projectId}/invitations`,
+        `${API_BASE}/creator-projects/${projectId}/invitations`,
         { headers: authHeaders() },
       );
       if (!res.ok) {
@@ -365,7 +365,7 @@ export function useBulkInviteCreators() {
   return useMutation({
     mutationFn: async ({ projectId, creatorIds, message }: BulkInvitePayload) => {
       const res = await fetch(
-        `${API_BASE}/creator/projects/${projectId}/invitations/bulk`,
+        `${API_BASE}/creator-projects/${projectId}/invitations/bulk`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
