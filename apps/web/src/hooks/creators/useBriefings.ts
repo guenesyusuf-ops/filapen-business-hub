@@ -1,116 +1,58 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { API_URL } from '@/lib/api';
+
+const API_BASE = `${API_URL}/api`;
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface Briefing {
+export interface BriefingAttachment {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string; // pdf | image | video | sonstige
+  storageKey?: string;
+  fileSize?: number;
+  createdAt: string;
+}
+
+export interface BriefingProduct {
   id: string;
   title: string;
-  dealId: string;
-  dealTitle: string;
-  creatorId: string;
-  creatorName: string;
-  status: 'draft' | 'sent' | 'approved' | 'revision';
-  content: string;
-  objectives: string[];
-  keyMessages: string[];
-  dosAndDonts?: { dos: string[]; donts: string[] };
+  imageUrl?: string;
+}
+
+export interface Briefing {
+  id: string;
+  orgId: string;
+  title: string;
+  productId?: string;
+  notes?: string;
+  content?: string;
+  status: string;
   createdAt: string;
   updatedAt: string;
+  product?: BriefingProduct | null;
+  attachmentCount?: number;
+  attachments?: BriefingAttachment[];
+  deal?: { id: string; title: string; stage: string } | null;
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// Fetch helpers
 // ---------------------------------------------------------------------------
 
-const MOCK_BRIEFINGS: Briefing[] = [
-  {
-    id: 'b1',
-    title: 'Spring Fashion Campaign Brief',
-    dealId: 'd1',
-    dealTitle: 'Spring Fashion Campaign',
-    creatorId: '1',
-    creatorName: 'Sarah Chen',
-    status: 'approved',
-    content: 'Showcase the new spring collection with focus on pastel colors and lightweight fabrics.',
-    objectives: ['Drive awareness for spring line', 'Generate 50K impressions', 'Achieve 3%+ engagement'],
-    keyMessages: ['Sustainable materials', 'Limited edition', 'Free shipping this week'],
-    dosAndDonts: {
-      dos: ['Show product in natural lighting', 'Include try-on content', 'Tag our brand'],
-      donts: ['No competitor mentions', 'No heavy filters', 'No political content'],
-    },
-    createdAt: '2024-03-02T00:00:00Z',
-    updatedAt: '2024-03-05T00:00:00Z',
-  },
-  {
-    id: 'b2',
-    title: 'Fitness Product Review Guidelines',
-    dealId: 'd2',
-    dealTitle: 'Fitness Product Review',
-    creatorId: '2',
-    creatorName: 'Marcus Rivera',
-    status: 'sent',
-    content: 'Honest review of our new fitness tracker with emphasis on workout tracking features.',
-    objectives: ['Product awareness', 'Drive pre-orders', 'Technical credibility'],
-    keyMessages: ['7-day battery life', 'Real-time heart monitoring', 'Water resistant'],
-    createdAt: '2024-03-12T00:00:00Z',
-    updatedAt: '2024-03-12T00:00:00Z',
-  },
-  {
-    id: 'b3',
-    title: 'Summer Beauty Look Book',
-    dealId: 'd3',
-    dealTitle: 'Summer Beauty Collection',
-    creatorId: '5',
-    creatorName: 'Mia Zhang',
-    status: 'revision',
-    content: 'Create a summer look book featuring our new collection of foundations and lip products.',
-    objectives: ['Showcase range of shades', 'Tutorial style content', 'Drive website traffic'],
-    keyMessages: ['12-hour wear', 'Cruelty-free', 'SPF protection'],
-    createdAt: '2024-02-22T00:00:00Z',
-    updatedAt: '2024-03-18T00:00:00Z',
-  },
-  {
-    id: 'b4',
-    title: 'Tech Unboxing Script',
-    dealId: 'd4',
-    dealTitle: 'Tech Gadget Unboxing',
-    creatorId: '4',
-    creatorName: 'Jake Thompson',
-    status: 'draft',
-    content: 'Unboxing and first impressions of our flagship product with technical deep-dive.',
-    objectives: ['Generate hype', '100K views target', 'Pre-order link clicks'],
-    keyMessages: ['Revolutionary design', '5nm chip', '2-year warranty'],
-    createdAt: '2024-03-16T00:00:00Z',
-    updatedAt: '2024-03-16T00:00:00Z',
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Fetch helper
-// ---------------------------------------------------------------------------
-
-import { API_URL } from '@/lib/api';
-
-const API_BASE = `${API_URL}/api`;
-
-async function fetchApi<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(path, window.location.origin);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => {
-      if (v) url.searchParams.set(k, v);
-    });
-  }
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
 
-async function postApi<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -119,38 +61,103 @@ async function postApi<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function deleteApi<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
 
+/** List all briefings (admin). Optionally filter by dealId (legacy). */
 export function useBriefings(dealId?: string) {
+  const url = dealId
+    ? `${API_BASE}/briefings?dealId=${encodeURIComponent(dealId)}`
+    : `${API_BASE}/briefings`;
   return useQuery<Briefing[]>({
     queryKey: ['briefings', dealId ?? 'all'],
-    queryFn: async () => {
-      try {
-        const params: Record<string, string> = {};
-        if (dealId) params.dealId = dealId;
-        return await fetchApi<Briefing[]>(`${API_BASE}/briefings`, params);
-      } catch {
-        if (dealId) {
-          return MOCK_BRIEFINGS.filter((b) => b.dealId === dealId);
-        }
-        return MOCK_BRIEFINGS;
-      }
-    },
-    staleTime: 30 * 1000,
+    queryFn: () => fetchJson<Briefing[]>(url),
+    staleTime: 30_000,
     retry: 1,
   });
 }
 
+/** Get single briefing with attachments */
+export function useBriefing(id?: string) {
+  return useQuery<Briefing>({
+    queryKey: ['briefing', id],
+    queryFn: () => fetchJson<Briefing>(`${API_BASE}/briefings/${id}`),
+    enabled: !!id,
+    staleTime: 15_000,
+    retry: 1,
+  });
+}
+
+/** List all briefings for creator portal */
+export function useBriefingsForCreator() {
+  return useQuery<Briefing[]>({
+    queryKey: ['briefings-for-creator'],
+    queryFn: () => fetchJson<Briefing[]>(`${API_BASE}/briefings/for-creator`),
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
+
+/** Create briefing */
 export function useCreateBriefing() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: Partial<Briefing>) => {
-      return postApi<Briefing>('/briefings', data);
-    },
+    mutationFn: (data: { title: string; productId?: string; notes?: string }) =>
+      postJson<Briefing>(`${API_BASE}/briefings`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['briefings'] });
+      qc.invalidateQueries({ queryKey: ['briefings'] });
+    },
+  });
+}
+
+/** Delete briefing */
+export function useDeleteBriefing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteApi<{ success: boolean }>(`${API_BASE}/briefings/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['briefings'] });
+    },
+  });
+}
+
+/** Upload a single file as briefing attachment */
+export function useUploadBriefingAttachment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ briefingId, file }: { briefingId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_BASE}/briefings/${briefingId}/attachments`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+      return res.json() as Promise<BriefingAttachment>;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['briefing', variables.briefingId] });
+      qc.invalidateQueries({ queryKey: ['briefings'] });
+    },
+  });
+}
+
+/** Delete a briefing attachment */
+export function useDeleteBriefingAttachment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ briefingId, attachmentId }: { briefingId: string; attachmentId: string }) =>
+      deleteApi<{ success: boolean }>(`${API_BASE}/briefings/${briefingId}/attachments/${attachmentId}`),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['briefing', variables.briefingId] });
+      qc.invalidateQueries({ queryKey: ['briefings'] });
     },
   });
 }

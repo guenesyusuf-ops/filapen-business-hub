@@ -11,7 +11,10 @@ import {
   Logger,
   HttpException,
   HttpStatus,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { CreatorService } from './creator.service';
 import { DealService } from './deal.service';
@@ -41,6 +44,7 @@ export class CreatorController {
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {}
+  // Note: BriefingService now injects StorageService internally
 
   // =========================================================================
   // CREATORS
@@ -259,13 +263,24 @@ export class CreatorController {
   // BRIEFINGS
   // =========================================================================
 
-  @Get('briefings')
-  async listBriefings(@Query('dealId') dealId: string) {
-    if (!dealId) {
-      throw new HttpException('dealId query parameter is required', HttpStatus.BAD_REQUEST);
-    }
+  @Get('briefings/for-creator')
+  async listBriefingsForCreator() {
     try {
-      return await this.briefingService.listByDeal(DEV_ORG_ID, dealId);
+      return await this.briefingService.listForCreator(DEV_ORG_ID);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to list briefings for creator', error);
+      throw new HttpException('Failed to load briefings', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('briefings')
+  async listBriefings(@Query('dealId') dealId?: string) {
+    try {
+      if (dealId) {
+        return await this.briefingService.listByDeal(DEV_ORG_ID, dealId);
+      }
+      return await this.briefingService.list(DEV_ORG_ID);
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to list briefings', error);
@@ -317,6 +332,50 @@ export class CreatorController {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to delete briefing', error);
       throw new HttpException('Failed to delete briefing', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // BRIEFING ATTACHMENTS
+  // =========================================================================
+
+  @Post('briefings/:id/attachments')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: undefined,
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+    }),
+  )
+  async uploadBriefingAttachment(
+    @Param('id') briefingId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new HttpException('No file provided', HttpStatus.BAD_REQUEST);
+    }
+    try {
+      return await this.briefingService.addAttachment(DEV_ORG_ID, briefingId, file);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to upload briefing attachment', error);
+      throw new HttpException(
+        error.message || 'Failed to upload attachment',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Delete('briefings/:id/attachments/:attachmentId')
+  async deleteBriefingAttachment(
+    @Param('id') briefingId: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    try {
+      return await this.briefingService.deleteAttachment(DEV_ORG_ID, briefingId, attachmentId);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to delete briefing attachment', error);
+      throw new HttpException('Failed to delete attachment', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

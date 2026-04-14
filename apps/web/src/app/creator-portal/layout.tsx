@@ -289,7 +289,7 @@ export default function CreatorPortalLayout({
             />
             <NavTab
               href="/creator-portal/briefings"
-              label="Briefings"
+              label="Briefings / Skripte"
               active={pathname === '/creator-portal/briefings'}
             />
             <NavTab

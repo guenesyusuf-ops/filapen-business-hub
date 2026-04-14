@@ -507,21 +507,43 @@ model Deal {
 model Briefing {
   id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId      String         @map("org_id") @db.Uuid
-  dealId     String         @map("deal_id") @db.Uuid
+  dealId     String?        @map("deal_id") @db.Uuid
+  productId  String?        @map("product_id") @db.Uuid
   title      String         @db.VarChar(255)
   content    String?        @db.Text
+  notes      String?        @db.Text
   guidelines Json?          @default("{}")
   references String[]       @default([])
   status     BriefingStatus @default(draft)
   createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  deal         Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal         Deal?                  @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  product      Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  attachments  BriefingAttachment[]
 
   @@index([orgId])
   @@index([dealId])
+  @@index([productId])
   @@map("briefings")
+}
+
+model BriefingAttachment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  briefingId String   @map("briefing_id") @db.Uuid
+  fileName   String   @map("file_name") @db.VarChar(255)
+  fileUrl    String   @map("file_url") @db.Text
+  fileType   String   @map("file_type") @db.VarChar(50)
+  storageKey String?  @map("storage_key") @db.Text
+  fileSize   Int?     @map("file_size")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  briefing Briefing @relation(fields: [briefingId], references: [id], onDelete: Cascade)
+
+  @@index([briefingId])
+  @@map("briefing_attachments")
 }
 
 model CreatorUpload {
@@ -720,6 +742,7 @@ model Product {
   shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
   variants        ProductVariant[]
   creatorProjects CreatorProject[]
+  briefings       Briefing[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
