@@ -22,7 +22,7 @@ function authHeaders(): Record<string, string> {
 }
 
 async function wmFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}/api/work-management${path}`, {
+  const res = await fetch(`${API_URL}/api/wm${path}`, {
     ...options,
     headers: { ...authHeaders(), ...options?.headers },
   });
