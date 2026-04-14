@@ -86,18 +86,15 @@ export class DashboardService {
    * Returns analytics-table rows. One row per creator.
    */
   async listCreatorsWithUploads(orgId: string) {
-    // Only show creators that have at least one upload that is NOT live yet.
-    // Once ALL uploads of a creator are set to "live", they disappear from
-    // this list until they upload new (non-live) content.
+    // Only show creators that have uploads which were NEVER processed
+    // (liveStatus is null = fresh upload, not yet reviewed).
+    // Once an upload goes "live" or "offline" it counts as handled.
+    // Creator reappears only when they upload NEW content (liveStatus=null).
     const uploads = await this.prisma.creatorUpload.findMany({
       where: {
         orgId,
-        // Exclude folder metadata entries (not real uploads)
         NOT: { fileName: { startsWith: '__folder__' } },
-        OR: [
-          { liveStatus: { not: 'live' } },
-          { liveStatus: null },
-        ],
+        liveStatus: null,
       },
       orderBy: { createdAt: 'desc' },
       include: {
