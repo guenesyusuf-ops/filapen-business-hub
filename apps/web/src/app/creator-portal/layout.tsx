@@ -68,6 +68,17 @@ function NotificationBell({ creatorId }: { creatorId: string }) {
     if (!notification.read) {
       markRead.mutate(notification.id);
     }
+    setOpen(false);
+    // Navigate based on notification type
+    const meta = notification.metadata as Record<string, string> | undefined;
+    if (notification.type === 'comment' && meta?.uploadId) {
+      // Navigate to uploads page — the upload will be highlighted
+      window.location.href = `/creator-portal/uploads?highlight=${meta.uploadId}`;
+    } else if (notification.type === 'project_invite' && meta?.projectId) {
+      window.location.href = '/creator-portal/invitations';
+    } else if (notification.type === 'content_live' || notification.type === 'content_offline') {
+      window.location.href = '/creator-portal/uploads';
+    }
   };
 
   return (

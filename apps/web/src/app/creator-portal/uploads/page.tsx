@@ -104,6 +104,17 @@ export default function PortalUploadsPage() {
   const [uploads, setUploads] = useState<PortalUpload[]>([]);
   const [loadingUploads, setLoadingUploads] = useState(false);
   const [selectedUpload, setSelectedUpload] = useState<PortalUpload | null>(null);
+
+  // Auto-select upload from notification click (?highlight=uploadId)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const highlightId = params.get('highlight');
+    if (highlightId && uploads.length > 0 && !selectedUpload) {
+      const found = uploads.find((u) => u.id === highlightId);
+      if (found) setSelectedUpload(found);
+    }
+  }, [uploads, selectedUpload]);
   const [comments, setComments] = useState<PortalComment[]>([]);
   const [commentText, setCommentText] = useState('');
 
