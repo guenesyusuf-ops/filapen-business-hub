@@ -5,10 +5,13 @@ import {
   useDashboardStats,
   useCreatorsWithUploads,
   useRecentCreators,
+  useLiveContent,
+  useGoOffline,
 } from '@/hooks/creators/useCreatorDashboard';
 import { WelcomeSection } from '@/components/creators/dashboard/WelcomeSection';
 import { StatCards } from '@/components/creators/dashboard/StatCards';
 import { CreatorsAnalyticsTable } from '@/components/creators/dashboard/CreatorsAnalyticsTable';
+import { LiveContentTable } from '@/components/creators/dashboard/LiveContentTable';
 import { CreatorsWithoutUploadsModal } from '@/components/creators/dashboard/CreatorsWithoutUploadsModal';
 import { CalendarWidget } from '@/components/creators/dashboard/CalendarWidget';
 import { RecentCreatorsList } from '@/components/creators/dashboard/RecentCreatorsList';
@@ -26,6 +29,8 @@ export default function CreatorHubDashboardPage() {
   const statsQuery = useDashboardStats();
   const analyticsQuery = useCreatorsWithUploads();
   const recentQuery = useRecentCreators();
+  const liveContentQuery = useLiveContent();
+  const offlineMutation = useGoOffline();
 
   return (
     <div className="min-h-screen px-4 py-6 text-gray-900 dark:text-white sm:px-6 lg:px-8">
@@ -38,6 +43,13 @@ export default function CreatorHubDashboardPage() {
             stats={statsQuery.data}
             loading={statsQuery.isLoading}
             onUploadsClick={() => setUploadsModalOpen(true)}
+          />
+
+          <LiveContentTable
+            rows={liveContentQuery.data}
+            loading={liveContentQuery.isLoading}
+            onGoOffline={(id) => offlineMutation.mutate(id)}
+            offlineLoading={offlineMutation.isPending}
           />
 
           <CreatorsAnalyticsTable

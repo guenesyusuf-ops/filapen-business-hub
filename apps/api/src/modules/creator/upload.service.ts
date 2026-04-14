@@ -210,13 +210,38 @@ export class UploadService {
     const updated = await this.prisma.creatorUpload.update({
       where: { id: uploadId },
       data: {
-        liveStatus: 'inactive',
+        liveStatus: 'offline',
       },
       include: {
         _count: { select: { comments: true } },
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
       },
     });
+
+    // Create notification for the creator
+    try {
+      const label = existing.label || existing.fileName;
+      const nowStr = new Date().toLocaleDateString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+      await this.prisma.creatorNotification.create({
+        data: {
+          orgId,
+          creatorId: existing.creatorId,
+          type: 'content_offline',
+          title: 'Content offline',
+          message: `Dein Content "${label}" ist offline ${nowStr}. Deine Auswertung folgt.`,
+          metadata: {
+            uploadId,
+            label,
+          },
+        },
+      });
+    } catch (err) {
+      this.logger.warn('Failed to create offline notification', err);
+    }
 
     return {
       ...this.serialize(updated),

@@ -12,6 +12,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
+import { UploadService } from './upload.service';
 import { CalendarNoteService } from './calendar-note.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
@@ -22,6 +23,7 @@ export class DashboardController {
 
   constructor(
     private readonly dashboardService: DashboardService,
+    private readonly uploadService: UploadService,
     private readonly calendarNoteService: CalendarNoteService,
   ) {}
 
@@ -62,6 +64,16 @@ export class DashboardController {
         'Failed to load creators with uploads',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  @Get('creator/live-content')
+  async getLiveContent() {
+    try {
+      return await this.uploadService.listLive(DEV_ORG_ID);
+    } catch (error) {
+      this.logger.error('Failed to load live content', error as Error);
+      throw new HttpException('Failed to load live content', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

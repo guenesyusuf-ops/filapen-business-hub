@@ -97,6 +97,9 @@ export class DashboardService {
             avatarUrl: true,
             lastLogin: true,
             status: true,
+            compensation: true,
+            provision: true,
+            fixAmount: true,
           },
         },
       },
@@ -115,6 +118,9 @@ export class DashboardService {
         latestUploadAt: string;
         product: string | null;
         batch: string | null;
+        compensation: string | null;
+        provision: string | null;
+        fixAmount: number | null;
       }
     >();
 
@@ -122,16 +128,20 @@ export class DashboardService {
       if (!u.creator) continue;
       const existing = byCreator.get(u.creatorId);
       if (!existing) {
+        const creator = u.creator as any;
         byCreator.set(u.creatorId, {
           creatorId: u.creatorId,
-          name: u.creator.name,
-          avatarUrl: u.creator.avatarUrl,
-          status: (u.creator.status as unknown as string) || 'offline',
-          lastLogin: u.creator.lastLogin ? u.creator.lastLogin.toISOString() : null,
+          name: creator.name,
+          avatarUrl: creator.avatarUrl,
+          status: (creator.status as unknown as string) || 'offline',
+          lastLogin: creator.lastLogin ? creator.lastLogin.toISOString() : null,
           uploadCount: 1,
           latestUploadAt: u.createdAt.toISOString(),
           product: u.product,
           batch: u.batch,
+          compensation: creator.compensation || null,
+          provision: creator.provision || null,
+          fixAmount: creator.fixAmount != null ? Number(creator.fixAmount) : null,
         });
       } else {
         existing.uploadCount += 1;

@@ -21,12 +21,57 @@ const dateFormatter = new Intl.DateTimeFormat('de-DE', {
   year: 'numeric',
 });
 
-function isOnline(row: CreatorAnalyticsRow): boolean {
-  // Fallback heuristic: active status or recent login -> online.
-  if (row.status === 'active') return true;
-  if (!row.lastLogin) return false;
-  const diff = Date.now() - new Date(row.lastLogin).getTime();
-  return diff < 1000 * 60 * 60 * 24 * 7;
+// ---------------------------------------------------------------------------
+// Compensation badge helpers
+// ---------------------------------------------------------------------------
+
+function getCompensationBadge(row: CreatorAnalyticsRow): {
+  label: string;
+  colorClass: string;
+  bgClass: string;
+} {
+  const comp = row.compensation?.toLowerCase() ?? '';
+
+  if (comp.includes('fix') || comp === 'fixpreis') {
+    const amount = row.fixAmount != null ? ` ${Number(row.fixAmount).toLocaleString('de-DE')} \u20AC` : '';
+    return {
+      label: `Fixpreis${amount}`,
+      colorClass: 'text-blue-600 dark:text-blue-400',
+      bgClass: 'bg-blue-50 dark:bg-blue-500/10',
+    };
+  }
+
+  if (comp.includes('revenue') || comp.includes('share') || comp === 'revenue share') {
+    const prov = row.provision ? ` ${row.provision}` : '';
+    return {
+      label: `Rev. Share${prov}`,
+      colorClass: 'text-green-600 dark:text-green-400',
+      bgClass: 'bg-green-50 dark:bg-green-500/10',
+    };
+  }
+
+  if (comp.includes('gratis') || comp.includes('produkt') || comp === 'gratisprodukt') {
+    return {
+      label: 'Gratisprodukt',
+      colorClass: 'text-orange-600 dark:text-orange-400',
+      bgClass: 'bg-orange-50 dark:bg-orange-500/10',
+    };
+  }
+
+  if (comp) {
+    const extra = row.provision ? ` ${row.provision}` : row.fixAmount != null ? ` ${Number(row.fixAmount).toLocaleString('de-DE')} \u20AC` : '';
+    return {
+      label: `${row.compensation}${extra}`,
+      colorClass: 'text-gray-600 dark:text-white/60',
+      bgClass: 'bg-gray-100 dark:bg-white/5',
+    };
+  }
+
+  return {
+    label: '\u2014',
+    colorClass: 'text-gray-400 dark:text-white/30',
+    bgClass: 'bg-gray-100 dark:bg-white/5',
+  };
 }
 
 export function CreatorsAnalyticsTable({ rows, loading }: Props) {
@@ -58,8 +103,8 @@ export function CreatorsAnalyticsTable({ rows, loading }: Props) {
               <th className="px-5 py-3 text-left font-medium">Name</th>
               <th className="px-4 py-3 text-left font-medium">Produkt</th>
               <th className="px-4 py-3 text-left font-medium">Batch</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-5 py-3 text-right font-medium">Online seit</th>
+              <th className="px-4 py-3 text-left font-medium">Verguetung</th>
+              <th className="px-5 py-3 text-right font-medium">Letzter Upload</th>
             </tr>
           </thead>
           <tbody>
@@ -82,8 +127,8 @@ export function CreatorsAnalyticsTable({ rows, loading }: Props) {
               </tr>
             ) : (
               rows.map((row) => {
-                const online = isOnline(row);
                 const uploadDate = new Date(row.latestUploadAt);
+                const badge = getCompensationBadge(row);
                 return (
                   <tr
                     key={row.creatorId}
@@ -112,16 +157,8 @@ export function CreatorsAnalyticsTable({ rows, loading }: Props) {
                       {row.batch || <span className="text-gray-400 dark:text-white/30">&mdash;</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-white/5 px-2 py-0.5 text-xs">
-                        <span
-                          className={[
-                            'h-1.5 w-1.5 rounded-full',
-                            online ? 'bg-green-500 dark:bg-green-400' : 'bg-gray-400 dark:bg-white/30',
-                          ].join(' ')}
-                        />
-                        <span className={online ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-white/50'}>
-                          {online ? 'online' : 'offline'}
-                        </span>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badge.bgClass} ${badge.colorClass}`}>
+                        {badge.label}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right text-gray-600 dark:text-white/60">

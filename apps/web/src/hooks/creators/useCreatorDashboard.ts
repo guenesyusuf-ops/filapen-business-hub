@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // API base — mirrors the finance hooks pattern to avoid the Vercel
@@ -52,6 +52,27 @@ export interface CreatorAnalyticsRow {
   latestUploadAt: string;
   product: string | null;
   batch: string | null;
+  compensation: string | null;
+  provision: string | null;
+  fixAmount: number | null;
+}
+
+export interface LiveContentItem {
+  id: string;
+  creatorId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  label: string | null;
+  product: string | null;
+  liveStatus: string | null;
+  liveDate: string | null;
+  creator: {
+    id: string;
+    name: string;
+    handle: string | null;
+    avatarUrl: string | null;
+  } | null;
 }
 
 export interface RecentCreator {
@@ -101,5 +122,33 @@ export function useRecentCreators() {
     queryFn: () => fetchApi<RecentCreator[]>('/creator/recent'),
     staleTime: 60_000,
     retry: 1,
+  });
+}
+
+export function useLiveContent() {
+  return useQuery<LiveContentItem[]>({
+    queryKey: ['creator-dashboard', 'live-content'],
+    queryFn: () => fetchApi<LiveContentItem[]>('/creator/live-content'),
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+export function useGoOffline() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (uploadId: string) => {
+      const res = await fetch(`${API_BASE}/creator-uploads/${uploadId}/go-offline`, {
+        method: 'PUT',
+      });
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creator-dashboard', 'live-content'] });
+    },
   });
 }
