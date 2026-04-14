@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { API_URL } from '@/lib/api';
 import {
   ArrowLeft,
   Camera,
@@ -858,21 +859,45 @@ export default function CreatorDetailPage() {
                   <span className="text-sm font-medium text-gray-900">{activeBatchName}</span>
                 )}
                 {activeBatch === null && (
-                  <div className="flex gap-1.5">
-                    {UPLOAD_TABS.map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => { setUploadTab(t); setActiveBatch(null); }}
-                        className={cn(
-                          'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
-                          uploadTab === t
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                        )}
-                      >
-                        {UPLOAD_TAB_LABELS[t]}
-                      </button>
-                    ))}
+                  <div className="flex gap-1.5 flex-wrap">
+                    <button
+                      onClick={() => { setUploadTab(undefined as any); setActiveBatch(null); }}
+                      className={cn(
+                        'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                        !uploadTab
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                      )}
+                    >
+                      Alle
+                      {(creatorFoldersData?.total ?? 0) > 0 && (
+                        <span className={cn('ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold', !uploadTab ? 'bg-white/20 text-white' : 'bg-red-500 text-white')}>
+                          {creatorFoldersData?.total}
+                        </span>
+                      )}
+                    </button>
+                    {UPLOAD_TABS.map((t) => {
+                      const cnt = creatorFoldersData?.tabCounts?.[t] ?? 0;
+                      return (
+                        <button
+                          key={t}
+                          onClick={() => { setUploadTab(t); setActiveBatch(null); }}
+                          className={cn(
+                            'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                            uploadTab === t
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                          )}
+                        >
+                          {UPLOAD_TAB_LABELS[t]}
+                          {cnt > 0 && (
+                            <span className={cn('ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold', uploadTab === t ? 'bg-white/20 text-white' : 'bg-red-500 text-white')}>
+                              {cnt}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -897,11 +922,26 @@ export default function CreatorDetailPage() {
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                       {creatorFolders.map((folder) => (
-                        <button
+                        <div
                           key={folder.batch}
                           onClick={() => { setActiveBatch(folder.batch); setActiveBatchName(folder.name); setFolderPage(1); }}
-                          className="group relative flex flex-col rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-white text-left"
+                          className="group relative flex flex-col rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-white text-left cursor-pointer"
                         >
+                          {/* Delete folder button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Ordner "${folder.name}" mit allen Dateien loeschen?`)) {
+                                fetch(`${API_URL}/api/creator-uploads/batch?batch=${encodeURIComponent(folder.batch)}`, { method: 'DELETE' })
+                                  .then(() => window.location.reload())
+                                  .catch(() => {});
+                              }
+                            }}
+                            className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
+                            title="Ordner loeschen"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
                           <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
                             {folder.previewUrl ? (
                               <img src={folder.previewUrl} alt={folder.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -917,12 +957,18 @@ export default function CreatorDetailPage() {
                             <p className="text-[11px] text-gray-500">{folder.fileCount} {folder.fileCount === 1 ? 'Datei' : 'Dateien'}</p>
                             <p className="text-[11px] text-gray-400">{new Date(folder.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
                           </div>
-                          {folder.unseenCount > 0 && (
-                            <div className="absolute top-2 right-2 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-purple-500 px-1">
-                              <span className="text-[9px] font-bold text-white">{folder.unseenCount}</span>
+                          {/* File count + unseen indicator */}
+                          {folder.fileCount > 0 && (
+                            <div className="absolute top-2 right-2 flex items-center gap-1">
+                              {folder.unseenCount > 0 && (
+                                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                              )}
+                              <div className="flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-purple-500 px-1">
+                                <span className="text-[9px] font-bold text-white">{folder.fileCount}</span>
+                              </div>
                             </div>
                           )}
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}
