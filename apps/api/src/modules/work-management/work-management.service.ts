@@ -1,0 +1,593 @@
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../../common/storage/storage.service';
+
+const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
+
+const DEFAULT_COLUMNS = [
+  { name: 'To Do', color: '#6B7280', position: 0 },
+  { name: 'In Arbeit', color: '#3B82F6', position: 1 },
+  { name: 'Erledigt', color: '#10B981', position: 2 },
+];
+
+@Injectable()
+export class WorkManagementService {
+  private readonly logger = new Logger(WorkManagementService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
+
+  // =========================================================================
+  // PROJECTS
+  // =========================================================================
+
+  async listProjects() {
+    const projects = await this.prisma.wmProject.findMany({
+      where: { orgId: DEV_ORG_ID },
+      include: {
+        _count: { select: { members: true, tasks: true } },
+        columns: { orderBy: { position: 'asc' } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return projects.map((p) => ({
+      ...p,
+      memberCount: p._count.members,
+      taskCount: p._count.tasks,
+      _count: undefined,
+    }));
+  }
+
+  async createProject(data: { name: string; description?: string; color?: string; createdBy: string }) {
+    return this.prisma.$transaction(async (tx) => {
+      const project = await tx.wmProject.create({
+        data: {
+          orgId: DEV_ORG_ID,
+          name: data.name,
+          description: data.description,
+          color: data.color,
+          createdBy: data.createdBy,
+        },
+      });
+
+      await tx.wmColumn.createMany({
+        data: DEFAULT_COLUMNS.map((col) => ({
+          projectId: project.id,
+          name: col.name,
+          color: col.color,
+          position: col.position,
+        })),
+      });
+
+      return this.getProjectById(project.id);
+    });
+  }
+
+  async getProjectById(id: string) {
+    const project = await this.prisma.wmProject.findUnique({
+      where: { id },
+      include: {
+        columns: { orderBy: { position: 'asc' } },
+        tasks: {
+          include: {
+            taskLabels: { include: { label: true } },
+            subtasks: true,
+          },
+          orderBy: { position: 'asc' },
+        },
+        members: true,
+        labels: true,
+      },
+    });
+
+    if (!project) throw new NotFoundException('Project not found');
+    return project;
+  }
+
+  async updateProject(id: string, data: { name?: string; description?: string; color?: string }) {
+    await this.ensureProjectExists(id);
+    return this.prisma.wmProject.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async deleteProject(id: string) {
+    await this.ensureProjectExists(id);
+    await this.prisma.wmProject.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  // =========================================================================
+  // COLUMNS
+  // =========================================================================
+
+  async createColumn(projectId: string, data: { name: string; color?: string }) {
+    await this.ensureProjectExists(projectId);
+
+    const maxPos = await this.prisma.wmColumn.aggregate({
+      where: { projectId },
+      _max: { position: true },
+    });
+
+    return this.prisma.wmColumn.create({
+      data: {
+        projectId,
+        name: data.name,
+        color: data.color,
+        position: (maxPos._max.position ?? -1) + 1,
+      },
+    });
+  }
+
+  async updateColumn(id: string, data: { name?: string; color?: string }) {
+    return this.prisma.wmColumn.update({ where: { id }, data });
+  }
+
+  async deleteColumn(id: string) {
+    const column = await this.prisma.wmColumn.findUnique({
+      where: { id },
+      include: { project: { include: { columns: { orderBy: { position: 'asc' } } } } },
+    });
+
+    if (!column) throw new NotFoundException('Column not found');
+
+    const otherColumns = column.project.columns.filter((c) => c.id !== id);
+    if (otherColumns.length === 0) {
+      throw new BadRequestException('Cannot delete the last column');
+    }
+
+    const targetColumnId = otherColumns[0].id;
+
+    await this.prisma.$transaction([
+      this.prisma.wmTask.updateMany({
+        where: { columnId: id },
+        data: { columnId: targetColumnId },
+      }),
+      this.prisma.wmColumn.delete({ where: { id } }),
+    ]);
+
+    return { deleted: true, tasksMovedTo: targetColumnId };
+  }
+
+  async reorderColumns(projectId: string, columnIds: string[]) {
+    await this.ensureProjectExists(projectId);
+
+    const updates = columnIds.map((colId, index) =>
+      this.prisma.wmColumn.update({
+        where: { id: colId },
+        data: { position: index },
+      }),
+    );
+
+    await this.prisma.$transaction(updates);
+    return { reordered: true };
+  }
+
+  // =========================================================================
+  // TASKS
+  // =========================================================================
+
+  async listProjectTasks(projectId: string) {
+    await this.ensureProjectExists(projectId);
+
+    return this.prisma.wmTask.findMany({
+      where: { projectId, parentTaskId: null },
+      include: {
+        taskLabels: { include: { label: true } },
+        subtasks: {
+          include: { taskLabels: { include: { label: true } } },
+          orderBy: { position: 'asc' },
+        },
+        _count: { select: { comments: true, attachments: true } },
+      },
+      orderBy: { position: 'asc' },
+    });
+  }
+
+  async createTask(data: {
+    projectId: string;
+    columnId: string;
+    title: string;
+    description?: string;
+    assigneeId?: string;
+    createdById: string;
+    priority?: string;
+    dueDate?: string;
+    estimatedMinutes?: number;
+  }) {
+    const maxPos = await this.prisma.wmTask.aggregate({
+      where: { columnId: data.columnId, parentTaskId: null },
+      _max: { position: true },
+    });
+
+    return this.prisma.wmTask.create({
+      data: {
+        orgId: DEV_ORG_ID,
+        projectId: data.projectId,
+        columnId: data.columnId,
+        title: data.title,
+        description: data.description,
+        assigneeId: data.assigneeId,
+        createdById: data.createdById,
+        priority: data.priority || 'medium',
+        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        estimatedMinutes: data.estimatedMinutes,
+        position: (maxPos._max.position ?? -1) + 1,
+      },
+      include: {
+        taskLabels: { include: { label: true } },
+        subtasks: true,
+      },
+    });
+  }
+
+  async getTaskById(id: string) {
+    const task = await this.prisma.wmTask.findUnique({
+      where: { id },
+      include: {
+        taskLabels: { include: { label: true } },
+        subtasks: {
+          orderBy: { position: 'asc' },
+          include: { taskLabels: { include: { label: true } } },
+        },
+        comments: { orderBy: { createdAt: 'asc' } },
+        attachments: { orderBy: { createdAt: 'desc' } },
+        column: true,
+      },
+    });
+
+    if (!task) throw new NotFoundException('Task not found');
+    return task;
+  }
+
+  async updateTask(
+    id: string,
+    data: {
+      title?: string;
+      description?: string;
+      priority?: string;
+      dueDate?: string | null;
+      assigneeId?: string | null;
+      columnId?: string;
+      completed?: boolean;
+      estimatedMinutes?: number | null;
+    },
+  ) {
+    await this.ensureTaskExists(id);
+
+    const updateData: Record<string, unknown> = {};
+
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.priority !== undefined) updateData.priority = data.priority;
+    if (data.assigneeId !== undefined) updateData.assigneeId = data.assigneeId;
+    if (data.columnId !== undefined) updateData.columnId = data.columnId;
+    if (data.estimatedMinutes !== undefined) updateData.estimatedMinutes = data.estimatedMinutes;
+
+    if (data.dueDate !== undefined) {
+      updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
+    }
+
+    if (data.completed !== undefined) {
+      updateData.completed = data.completed;
+      updateData.completedAt = data.completed ? new Date() : null;
+    }
+
+    return this.prisma.wmTask.update({
+      where: { id },
+      data: updateData,
+      include: {
+        taskLabels: { include: { label: true } },
+        subtasks: true,
+      },
+    });
+  }
+
+  async deleteTask(id: string) {
+    await this.ensureTaskExists(id);
+    await this.prisma.wmTask.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  async moveTask(id: string, data: { columnId: string; position: number }) {
+    await this.ensureTaskExists(id);
+
+    // Shift existing tasks in the target column
+    await this.prisma.wmTask.updateMany({
+      where: {
+        columnId: data.columnId,
+        position: { gte: data.position },
+        parentTaskId: null,
+        id: { not: id },
+      },
+      data: { position: { increment: 1 } },
+    });
+
+    return this.prisma.wmTask.update({
+      where: { id },
+      data: {
+        columnId: data.columnId,
+        position: data.position,
+      },
+      include: {
+        taskLabels: { include: { label: true } },
+        subtasks: true,
+      },
+    });
+  }
+
+  async bulkReorderTasks(projectId: string, items: { taskId: string; columnId: string; position: number }[]) {
+    await this.ensureProjectExists(projectId);
+
+    const updates = items.map((item) =>
+      this.prisma.wmTask.update({
+        where: { id: item.taskId },
+        data: { columnId: item.columnId, position: item.position },
+      }),
+    );
+
+    await this.prisma.$transaction(updates);
+    return { reordered: true };
+  }
+
+  // =========================================================================
+  // SUBTASKS
+  // =========================================================================
+
+  async createSubtask(parentTaskId: string, data: { title: string; createdById: string; assigneeId?: string }) {
+    const parent = await this.prisma.wmTask.findUnique({ where: { id: parentTaskId } });
+    if (!parent) throw new NotFoundException('Parent task not found');
+
+    const maxPos = await this.prisma.wmTask.aggregate({
+      where: { parentTaskId },
+      _max: { position: true },
+    });
+
+    return this.prisma.wmTask.create({
+      data: {
+        orgId: parent.orgId,
+        projectId: parent.projectId,
+        columnId: parent.columnId,
+        parentTaskId,
+        title: data.title,
+        createdById: data.createdById,
+        assigneeId: data.assigneeId,
+        position: (maxPos._max.position ?? -1) + 1,
+      },
+    });
+  }
+
+  async toggleSubtask(id: string) {
+    const subtask = await this.prisma.wmTask.findUnique({ where: { id } });
+    if (!subtask) throw new NotFoundException('Subtask not found');
+
+    const completed = !subtask.completed;
+    return this.prisma.wmTask.update({
+      where: { id },
+      data: {
+        completed,
+        completedAt: completed ? new Date() : null,
+      },
+    });
+  }
+
+  // =========================================================================
+  // COMMENTS
+  // =========================================================================
+
+  async listComments(taskId: string) {
+    return this.prisma.wmComment.findMany({
+      where: { taskId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createComment(taskId: string, data: { userId: string; userName: string; message: string }) {
+    await this.ensureTaskExists(taskId);
+
+    return this.prisma.wmComment.create({
+      data: {
+        taskId,
+        userId: data.userId,
+        userName: data.userName,
+        message: data.message,
+      },
+    });
+  }
+
+  // =========================================================================
+  // ATTACHMENTS
+  // =========================================================================
+
+  async uploadAttachment(
+    taskId: string,
+    file: Express.Multer.File,
+  ) {
+    await this.ensureTaskExists(taskId);
+
+    const timestamp = Date.now();
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storageKey = `wm/attachments/${taskId}/${timestamp}-${safeName}`;
+
+    const fileUrl = await this.storage.upload(storageKey, file.buffer, file.mimetype);
+
+    return this.prisma.wmAttachment.create({
+      data: {
+        taskId,
+        fileName: file.originalname,
+        fileUrl,
+        storageKey,
+        fileSize: file.size,
+        fileType: file.mimetype,
+      },
+    });
+  }
+
+  async deleteAttachment(id: string) {
+    const attachment = await this.prisma.wmAttachment.findUnique({ where: { id } });
+    if (!attachment) throw new NotFoundException('Attachment not found');
+
+    if (attachment.storageKey) {
+      try {
+        await this.storage.delete(attachment.storageKey);
+      } catch (err) {
+        this.logger.warn(`Failed to delete from R2: ${attachment.storageKey}`, err);
+      }
+    }
+
+    await this.prisma.wmAttachment.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  // =========================================================================
+  // LABELS
+  // =========================================================================
+
+  async listLabels(projectId: string) {
+    return this.prisma.wmLabel.findMany({
+      where: { projectId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createLabel(projectId: string, data: { name: string; color: string }) {
+    await this.ensureProjectExists(projectId);
+
+    return this.prisma.wmLabel.create({
+      data: {
+        projectId,
+        name: data.name,
+        color: data.color,
+      },
+    });
+  }
+
+  async deleteLabel(id: string) {
+    await this.prisma.wmLabel.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  async addLabelToTask(taskId: string, labelId: string) {
+    await this.ensureTaskExists(taskId);
+
+    return this.prisma.wmTaskLabel.create({
+      data: { taskId, labelId },
+    });
+  }
+
+  async removeLabelFromTask(taskId: string, labelId: string) {
+    await this.prisma.wmTaskLabel.delete({
+      where: { taskId_labelId: { taskId, labelId } },
+    });
+    return { removed: true };
+  }
+
+  // =========================================================================
+  // MEMBERS
+  // =========================================================================
+
+  async listMembers(projectId: string) {
+    return this.prisma.wmProjectMember.findMany({
+      where: { projectId },
+      orderBy: { userName: 'asc' },
+    });
+  }
+
+  async addMember(projectId: string, data: { userId: string; userName: string; role?: string }) {
+    await this.ensureProjectExists(projectId);
+
+    return this.prisma.wmProjectMember.create({
+      data: {
+        projectId,
+        userId: data.userId,
+        userName: data.userName,
+        role: data.role || 'member',
+      },
+    });
+  }
+
+  async updateMember(id: string, data: { role: string }) {
+    return this.prisma.wmProjectMember.update({
+      where: { id },
+      data: { role: data.role },
+    });
+  }
+
+  async removeMember(id: string) {
+    await this.prisma.wmProjectMember.delete({ where: { id } });
+    return { removed: true };
+  }
+
+  // =========================================================================
+  // WORKLOAD
+  // =========================================================================
+
+  async getWorkload(projectId?: string) {
+    const where: Record<string, unknown> = {
+      orgId: DEV_ORG_ID,
+      parentTaskId: null,
+    };
+    if (projectId) where.projectId = projectId;
+
+    const tasks = await this.prisma.wmTask.findMany({
+      where,
+      select: {
+        assigneeId: true,
+        completed: true,
+        dueDate: true,
+      },
+    });
+
+    const now = new Date();
+    const byAssignee: Record<string, { open: number; completed: number; dueSoon: number; overdue: number }> = {};
+
+    for (const task of tasks) {
+      const key = task.assigneeId || 'unassigned';
+      if (!byAssignee[key]) {
+        byAssignee[key] = { open: 0, completed: 0, dueSoon: 0, overdue: 0 };
+      }
+
+      if (task.completed) {
+        byAssignee[key].completed++;
+      } else {
+        byAssignee[key].open++;
+        if (task.dueDate) {
+          const due = new Date(task.dueDate);
+          if (due < now) {
+            byAssignee[key].overdue++;
+          } else {
+            const diffDays = (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+            if (diffDays <= 3) {
+              byAssignee[key].dueSoon++;
+            }
+          }
+        }
+      }
+    }
+
+    return Object.entries(byAssignee).map(([assigneeId, stats]) => ({
+      assigneeId,
+      ...stats,
+    }));
+  }
+
+  // =========================================================================
+  // HELPERS
+  // =========================================================================
+
+  private async ensureProjectExists(id: string) {
+    const project = await this.prisma.wmProject.findUnique({ where: { id } });
+    if (!project) throw new NotFoundException('Project not found');
+    return project;
+  }
+
+  private async ensureTaskExists(id: string) {
+    const task = await this.prisma.wmTask.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('Task not found');
+    return task;
+  }
+}

@@ -1396,3 +1396,138 @@ model ContentPiece {
   @@index([orgId, status])
   @@map("content_pieces")
 }
+
+// =============================================================================
+// WORK MANAGEMENT — Kanban Boards, Tasks, Comments, Attachments, Labels
+// =============================================================================
+
+model WmProject {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  color       String?  @db.VarChar(20)
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  columns WmColumn[]
+  tasks   WmTask[]
+  members WmProjectMember[]
+  labels  WmLabel[]
+
+  @@index([orgId])
+  @@map("wm_projects")
+}
+
+model WmColumn {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String  @map("project_id") @db.Uuid
+  name      String  @db.VarChar(100)
+  color     String? @db.VarChar(20)
+  position  Int     @default(0)
+
+  project WmProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   WmTask[]
+
+  @@index([projectId])
+  @@map("wm_columns")
+}
+
+model WmTask {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String    @map("org_id") @db.Uuid
+  projectId        String    @map("project_id") @db.Uuid
+  columnId         String    @map("column_id") @db.Uuid
+  parentTaskId     String?   @map("parent_task_id") @db.Uuid
+  title            String    @db.VarChar(500)
+  description      String?   @db.Text
+  assigneeId       String?   @map("assignee_id") @db.Uuid
+  createdById      String    @map("created_by_id") @db.Uuid
+  priority         String    @default("medium") @db.VarChar(20)
+  dueDate          DateTime? @map("due_date") @db.Date
+  position         Int       @default(0)
+  completed        Boolean   @default(false)
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz
+  estimatedMinutes Int?      @map("estimated_minutes")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  project     WmProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  column      WmColumn      @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  parentTask  WmTask?       @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks    WmTask[]      @relation("Subtasks")
+  comments    WmComment[]
+  attachments WmAttachment[]
+  taskLabels  WmTaskLabel[]
+
+  @@index([projectId])
+  @@index([columnId])
+  @@index([assigneeId])
+  @@map("wm_tasks")
+}
+
+model WmComment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  userName  String   @map("user_name") @db.VarChar(255)
+  message   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  task WmTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("wm_comments")
+}
+
+model WmAttachment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId     String   @map("task_id") @db.Uuid
+  fileName   String   @map("file_name") @db.VarChar(255)
+  fileUrl    String   @map("file_url") @db.Text
+  storageKey String?  @map("storage_key") @db.Text
+  fileSize   Int?     @map("file_size")
+  fileType   String?  @map("file_type") @db.VarChar(50)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  task WmTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("wm_attachments")
+}
+
+model WmLabel {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  name      String @db.VarChar(50)
+  color     String @db.VarChar(20)
+
+  project    WmProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskLabels WmTaskLabel[]
+
+  @@map("wm_labels")
+}
+
+model WmTaskLabel {
+  taskId  String @map("task_id") @db.Uuid
+  labelId String @map("label_id") @db.Uuid
+
+  task  WmTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label WmLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@map("wm_task_labels")
+}
+
+model WmProjectMember {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  userName  String @map("user_name") @db.VarChar(255)
+  role      String @default("member") @db.VarChar(20)
+
+  project WmProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("wm_project_members")
+}
