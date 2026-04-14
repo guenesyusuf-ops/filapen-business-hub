@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { API_URL } from '@/lib/api';
 import {
   Upload,
   Image,
@@ -259,6 +260,10 @@ export default function AllUploadsPage() {
                     setActiveBatch(folder.batch);
                     setActiveBatchName(folder.name);
                     setPage(1);
+                    // Mark all uploads in this folder as seen
+                    if (folder.unseenCount > 0 && folder.creatorId) {
+                      fetch(`${API_URL}/api/creator-uploads/mark-batch-seen?batch=${encodeURIComponent(folder.batch)}`, { method: 'PATCH' }).catch(() => {});
+                    }
                   }}
                 />
               ))}

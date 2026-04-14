@@ -152,6 +152,14 @@ export class UploadService {
     return { success: true };
   }
 
+  async markBatchSeen(orgId: string, batch: string) {
+    await this.prisma.creatorUpload.updateMany({
+      where: { orgId, batch, seenByAdmin: false },
+      data: { seenByAdmin: true },
+    });
+    return { success: true };
+  }
+
   async markAllSeen(orgId: string) {
     await this.prisma.creatorUpload.updateMany({
       where: { orgId, seenByAdmin: false },

@@ -388,6 +388,17 @@ export class CreatorController {
     }
   }
 
+  @Patch('creator-uploads/mark-batch-seen')
+  async markBatchSeen(@Query('batch') batch: string) {
+    try {
+      await this.uploadService.markBatchSeen(DEV_ORG_ID, batch);
+      return { success: true };
+    } catch (error) {
+      this.logger.error('Failed to mark batch seen', error);
+      throw new HttpException('Failed', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Get('creator-uploads/all')
   async listAllUploads(
     @Query('tab') tab?: string,
