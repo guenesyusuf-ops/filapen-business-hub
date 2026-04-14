@@ -258,17 +258,6 @@ export function useCreateProject() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: CreateProjectPayload) => {
-      // Prefer new endpoint; gracefully fall back.
-      try {
-        const res = await fetch(`${API_BASE}/creator/projects`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify(data),
-        });
-        if (res.ok) return (await res.json()) as CreatorProject;
-      } catch {
-        /* fall through */
-      }
       return postApi<CreatorProject>('/creator-projects', data);
     },
     onSuccess: () => {
