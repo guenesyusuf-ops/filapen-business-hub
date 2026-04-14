@@ -10,6 +10,7 @@ import {
   X,
   Loader2,
   FolderKanban,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -76,28 +77,36 @@ export default function CreatorInvitationsPage() {
   const acceptMutation = useAcceptInvitation();
   const declineMutation = useDeclineInvitation();
 
+  const [noteModal, setNoteModal] = useState<string | null>(null);
+
   const handleAccept = useCallback(
     async (id: string) => {
+      if (!creatorId) return;
       setBusyId(id);
       try {
-        await acceptMutation.mutateAsync(id);
+        await acceptMutation.mutateAsync({ invitationId: id, creatorId });
+      } catch (err) {
+        console.error('Accept failed:', err);
       } finally {
         setBusyId(null);
       }
     },
-    [acceptMutation],
+    [acceptMutation, creatorId],
   );
 
   const handleDecline = useCallback(
     async (id: string) => {
+      if (!creatorId) return;
       setBusyId(id);
       try {
-        await declineMutation.mutateAsync(id);
+        await declineMutation.mutateAsync({ invitationId: id, creatorId });
+      } catch (err) {
+        console.error('Decline failed:', err);
       } finally {
         setBusyId(null);
       }
     },
-    [declineMutation],
+    [declineMutation, creatorId],
   );
 
   if (!creatorId) {
@@ -211,6 +220,15 @@ export default function CreatorInvitationsPage() {
                             </span>
                           )}
                         </div>
+                        {inv.project?.description && (
+                          <button
+                            onClick={() => setNoteModal(inv.project?.description || null)}
+                            className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 text-xs font-medium hover:bg-blue-100 transition-colors"
+                          >
+                            <FileText className="h-3 w-3" />
+                            Notiz ansehen
+                          </button>
+                        )}
                         {inv.message && (
                           <p className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-3">
                             {inv.message}
@@ -340,6 +358,28 @@ export default function CreatorInvitationsPage() {
             </div>
           </div>
         </section>
+      )}
+      {/* Note Modal */}
+      {noteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="absolute inset-0" onClick={() => setNoteModal(null)} />
+          <div className="relative z-10 w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-semibold text-gray-900">Notiz vom Admin</h3>
+              <button onClick={() => setNoteModal(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{noteModal}</p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setNoteModal(null)} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700">
+                Schliessen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

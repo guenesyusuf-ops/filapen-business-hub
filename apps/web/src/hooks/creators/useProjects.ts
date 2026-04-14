@@ -102,9 +102,11 @@ export interface ProjectInvitation {
   project?: {
     id: string;
     name: string;
+    description?: string;
     campaignType?: ProjectCampaignType;
     action?: string;
     startDate?: string;
+    deadline?: string;
     productName?: string;
   };
   creator?: {
@@ -406,15 +408,19 @@ export function useCreatorInvitations(creatorId: string | undefined) {
 export function useAcceptInvitation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (invitationId: string) => {
+    mutationFn: async ({ invitationId, creatorId }: { invitationId: string; creatorId: string }) => {
       const res = await fetch(
         `${API_BASE}/creator/invitations/${invitationId}/accept`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ creatorId }),
         },
       );
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`API error: ${res.status} ${text}`);
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -427,15 +433,19 @@ export function useAcceptInvitation() {
 export function useDeclineInvitation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (invitationId: string) => {
+    mutationFn: async ({ invitationId, creatorId }: { invitationId: string; creatorId: string }) => {
       const res = await fetch(
         `${API_BASE}/creator/invitations/${invitationId}/decline`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ creatorId }),
         },
       );
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`API error: ${res.status} ${text}`);
+      }
       return res.json();
     },
     onSuccess: () => {
