@@ -107,20 +107,29 @@ export function CreateProjectModal({
         });
 
         // Upload PDFs after project is created
-        const allFiles: { file: File; type: string }[] = [
-          ...briefingFiles.map((f) => ({ file: f, type: 'briefing' })),
-          ...skriptFiles.map((f) => ({ file: f, type: 'skript' })),
-          ...sonstigeFiles.map((f) => ({ file: f, type: 'sonstige' })),
-        ];
-        for (const { file, type } of allFiles) {
-          try {
-            const fd = new FormData();
-            fd.append('file', file);
-            await fetch(`${API_URL}/api/creator-projects/${created.id}/documents?type=${type}`, {
-              method: 'POST',
-              body: fd,
-            });
-          } catch { /* non-critical — project was created */ }
+        const projectId = created?.id;
+        if (projectId) {
+          const allFiles: { file: File; type: string }[] = [
+            ...briefingFiles.map((f) => ({ file: f, type: 'briefing' })),
+            ...skriptFiles.map((f) => ({ file: f, type: 'skript' })),
+            ...sonstigeFiles.map((f) => ({ file: f, type: 'sonstige' })),
+          ];
+          for (const { file, type } of allFiles) {
+            try {
+              const fd = new FormData();
+              fd.append('file', file);
+              const res = await fetch(`${API_URL}/api/creator-projects/${projectId}/documents?type=${type}`, {
+                method: 'POST',
+                body: fd,
+              });
+              if (!res.ok) {
+                const body = await res.text().catch(() => '');
+                console.error(`PDF upload failed (${type}):`, res.status, body);
+              }
+            } catch (uploadErr) {
+              console.error(`PDF upload error (${type}):`, uploadErr);
+            }
+          }
         }
 
         onSuccess?.(created);
