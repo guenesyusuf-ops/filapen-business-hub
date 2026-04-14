@@ -399,6 +399,17 @@ export class CreatorController {
     }
   }
 
+  @Delete('creator-uploads/batch')
+  async deleteBatch(@Query('batch') batch: string) {
+    if (!batch) throw new HttpException('batch parameter required', HttpStatus.BAD_REQUEST);
+    try {
+      return await this.uploadService.deleteBatch(DEV_ORG_ID, batch);
+    } catch (error) {
+      this.logger.error('Failed to delete batch', error);
+      throw new HttpException('Failed to delete folder', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Get('creator-uploads/all')
   async listAllUploads(
     @Query('tab') tab?: string,

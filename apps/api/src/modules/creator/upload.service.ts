@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../../common/storage/storage.service';
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -33,7 +34,10 @@ export interface ListUploadsParams {
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly storageService?: StorageService,
+  ) {}
 
   async list(orgId: string, params: ListUploadsParams) {
     const where: any = {
@@ -95,8 +99,46 @@ export class UploadService {
       throw new NotFoundException('Upload not found');
     }
 
+    // Delete file from R2 storage if storageKey exists
+    if (existing.storageKey && this.storageService) {
+      try {
+        await this.storageService.delete(existing.storageKey);
+        this.logger.log(`Deleted R2 file: ${existing.storageKey}`);
+      } catch (err) {
+        this.logger.warn(`Failed to delete R2 file ${existing.storageKey}:`, err);
+      }
+    }
+
     await this.prisma.creatorUpload.delete({ where: { id: uploadId } });
     return { success: true };
+  }
+
+  async deleteBatch(orgId: string, batch: string) {
+    // Find all uploads in this batch
+    const uploads = await this.prisma.creatorUpload.findMany({
+      where: { orgId, batch },
+    });
+
+    // Delete files from R2
+    if (this.storageService) {
+      for (const u of uploads) {
+        if (u.storageKey) {
+          try {
+            await this.storageService.delete(u.storageKey);
+          } catch (err) {
+            this.logger.warn(`Failed to delete R2 file ${u.storageKey}:`, err);
+          }
+        }
+      }
+    }
+
+    // Delete all DB records
+    const result = await this.prisma.creatorUpload.deleteMany({
+      where: { orgId, batch },
+    });
+
+    this.logger.log(`Deleted batch "${batch}": ${result.count} uploads`);
+    return { success: true, deleted: result.count };
   }
 
   async markSeen(orgId: string, creatorId: string) {

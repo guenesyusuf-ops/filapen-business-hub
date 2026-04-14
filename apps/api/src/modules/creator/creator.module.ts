@@ -14,8 +14,10 @@ import { InvitationScheduler } from './invitation.scheduler';
 import { CreatorController } from './creator.controller';
 import { DashboardController } from './dashboard.controller';
 import { InvitationController } from './invitation.controller';
+import { StorageModule } from '../../common/storage/storage.module';
 
 @Module({
+  imports: [StorageModule],
   controllers: [CreatorController, DashboardController, InvitationController],
   providers: [
     CreatorService,

@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Folder,
   ArrowLeft,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -42,15 +43,32 @@ function formatDate(iso: string): string {
 function FolderCard({
   folder,
   onClick,
+  onDelete,
 }: {
   folder: UploadFolder;
   onClick: () => void;
+  onDelete?: () => void;
 }) {
   return (
-    <button
+    <div
       onClick={onClick}
-      className="group relative flex flex-col rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-white"
+      className="group relative flex flex-col rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all bg-white cursor-pointer"
     >
+      {/* Delete button */}
+      {onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (confirm(`Ordner "${folder.name}" mit allen Dateien loeschen?`)) {
+              onDelete();
+            }
+          }}
+          className="absolute top-2 left-2 z-10 p-1 rounded-md bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+          title="Ordner loeschen"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
       {/* Preview */}
       <div className="aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
         {folder.previewUrl ? (
@@ -96,7 +114,7 @@ function FolderCard({
           </div>
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -264,6 +282,10 @@ export default function AllUploadsPage() {
                     if (folder.unseenCount > 0 && folder.creatorId) {
                       fetch(`${API_URL}/api/creator-uploads/mark-batch-seen?batch=${encodeURIComponent(folder.batch)}`, { method: 'PATCH' }).catch(() => {});
                     }
+                  }}
+                  onDelete={async () => {
+                    await fetch(`${API_URL}/api/creator-uploads/batch?batch=${encodeURIComponent(folder.batch)}`, { method: 'DELETE' });
+                    window.location.reload();
                   }}
                 />
               ))}
