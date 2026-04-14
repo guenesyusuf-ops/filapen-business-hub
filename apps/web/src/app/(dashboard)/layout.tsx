@@ -43,6 +43,9 @@ import {
   ShieldCheck,
   Store,
   ShoppingBag,
+  LayoutGrid,
+  ClipboardList,
+  BarChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -133,6 +136,16 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.workManagement',
+    href: '/work-management',
+    icon: LayoutGrid,
+    children: [
+      { labelKey: 'nav.wmProjects', href: '/work-management', icon: LayoutGrid },
+      { labelKey: 'nav.wmMyTasks', href: '/work-management/my-tasks', icon: ClipboardList },
+      { labelKey: 'nav.wmWorkload', href: '/work-management/workload', icon: BarChart },
+    ],
+  },
+  {
     labelKey: 'nav.settings',
     href: '/settings',
     icon: Settings,
@@ -168,6 +181,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
     if (pathname.startsWith('/content')) {
       initial.add('nav.contentHub');
     }
+    if (pathname.startsWith('/work-management')) {
+      initial.add('nav.workManagement');
+    }
     if (pathname.startsWith('/settings')) {
       initial.add('nav.settings');
     }
@@ -188,6 +204,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
 
   function isActive(href: string): boolean {
     if (href === '/finance') return pathname === '/finance';
+    if (href === '/work-management') return pathname === '/work-management';
     return pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
   }
 

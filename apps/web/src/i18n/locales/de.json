@@ -62,7 +62,11 @@
     "approvals": "Genehmigungen",
     "creatorPortal": "Creator Portal",
     "channelsHub": "Channels",
-    "shopify": "Shopify"
+    "shopify": "Shopify",
+    "workManagement": "Work Management",
+    "wmProjects": "Projekte",
+    "wmMyTasks": "Meine Aufgaben",
+    "wmWorkload": "Workload"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",
