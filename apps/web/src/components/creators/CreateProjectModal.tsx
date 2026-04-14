@@ -53,6 +53,7 @@ export function CreateProjectModal({
   const [neededCreators, setNeededCreators] = useState('5');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState('');
 
   // PDF files per type
   const [briefingFiles, setBriefingFiles] = useState<File[]>([]);
@@ -96,6 +97,7 @@ export function CreateProjectModal({
       }
 
       try {
+        setUploadStatus('Projekt wird erstellt...');
         const created = await createProject.mutateAsync({
           name: name.trim(),
           campaignType,
@@ -106,15 +108,17 @@ export function CreateProjectModal({
           description: description.trim() || undefined,
         });
 
-        // Upload PDFs after project is created
         const projectId = created?.id;
-        if (projectId) {
-          const allFiles: { file: File; type: string }[] = [
-            ...briefingFiles.map((f) => ({ file: f, type: 'briefing' })),
-            ...skriptFiles.map((f) => ({ file: f, type: 'skript' })),
-            ...sonstigeFiles.map((f) => ({ file: f, type: 'sonstige' })),
-          ];
+        const allFiles: { file: File; type: string }[] = [
+          ...briefingFiles.map((f) => ({ file: f, type: 'briefing' })),
+          ...skriptFiles.map((f) => ({ file: f, type: 'skript' })),
+          ...sonstigeFiles.map((f) => ({ file: f, type: 'sonstige' })),
+        ];
+
+        if (projectId && allFiles.length > 0) {
+          let uploaded = 0;
           for (const { file, type } of allFiles) {
+            setUploadStatus(`Dokument ${uploaded + 1}/${allFiles.length} wird hochgeladen...`);
             try {
               const fd = new FormData();
               fd.append('file', file);
@@ -124,14 +128,20 @@ export function CreateProjectModal({
               });
               if (!res.ok) {
                 const body = await res.text().catch(() => '');
-                console.error(`PDF upload failed (${type}):`, res.status, body);
+                setError(`PDF "${file.name}" fehlgeschlagen: ${res.status} ${body.slice(0, 100)}`);
+                setUploadStatus('');
+                return; // Stop — don't close modal so user sees error
               }
+              uploaded++;
             } catch (uploadErr) {
-              console.error(`PDF upload error (${type}):`, uploadErr);
+              setError(`PDF "${file.name}" Upload-Fehler: ${uploadErr instanceof Error ? uploadErr.message : 'Unbekannt'}`);
+              setUploadStatus('');
+              return;
             }
           }
         }
 
+        setUploadStatus('');
         onSuccess?.(created);
         onClose();
       } catch (err) {
@@ -346,6 +356,13 @@ export function CreateProjectModal({
               ))}
             </div>
           </div>
+
+          {uploadStatus && (
+            <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 px-3 py-2 text-xs text-blue-700 dark:text-blue-300 flex items-center gap-2">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {uploadStatus}
+            </div>
+          )}
 
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-500/30 px-3 py-2 text-xs text-red-700 dark:text-red-300">
