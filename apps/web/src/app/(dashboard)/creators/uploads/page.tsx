@@ -108,9 +108,12 @@ export default function AllUploadsPage() {
   );
 
   // Folder list (first level)
-  const { data: folders, isLoading: foldersLoading } = useUploadFolders({
+  const { data: foldersData, isLoading: foldersLoading } = useUploadFolders({
     tab,
   });
+  const folders = foldersData?.folders;
+  const tabCounts = foldersData?.tabCounts;
+  const totalUploads = foldersData?.total ?? 0;
 
   // Files inside a batch (second level)
   const { data: filesData, isLoading: filesLoading } = useAllUploads({
@@ -163,8 +166,8 @@ export default function AllUploadsPage() {
         </div>
       </div>
 
-      {/* Tab filter */}
-      <div className="flex gap-2">
+      {/* Tab filter with counts */}
+      <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => {
             setTab(undefined);
@@ -172,32 +175,51 @@ export default function AllUploadsPage() {
             setActiveBatch(null);
           }}
           className={cn(
-            'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+            'relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
             !tab
               ? 'bg-purple-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+              : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10',
           )}
         >
           Alle
+          {totalUploads > 0 && (
+            <span className={cn(
+              'ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold min-w-[18px]',
+              !tab ? 'bg-white/20 text-white' : 'bg-red-500 text-white',
+            )}>
+              {totalUploads}
+            </span>
+          )}
         </button>
-        {UPLOAD_TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => {
-              setTab(t);
-              setPage(1);
-              setActiveBatch(null);
-            }}
-            className={cn(
-              'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-              tab === t
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-            )}
-          >
-            {UPLOAD_TAB_LABELS[t]}
-          </button>
-        ))}
+        {UPLOAD_TABS.map((t) => {
+          const count = tabCounts?.[t] ?? 0;
+          return (
+            <button
+              key={t}
+              onClick={() => {
+                setTab(t);
+                setPage(1);
+                setActiveBatch(null);
+              }}
+              className={cn(
+                'relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                tab === t
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10',
+              )}
+            >
+              {UPLOAD_TAB_LABELS[t]}
+              {count > 0 && (
+                <span className={cn(
+                  'ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold min-w-[18px]',
+                  tab === t ? 'bg-white/20 text-white' : 'bg-red-500 text-white',
+                )}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Loading */}

@@ -190,14 +190,20 @@ export interface UploadFolder {
   unseenCount: number;
 }
 
+export interface UploadFoldersResponse {
+  folders: UploadFolder[];
+  tabCounts: Record<string, number>;
+  total: number;
+}
+
 export function useUploadFolders(params: { creatorId?: string; tab?: string } = {}) {
-  return useQuery<UploadFolder[]>({
+  return useQuery<UploadFoldersResponse>({
     queryKey: ['creator-uploads', 'folders', params],
     queryFn: async () => {
       const queryParams: Record<string, string> = {};
       if (params.creatorId) queryParams.creatorId = params.creatorId;
       if (params.tab) queryParams.tab = params.tab;
-      return fetchApi<UploadFolder[]>(`${API_BASE}/creator-uploads/folders`, queryParams);
+      return fetchApi<UploadFoldersResponse>(`${API_BASE}/creator-uploads/folders`, queryParams);
     },
     staleTime: 15 * 1000,
     retry: 1,

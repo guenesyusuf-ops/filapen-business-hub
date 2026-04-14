@@ -296,7 +296,16 @@ export class UploadService {
       return b.createdAt.localeCompare(a.createdAt);
     });
 
-    return folders;
+    // Count real uploads per tab (for badge counts)
+    const tabCounts: Record<string, number> = { bilder: 0, videos: 0, roh: 0, auswertung: 0 };
+    for (const u of uploads) {
+      if (u.fileName?.startsWith('__folder__')) continue;
+      if (u.tab && tabCounts[u.tab] !== undefined) {
+        tabCounts[u.tab] += 1;
+      }
+    }
+
+    return { folders, tabCounts, total: uploads.filter((u) => !u.fileName?.startsWith('__folder__')).length };
   }
 
   async unseenCount(orgId: string) {
