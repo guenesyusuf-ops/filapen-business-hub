@@ -344,6 +344,37 @@ export class CreatorController {
     }
   }
 
+  @Get('creator-uploads/recent-for-admin')
+  async recentUploadsForAdmin(@Query('limit') limitStr?: string) {
+    const limit = Math.min(30, parseInt(limitStr || '15', 10) || 15);
+    try {
+      return await this.uploadService.recentForAdmin(DEV_ORG_ID, limit);
+    } catch (error) {
+      this.logger.error('Failed to fetch admin notifications', error);
+      throw new HttpException('Failed', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Patch('creator-uploads/mark-all-seen')
+  async markAllUploadsSeen() {
+    try {
+      return await this.uploadService.markAllSeen(DEV_ORG_ID);
+    } catch (error) {
+      this.logger.error('Failed to mark all seen', error);
+      throw new HttpException('Failed', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Patch('creator-uploads/:id/mark-seen')
+  async markUploadSeen(@Param('id') id: string) {
+    try {
+      return await this.uploadService.markSingleSeen(DEV_ORG_ID, id);
+    } catch (error) {
+      this.logger.error('Failed to mark seen', error);
+      throw new HttpException('Failed', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Get('creator-uploads/folders')
   async listUploadFolders(
     @Query('creatorId') creatorId?: string,

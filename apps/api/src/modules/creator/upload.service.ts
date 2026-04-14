@@ -107,6 +107,59 @@ export class UploadService {
     return { success: true };
   }
 
+  async recentForAdmin(orgId: string, limit: number) {
+    const uploads = await this.prisma.creatorUpload.findMany({
+      where: {
+        orgId,
+        NOT: { fileName: { startsWith: '__folder__' } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        creator: { select: { id: true, name: true } },
+      },
+    });
+
+    const unseenCount = await this.prisma.creatorUpload.count({
+      where: {
+        orgId,
+        seenByAdmin: false,
+        NOT: { fileName: { startsWith: '__folder__' } },
+      },
+    });
+
+    return {
+      items: uploads.map((u) => ({
+        id: u.id,
+        creatorId: u.creatorId,
+        creatorName: (u as any).creator?.name || 'Unbekannt',
+        fileName: u.fileName,
+        label: u.label,
+        batch: u.batch,
+        fileType: u.fileType,
+        createdAt: u.createdAt.toISOString(),
+        seen: u.seenByAdmin,
+      })),
+      unseenCount,
+    };
+  }
+
+  async markSingleSeen(orgId: string, id: string) {
+    await this.prisma.creatorUpload.update({
+      where: { id },
+      data: { seenByAdmin: true },
+    });
+    return { success: true };
+  }
+
+  async markAllSeen(orgId: string) {
+    await this.prisma.creatorUpload.updateMany({
+      where: { orgId, seenByAdmin: false },
+      data: { seenByAdmin: true },
+    });
+    return { success: true };
+  }
+
   async listAll(orgId: string, params: { tab?: string; batch?: string; creatorId?: string; page?: number; pageSize?: number }) {
     const { tab, batch, creatorId, page = 1, pageSize = 25 } = params;
     const where: any = {

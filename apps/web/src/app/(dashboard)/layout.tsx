@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
 import { API_URL } from '@/lib/api';
+import { AdminNotificationBell } from '@/components/admin/AdminNotificationBell';
 import {
   LayoutDashboard,
   DollarSign,
@@ -418,13 +419,7 @@ function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout }: { onToggl
       <LanguageSwitcher />
 
       {/* Notifications */}
-      <button className="relative rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-150 active:scale-95">
-        <Bell className="h-4.5 w-4.5" />
-        <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-2 ring-white dark:ring-[#0f1117]" />
-        </span>
-      </button>
+      <AdminNotificationBell />
 
       {/* User avatar + logout */}
       <div className="flex items-center gap-2">
