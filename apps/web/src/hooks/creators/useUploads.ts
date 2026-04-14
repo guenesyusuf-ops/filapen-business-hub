@@ -84,13 +84,14 @@ function authHeaders(): Record<string, string> {
 }
 
 async function fetchApi<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(path, window.location.origin);
+  let fullUrl = path.startsWith('http') ? path : `${API_BASE}${path}`;
   if (params) {
-    Object.entries(params).forEach(([k, v]) => {
-      if (v) url.searchParams.set(k, v);
-    });
+    const sp = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v) sp.set(k, v); });
+    const qs = sp.toString();
+    if (qs) fullUrl += (fullUrl.includes('?') ? '&' : '?') + qs;
   }
-  const res = await fetch(url.toString(), { headers: authHeaders() });
+  const res = await fetch(fullUrl, { headers: authHeaders() });
   if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
   return res.json();
 }
