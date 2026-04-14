@@ -82,12 +82,17 @@ function FolderCard({
         )}
       </div>
 
-      {/* Unseen badge */}
-      {folder.unseenCount > 0 && (
-        <div className="absolute top-2 right-2 flex items-center justify-center min-w-[20px] h-5 rounded-full bg-purple-500 px-1.5">
-          <span className="text-[10px] font-bold text-white">
-            {folder.unseenCount}
-          </span>
+      {/* File count badge */}
+      {folder.fileCount > 0 && (
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {folder.unseenCount > 0 && (
+            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+          )}
+          <div className="flex items-center justify-center min-w-[20px] h-5 rounded-full bg-purple-500 px-1.5">
+            <span className="text-[10px] font-bold text-white">
+              {folder.fileCount}
+            </span>
+          </div>
         </div>
       )}
     </button>
