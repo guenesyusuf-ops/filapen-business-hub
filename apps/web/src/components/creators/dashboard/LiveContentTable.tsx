@@ -115,8 +115,10 @@ export function LiveContentTable({ rows, loading, onGoOffline, offlineLoading }:
                         disabled={offlineLoading}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Content "${label}" offline schalten?`)) {
-                            onGoOffline(item.id, label);
+                          if (confirm(`Content "${label}" wirklich offline schalten?`)) {
+                            if (confirm(`Bist du sicher? Der Creator wird benachrichtigt.`)) {
+                              onGoOffline(item.id, label);
+                            }
                           }
                         }}
                         className="text-xs px-2.5 py-1 rounded border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
