@@ -163,7 +163,8 @@ export default function CreatorDetailPage() {
   const [folderPage, setFolderPage] = useState(1);
 
   const { data: uploads } = useCreatorUploads(id, uploadTab);
-  const { data: creatorFolders } = useUploadFolders({ creatorId: id, tab: uploadTab });
+  const { data: creatorFoldersData } = useUploadFolders({ creatorId: id, tab: uploadTab });
+  const creatorFolders = creatorFoldersData?.folders;
   const { data: batchFiles } = useAllUploads({
     batch: activeBatch ?? undefined,
     creatorId: id,
