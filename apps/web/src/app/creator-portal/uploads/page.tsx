@@ -249,8 +249,12 @@ export default function PortalUploadsPage() {
   }, [selectedUpload, commentText, creator, fetchComments]);
 
   // Create folder = store a metadata upload record with batch name
+  const [folderError, setFolderError] = useState('');
+
   const handleCreateFolder = useCallback(async () => {
-    if (!creator || !folderName.trim()) return;
+    setFolderError('');
+    if (!creator?.id) { setFolderError('Bitte logge dich erneut ein.'); return; }
+    if (!folderName.trim()) { setFolderError('Bitte gib einen Ordner-Namen ein.'); return; }
     setCreatingFolder(true);
     const batchName = folderBatch.trim() || folderName.trim();
 
@@ -265,7 +269,7 @@ export default function PortalUploadsPage() {
     });
 
     try {
-      await fetch(`${API_BASE}/creator-uploads`, {
+      const res = await fetch(`${API_BASE}/creator-uploads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -279,6 +283,11 @@ export default function PortalUploadsPage() {
         }),
       });
 
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Server: ${res.status} ${body.slice(0, 100)}`);
+      }
+
       setShowFolderModal(false);
       setFolderName('');
       setFolderBatch('');
@@ -287,8 +296,9 @@ export default function PortalUploadsPage() {
       setFolderProdukte('');
       setFolderTags('');
       fetchUploads();
-    } catch {
-      // ignore
+    } catch (error) {
+      console.error('Ordner anlegen fehlgeschlagen:', error);
+      setFolderError(error instanceof Error ? error.message : 'Ordner anlegen fehlgeschlagen');
     } finally {
       setCreatingFolder(false);
     }
@@ -1016,9 +1026,14 @@ export default function PortalUploadsPage() {
                 />
               </div>
             </div>
+            {folderError && (
+              <div className="mx-5 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                {folderError}
+              </div>
+            )}
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
               <button
-                onClick={() => setShowFolderModal(false)}
+                onClick={() => { setShowFolderModal(false); setFolderError(''); }}
                 className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
                 Abbrechen
