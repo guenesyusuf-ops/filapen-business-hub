@@ -11,10 +11,11 @@ import {
   Video,
   Link2,
   MessageCircle,
+  Radio,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CreatorUpload, UploadComment } from '@/hooks/creators/useUploads';
-import { useUploadComments, useCreateComment } from '@/hooks/creators/useUploads';
+import { useUploadComments, useCreateComment, useGoLiveUpload } from '@/hooks/creators/useUploads';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -113,10 +114,45 @@ export function Lightbox({
   creatorId,
 }: LightboxProps) {
   const [message, setMessage] = useState('');
+  const [showLivePopover, setShowLivePopover] = useState(false);
+  const [liveDate, setLiveDate] = useState(
+    upload.liveDate ? upload.liveDate.split('T')[0] : '',
+  );
+  const [notifyCreator, setNotifyCreator] = useState(true);
   const commentsEndRef = useRef<HTMLDivElement>(null);
+  const livePopoverRef = useRef<HTMLDivElement>(null);
 
   const { data: comments = [] } = useUploadComments(upload.id);
   const createComment = useCreateComment();
+  const goLive = useGoLiveUpload();
+
+  // Close live popover on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        livePopoverRef.current &&
+        !livePopoverRef.current.contains(e.target as Node)
+      ) {
+        setShowLivePopover(false);
+      }
+    };
+    if (showLivePopover) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showLivePopover]);
+
+  const handleGoLive = useCallback(() => {
+    if (!liveDate) return;
+    goLive.mutate(
+      { uploadId: upload.id, liveDate, notifyCreator },
+      {
+        onSuccess: () => {
+          setShowLivePopover(false);
+        },
+      },
+    );
+  }, [liveDate, notifyCreator, upload.id, goLive]);
 
   // Scroll to bottom on new comments
   useEffect(() => {
@@ -172,6 +208,71 @@ export function Lightbox({
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {/* Live Button / Badge */}
+              <div className="relative" ref={livePopoverRef}>
+                {upload.liveStatus === 'live' && upload.liveDate ? (
+                  <button
+                    onClick={() => setShowLivePopover(!showLivePopover)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium hover:bg-emerald-100 transition-colors"
+                    title="Live-Datum aendern"
+                  >
+                    <Radio className="h-3.5 w-3.5" />
+                    Live am{' '}
+                    {new Date(upload.liveDate).toLocaleDateString('de-DE', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowLivePopover(!showLivePopover)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium transition-colors"
+                    title="Live setzen"
+                  >
+                    <Radio className="h-3.5 w-3.5" />
+                    Live
+                  </button>
+                )}
+
+                {/* Live Popover */}
+                {showLivePopover && (
+                  <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-50">
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Live-Datum
+                        </label>
+                        <input
+                          type="date"
+                          value={liveDate}
+                          onChange={(e) => setLiveDate(e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notifyCreator}
+                          onChange={(e) => setNotifyCreator(e.target.checked)}
+                          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                          Creator benachrichtigen
+                        </span>
+                      </label>
+                      <button
+                        onClick={handleGoLive}
+                        disabled={!liveDate || goLive.isPending}
+                        className="w-full py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {goLive.isPending ? 'Wird gespeichert...' : 'Speichern'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <a
                 href={upload.fileUrl}
                 target="_blank"

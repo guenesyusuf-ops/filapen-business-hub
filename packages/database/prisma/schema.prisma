@@ -448,13 +448,31 @@ model Creator {
   deals        Deal[]
   uploads      CreatorUpload[]
   chatMessages ChatMessage[]
-  invitations  ProjectInvitation[]
+  invitations    ProjectInvitation[]
+  notifications  CreatorNotification[]
 
   @@unique([orgId, email], map: "uq_creator_org_email")
   @@index([orgId])
   @@index([orgId, status])
   @@index([orgId, niche])
   @@map("creators")
+}
+
+model CreatorNotification {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  creatorId String   @map("creator_id") @db.Uuid
+  type      String   @db.VarChar(50)
+  title     String   @db.VarChar(255)
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  metadata  Json?    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId, read])
+  @@map("creator_notifications")
 }
 
 model Deal {

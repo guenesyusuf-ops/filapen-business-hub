@@ -20,6 +20,7 @@ import { UploadService } from './upload.service';
 import { CommentService } from './comment.service';
 import { ProjectService } from './project.service';
 import { ChatService } from './chat.service';
+import { NotificationService } from './notification.service';
 import { EmailService } from '../../common/email/email.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
@@ -36,6 +37,7 @@ export class CreatorController {
     private readonly commentService: CommentService,
     private readonly projectService: ProjectService,
     private readonly chatService: ChatService,
+    private readonly notificationService: NotificationService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
   ) {}
@@ -390,12 +392,13 @@ export class CreatorController {
   }
 
   @Put('creator-uploads/:id/go-live')
-  async goLiveUpload(@Param('id') id: string, @Body() body: { liveDate: string }) {
+  async goLiveUpload(@Param('id') id: string, @Body() body: { liveDate: string; notifyCreator?: boolean }) {
     if (!body.liveDate) {
       throw new HttpException('liveDate is required', HttpStatus.BAD_REQUEST);
     }
+    const notifyCreator = body.notifyCreator !== false; // default true
     try {
-      const result = await this.uploadService.goLive(DEV_ORG_ID, id, body.liveDate);
+      const result = await this.uploadService.goLive(DEV_ORG_ID, id, body.liveDate, notifyCreator);
       // Send chat notification to creator
       try {
         const dateStr = new Date(body.liveDate).toLocaleDateString('de-DE', {
@@ -416,6 +419,55 @@ export class CreatorController {
       if (error instanceof HttpException) throw error;
       this.logger.error('Failed to go live', error);
       throw new HttpException('Failed to set upload live', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // CREATOR NOTIFICATIONS
+  // =========================================================================
+
+  @Get('creator-notifications/:creatorId')
+  async listNotifications(
+    @Param('creatorId') creatorId: string,
+    @Query('limit') limitStr?: string,
+  ) {
+    const limit = Math.min(50, Math.max(1, parseInt(limitStr || '20', 10) || 20));
+    try {
+      return await this.notificationService.listByCreator(DEV_ORG_ID, creatorId, limit);
+    } catch (error) {
+      this.logger.error('Failed to list notifications', error);
+      throw new HttpException('Failed to load notifications', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('creator-notifications/:creatorId/unread-count')
+  async getUnreadNotificationCount(@Param('creatorId') creatorId: string) {
+    try {
+      return await this.notificationService.unreadCount(DEV_ORG_ID, creatorId);
+    } catch (error) {
+      this.logger.error('Failed to get unread notification count', error);
+      throw new HttpException('Failed to get unread count', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Patch('creator-notifications/:id/read')
+  async markNotificationRead(@Param('id') id: string) {
+    try {
+      return await this.notificationService.markAsRead(DEV_ORG_ID, id);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Failed to mark notification as read', error);
+      throw new HttpException('Failed to mark as read', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Patch('creator-notifications/:creatorId/read-all')
+  async markAllNotificationsRead(@Param('creatorId') creatorId: string) {
+    try {
+      return await this.notificationService.markAllAsRead(DEV_ORG_ID, creatorId);
+    } catch (error) {
+      this.logger.error('Failed to mark all notifications as read', error);
+      throw new HttpException('Failed to mark all as read', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

@@ -6,6 +6,7 @@ import { UploadService } from './upload.service';
 import { CommentService } from './comment.service';
 import { ProjectService } from './project.service';
 import { ChatService } from './chat.service';
+import { NotificationService } from './notification.service';
 import { DashboardService } from './dashboard.service';
 import { CalendarNoteService } from './calendar-note.service';
 import { InvitationService } from './invitation.service';
@@ -24,6 +25,7 @@ import { InvitationController } from './invitation.controller';
     CommentService,
     ProjectService,
     ChatService,
+    NotificationService,
     DashboardService,
     CalendarNoteService,
     InvitationService,
@@ -37,6 +39,7 @@ import { InvitationController } from './invitation.controller';
     CommentService,
     ProjectService,
     ChatService,
+    NotificationService,
     DashboardService,
     CalendarNoteService,
     InvitationService,

@@ -294,8 +294,19 @@ export function useUnseenUploadCount() {
 export function useGoLiveUpload() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ uploadId, liveDate }: { uploadId: string; liveDate: string }) => {
-      return putApi<CreatorUpload>(`/creator-uploads/${uploadId}/go-live`, { liveDate });
+    mutationFn: async ({
+      uploadId,
+      liveDate,
+      notifyCreator = true,
+    }: {
+      uploadId: string;
+      liveDate: string;
+      notifyCreator?: boolean;
+    }) => {
+      return putApi<CreatorUpload>(`/creator-uploads/${uploadId}/go-live`, {
+        liveDate,
+        notifyCreator,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['creator-uploads'] });

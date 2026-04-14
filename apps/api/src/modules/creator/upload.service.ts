@@ -142,7 +142,7 @@ export class UploadService {
     return { count };
   }
 
-  async goLive(orgId: string, uploadId: string, liveDate: string) {
+  async goLive(orgId: string, uploadId: string, liveDate: string, notifyCreator = true) {
     const existing = await this.prisma.creatorUpload.findFirst({
       where: { id: uploadId, orgId },
       include: { creator: { select: { id: true, name: true } } },
@@ -163,6 +163,34 @@ export class UploadService {
         creator: { select: { id: true, name: true, handle: true, avatarUrl: true } },
       },
     });
+
+    // Create notification for the creator if requested
+    if (notifyCreator) {
+      try {
+        const dateStr = new Date(liveDate).toLocaleDateString('de-DE', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+        const label = existing.label || existing.fileName;
+        await this.prisma.creatorNotification.create({
+          data: {
+            orgId,
+            creatorId: existing.creatorId,
+            type: 'content_live',
+            title: 'Content geht online',
+            message: `Dein Content "${label}" geht am ${dateStr} Online`,
+            metadata: {
+              uploadId,
+              liveDate,
+              label,
+            },
+          },
+        });
+      } catch (err) {
+        this.logger.warn('Failed to create live notification', err);
+      }
+    }
 
     return {
       ...this.serialize(updated),
