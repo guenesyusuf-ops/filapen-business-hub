@@ -43,7 +43,7 @@ import {
   ShieldCheck,
   Store,
   ShoppingBag,
-  LayoutGrid,
+  ListTodo,
   ClipboardList,
   BarChart,
 } from 'lucide-react';
@@ -138,9 +138,9 @@ const NAV_ITEMS: NavItem[] = [
   {
     labelKey: 'nav.workManagement',
     href: '/work-management',
-    icon: LayoutGrid,
+    icon: ListTodo,
     children: [
-      { labelKey: 'nav.wmProjects', href: '/work-management', icon: LayoutGrid },
+      { labelKey: 'nav.wmProjects', href: '/work-management', icon: ListTodo },
       { labelKey: 'nav.wmMyTasks', href: '/work-management/my-tasks', icon: ClipboardList },
       { labelKey: 'nav.wmWorkload', href: '/work-management/workload', icon: BarChart },
     ],

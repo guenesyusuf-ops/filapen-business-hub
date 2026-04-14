@@ -42,28 +42,26 @@ export class WorkManagementService {
   }
 
   async createProject(data: { name: string; description?: string; color?: string; createdBy: string }) {
-    return this.prisma.$transaction(async (tx) => {
-      const project = await tx.wmProject.create({
-        data: {
-          orgId: DEV_ORG_ID,
-          name: data.name,
-          description: data.description,
-          color: data.color,
-          createdBy: data.createdBy,
-        },
-      });
-
-      await tx.wmColumn.createMany({
-        data: DEFAULT_COLUMNS.map((col) => ({
-          projectId: project.id,
-          name: col.name,
-          color: col.color,
-          position: col.position,
-        })),
-      });
-
-      return this.getProjectById(project.id);
+    const project = await this.prisma.wmProject.create({
+      data: {
+        orgId: DEV_ORG_ID,
+        name: data.name,
+        description: data.description || null,
+        color: data.color || '#3B82F6',
+        createdBy: data.createdBy,
+      },
     });
+
+    await this.prisma.wmColumn.createMany({
+      data: DEFAULT_COLUMNS.map((col) => ({
+        projectId: project.id,
+        name: col.name,
+        color: col.color,
+        position: col.position,
+      })),
+    });
+
+    return this.getProjectById(project.id);
   }
 
   async getProjectById(id: string) {
