@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Columns3, List, ArrowLeft, Plus } from 'lucide-react';
+import { Columns3, List, ArrowLeft, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import {
   useWmProject,
@@ -27,6 +27,75 @@ const TaskListView = dynamic(() => import('@/components/work-management/TaskList
 const TaskDetailModal = dynamic(() => import('@/components/work-management/TaskDetailModal').then(m => ({ default: m.TaskDetailModal })), { ssr: false });
 
 type ViewTab = 'board' | 'list';
+
+const COLUMN_COLORS = [
+  { value: '#6B7280', label: 'Grau' },
+  { value: '#3B82F6', label: 'Blau' },
+  { value: '#10B981', label: 'Gruen' },
+  { value: '#F59E0B', label: 'Gelb' },
+  { value: '#EF4444', label: 'Rot' },
+  { value: '#8B5CF6', label: 'Lila' },
+  { value: '#EC4899', label: 'Pink' },
+  { value: '#F97316', label: 'Orange' },
+];
+
+function AddColumnPopover({ onAdd, onClose }: { onAdd: (name: string, color: string) => void; onClose: () => void }) {
+  const [name, setName] = useState('');
+  const [color, setColor] = useState(COLUMN_COLORS[0].value);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  return (
+    <div ref={ref} className="relative w-72 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Neue Spalte</span>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) { onAdd(name.trim(), color); onClose(); } }}
+        placeholder="Spaltenname..."
+        autoFocus
+        className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400"
+      />
+      <div>
+        <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">Farbe</span>
+        <div className="flex gap-2 flex-wrap">
+          {COLUMN_COLORS.map((c) => (
+            <button
+              key={c.value}
+              onClick={() => setColor(c.value)}
+              title={c.label}
+              className={cn(
+                'h-7 w-7 rounded-full border-2 transition-all',
+                color === c.value ? 'border-gray-900 dark:border-white scale-110' : 'border-transparent hover:scale-105',
+              )}
+              style={{ backgroundColor: c.value }}
+            />
+          ))}
+        </div>
+      </div>
+      <button
+        onClick={() => { if (name.trim()) { onAdd(name.trim(), color); onClose(); } }}
+        disabled={!name.trim()}
+        className="w-full rounded-lg bg-primary-600 text-white text-sm font-semibold py-2 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        Erstellen
+      </button>
+    </div>
+  );
+}
 
 // Error boundary to catch @dnd-kit runtime crashes
 class WmErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
@@ -60,6 +129,7 @@ export default function ProjectDetailPage() {
 
   const [activeTab, setActiveTab] = useState<ViewTab>('board');
   const [selectedTask, setSelectedTask] = useState<WmTask | null>(null);
+  const [showAddColumn, setShowAddColumn] = useState(false);
 
   // Comments for selected task
   const { data: comments = [] } = useWmComments(selectedTask?.id ?? '');
@@ -82,9 +152,11 @@ export default function ProjectDetailPage() {
   );
 
   const handleAddColumn = useCallback(() => {
-    const name = prompt('Spaltenname:');
-    if (!name?.trim()) return;
-    createColumn.mutate({ projectId, name: name.trim() });
+    setShowAddColumn(true);
+  }, []);
+
+  const handleCreateColumn = useCallback((name: string, color: string) => {
+    createColumn.mutate({ projectId, name, color });
   }, [createColumn, projectId]);
 
   const handleTaskClick = useCallback((task: WmTask) => {
@@ -186,7 +258,7 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden p-6">
+      <div className="flex-1 overflow-hidden p-6 relative">
         <WmErrorBoundary>
         {activeTab === 'board' ? (
           <KanbanBoard
@@ -205,6 +277,19 @@ export default function ProjectDetailPage() {
           />
         )}
         </WmErrorBoundary>
+
+        {/* Add column popover */}
+        {showAddColumn && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0" onClick={() => setShowAddColumn(false)} />
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2">
+              <AddColumnPopover
+                onAdd={handleCreateColumn}
+                onClose={() => setShowAddColumn(false)}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Task detail modal */}

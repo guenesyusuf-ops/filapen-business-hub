@@ -210,8 +210,8 @@ export function useWmTask(id: string) {
 export function useCreateWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { projectId: string; columnId: string; title: string; position?: number }) =>
-      wmFetch<WmTask>(`/projects/${data.projectId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
+    mutationFn: (data: { projectId: string; columnId: string; title: string; assigneeId?: string; priority?: string; position?: number }) =>
+      wmFetch<WmTask>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
       qc.invalidateQueries({ queryKey: ['wm', 'tasks', vars.projectId] });
@@ -223,7 +223,7 @@ export function useUpdateWmTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...data }: Partial<WmTask> & { id: string }) =>
-      wmFetch<WmTask>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      wmFetch<WmTask>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     onSuccess: (task) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', task.projectId] });
       qc.invalidateQueries({ queryKey: ['wm', 'task', task.id] });
