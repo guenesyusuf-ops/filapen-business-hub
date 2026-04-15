@@ -202,7 +202,7 @@ export class WorkManagementService {
       _max: { position: true },
     });
 
-    return this.prisma.wmTask.create({
+    const created = await this.prisma.wmTask.create({
       data: {
         orgId: DEV_ORG_ID,
         projectId: data.projectId,
@@ -221,6 +221,9 @@ export class WorkManagementService {
         subtasks: true,
       },
     });
+
+    await this.logActivity(created.id, data.projectId, data.createdById, 'System', 'created', `Aufgabe "${data.title}" erstellt`);
+    return created;
   }
 
   async getTaskById(id: string) {
@@ -275,7 +278,8 @@ export class WorkManagementService {
       updateData.completedAt = data.completed ? new Date() : null;
     }
 
-    return this.prisma.wmTask.update({
+    const existingTask = await this.prisma.wmTask.findUnique({ where: { id } });
+    const updated = await this.prisma.wmTask.update({
       where: { id },
       data: updateData,
       include: {
@@ -283,6 +287,22 @@ export class WorkManagementService {
         subtasks: true,
       },
     });
+
+    // Log activity for relevant changes
+    if (existingTask) {
+      const details: string[] = [];
+      if (data.priority !== undefined && data.priority !== existingTask.priority) {
+        details.push(`Prioritaet: ${existingTask.priority} → ${data.priority}`);
+      }
+      if (data.completed !== undefined && data.completed !== existingTask.completed) {
+        await this.logActivity(id, existingTask.projectId, existingTask.createdById, 'System', data.completed ? 'completed' : 'updated', data.completed ? 'Aufgabe abgeschlossen' : 'Aufgabe wieder geoeffnet');
+      }
+      if (details.length > 0) {
+        await this.logActivity(id, existingTask.projectId, existingTask.createdById, 'System', 'updated', details.join(', '));
+      }
+    }
+
+    return updated;
   }
 
   async deleteTask(id: string) {
@@ -305,7 +325,8 @@ export class WorkManagementService {
       data: { position: { increment: 1 } },
     });
 
-    return this.prisma.wmTask.update({
+    const existingTask = await this.prisma.wmTask.findUnique({ where: { id } });
+    const moved = await this.prisma.wmTask.update({
       where: { id },
       data: {
         columnId: data.columnId,
@@ -316,6 +337,12 @@ export class WorkManagementService {
         subtasks: true,
       },
     });
+
+    if (existingTask && existingTask.columnId !== data.columnId) {
+      await this.logActivity(id, existingTask.projectId, existingTask.createdById, 'System', 'moved', `Aufgabe in andere Spalte verschoben`);
+    }
+
+    return moved;
   }
 
   async bulkReorderTasks(projectId: string, items: { taskId: string; columnId: string; position: number }[]) {
@@ -385,9 +412,9 @@ export class WorkManagementService {
   }
 
   async createComment(taskId: string, data: { userId: string; userName: string; message: string }) {
-    await this.ensureTaskExists(taskId);
+    const task = await this.ensureTaskExists(taskId);
 
-    return this.prisma.wmComment.create({
+    const comment = await this.prisma.wmComment.create({
       data: {
         taskId,
         userId: data.userId,
@@ -395,6 +422,9 @@ export class WorkManagementService {
         message: data.message,
       },
     });
+
+    await this.logActivity(taskId, task.projectId, data.userId, data.userName, 'commented', 'Kommentar geschrieben');
+    return comment;
   }
 
   // =========================================================================
@@ -470,17 +500,28 @@ export class WorkManagementService {
   }
 
   async addLabelToTask(taskId: string, labelId: string) {
-    await this.ensureTaskExists(taskId);
+    const task = await this.ensureTaskExists(taskId);
+    const label = await this.prisma.wmLabel.findUnique({ where: { id: labelId } });
 
-    return this.prisma.wmTaskLabel.create({
+    const result = await this.prisma.wmTaskLabel.create({
       data: { taskId, labelId },
     });
+
+    await this.logActivity(taskId, task.projectId, task.createdById, 'System', 'label_added', `Label "${label?.name ?? labelId}" hinzugefuegt`);
+    return result;
   }
 
   async removeLabelFromTask(taskId: string, labelId: string) {
+    const task = await this.prisma.wmTask.findUnique({ where: { id: taskId } });
+    const label = await this.prisma.wmLabel.findUnique({ where: { id: labelId } });
+
     await this.prisma.wmTaskLabel.delete({
       where: { taskId_labelId: { taskId, labelId } },
     });
+
+    if (task) {
+      await this.logActivity(taskId, task.projectId, task.createdById, 'System', 'label_removed', `Label "${label?.name ?? labelId}" entfernt`);
+    }
     return { removed: true };
   }
 
@@ -571,6 +612,34 @@ export class WorkManagementService {
       assigneeId,
       ...stats,
     }));
+  }
+
+  // =========================================================================
+  // ACTIVITIES
+  // =========================================================================
+
+  async listActivities(taskId: string) {
+    return this.prisma.wmActivity.findMany({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async logActivity(
+    taskId: string,
+    projectId: string,
+    userId: string,
+    userName: string,
+    action: string,
+    details?: string,
+  ) {
+    try {
+      return await this.prisma.wmActivity.create({
+        data: { taskId, projectId, userId, userName, action, details },
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to log activity for task ${taskId}: ${action}`, err);
+    }
   }
 
   // =========================================================================

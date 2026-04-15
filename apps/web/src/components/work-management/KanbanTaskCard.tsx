@@ -80,10 +80,12 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
           {task.labels.map((label) => (
             <span
               key={label.id}
-              className="h-1.5 w-6 rounded-full"
-              style={{ backgroundColor: label.color }}
-              title={label.name}
-            />
+              className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: `${label.color}20`, color: label.color, border: `1px solid ${label.color}40` }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: label.color }} />
+              {label.name}
+            </span>
           ))}
         </div>
       )}

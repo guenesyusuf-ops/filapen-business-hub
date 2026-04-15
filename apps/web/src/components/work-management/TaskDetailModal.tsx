@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import {
   X, Calendar, User, Flag, Tag, Clock, Paperclip, Send,
-  CheckSquare, Square, Plus, Trash2, Download, Save,
+  CheckSquare, Square, Plus, Trash2, Download, Save, Activity,
+  MessageSquare,
 } from 'lucide-react';
-import type { WmTask, WmSubtask, WmComment, WmAttachment, WmColumn, WmMember, WmLabel } from '@/hooks/work-management/useWm';
+import type { WmTask, WmSubtask, WmComment, WmAttachment, WmColumn, WmMember, WmLabel, WmActivity } from '@/hooks/work-management/useWm';
 
 const PRIORITY_OPTIONS: { value: WmTask['priority']; label: string; color: string }[] = [
   { value: 'urgent', label: 'Dringend', color: 'bg-red-500' },
@@ -15,23 +16,45 @@ const PRIORITY_OPTIONS: { value: WmTask['priority']; label: string; color: strin
   { value: 'low', label: 'Niedrig', color: 'bg-gray-400' },
 ];
 
+const LABEL_COLORS = [
+  '#EF4444', '#F97316', '#F59E0B', '#10B981',
+  '#3B82F6', '#8B5CF6', '#EC4899', '#6B7280',
+];
+
+const ACTION_LABELS: Record<string, string> = {
+  created: 'hat die Aufgabe erstellt',
+  updated: 'hat die Aufgabe aktualisiert',
+  moved: 'hat die Aufgabe verschoben',
+  completed: 'hat die Aufgabe abgeschlossen',
+  commented: 'hat einen Kommentar geschrieben',
+  assigned: 'hat die Aufgabe zugewiesen',
+  label_added: 'hat ein Label hinzugefuegt',
+  label_removed: 'hat ein Label entfernt',
+  priority_changed: 'hat die Prioritaet geaendert',
+};
+
 interface TaskDetailModalProps {
   task: WmTask;
   columns: WmColumn[];
   members: WmMember[];
   labels: WmLabel[];
   comments: WmComment[];
+  activities?: WmActivity[];
   open: boolean;
   onClose: () => void;
   onUpdate: (data: Partial<WmTask> & { id: string }) => void;
   onAddComment: (content: string) => void;
   onUploadAttachment: (file: File) => void;
   onDeleteAttachment: (attachmentId: string) => void;
+  onAddLabel?: (taskId: string, labelId: string) => void;
+  onRemoveLabel?: (taskId: string, labelId: string) => void;
+  onCreateLabel?: (name: string, color: string) => void;
 }
 
 export function TaskDetailModal({
-  task, columns, members, labels, comments, open, onClose,
+  task, columns, members, labels, comments, activities = [], open, onClose,
   onUpdate, onAddComment, onUploadAttachment, onDeleteAttachment,
+  onAddLabel, onRemoveLabel, onCreateLabel,
 }: TaskDetailModalProps) {
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDesc, setEditDesc] = useState(task.description ?? '');
@@ -42,7 +65,14 @@ export function TaskDetailModal({
   const [newSubtask, setNewSubtask] = useState('');
   const [commentText, setCommentText] = useState('');
   const [visible, setVisible] = useState(false);
+  const [activeBottomTab, setActiveBottomTab] = useState<'comments' | 'activity'>('comments');
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+  const [showNewLabel, setShowNewLabel] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
 
   // Slide-in animation
   useEffect(() => {
@@ -103,6 +133,63 @@ export function TaskDetailModal({
     if (!commentText.trim()) return;
     onAddComment(commentText.trim());
     setCommentText('');
+    setShowMentionDropdown(false);
+  }
+
+  function handleCommentChange(value: string) {
+    setCommentText(value);
+    // Detect @ mentions
+    const lastAtIdx = value.lastIndexOf('@');
+    if (lastAtIdx !== -1) {
+      const afterAt = value.slice(lastAtIdx + 1);
+      // Only show dropdown if @ is at the cursor and no space yet
+      if (!afterAt.includes(' ') && afterAt.length < 30) {
+        setShowMentionDropdown(true);
+        setMentionFilter(afterAt.toLowerCase());
+      } else {
+        setShowMentionDropdown(false);
+      }
+    } else {
+      setShowMentionDropdown(false);
+    }
+  }
+
+  function insertMention(memberName: string) {
+    const lastAtIdx = commentText.lastIndexOf('@');
+    const before = commentText.slice(0, lastAtIdx);
+    setCommentText(`${before}@${memberName} `);
+    setShowMentionDropdown(false);
+    commentInputRef.current?.focus();
+  }
+
+  const filteredMentionMembers = useMemo(() => {
+    return members.filter((m) => {
+      const name = m.name || '';
+      return name.toLowerCase().includes(mentionFilter);
+    });
+  }, [members, mentionFilter]);
+
+  function renderCommentContent(content: string) {
+    // Highlight @mentions in comment text
+    const parts = content.split(/(@[\w\s]+?)(?=\s|$)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return (
+          <span key={i} className="font-semibold text-primary-600 dark:text-primary-400">
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  }
+
+  function handleCreateNewLabel() {
+    if (!newLabelName.trim() || !onCreateLabel) return;
+    onCreateLabel(newLabelName.trim(), newLabelColor);
+    setNewLabelName('');
+    setNewLabelColor(LABEL_COLORS[0]);
+    setShowNewLabel(false);
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -280,46 +367,121 @@ export function TaskDetailModal({
                 </button>
               </div>
 
-              {/* Comments */}
+              {/* Comments / Activity Tabs */}
               <div>
-                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
-                  Kommentare
-                </label>
-                {comments.length > 0 && (
-                  <div className="space-y-3 mb-3">
-                    {comments.map((c) => (
-                      <div key={c.id} className="flex gap-2">
-                        <div className="h-6 w-6 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300 flex-shrink-0 mt-0.5">
-                          {c.authorName.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.authorName}</span>
-                            <span className="text-[10px] text-gray-400">{new Date(c.createdAt).toLocaleDateString('de-DE')}</span>
+                <div className="flex items-center gap-4 mb-3 border-b border-gray-200 dark:border-white/10">
+                  <button
+                    onClick={() => setActiveBottomTab('comments')}
+                    className={cn(
+                      'flex items-center gap-1.5 pb-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors',
+                      activeBottomTab === 'comments'
+                        ? 'text-primary-600 dark:text-primary-400 border-primary-600 dark:border-primary-400'
+                        : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300',
+                    )}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Kommentare {comments.length > 0 && `(${comments.length})`}
+                  </button>
+                  <button
+                    onClick={() => setActiveBottomTab('activity')}
+                    className={cn(
+                      'flex items-center gap-1.5 pb-2 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors',
+                      activeBottomTab === 'activity'
+                        ? 'text-primary-600 dark:text-primary-400 border-primary-600 dark:border-primary-400'
+                        : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300',
+                    )}
+                  >
+                    <Activity className="h-3.5 w-3.5" />
+                    Aktivitaet {activities.length > 0 && `(${activities.length})`}
+                  </button>
+                </div>
+
+                {activeBottomTab === 'comments' && (
+                  <>
+                    {comments.length > 0 && (
+                      <div className="space-y-3 mb-3">
+                        {comments.map((c) => (
+                          <div key={c.id} className="flex gap-2">
+                            <div className="h-6 w-6 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300 flex-shrink-0 mt-0.5">
+                              {c.authorName.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.authorName}</span>
+                                <span className="text-[10px] text-gray-400">{new Date(c.createdAt).toLocaleDateString('de-DE')}</span>
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{renderCommentContent(c.content)}</p>
+                            </div>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{c.content}</p>
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative">
+                      <div className="flex gap-2">
+                        <input
+                          ref={commentInputRef}
+                          type="text"
+                          value={commentText}
+                          onChange={(e) => handleCommentChange(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && !showMentionDropdown && handleComment()}
+                          placeholder="Kommentar schreiben... (@erwaehnen)"
+                          className="flex-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                        />
+                        <button
+                          onClick={handleComment}
+                          disabled={!commentText.trim()}
+                          className="p-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                        >
+                          <Send className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {/* @Mention Dropdown */}
+                      {showMentionDropdown && filteredMentionMembers.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-1 w-56 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl z-10 max-h-40 overflow-y-auto">
+                          {filteredMentionMembers.map((m) => (
+                            <button
+                              key={m.id}
+                              onClick={() => insertMention(m.name)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                            >
+                              <span className="h-5 w-5 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[9px] font-bold text-primary-700 dark:text-primary-300">
+                                {(m.name || '?').charAt(0).toUpperCase()}
+                              </span>
+                              <span className="text-gray-700 dark:text-gray-300">{m.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {activeBottomTab === 'activity' && (
+                  <div className="space-y-3">
+                    {activities.length === 0 && (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">Noch keine Aktivitaeten</p>
+                    )}
+                    {activities.map((act) => (
+                      <div key={act.id} className="flex gap-2">
+                        <div className="h-6 w-6 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-[10px] font-bold text-gray-600 dark:text-gray-400 flex-shrink-0 mt-0.5">
+                          {act.userName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="font-semibold text-gray-700 dark:text-gray-300">{act.userName}</span>
+                            {' '}{ACTION_LABELS[act.action] || act.action}
+                          </p>
+                          {act.details && (
+                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">{act.details}</p>
+                          )}
+                          <span className="text-[10px] text-gray-400 mt-0.5 block">
+                            {new Date(act.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleComment()}
-                    placeholder="Kommentar schreiben..."
-                    className="flex-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                  />
-                  <button
-                    onClick={handleComment}
-                    disabled={!commentText.trim()}
-                    className="p-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -387,37 +549,106 @@ export function TaskDetailModal({
 
               {/* Labels */}
               <div>
-                <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                   <Tag className="h-3 w-3" /> Labels
                 </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {labels.map((label) => {
-                    const isSelected = task.labels?.some((l) => l.id === label.id);
-                    return (
+
+                {/* Assigned labels */}
+                {task.labels && task.labels.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {task.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: `${label.color}20`, color: label.color, border: `1px solid ${label.color}40` }}
+                      >
+                        {label.name}
+                        {onRemoveLabel && (
+                          <button
+                            onClick={() => onRemoveLabel(task.id, label.id)}
+                            className="ml-0.5 hover:opacity-70 transition-opacity"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Available labels to add */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {labels
+                    .filter((label) => !task.labels?.some((l) => l.id === label.id))
+                    .map((label) => (
                       <button
                         key={label.id}
                         onClick={() => {
-                          const newLabels = isSelected
-                            ? (task.labels ?? []).filter((l) => l.id !== label.id)
-                            : [...(task.labels ?? []), label];
-                          onUpdate({ id: task.id, labels: newLabels });
+                          if (onAddLabel) {
+                            onAddLabel(task.id, label.id);
+                          } else {
+                            const newLabels = [...(task.labels ?? []), label];
+                            onUpdate({ id: task.id, labels: newLabels });
+                          }
                         }}
-                        className={cn(
-                          'text-[10px] font-medium px-2 py-0.5 rounded-full border transition-colors',
-                          isSelected
-                            ? 'border-current opacity-100'
-                            : 'border-gray-200 dark:border-white/10 opacity-60 hover:opacity-100',
-                        )}
-                        style={{ color: label.color, borderColor: isSelected ? label.color : undefined }}
+                        className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200 dark:border-white/10 opacity-50 hover:opacity-100 transition-opacity"
+                        style={{ color: label.color }}
                       >
-                        {label.name}
+                        + {label.name}
                       </button>
-                    );
-                  })}
-                  {labels.length === 0 && (
-                    <span className="text-xs text-gray-400">Keine Labels vorhanden</span>
-                  )}
+                    ))}
                 </div>
+
+                {/* New label */}
+                {!showNewLabel ? (
+                  <button
+                    onClick={() => setShowNewLabel(true)}
+                    className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-primary-500 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Neues Label
+                  </button>
+                ) : (
+                  <div className="space-y-2 rounded-lg border border-gray-200 dark:border-white/10 p-2 bg-white dark:bg-[#0f1117]">
+                    <input
+                      type="text"
+                      value={newLabelName}
+                      onChange={(e) => setNewLabelName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCreateNewLabel()}
+                      placeholder="Label-Name..."
+                      autoFocus
+                      className="w-full rounded border border-gray-200 dark:border-white/10 bg-transparent px-2 py-1 text-xs text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-400"
+                    />
+                    <div className="flex gap-1.5 flex-wrap">
+                      {LABEL_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setNewLabelColor(c)}
+                          className={cn(
+                            'h-5 w-5 rounded-full border-2 transition-all',
+                            newLabelColor === c ? 'border-gray-900 dark:border-white scale-110' : 'border-transparent hover:scale-105',
+                          )}
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={handleCreateNewLabel}
+                        disabled={!newLabelName.trim()}
+                        className="flex-1 text-[10px] font-semibold py-1 rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                      >
+                        Erstellen
+                      </button>
+                      <button
+                        onClick={() => { setShowNewLabel(false); setNewLabelName(''); }}
+                        className="text-[10px] font-semibold py-1 px-2 rounded text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                      >
+                        Abbrechen
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Created by */}

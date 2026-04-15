@@ -212,7 +212,37 @@ export function useCreateWmTask() {
   return useMutation({
     mutationFn: (data: { projectId: string; columnId: string; title: string; assigneeId?: string; priority?: string; position?: number }) =>
       wmFetch<WmTask>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: (_, vars) => {
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
+      const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        const tasks = [...(old.tasks ?? [])];
+        const optimisticTask: Partial<WmTask> = {
+          id: `temp-${Date.now()}`,
+          projectId: vars.projectId,
+          columnId: vars.columnId,
+          title: vars.title,
+          priority: (vars.priority as WmTask['priority']) || 'medium',
+          position: vars.position ?? tasks.filter((t: any) => t.columnId === vars.columnId).length,
+          labels: [],
+          subtasks: [],
+          attachments: [],
+          completed: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        tasks.push(optimisticTask);
+        return { ...old, tasks };
+      });
+      return { prev };
+    },
+    onError: (_, vars, context) => {
+      if (context?.prev) {
+        qc.setQueryData(['wm', 'project', vars.projectId], context.prev);
+      }
+    },
+    onSettled: (_, __, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
       qc.invalidateQueries({ queryKey: ['wm', 'tasks', vars.projectId] });
     },
@@ -224,10 +254,39 @@ export function useUpdateWmTask() {
   return useMutation({
     mutationFn: ({ id, ...data }: Partial<WmTask> & { id: string }) =>
       wmFetch<WmTask>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    onSuccess: (task) => {
-      qc.invalidateQueries({ queryKey: ['wm', 'project', task.projectId] });
-      qc.invalidateQueries({ queryKey: ['wm', 'task', task.id] });
-      qc.invalidateQueries({ queryKey: ['wm', 'my-tasks'] });
+    onMutate: async (vars) => {
+      // We need projectId to update the cache — try to find it from existing data
+      const allQueries = qc.getQueriesData<any>({ queryKey: ['wm', 'project'] });
+      let projectId: string | undefined;
+      for (const [, data] of allQueries) {
+        if (data?.tasks?.some((t: any) => t.id === vars.id)) {
+          projectId = data.id;
+          break;
+        }
+      }
+      if (!projectId) return {};
+      await qc.cancelQueries({ queryKey: ['wm', 'project', projectId] });
+      const prev = qc.getQueryData(['wm', 'project', projectId]);
+      qc.setQueryData(['wm', 'project', projectId], (old: any) => {
+        if (!old) return old;
+        const tasks = (old.tasks ?? []).map((t: any) =>
+          t.id === vars.id ? { ...t, ...vars } : t,
+        );
+        return { ...old, tasks };
+      });
+      return { prev, projectId };
+    },
+    onError: (_, __, context: any) => {
+      if (context?.prev && context?.projectId) {
+        qc.setQueryData(['wm', 'project', context.projectId], context.prev);
+      }
+    },
+    onSettled: (task) => {
+      if (task) {
+        qc.invalidateQueries({ queryKey: ['wm', 'project', task.projectId] });
+        qc.invalidateQueries({ queryKey: ['wm', 'task', task.id] });
+        qc.invalidateQueries({ queryKey: ['wm', 'my-tasks'] });
+      }
     },
   });
 }
@@ -248,7 +307,26 @@ export function useMoveWmTask() {
   return useMutation({
     mutationFn: (data: { taskId: string; projectId: string; columnId: string; position: number }) =>
       wmFetch(`/tasks/${data.taskId}/move`, { method: 'PATCH', body: JSON.stringify(data) }),
-    onSuccess: (_, vars) => {
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
+      const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        const tasks = [...(old.tasks ?? [])];
+        const taskIdx = tasks.findIndex((t: any) => t.id === vars.taskId);
+        if (taskIdx !== -1) {
+          tasks[taskIdx] = { ...tasks[taskIdx], columnId: vars.columnId, position: vars.position };
+        }
+        return { ...old, tasks };
+      });
+      return { prev };
+    },
+    onError: (_, vars, context) => {
+      if (context?.prev) {
+        qc.setQueryData(['wm', 'project', vars.projectId], context.prev);
+      }
+    },
+    onSettled: (_, __, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
     },
   });
@@ -381,5 +459,68 @@ export function useMyWmTasks() {
   return useQuery<WmTask[]>({
     queryKey: ['wm', 'my-tasks'],
     queryFn: () => wmFetch('/my-tasks'),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Label mutation hooks
+// ---------------------------------------------------------------------------
+
+export function useCreateWmLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { projectId: string; name: string; color: string }) =>
+      wmFetch<WmLabel>(`/projects/${data.projectId}/labels`, { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['wm', 'labels', vars.projectId] });
+      qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
+    },
+  });
+}
+
+export function useAddLabelToTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { taskId: string; labelId: string; projectId: string }) =>
+      wmFetch(`/tasks/${data.taskId}/labels/${data.labelId}`, { method: 'POST' }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
+      qc.invalidateQueries({ queryKey: ['wm', 'task', vars.taskId] });
+    },
+  });
+}
+
+export function useRemoveLabelFromTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { taskId: string; labelId: string; projectId: string }) =>
+      wmFetch(`/tasks/${data.taskId}/labels/${data.labelId}`, { method: 'DELETE' }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
+      qc.invalidateQueries({ queryKey: ['wm', 'task', vars.taskId] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Activity hooks
+// ---------------------------------------------------------------------------
+
+export interface WmActivity {
+  id: string;
+  taskId: string;
+  projectId: string;
+  userId: string;
+  userName: string;
+  action: string;
+  details?: string;
+  createdAt: string;
+}
+
+export function useWmActivities(taskId: string) {
+  return useQuery<WmActivity[]>({
+    queryKey: ['wm', 'activities', taskId],
+    queryFn: () => wmFetch(`/tasks/${taskId}/activities`),
+    enabled: !!taskId,
   });
 }

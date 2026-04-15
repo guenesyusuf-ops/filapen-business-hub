@@ -17,6 +17,10 @@ import {
   useDeleteWmAttachment,
   useWmLabels,
   useWmMembers,
+  useCreateWmLabel,
+  useAddLabelToTask,
+  useRemoveLabelFromTask,
+  useWmActivities,
 } from '@/hooks/work-management/useWm';
 import type { WmTask, WmColumn } from '@/hooks/work-management/useWm';
 import dynamic from 'next/dynamic';
@@ -126,13 +130,17 @@ export default function ProjectDetailPage() {
   const createColumn = useCreateWmColumn();
   const { data: labels = [] } = useWmLabels(projectId);
   const { data: members = [] } = useWmMembers(projectId);
+  const createLabel = useCreateWmLabel();
+  const addLabelToTask = useAddLabelToTask();
+  const removeLabelFromTask = useRemoveLabelFromTask();
 
   const [activeTab, setActiveTab] = useState<ViewTab>('board');
   const [selectedTask, setSelectedTask] = useState<WmTask | null>(null);
   const [showAddColumn, setShowAddColumn] = useState(false);
 
-  // Comments for selected task
+  // Comments and activities for selected task
   const { data: comments = [] } = useWmComments(selectedTask?.id ?? '');
+  const { data: activities = [] } = useWmActivities(selectedTask?.id ?? '');
   const createComment = useCreateWmComment();
   const uploadAttachment = useUploadWmAttachment();
   const deleteAttachment = useDeleteWmAttachment();
@@ -300,12 +308,16 @@ export default function ProjectDetailPage() {
           members={members}
           labels={labels}
           comments={comments}
+          activities={activities}
           open={!!selectedTask}
           onClose={() => setSelectedTask(null)}
           onUpdate={handleUpdateTask}
           onAddComment={(content) => createComment.mutate({ taskId: selectedTask.id, content })}
           onUploadAttachment={(file) => uploadAttachment.mutate({ taskId: selectedTask.id, file })}
           onDeleteAttachment={(attachmentId) => deleteAttachment.mutate({ taskId: selectedTask.id, attachmentId })}
+          onAddLabel={(taskId, labelId) => addLabelToTask.mutate({ taskId, labelId, projectId })}
+          onRemoveLabel={(taskId, labelId) => removeLabelFromTask.mutate({ taskId, labelId, projectId })}
+          onCreateLabel={(name, color) => createLabel.mutate({ projectId, name, color })}
         />
       )}
     </div>

@@ -365,6 +365,20 @@ export class WorkManagementController {
   }
 
   // =========================================================================
+  // ACTIVITIES
+  // =========================================================================
+
+  @Get('tasks/:id/activities')
+  async listActivities(@Param('id') taskId: string) {
+    try {
+      return await this.wmService.listActivities(taskId);
+    } catch (error) {
+      this.logger.error('listActivities failed', error);
+      throw new HttpException('Failed to list activities', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
   // LABELS
   // =========================================================================
 

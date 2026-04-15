@@ -1460,6 +1460,7 @@ model WmTask {
   comments    WmComment[]
   attachments WmAttachment[]
   taskLabels  WmTaskLabel[]
+  activities  WmActivity[]
 
   @@index([projectId])
   @@index([columnId])
@@ -1530,4 +1531,21 @@ model WmProjectMember {
 
   @@unique([projectId, userId])
   @@map("wm_project_members")
+}
+
+model WmActivity {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  userName  String   @map("user_name") @db.VarChar(255)
+  action    String   @db.VarChar(100)
+  details   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  task WmTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([projectId])
+  @@map("wm_activities")
 }
