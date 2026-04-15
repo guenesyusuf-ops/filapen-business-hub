@@ -10,11 +10,12 @@ import { InlineTaskCreate } from './InlineTaskCreate';
 interface KanbanColumnProps {
   column: WmColumn;
   tasks: WmTask[];
-  onAddTask: (columnId: string, title: string) => void;
+  members?: { id: string; userId?: string; userName?: string; name?: string }[];
+  onAddTask: (columnId: string, data: { title: string; assigneeId?: string; priority?: string }) => void;
   onTaskClick: (task: WmTask) => void;
 }
 
-export function KanbanColumn({ column, tasks, onAddTask, onTaskClick }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${column.id}`,
     data: { type: 'column', column },
@@ -59,7 +60,10 @@ export function KanbanColumn({ column, tasks, onAddTask, onTaskClick }: KanbanCo
 
       {/* Add task */}
       <div className="border-t border-gray-200/60 dark:border-white/8">
-        <InlineTaskCreate onSubmit={(title) => onAddTask(column.id, title)} />
+        <InlineTaskCreate
+          members={members}
+          onSubmit={(data) => onAddTask(column.id, data)}
+        />
       </div>
     </div>
   );

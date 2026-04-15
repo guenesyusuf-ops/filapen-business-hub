@@ -75,8 +75,8 @@ export default function ProjectDetailPage() {
   );
 
   const handleAddTask = useCallback(
-    (columnId: string, title: string) => {
-      createTask.mutate({ projectId, columnId, title });
+    (columnId: string, data: { title: string; assigneeId?: string; priority?: string }) => {
+      createTask.mutate({ projectId, columnId, ...data });
     },
     [createTask, projectId],
   );
@@ -191,6 +191,7 @@ export default function ProjectDetailPage() {
         {activeTab === 'board' ? (
           <KanbanBoard
             columns={columns}
+            members={members}
             onMoveTask={handleMoveTask}
             onAddTask={handleAddTask}
             onTaskClick={handleTaskClick}

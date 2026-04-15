@@ -25,13 +25,14 @@ interface ColumnWithTasks extends WmColumn {
 
 interface KanbanBoardProps {
   columns: ColumnWithTasks[];
+  members?: { id: string; userId?: string; userName?: string; name?: string }[];
   onMoveTask: (taskId: string, columnId: string, position: number) => void;
-  onAddTask: (columnId: string, title: string) => void;
+  onAddTask: (columnId: string, data: { title: string; assigneeId?: string; priority?: string }) => void;
   onTaskClick: (task: WmTask) => void;
   onAddColumn: () => void;
 }
 
-export function KanbanBoard({ columns, onMoveTask, onAddTask, onTaskClick, onAddColumn }: KanbanBoardProps) {
+export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskClick, onAddColumn }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<WmTask | null>(null);
   const [localColumns, setLocalColumns] = useState<ColumnWithTasks[]>(columns);
 
@@ -144,6 +145,7 @@ export function KanbanBoard({ columns, onMoveTask, onAddTask, onTaskClick, onAdd
             key={col.id}
             column={col}
             tasks={col.tasks}
+            members={members}
             onAddTask={onAddTask}
             onTaskClick={onTaskClick}
           />
