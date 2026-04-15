@@ -1,18 +1,48 @@
 'use client';
 
+import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { cn } from '@/lib/utils';
 import type { WmTask, WmColumn } from '@/hooks/work-management/useWm';
 import { KanbanTaskCard } from './KanbanTaskCard';
 import { InlineTaskCreate } from './InlineTaskCreate';
+import { Plus, X } from 'lucide-react';
 
 interface KanbanColumnProps {
   column: WmColumn;
   tasks: WmTask[];
   members?: { id: string; userId?: string; userName?: string; name?: string }[];
-  onAddTask: (columnId: string, data: { title: string; assigneeId?: string; priority?: string }) => void;
+  onAddTask: (columnId: string, data: { title: string; assigneeId?: string; priority?: string; section?: string }) => void;
   onTaskClick: (task: WmTask) => void;
+}
+
+const DEFAULT_SECTION = 'Allgemein';
+
+function groupTasksBySections(tasks: WmTask[]): { name: string; tasks: WmTask[] }[] {
+  const sectionMap = new Map<string, WmTask[]>();
+
+  for (const task of tasks) {
+    const sectionName = task.section || DEFAULT_SECTION;
+    const existing = sectionMap.get(sectionName);
+    if (existing) {
+      existing.push(task);
+    } else {
+      sectionMap.set(sectionName, [task]);
+    }
+  }
+
+  // Put "Allgemein" last if there are other sections
+  const sections = Array.from(sectionMap.entries()).map(([name, tasks]) => ({ name, tasks }));
+  if (sections.length <= 1) return sections;
+
+  const allgemeinIdx = sections.findIndex((s) => s.name === DEFAULT_SECTION);
+  if (allgemeinIdx > -1) {
+    const [allgemein] = sections.splice(allgemeinIdx, 1);
+    sections.push(allgemein);
+  }
+
+  return sections;
 }
 
 export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick }: KanbanColumnProps) {
@@ -21,7 +51,32 @@ export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick }:
     data: { type: 'column', column },
   });
 
+  const [showSectionInput, setShowSectionInput] = useState(false);
+  const [newSectionName, setNewSectionName] = useState('');
+
   const taskIds = tasks.map((t) => t.id);
+  const sections = groupTasksBySections(tasks);
+  const hasSections = sections.length > 1 || (sections.length === 1 && sections[0].name !== DEFAULT_SECTION);
+
+  function handleCreateSection() {
+    const trimmed = newSectionName.trim();
+    if (!trimmed) return;
+    setNewSectionName('');
+    setShowSectionInput(false);
+    // Create a placeholder task in this section so it appears
+    onAddTask(column.id, { title: `Neue Aufgabe in ${trimmed}`, section: trimmed, priority: 'medium' });
+  }
+
+  function handleSectionKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCreateSection();
+    }
+    if (e.key === 'Escape') {
+      setShowSectionInput(false);
+      setNewSectionName('');
+    }
+  }
 
   return (
     <div
@@ -52,10 +107,65 @@ export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick }:
         className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[60px]"
       >
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-          {tasks.map((task) => (
-            <KanbanTaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />
-          ))}
+          {hasSections ? (
+            sections.map((section) => (
+              <div key={section.name}>
+                {/* Section header */}
+                <div className="flex items-center gap-2 px-1 py-1.5 mt-1 first:mt-0">
+                  <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                    {section.name}
+                  </span>
+                  <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
+                </div>
+                <div className="space-y-2">
+                  {section.tasks.map((task) => (
+                    <KanbanTaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            tasks.map((task) => (
+              <KanbanTaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />
+            ))
+          )}
         </SortableContext>
+
+        {/* Add section */}
+        {showSectionInput ? (
+          <div className="flex items-center gap-1 mt-2">
+            <input
+              type="text"
+              value={newSectionName}
+              onChange={(e) => setNewSectionName(e.target.value)}
+              onKeyDown={handleSectionKeyDown}
+              autoFocus
+              placeholder="Sektionsname..."
+              className="flex-1 rounded-md border border-gray-200 dark:border-white/10 bg-transparent px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-400"
+            />
+            <button
+              onClick={handleCreateSection}
+              className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+            >
+              OK
+            </button>
+            <button
+              onClick={() => { setShowSectionInput(false); setNewSectionName(''); }}
+              className="text-gray-400 hover:text-red-500"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowSectionInput(true)}
+            className="flex items-center gap-1 w-full px-1 py-1 mt-1 text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Sektion
+          </button>
+        )}
       </div>
 
       {/* Add task */}

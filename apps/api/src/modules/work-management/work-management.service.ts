@@ -196,6 +196,8 @@ export class WorkManagementService {
     priority?: string;
     dueDate?: string;
     estimatedMinutes?: number;
+    color?: string;
+    section?: string;
   }) {
     const maxPos = await this.prisma.wmTask.aggregate({
       where: { columnId: data.columnId, parentTaskId: null },
@@ -214,6 +216,8 @@ export class WorkManagementService {
         priority: data.priority || 'medium',
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         estimatedMinutes: data.estimatedMinutes,
+        color: data.color,
+        section: data.section,
         position: (maxPos._max.position ?? -1) + 1,
       },
       include: {
@@ -256,6 +260,8 @@ export class WorkManagementService {
       columnId?: string;
       completed?: boolean;
       estimatedMinutes?: number | null;
+      color?: string | null;
+      section?: string | null;
     },
   ) {
     await this.ensureTaskExists(id);
@@ -268,6 +274,8 @@ export class WorkManagementService {
     if (data.assigneeId !== undefined) updateData.assigneeId = data.assigneeId;
     if (data.columnId !== undefined) updateData.columnId = data.columnId;
     if (data.estimatedMinutes !== undefined) updateData.estimatedMinutes = data.estimatedMinutes;
+    if (data.color !== undefined) updateData.color = data.color;
+    if (data.section !== undefined) updateData.section = data.section;
 
     if (data.dueDate !== undefined) {
       updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;

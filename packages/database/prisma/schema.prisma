@@ -1414,10 +1414,25 @@ model WmProject {
   columns WmColumn[]
   tasks   WmTask[]
   members WmProjectMember[]
-  labels  WmLabel[]
+  labels       WmLabel[]
+  chatMessages WmProjectChat[]
 
   @@index([orgId])
   @@map("wm_projects")
+}
+
+model WmProjectChat {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  userName  String   @map("user_name") @db.VarChar(255)
+  message   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  project WmProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("wm_project_chats")
 }
 
 model WmColumn {
@@ -1450,6 +1465,8 @@ model WmTask {
   completed        Boolean   @default(false)
   completedAt      DateTime? @map("completed_at") @db.Timestamptz
   estimatedMinutes Int?      @map("estimated_minutes")
+  color            String?   @db.VarChar(20)
+  section          String?   @db.VarChar(100)
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1548,4 +1565,19 @@ model WmActivity {
   @@index([taskId])
   @@index([projectId])
   @@map("wm_activities")
+}
+
+model WmNotification {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String   @db.VarChar(50)
+  title     String   @db.VarChar(255)
+  message   String   @db.Text
+  taskId    String?  @map("task_id") @db.Uuid
+  projectId String?  @map("project_id") @db.Uuid
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId, read])
+  @@map("wm_notifications")
 }

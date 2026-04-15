@@ -110,6 +110,8 @@ export interface WmTask {
   attachments: WmAttachment[];
   estimateMinutes?: number;
   completed: boolean;
+  color?: string | null;
+  section?: string | null;
   createdBy: string;
   createdByName: string;
   createdAt: string;
@@ -402,7 +404,7 @@ export function useUploadWmAttachment() {
       formData.append('file', data.file);
       const hdrs = authHeaders();
       delete (hdrs as Record<string, string>)['Content-Type'];
-      const res = await fetch(`${API_URL}/api/work-management/tasks/${data.taskId}/attachments`, {
+      const res = await fetch(`${API_URL}/api/wm/tasks/${data.taskId}/attachments`, {
         method: 'POST',
         headers: hdrs,
         body: formData,

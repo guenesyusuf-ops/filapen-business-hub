@@ -57,10 +57,15 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
   const totalSubtasks = task.subtasks?.length ?? 0;
   const overdue = isOverdue(task.dueDate);
 
+  const cardStyle = {
+    ...style,
+    ...(task.color ? { borderLeftColor: task.color, borderLeftWidth: '4px' } : {}),
+  };
+
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={cardStyle}
       {...attributes}
       {...listeners}
       onClick={(e) => {
@@ -72,6 +77,7 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
         'border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md transition-all duration-150',
         'hover:border-primary-300 dark:hover:border-primary-500/40',
         isDragging && 'opacity-50 shadow-lg ring-2 ring-primary-400',
+        task.color && 'border-l-4',
       )}
     >
       {/* Labels */}

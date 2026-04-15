@@ -175,6 +175,8 @@ export class WorkManagementController {
       priority?: string;
       dueDate?: string;
       estimatedMinutes?: number;
+      color?: string;
+      section?: string;
     },
   ) {
     try {
@@ -212,6 +214,8 @@ export class WorkManagementController {
       columnId?: string;
       completed?: boolean;
       estimatedMinutes?: number | null;
+      color?: string | null;
+      section?: string | null;
     },
   ) {
     try {
