@@ -97,6 +97,7 @@ export interface WmTask {
   id: string;
   projectId: string;
   columnId: string;
+  parentTaskId?: string;
   title: string;
   description?: string;
   position: number;
@@ -135,8 +136,22 @@ export function useWmProjects() {
   });
 }
 
+export interface WmProjectMember {
+  id: string;
+  userId: string;
+  userName: string;
+  role: string;
+}
+
+export interface WmProjectDetail extends WmProject {
+  columns: WmColumn[];
+  tasks: WmTask[];
+  members: WmProjectMember[];
+  labels: WmLabel[];
+}
+
 export function useWmProject(id: string) {
-  return useQuery<WmProject & { columns: (WmColumn & { tasks: WmTask[] })[] }>({
+  return useQuery<WmProjectDetail>({
     queryKey: ['wm', 'project', id],
     queryFn: () => wmFetch(`/projects/${id}`),
     enabled: !!id,

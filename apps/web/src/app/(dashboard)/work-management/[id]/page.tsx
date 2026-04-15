@@ -132,7 +132,14 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const columns = project.columns ?? [];
+  // Map tasks into their columns (API returns tasks separately)
+  const allTasks = project.tasks ?? [];
+  const columns = (project.columns ?? []).map((col: WmColumn) => ({
+    ...col,
+    tasks: allTasks
+      .filter((t: WmTask) => t.columnId === col.id && !t.parentTaskId)
+      .sort((a: WmTask, b: WmTask) => (a.position ?? 0) - (b.position ?? 0)),
+  }));
 
   return (
     <div className="flex flex-col h-full -m-6">
