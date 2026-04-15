@@ -19,9 +19,12 @@ import {
   useWmMembers,
 } from '@/hooks/work-management/useWm';
 import type { WmTask, WmColumn } from '@/hooks/work-management/useWm';
-import { KanbanBoard } from '@/components/work-management/KanbanBoard';
-import { TaskListView } from '@/components/work-management/TaskListView';
-import { TaskDetailModal } from '@/components/work-management/TaskDetailModal';
+import dynamic from 'next/dynamic';
+
+// Lazy-load DnD components to avoid SSR issues with @dnd-kit
+const KanbanBoard = dynamic(() => import('@/components/work-management/KanbanBoard').then(m => ({ default: m.KanbanBoard })), { ssr: false });
+const TaskListView = dynamic(() => import('@/components/work-management/TaskListView').then(m => ({ default: m.TaskListView })), { ssr: false });
+const TaskDetailModal = dynamic(() => import('@/components/work-management/TaskDetailModal').then(m => ({ default: m.TaskDetailModal })), { ssr: false });
 
 type ViewTab = 'board' | 'list';
 
