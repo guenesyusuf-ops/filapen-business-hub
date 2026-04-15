@@ -214,7 +214,15 @@ export default function ProjectDetailPage() {
   }
 
   // Map tasks into their columns (API returns tasks separately)
-  const allTasks = project.tasks ?? [];
+  // Map API tasks to frontend shape (taskLabels → labels, subtask mapping)
+  const allTasks = (project.tasks ?? []).map((t: any) => ({
+    ...t,
+    labels: (t.taskLabels ?? []).map((tl: any) => tl.label).filter(Boolean),
+    subtasks: t.subtasks ?? [],
+    attachments: t.attachments ?? [],
+    assigneeName: t.assigneeName ?? (t.assigneeId ? 'Mitarbeiter' : undefined),
+  })) as WmTask[];
+
   const columns = (project.columns ?? []).map((col: WmColumn) => ({
     ...col,
     tasks: allTasks
