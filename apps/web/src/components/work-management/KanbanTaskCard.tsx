@@ -4,20 +4,20 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import type { WmTask } from '@/hooks/work-management/useWm';
-import { Calendar, User, CheckSquare } from 'lucide-react';
+import { Calendar, CheckSquare, Star } from 'lucide-react';
 
-const PRIORITY_STYLES: Record<string, string> = {
-  urgent: 'bg-red-500 text-white',
-  high: 'bg-orange-500 text-white',
-  medium: 'bg-blue-500 text-white',
-  low: 'bg-gray-400 text-white',
+const PRIORITY_STARS: Record<string, number> = {
+  urgent: 3,
+  high: 3,
+  medium: 2,
+  low: 1,
 };
 
-const PRIORITY_LABELS: Record<string, string> = {
-  urgent: 'Dringend',
-  high: 'Hoch',
-  medium: 'Mittel',
-  low: 'Niedrig',
+const PRIORITY_COLOR: Record<string, string> = {
+  urgent: 'text-red-500',
+  high: 'text-orange-400',
+  medium: 'text-amber-400',
+  low: 'text-gray-300',
 };
 
 function isOverdue(dateStr?: string): boolean {
@@ -28,6 +28,12 @@ function isOverdue(dateStr?: string): boolean {
 function formatDueDate(dateStr: string): string {
   const d = new Date(dateStr);
   return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
 interface KanbanTaskCardProps {
@@ -56,6 +62,8 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
   const completedSubtasks = task.subtasks?.filter((s) => s.completed).length ?? 0;
   const totalSubtasks = task.subtasks?.length ?? 0;
   const overdue = isOverdue(task.dueDate);
+  const stars = PRIORITY_STARS[task.priority] ?? 2;
+  const starColor = PRIORITY_COLOR[task.priority] ?? 'text-gray-300';
 
   const cardStyle = {
     ...style,
@@ -80,7 +88,7 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
         task.color && 'border-l-4',
       )}
     >
-      {/* Labels */}
+      {/* Labels as colored badges */}
       {task.labels && task.labels.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {task.labels.map((label) => (
@@ -89,7 +97,6 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
               className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
               style={{ backgroundColor: `${label.color}20`, color: label.color, border: `1px solid ${label.color}40` }}
             >
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: label.color }} />
               {label.name}
             </span>
           ))}
@@ -101,13 +108,18 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
         {task.title}
       </p>
 
-      {/* Meta row */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Priority */}
-        <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', PRIORITY_STYLES[task.priority])}>
-          {PRIORITY_LABELS[task.priority]}
-        </span>
+      {/* Priority Stars */}
+      <div className="flex items-center gap-0.5 mb-2">
+        {[1, 2, 3].map((n) => (
+          <Star
+            key={n}
+            className={cn('h-3 w-3', n <= stars ? `${starColor} fill-current` : 'text-gray-200 dark:text-gray-700')}
+          />
+        ))}
+      </div>
 
+      {/* Bottom row: Due date + Subtasks + Assignee(s) */}
+      <div className="flex items-center gap-2 flex-wrap">
         {/* Due date */}
         {task.dueDate && (
           <span className={cn(
@@ -130,13 +142,25 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
         {/* Spacer */}
         <span className="flex-1" />
 
-        {/* Assignee */}
+        {/* Assignee avatar(s) */}
         {task.assigneeName && (
-          <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
-            <span className="h-5 w-5 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[9px] font-bold text-primary-700 dark:text-primary-300">
-              {task.assigneeName.charAt(0).toUpperCase()}
-            </span>
-          </span>
+          <div className="flex -space-x-1.5">
+            {(task as any).assigneeAvatarUrl ? (
+              <img
+                src={(task as any).assigneeAvatarUrl}
+                alt={task.assigneeName}
+                title={task.assigneeName}
+                className="h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] object-cover"
+              />
+            ) : (
+              <span
+                title={task.assigneeName}
+                className="h-6 w-6 rounded-full bg-primary-100 dark:bg-primary-900/50 border-2 border-white dark:border-[#1a1d2e] flex items-center justify-center text-[9px] font-bold text-primary-700 dark:text-primary-300"
+              >
+                {getInitials(task.assigneeName)}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>
