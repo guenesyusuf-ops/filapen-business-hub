@@ -15,6 +15,7 @@ interface KanbanColumnProps {
   members?: { id: string; userId?: string; userName?: string; name?: string }[];
   onAddTask: (columnId: string, data: { title: string; assigneeId?: string; priority?: string; section?: string }) => void;
   onTaskClick: (task: WmTask) => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
 const DEFAULT_SECTION = 'Allgemein';
@@ -45,7 +46,7 @@ function groupTasksBySections(tasks: WmTask[]): { name: string; tasks: WmTask[] 
   return sections;
 }
 
-export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, onDeleteTask }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${column.id}`,
     data: { type: 'column', column },
@@ -120,7 +121,7 @@ export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick }:
                 </div>
                 <div className="space-y-2">
                   {section.tasks.map((task) => (
-                    <KanbanTaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />
+                    <KanbanTaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} onDelete={onDeleteTask} />
                   ))}
                 </div>
               </div>

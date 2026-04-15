@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import type { WmTask } from '@/hooks/work-management/useWm';
-import { Calendar, CheckSquare, Star } from 'lucide-react';
+import { Calendar, CheckSquare, Star, X } from 'lucide-react';
 
 const PRIORITY_STARS: Record<string, number> = {
   urgent: 3,
@@ -39,9 +39,10 @@ function getInitials(name: string): string {
 interface KanbanTaskCardProps {
   task: WmTask;
   onClick: () => void;
+  onDelete?: (taskId: string) => void;
 }
 
-export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
+export function KanbanTaskCard({ task, onClick, onDelete }: KanbanTaskCardProps) {
   const {
     attributes,
     listeners,
@@ -81,13 +82,27 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
         onClick();
       }}
       className={cn(
-        'group rounded-lg border bg-white dark:bg-[var(--card-bg,#1a1d2e)] p-3 cursor-grab active:cursor-grabbing',
+        'group relative rounded-lg border bg-white dark:bg-[var(--card-bg,#1a1d2e)] p-3 cursor-grab active:cursor-grabbing',
         'border-gray-200 dark:border-white/10 shadow-sm hover:shadow-md transition-all duration-150',
         'hover:border-primary-300 dark:hover:border-primary-500/40',
         isDragging && 'opacity-50 shadow-lg ring-2 ring-primary-400',
         task.color && 'border-l-4',
       )}
     >
+      {/* Delete button (hover) */}
+      {onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (confirm('Aufgabe loeschen?')) onDelete(task.id);
+          }}
+          className="absolute top-1.5 right-1.5 p-0.5 rounded bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
+          title="Loeschen"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+
       {/* Labels as colored badges */}
       {task.labels && task.labels.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
@@ -142,26 +157,35 @@ export function KanbanTaskCard({ task, onClick }: KanbanTaskCardProps) {
         {/* Spacer */}
         <span className="flex-1" />
 
-        {/* Assignee avatar(s) */}
-        {task.assigneeName && (
-          <div className="flex -space-x-1.5">
-            {(task as any).assigneeAvatarUrl ? (
-              <img
-                src={(task as any).assigneeAvatarUrl}
-                alt={task.assigneeName}
-                title={task.assigneeName}
-                className="h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] object-cover"
-              />
-            ) : (
-              <span
-                title={task.assigneeName}
-                className="h-6 w-6 rounded-full bg-primary-100 dark:bg-primary-900/50 border-2 border-white dark:border-[#1a1d2e] flex items-center justify-center text-[9px] font-bold text-primary-700 dark:text-primary-300"
-              >
-                {getInitials(task.assigneeName)}
-              </span>
-            )}
-          </div>
-        )}
+        {/* Person avatar — assignee if set, otherwise creator */}
+        {(() => {
+          const name = task.assigneeName || (task as any).createdByName || task.createdBy || '';
+          if (!name) return null;
+          const avatarUrl = (task as any).assigneeAvatarUrl || (task as any).createdByAvatarUrl;
+          const isAssignee = !!task.assigneeName;
+          return (
+            <div className="flex -space-x-1.5" title={isAssignee ? `Zugewiesen: ${name}` : `Erstellt von: ${name}`}>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={name}
+                  className="h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] object-cover"
+                />
+              ) : (
+                <span
+                  className={cn(
+                    'h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] flex items-center justify-center text-[9px] font-bold',
+                    isAssignee
+                      ? 'bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
+                  )}
+                >
+                  {getInitials(name)}
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

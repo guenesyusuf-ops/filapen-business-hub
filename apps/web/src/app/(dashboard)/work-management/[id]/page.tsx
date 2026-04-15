@@ -9,6 +9,7 @@ import {
   useWmProject,
   useCreateWmTask,
   useUpdateWmTask,
+  useDeleteWmTask,
   useMoveWmTask,
   useCreateWmColumn,
   useWmComments,
@@ -127,6 +128,7 @@ export default function ProjectDetailPage() {
   const { data: project, isLoading, error } = useWmProject(projectId);
   const createTask = useCreateWmTask();
   const updateTask = useUpdateWmTask();
+  const deleteTask = useDeleteWmTask();
   const moveTask = useMoveWmTask();
   const createColumn = useCreateWmColumn();
   const { data: labels = [] } = useWmLabels(projectId);
@@ -296,6 +298,7 @@ export default function ProjectDetailPage() {
             onMoveTask={handleMoveTask}
             onAddTask={handleAddTask}
             onTaskClick={handleTaskClick}
+            onDeleteTask={(taskId) => deleteTask.mutate({ id: taskId, projectId })}
             onAddColumn={handleAddColumn}
           />
         ) : activeTab === 'list' ? (

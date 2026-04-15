@@ -29,10 +29,11 @@ interface KanbanBoardProps {
   onMoveTask: (taskId: string, columnId: string, position: number) => void;
   onAddTask: (columnId: string, data: { title: string; assigneeId?: string; priority?: string }) => void;
   onTaskClick: (task: WmTask) => void;
+  onDeleteTask?: (taskId: string) => void;
   onAddColumn: () => void;
 }
 
-export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskClick, onAddColumn }: KanbanBoardProps) {
+export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskClick, onDeleteTask, onAddColumn }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<WmTask | null>(null);
   const [localColumns, setLocalColumns] = useState<ColumnWithTasks[]>(columns);
 
@@ -148,6 +149,7 @@ export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskCli
             members={members}
             onAddTask={onAddTask}
             onTaskClick={onTaskClick}
+            onDeleteTask={onDeleteTask}
           />
         ))}
 
