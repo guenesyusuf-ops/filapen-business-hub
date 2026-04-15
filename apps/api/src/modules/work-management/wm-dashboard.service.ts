@@ -219,4 +219,99 @@ export class WmDashboardService {
 
     return results;
   }
+
+  // =========================================================================
+  // BURNDOWN CHART (Feature 3)
+  // =========================================================================
+
+  async getBurndownData(projectId: string) {
+    const project = await this.prisma.wmProject.findUnique({
+      where: { id: projectId },
+    });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const tasks = await this.prisma.wmTask.findMany({
+      where: { projectId, parentTaskId: null },
+      select: {
+        id: true,
+        completed: true,
+        completedAt: true,
+        createdAt: true,
+        dueDate: true,
+      },
+    });
+
+    if (tasks.length === 0) {
+      return { dates: [], ideal: [], actual: [] };
+    }
+
+    // Finde den Zeitraum: Projektstart bis heute (oder spaeteste Deadline)
+    const projectStart = new Date(project.createdAt);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    // Spaeteste Deadline oder heute als Endpunkt
+    let projectEnd = new Date(today);
+    for (const task of tasks) {
+      if (task.dueDate) {
+        const due = new Date(task.dueDate);
+        if (due > projectEnd) projectEnd = due;
+      }
+    }
+
+    const totalTasks = tasks.length;
+    const dates: string[] = [];
+    const ideal: number[] = [];
+    const actual: number[] = [];
+
+    // Generiere Tage von Start bis heute
+    const current = new Date(projectStart);
+    current.setHours(0, 0, 0, 0);
+    const endDate = new Date(Math.min(today.getTime(), projectEnd.getTime()));
+    endDate.setHours(23, 59, 59, 999);
+
+    // Gesamttage fuer Ideal-Verlauf
+    const totalDays = Math.max(
+      1,
+      Math.ceil((projectEnd.getTime() - projectStart.getTime()) / 86400000),
+    );
+    const dailyBurn = totalTasks / totalDays;
+
+    let dayIndex = 0;
+    while (current <= endDate) {
+      const dateStr = current.toISOString().split('T')[0];
+      dates.push(dateStr);
+
+      // Ideal: linearer Abbau
+      const idealRemaining = Math.max(0, totalTasks - dailyBurn * dayIndex);
+      ideal.push(Math.round(idealRemaining * 10) / 10);
+
+      // Actual: wie viele Tasks waren an diesem Tag noch offen?
+      const dayEnd = new Date(current);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      let openAtDay = 0;
+      for (const task of tasks) {
+        const createdBefore = new Date(task.createdAt) <= dayEnd;
+        if (!createdBefore) continue; // Task existierte noch nicht
+
+        if (!task.completed) {
+          openAtDay++;
+        } else if (task.completedAt) {
+          // War der Task an diesem Tag noch offen?
+          if (new Date(task.completedAt) > dayEnd) {
+            openAtDay++;
+          }
+        } else {
+          // Completed ohne completedAt — zaehle als erledigt
+        }
+      }
+      actual.push(openAtDay);
+
+      current.setDate(current.getDate() + 1);
+      dayIndex++;
+    }
+
+    return { dates, ideal, actual };
+  }
 }

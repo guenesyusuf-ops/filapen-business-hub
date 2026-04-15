@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Columns3, List, ArrowLeft, Plus, X } from 'lucide-react';
+import { Columns3, List, ArrowLeft, Plus, X, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
 import {
   useWmProject,
@@ -29,8 +29,9 @@ import dynamic from 'next/dynamic';
 const KanbanBoard = dynamic(() => import('@/components/work-management/KanbanBoard').then(m => ({ default: m.KanbanBoard })), { ssr: false });
 const TaskListView = dynamic(() => import('@/components/work-management/TaskListView').then(m => ({ default: m.TaskListView })), { ssr: false });
 const TaskDetailModal = dynamic(() => import('@/components/work-management/TaskDetailModal').then(m => ({ default: m.TaskDetailModal })), { ssr: false });
+const BurndownChart = dynamic(() => import('@/components/work-management/BurndownChart').then(m => ({ default: m.BurndownChart })), { ssr: false });
 
-type ViewTab = 'board' | 'list';
+type ViewTab = 'board' | 'list' | 'burndown';
 
 const COLUMN_COLORS = [
   { value: '#6B7280', label: 'Grau' },
@@ -262,6 +263,18 @@ export default function ProjectDetailPage() {
             <List className="h-3.5 w-3.5" />
             Liste
           </button>
+          <button
+            onClick={() => setActiveTab('burndown')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+              activeTab === 'burndown'
+                ? 'bg-white dark:bg-[#1a1d2e] text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
+            )}
+          >
+            <TrendingDown className="h-3.5 w-3.5" />
+            Burndown
+          </button>
         </div>
       </div>
 
@@ -277,12 +290,14 @@ export default function ProjectDetailPage() {
             onTaskClick={handleTaskClick}
             onAddColumn={handleAddColumn}
           />
-        ) : (
+        ) : activeTab === 'list' ? (
           <TaskListView
             columns={columns}
             onTaskClick={handleTaskClick}
             onToggleComplete={handleToggleComplete}
           />
+        ) : (
+          <BurndownChart projectId={projectId} />
         )}
         </WmErrorBoundary>
 

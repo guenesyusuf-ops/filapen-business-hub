@@ -140,3 +140,6 @@
 {"type":"edit","file":"/Users/yumaya/filapen/.env.production.example","timestamp":1775753245515,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/content/ai-generator.service.ts","timestamp":1775771316946,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/integration/shopify/shopify.service.ts","timestamp":1775776699492,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/integration/shopify/shopify-auth.controller.ts","timestamp":1775778931184,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/integration/integration.module.ts","timestamp":1775846358129,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/finance/dashboard/dashboard.controller.ts","timestamp":1775852023005,"sessionId":null}

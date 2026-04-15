@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Plus, FolderKanban, Users, ListChecks, BarChart3, CheckCircle2, AlertTriangle, CalendarClock, Tag } from 'lucide-react';
+import { Plus, FolderKanban, Users, ListChecks, BarChart3, CheckCircle2, AlertTriangle, CalendarClock, Tag, Bell, X } from 'lucide-react';
 import { useWmProjects, useCreateWmProject } from '@/hooks/work-management/useWm';
-import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory } from '@/hooks/work-management/useWmDashboard';
+import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory, useWmNotifications, useWmUnreadCount, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/work-management/useWmDashboard';
 import { CreateProjectModal } from '@/components/work-management/CreateProjectModal';
 
 const PROJECT_CATEGORIES = ['Alle', 'Marketing', 'Produkt', 'Intern', 'Vertrieb', 'Sonstige'] as const;
@@ -51,9 +51,14 @@ export default function WorkManagementPage() {
   const { data: projectsWithCat } = useWmProjectsWithCategory();
   const createProject = useCreateWmProject();
   const updateCategory = useUpdateProjectCategory();
+  const { data: notifications } = useWmNotifications();
+  const { data: unreadCount } = useWmUnreadCount();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('Alle');
   const [showCategoryPicker, setShowCategoryPicker] = useState<string | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   function handleCreate(data: { name: string; description: string; color: string }) {
     createProject.mutate(data, {
@@ -90,14 +95,85 @@ export default function WorkManagementPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Work Management</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projekte und Aufgaben verwalten</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors shadow-sm"
-        >
-          <Plus className="h-4 w-4" />
-          Neues Projekt
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Notification Bell */}
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="relative p-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+          >
+            <Bell className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+            {(unreadCount?.count ?? 0) > 0 && (
+              <span className="absolute -top-1 -right-1 flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-red-500 text-[10px] font-bold text-white">
+                {unreadCount!.count > 99 ? '99+' : unreadCount!.count}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Neues Projekt
+          </button>
+        </div>
       </div>
+
+      {/* Notification Panel */}
+      {showNotifications && (
+        <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+              Benachrichtigungen
+              {(unreadCount?.count ?? 0) > 0 && (
+                <span className="ml-2 text-xs font-normal text-gray-400">({unreadCount!.count} ungelesen)</span>
+              )}
+            </span>
+            <div className="flex items-center gap-2">
+              {(unreadCount?.count ?? 0) > 0 && (
+                <button
+                  onClick={() => markAllRead.mutate()}
+                  className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium"
+                >
+                  Alle gelesen
+                </button>
+              )}
+              <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto divide-y divide-gray-100 dark:divide-white/5">
+            {(!notifications || notifications.length === 0) ? (
+              <div className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                Keine Benachrichtigungen
+              </div>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={cn(
+                    'px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors',
+                    !n.read && 'bg-primary-50/50 dark:bg-primary-900/10',
+                  )}
+                  onClick={() => { if (!n.read) markRead.mutate(n.id); }}
+                >
+                  <div className={cn(
+                    'mt-0.5 h-2 w-2 rounded-full flex-shrink-0',
+                    n.read ? 'bg-transparent' : 'bg-primary-500',
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{n.title}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                      {new Date(n.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       {dashboard && (

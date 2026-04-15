@@ -110,3 +110,75 @@ export function useWmProjectsWithCategory() {
     queryFn: () => wmFetch('/projects-with-category'),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Notification types & hooks (Feature 2)
+// ---------------------------------------------------------------------------
+
+export interface WmNotification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  task_id: string | null;
+  project_id: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+export function useWmNotifications() {
+  return useQuery<WmNotification[]>({
+    queryKey: ['wm', 'notifications'],
+    queryFn: () => wmFetch('/notifications'),
+    refetchInterval: 60000,
+  });
+}
+
+export function useWmUnreadCount() {
+  return useQuery<{ count: number }>({
+    queryKey: ['wm', 'notifications', 'unread-count'],
+    queryFn: () => wmFetch('/notifications/unread-count'),
+    refetchInterval: 30000,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      wmFetch(`/notifications/${id}/read`, { method: 'PATCH' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wm', 'notifications'] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      wmFetch('/notifications/read-all', { method: 'PATCH' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wm', 'notifications'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Burndown Chart hook (Feature 3)
+// ---------------------------------------------------------------------------
+
+export interface BurndownData {
+  dates: string[];
+  ideal: number[];
+  actual: number[];
+}
+
+export function useWmBurndown(projectId: string) {
+  return useQuery<BurndownData>({
+    queryKey: ['wm', 'burndown', projectId],
+    queryFn: () => wmFetch(`/projects/${projectId}/burndown`),
+    enabled: !!projectId,
+  });
+}
