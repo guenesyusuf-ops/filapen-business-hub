@@ -247,7 +247,7 @@ export function useMoveWmTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { taskId: string; projectId: string; columnId: string; position: number }) =>
-      wmFetch(`/tasks/${data.taskId}/move`, { method: 'POST', body: JSON.stringify(data) }),
+      wmFetch(`/tasks/${data.taskId}/move`, { method: 'PATCH', body: JSON.stringify(data) }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
     },
