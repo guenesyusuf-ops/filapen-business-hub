@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Columns3, List, ArrowLeft, Plus } from 'lucide-react';
@@ -27,6 +27,24 @@ const TaskListView = dynamic(() => import('@/components/work-management/TaskList
 const TaskDetailModal = dynamic(() => import('@/components/work-management/TaskDetailModal').then(m => ({ default: m.TaskDetailModal })), { ssr: false });
 
 type ViewTab = 'board' | 'list';
+
+// Error boundary to catch @dnd-kit runtime crashes
+class WmErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm font-semibold text-red-700 mb-2">Fehler im Board</p>
+          <p className="text-xs text-red-600 font-mono whitespace-pre-wrap">{this.state.error.message}</p>
+          <button onClick={() => this.setState({ error: null })} className="mt-3 text-xs text-red-600 underline">Erneut versuchen</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -162,6 +180,7 @@ export default function ProjectDetailPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden p-6">
+        <WmErrorBoundary>
         {activeTab === 'board' ? (
           <KanbanBoard
             columns={columns}
@@ -177,6 +196,7 @@ export default function ProjectDetailPage() {
             onToggleComplete={handleToggleComplete}
           />
         )}
+        </WmErrorBoundary>
       </div>
 
       {/* Task detail modal */}
