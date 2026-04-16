@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { WmTask, WmSubtask, WmComment, WmAttachment, WmColumn, WmMember, WmLabel, WmActivity } from '@/hooks/work-management/useWm';
 import { AttachmentPreview, AttachmentRow } from './AttachmentPreview';
+import { ApprovalPanel } from './ApprovalPanel';
 
 const PRIORITY_OPTIONS: { value: WmTask['priority']; label: string; color: string }[] = [
   { value: 'urgent', label: 'Dringend', color: 'bg-red-500' },
@@ -843,6 +844,11 @@ export function TaskDetailModal({
           </div>
         </div>
       </div>
+
+      {/* Approval workflow panel (only for approval tasks) */}
+      {(task as any).approvalStatus && (
+        <ApprovalPanel taskId={task.id} />
+      )}
 
       {/* Attachment preview lightbox */}
       {previewAttachment && (
