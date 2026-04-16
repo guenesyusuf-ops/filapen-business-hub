@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Plus, FolderKanban, Users, ListChecks, BarChart3, CheckCircle2, AlertTriangle, CalendarClock, Tag, Bell, X } from 'lucide-react';
-import { useWmProjects, useCreateWmProject } from '@/hooks/work-management/useWm';
+import { Plus, FolderKanban, Users, ListChecks, BarChart3, CheckCircle2, AlertTriangle, CalendarClock, Tag, Bell, X, Trash2 } from 'lucide-react';
+import { useWmProjects, useCreateWmProject, useDeleteWmProject } from '@/hooks/work-management/useWm';
 import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory, useWmNotifications, useWmUnreadCount, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/work-management/useWmDashboard';
 import { CreateProjectModal } from '@/components/work-management/CreateProjectModal';
 
@@ -50,6 +50,7 @@ export default function WorkManagementPage() {
   const { data: dashboard } = useWmDashboard();
   const { data: projectsWithCat } = useWmProjectsWithCategory();
   const createProject = useCreateWmProject();
+  const deleteProject = useDeleteWmProject();
   const updateCategory = useUpdateProjectCategory();
   const { data: notifications } = useWmNotifications();
   const { data: unreadCount } = useWmUnreadCount();
@@ -280,6 +281,21 @@ export default function WorkManagementPage() {
                   className="h-2"
                   style={{ backgroundColor: project.color }}
                 />
+
+                {/* Delete button (hover) */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (confirm(`Projekt "${project.name}" wirklich loeschen? Alle Tasks, Spalten und Daten gehen verloren.`)) {
+                      deleteProject.mutate(project.id);
+                    }
+                  }}
+                  className="absolute top-3 right-3 p-1 rounded-md bg-red-500/80 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10"
+                  title="Projekt loeschen"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
 
                 <Link
                   href={`/work-management/${project.id}`}
