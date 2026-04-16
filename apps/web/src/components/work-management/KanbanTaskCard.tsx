@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import type { WmTask } from '@/hooks/work-management/useWm';
-import { Calendar, CheckSquare, Star, X } from 'lucide-react';
+import { Calendar, CheckSquare, Star, X, ShieldCheck } from 'lucide-react';
 
 const PRIORITY_STARS: Record<string, number> = {
   urgent: 3,
@@ -122,6 +122,49 @@ export function KanbanTaskCard({ task, onClick, onDelete }: KanbanTaskCardProps)
       <p className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mb-2">
         {task.title}
       </p>
+
+      {/* Approval progress ring (only for approval tasks) */}
+      {(task as any).approvalStatus && (task as any).approvalProgress && (
+        <div className="flex items-center gap-2 mb-2">
+          {/* Mini ring */}
+          <div className="relative h-6 w-6 flex-shrink-0">
+            <svg className="h-6 w-6 -rotate-90" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="3"
+                className="text-gray-200 dark:text-gray-700" />
+              <circle cx="12" cy="12" r="10" fill="none" strokeWidth="3"
+                strokeDasharray={`${((task as any).approvalProgress.approved / Math.max((task as any).approvalProgress.total, 1)) * 62.83} 62.83`}
+                strokeLinecap="round"
+                className={cn(
+                  (task as any).approvalStatus === 'approved' ? 'text-emerald-500'
+                    : (task as any).approvalStatus === 'rejected' ? 'text-red-500'
+                      : 'text-blue-500',
+                )}
+              />
+            </svg>
+          </div>
+          <span className={cn(
+            'text-[10px] font-bold',
+            (task as any).approvalStatus === 'approved' ? 'text-emerald-600 dark:text-emerald-400'
+              : (task as any).approvalStatus === 'rejected' ? 'text-red-600 dark:text-red-400'
+                : 'text-blue-600 dark:text-blue-400',
+          )}>
+            {(task as any).approvalStatus === 'approved' ? (
+              <span className="flex items-center gap-0.5"><ShieldCheck className="h-3 w-3" /> Genehmigt</span>
+            ) : (task as any).approvalStatus === 'rejected' ? (
+              'Abgelehnt'
+            ) : (task as any).approvalStatus === 'draft' ? (
+              'Entwurf'
+            ) : (
+              `${(task as any).approvalProgress.approved}/${(task as any).approvalProgress.total}`
+            )}
+          </span>
+          {(task as any).approvalVersion > 1 && (
+            <span className="text-[9px] font-semibold text-amber-600 bg-amber-100 dark:bg-amber-900/30 px-1 py-0.5 rounded">
+              V{(task as any).approvalVersion}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Priority Stars */}
       <div className="flex items-center gap-0.5 mb-2">

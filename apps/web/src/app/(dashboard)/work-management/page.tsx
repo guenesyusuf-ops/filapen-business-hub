@@ -8,6 +8,7 @@ import { useWmProjects, useCreateWmProject, useDeleteWmProject, useWmMembers } f
 import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory, useWmNotifications, useWmUnreadCount, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/work-management/useWmDashboard';
 import { useWmCategories, useCreateWmCategory, useDeleteWmCategory, useCreateApprovalProject } from '@/hooks/work-management/useWmApproval';
 import { CreateProjectModal } from '@/components/work-management/CreateProjectModal';
+import { CreateApprovalProjectModal } from '@/components/work-management/CreateApprovalProjectModal';
 import { useAuthStore } from '@/stores/auth';
 
 // Categories are now loaded from the DB (admin can add/remove via + button)
@@ -69,6 +70,8 @@ export default function WorkManagementPage() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [showCreateApproval, setShowCreateApproval] = useState(false);
+  const createApprovalProject = useCreateApprovalProject();
 
   const categoryNames = ['Alle', ...categories.map((c) => c.name)];
 
@@ -119,6 +122,13 @@ export default function WorkManagementPage() {
                 {unreadCount!.count > 99 ? '99+' : unreadCount!.count}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setShowCreateApproval(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Abnahme
           </button>
           <button
             onClick={() => setShowCreate(true)}
@@ -423,6 +433,18 @@ export default function WorkManagementPage() {
         onClose={() => setShowCreate(false)}
         onSubmit={handleCreate}
         loading={createProject.isPending}
+      />
+
+      {/* Create approval project modal */}
+      <CreateApprovalProjectModal
+        open={showCreateApproval}
+        onClose={() => setShowCreateApproval(false)}
+        onSubmit={(data) => {
+          createApprovalProject.mutate(data, {
+            onSuccess: () => setShowCreateApproval(false),
+          });
+        }}
+        loading={createApprovalProject.isPending}
       />
     </div>
   );
