@@ -146,12 +146,15 @@ export class WmApprovalService {
     title: string;
     description?: string;
     createdById: string;
-    approverIds: string[];
+    approverIds?: string[];
     deadlineHours?: number;
   }) {
     const project = await this.prisma.wmProject.findUnique({
       where: { id: data.projectId },
-      include: { columns: { orderBy: { position: 'asc' } } },
+      include: {
+        columns: { orderBy: { position: 'asc' } },
+        members: true,
+      },
     });
     if (!project) throw new NotFoundException('Projekt nicht gefunden');
     if (project.projectType !== 'approval') {
@@ -160,6 +163,31 @@ export class WmApprovalService {
 
     const firstColumn = project.columns[0]; // "Entwurf"
     if (!firstColumn) throw new BadRequestException('Projekt hat keine Spalten');
+
+    // Auto-derive approvers from project columns if not explicitly provided.
+    // Columns between first (Entwurf) and last (Genehmigt) are named after approvers.
+    let approverIds = data.approverIds ?? [];
+    if (approverIds.length === 0) {
+      const approverColumns = project.columns.slice(1, -1); // between Entwurf and Genehmigt
+      for (const col of approverColumns) {
+        // Find the member whose userName matches this column name
+        const member = project.members.find(
+          (m) => m.userName.toLowerCase().trim() === col.name.toLowerCase().trim(),
+        );
+        if (member) approverIds.push(member.userId);
+      }
+    }
+
+    if (approverIds.length === 0) {
+      // Last resort: use all members except the creator
+      approverIds = project.members
+        .filter((m) => m.userId !== data.createdById)
+        .map((m) => m.userId);
+    }
+
+    if (approverIds.length === 0) {
+      throw new BadRequestException('Keine Genehmiger gefunden. Bitte Projekt-Mitglieder pruefen.');
+    }
 
     const task = await this.prisma.wmTask.create({
       data: {
@@ -178,7 +206,7 @@ export class WmApprovalService {
 
     // Create approval steps
     await this.prisma.wmApprovalStep.createMany({
-      data: data.approverIds.map((userId, i) => ({
+      data: approverIds.map((userId, i) => ({
         taskId: task.id,
         userId,
         position: i,

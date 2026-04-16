@@ -157,28 +157,18 @@ export default function ProjectDetailPage() {
     [moveTask, projectId],
   );
 
+  const isApprovalProject = (project as any)?.projectType === 'approval';
+
   const handleAddTask = useCallback(
     (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string }) => {
-      const isApproval = (project as any)?.projectType === 'approval';
-
-      if (isApproval) {
-        // Extract approver user IDs from columns (positions 1..N-1, excluding Entwurf[0] and Genehmigt[last])
-        const cols = project?.columns ?? [];
-        const approverColumns = cols.slice(1, -1); // between Entwurf and Genehmigt
-        const approverIds = (project?.members ?? [])
-          .filter((m: any) => approverColumns.some((c: any) => c.name === ((m as any).userName || (m as any).name)))
-          .map((m: any) => (m as any).userId || (m as any).id);
-
-        createApprovalTask.mutate({
-          projectId,
-          title: data.title,
-          approverIds: approverIds.length > 0 ? approverIds : members.map((m: any) => m.userId || m.id).filter(Boolean),
-        });
+      if (isApprovalProject) {
+        // Backend auto-derives approvers from project columns — no need to extract here
+        createApprovalTask.mutate({ projectId, title: data.title });
       } else {
         createTask.mutate({ projectId, columnId, ...data });
       }
     },
-    [createTask, createApprovalTask, projectId, project, members],
+    [createTask, createApprovalTask, projectId, isApprovalProject],
   );
 
   const handleAddColumn = useCallback(() => {
@@ -361,6 +351,7 @@ export default function ProjectDetailPage() {
         <TaskDetailModal
           task={selectedTask}
           columns={columns}
+          isApprovalProject={isApprovalProject}
           members={members}
           labels={labels}
           comments={comments}

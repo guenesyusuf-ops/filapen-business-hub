@@ -40,8 +40,15 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
 
-  if (isLoading || !detail) return null;
-  if (!detail.approvalStatus) return null;
+  if (isLoading) return (
+    <div className="border-t border-gray-200 dark:border-white/10 px-6 py-4">
+      <div className="flex items-center gap-2 text-xs text-gray-400">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-600/30 border-t-primary-600" />
+        Lade Genehmigungs-Daten...
+      </div>
+    </div>
+  );
+  if (!detail || !detail.approvalStatus) return null;
 
   const isCreator = detail.createdById === user?.id;
   const currentVersionSteps = detail.approvalSteps.filter((s) => s.version === detail.approvalVersion);

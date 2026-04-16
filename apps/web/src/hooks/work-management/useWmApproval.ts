@@ -144,7 +144,7 @@ export function useCreateApprovalTask() {
       projectId: string;
       title: string;
       description?: string;
-      approverIds: string[];
+      approverIds?: string[];
       deadlineHours?: number;
     }) => wmFetch<ApprovalTaskDetail>('/tasks/approval', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: (_, vars) => {

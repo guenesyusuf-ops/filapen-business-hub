@@ -52,12 +52,13 @@ interface TaskDetailModalProps {
   onRemoveLabel?: (taskId: string, labelId: string) => void;
   onCreateLabel?: (name: string, color: string) => void;
   onDeleteTask?: (taskId: string) => void;
+  isApprovalProject?: boolean;
 }
 
 export function TaskDetailModal({
   task, columns, members, labels, comments, activities = [], open, onClose,
   onUpdate, onAddComment, onUploadAttachment, onDeleteAttachment,
-  onAddLabel, onRemoveLabel, onCreateLabel, onDeleteTask,
+  onAddLabel, onRemoveLabel, onCreateLabel, onDeleteTask, isApprovalProject,
 }: TaskDetailModalProps) {
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDesc, setEditDesc] = useState(task.description ?? '');
@@ -845,8 +846,8 @@ export function TaskDetailModal({
         </div>
       </div>
 
-      {/* Approval workflow panel (only for approval tasks) */}
-      {(task as any).approvalStatus && (
+      {/* Approval workflow panel (for approval projects or tasks with approval status) */}
+      {(isApprovalProject || (task as any).approvalStatus) && (
         <ApprovalPanel taskId={task.id} />
       )}
 
