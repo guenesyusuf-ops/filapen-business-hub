@@ -27,6 +27,36 @@ async function wmFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// -------------------- Team Users (for approval picker) -------------------- //
+
+export interface TeamUser {
+  id: string;
+  name: string | null;
+  email: string;
+  avatarUrl: string | null;
+  role: string;
+}
+
+/** Lists all active org users — used for approval member pickers. */
+export function useTeamUsers() {
+  return useQuery<TeamUser[]>({
+    queryKey: ['wm', 'team-users'],
+    queryFn: async () => {
+      const hdrs = authHeaders();
+      const res = await fetch(`${API_URL}/api/admin/team`, { headers: hdrs });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.members ?? []).map((m: any) => ({
+        id: m.id,
+        name: m.name || m.email?.split('@')[0] || 'Unbekannt',
+        email: m.email,
+        avatarUrl: m.avatarUrl || null,
+        role: m.role,
+      }));
+    },
+  });
+}
+
 // -------------------- Categories -------------------- //
 
 export interface WmCategory {
