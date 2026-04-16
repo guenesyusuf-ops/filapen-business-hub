@@ -17,6 +17,7 @@ import { CalendarWidget } from '@/components/creators/dashboard/CalendarWidget';
 import { RecentCreatorsList } from '@/components/creators/dashboard/RecentCreatorsList';
 import { Toolbox } from '@/components/creators/dashboard/Toolbox';
 import { AdminInfoCard } from '@/components/creators/dashboard/AdminInfoCard';
+import { useAuthStore } from '@/stores/auth';
 
 // ---------------------------------------------------------------------------
 // Creator Hub Dashboard (replaces the old overview page)
@@ -25,6 +26,17 @@ import { AdminInfoCard } from '@/components/creators/dashboard/AdminInfoCard';
 
 export default function CreatorHubDashboardPage() {
   const [uploadsModalOpen, setUploadsModalOpen] = useState(false);
+  const { user } = useAuthStore();
+
+  // Use the authenticated user's first name (fallback to email prefix)
+  const displayName =
+    user?.firstName ||
+    user?.name?.split(' ')[0] ||
+    user?.email?.split('@')[0] ||
+    'Team';
+
+  const roleLabel =
+    user?.role === 'owner' || user?.role === 'admin' ? 'Administrator' : 'Mitarbeiter';
 
   const statsQuery = useDashboardStats();
   const analyticsQuery = useCreatorsWithUploads();
@@ -37,7 +49,7 @@ export default function CreatorHubDashboardPage() {
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Main column (2/3) */}
         <div className="space-y-6 lg:col-span-2">
-          <WelcomeSection userName="Admin" />
+          <WelcomeSection userName={displayName} />
 
           <StatCards
             stats={statsQuery.data}
@@ -60,7 +72,7 @@ export default function CreatorHubDashboardPage() {
 
         {/* Right sidebar (1/3) */}
         <aside className="space-y-6 lg:col-span-1">
-          <AdminInfoCard name="Admin" role="Administrator" />
+          <AdminInfoCard name={user?.name || displayName} role={roleLabel} />
           <CalendarWidget />
           <RecentCreatorsList
             creators={recentQuery.data}

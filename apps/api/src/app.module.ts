@@ -13,6 +13,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { IntegrationModule } from './modules/integration/integration.module';
 import { StorageModule } from './common/storage/storage.module';
 import { WorkManagementModule } from './modules/work-management/work-management.module';
+import { HomeModule } from './modules/home/home.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -54,6 +55,7 @@ import { HealthController } from './health.controller';
     IntegrationModule,
     StorageModule,
     WorkManagementModule,
+    HomeModule,
   ],
   controllers: [HealthController],
   providers: [],

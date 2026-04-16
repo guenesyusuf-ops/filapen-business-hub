@@ -23,6 +23,7 @@ import {
 } from '@/hooks/creators/useUploads';
 import type { UploadTab, CreatorUpload, UploadFolder } from '@/hooks/creators/useUploads';
 import { Lightbox } from '@/components/creators/Lightbox';
+import { useAuthStore } from '@/stores/auth';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -123,6 +124,8 @@ function FolderCard({
 // ---------------------------------------------------------------------------
 
 export default function AllUploadsPage() {
+  const { user } = useAuthStore();
+  const authorName = user?.name || user?.email?.split('@')[0] || 'Admin';
   const [tab, setTab] = useState<UploadTab | undefined>(undefined);
   const [activeBatch, setActiveBatch] = useState<string | null>(null);
   const [activeBatchName, setActiveBatchName] = useState<string>('');
@@ -400,7 +403,7 @@ export default function AllUploadsPage() {
         <Lightbox
           upload={lightboxUpload}
           onClose={() => setLightboxUpload(null)}
-          authorName="Admin"
+          authorName={authorName}
           authorRole="admin"
         />
       )}

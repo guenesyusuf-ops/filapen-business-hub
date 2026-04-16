@@ -27,6 +27,7 @@
     "apply": "Apply"
   },
   "nav": {
+    "home": "Home",
     "dashboard": "Dashboard",
     "financeHub": "Finance Hub",
     "creatorHub": "Creator Hub",

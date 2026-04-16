@@ -40,7 +40,7 @@ function LoginPageInner() {
         return;
       }
       if (user.status === 'active') {
-        router.replace('/finance');
+        router.replace('/home');
         return;
       }
     }
@@ -116,7 +116,7 @@ function LoginPageInner() {
 
         // Route based on user status
         if (data.user.status === 'active') {
-          router.replace('/finance');
+          router.replace('/home');
         } else if (data.user.status === 'pending') {
           setMode('pending');
         } else if (data.user.status === 'rejected') {

@@ -48,6 +48,7 @@ import {
   BarChart,
   LogOut,
   UserCog,
+  Home,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -70,6 +71,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  {
+    labelKey: 'nav.home',
+    href: '/home',
+    icon: Home,
+  },
   {
     labelKey: 'nav.dashboard',
     href: '/finance',
@@ -235,7 +241,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
       )}
     >
       {/* Logo */}
-      <div className="flex items-center h-14 px-4 border-b border-transparent bg-gradient-to-r from-transparent via-transparent to-transparent"
+      <Link
+        href="/home"
+        className="flex items-center h-14 px-4 border-b border-transparent hover:bg-gray-50/50 dark:hover:bg-white/[0.03] transition-colors"
         style={{ borderImage: 'linear-gradient(to right, transparent, #e5e7eb, transparent) 1' }}
       >
         <div className="flex items-center gap-2.5">
@@ -249,7 +257,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
             </div>
           )}
         </div>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-3 px-2 scrollbar-thin">
@@ -564,16 +572,13 @@ export default function DashboardLayout({
     router.replace('/login');
   }, [router]);
 
-  // Enforce route-level permission check — redirect to first allowed page if current is forbidden
+  // Enforce route-level permission check — redirect to /home if current is forbidden.
+  // /home is always accessible so it's the safe fallback.
   useEffect(() => {
     if (!currentUser) return;
     const requiredKey = pathToPermission(pathname);
     if (!hasMenuAccess(currentUser.role, currentUser.menuPermissions, requiredKey)) {
-      // Find first permitted menu and redirect there, or /settings if none
-      const firstAllowed = NAV_ITEMS.find((item) =>
-        hasMenuAccess(currentUser.role, currentUser.menuPermissions, item.permissionKey ?? null),
-      );
-      router.replace(firstAllowed?.href ?? '/settings/general');
+      router.replace('/home');
     }
   }, [currentUser, pathname, router]);
 

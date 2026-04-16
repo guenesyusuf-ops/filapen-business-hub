@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   UserPlus,
   MoreVertical,
@@ -383,13 +383,31 @@ function ActionMenu({
   onRemove: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; flip: boolean }>({ top: 0, left: 0, flip: false });
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   if (member.role === 'owner') return null;
 
+  function toggle() {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const menuHeight = 170;
+      const flip = spaceBelow < menuHeight;
+      setPos({
+        top: flip ? rect.top - menuHeight - 4 : rect.bottom + 4,
+        left: rect.right - 224, // 224 = menu width (w-56)
+        flip,
+      });
+    }
+    setOpen(!open);
+  }
+
   return (
-    <div className="relative">
+    <>
       <button
-        onClick={() => setOpen(!open)}
+        ref={btnRef}
+        onClick={toggle}
         className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
       >
         <MoreVertical className="h-4 w-4" />
@@ -397,8 +415,11 @@ function ActionMenu({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg bg-white dark:bg-[var(--card-bg)] shadow-lg border border-gray-200 dark:border-white/10 py-1 animate-scale-in">
+          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-[70] w-56 rounded-lg bg-white dark:bg-[var(--card-bg)] shadow-xl border border-gray-200 dark:border-white/10 py-1 animate-scale-in"
+            style={{ top: pos.top, left: Math.max(8, pos.left) }}
+          >
             {member.role !== 'admin' && (
               <button
                 onClick={() => { onEditPermissions(member); setOpen(false); }}
@@ -436,7 +457,7 @@ function ActionMenu({
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }
 

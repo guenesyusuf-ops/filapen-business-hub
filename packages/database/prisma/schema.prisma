@@ -701,6 +701,39 @@ model CalendarNote {
   @@map("calendar_notes")
 }
 
+/// Personal notes persist per-user on the home dashboard.
+/// Not shared across the team; only visible to the creator.
+model PersonalNote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  content   String   @db.Text
+  pinned    Boolean  @default(false)
+  color     String?  @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([userId, pinned, createdAt(sort: Desc)])
+  @@map("personal_notes")
+}
+
+/// Personal calendar events — per-user, visible only to creator.
+/// Used on the home dashboard + in the calendar widget.
+model PersonalCalendarEvent {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  title       String    @db.VarChar(255)
+  description String?   @db.Text
+  startsAt    DateTime  @map("starts_at") @db.Timestamptz
+  endsAt      DateTime? @map("ends_at") @db.Timestamptz
+  allDay      Boolean   @default(false) @map("all_day")
+  reminderAt  DateTime? @map("reminder_at") @db.Timestamptz
+  color       String?   @db.VarChar(20)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId, startsAt])
+  @@map("personal_calendar_events")
+}
+
 // =============================================================================
 // FINANCE HUB MODELS
 // =============================================================================

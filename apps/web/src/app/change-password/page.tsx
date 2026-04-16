@@ -24,7 +24,7 @@ export default function ChangePasswordPage() {
       return;
     }
     if (!user.mustChangePassword) {
-      router.replace('/finance');
+      router.replace('/home');
     }
   }, [token, user, router]);
 
@@ -77,7 +77,7 @@ export default function ChangePasswordPage() {
         }
 
         setSuccess(true);
-        setTimeout(() => router.replace('/finance'), 1500);
+        setTimeout(() => router.replace('/home'), 1500);
       } catch (err: any) {
         setError(err.message || 'Etwas ist schiefgelaufen');
       } finally {

@@ -56,6 +56,7 @@ import { UploadZone } from '@/components/creators/UploadZone';
 import { ChatWidget } from '@/components/creators/ChatWidget';
 import { AvatarUpload } from '@/components/creators/AvatarUpload';
 import { CreatorFormModal } from '@/components/creators/CreatorFormModal';
+import { useAuthStore } from '@/stores/auth';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -142,7 +143,9 @@ function DetailSkeleton() {
 export default function CreatorDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const { user } = useAuthStore();
   const id = params.id as string;
+  const currentUserName = user?.name || user?.email?.split('@')[0] || 'Admin';
 
   const { data: creator, isLoading } = useCreator(id);
   const { data: deals } = useDeals({ creatorId: id });
@@ -1240,7 +1243,7 @@ export default function CreatorDetailPage() {
           upload={lightboxUpload}
           onClose={() => setLightboxUpload(null)}
           onDelete={handleDeleteUpload}
-          authorName="Admin"
+          authorName={currentUserName}
           authorRole="admin"
         />
       )}
