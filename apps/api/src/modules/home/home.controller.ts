@@ -40,6 +40,61 @@ export class HomeController {
   }
 
   // -------------------------------------------------------------------------
+  // Presence + heartbeat
+  // -------------------------------------------------------------------------
+
+  @Post('heartbeat')
+  async heartbeat(@Headers('authorization') authHeader: string) {
+    const userId = this.extractUserId(authHeader);
+    return this.home.heartbeat(userId);
+  }
+
+  @Get('presence')
+  async presence(@Headers('authorization') authHeader: string) {
+    const userId = this.extractUserId(authHeader);
+    return this.home.listPresence(userId);
+  }
+
+  // -------------------------------------------------------------------------
+  // Direct Messages
+  // -------------------------------------------------------------------------
+
+  @Get('chat/unread-count')
+  async unreadCount(@Headers('authorization') authHeader: string) {
+    const userId = this.extractUserId(authHeader);
+    return this.home.unreadCount(userId);
+  }
+
+  @Get('chat/:userId')
+  async listChat(
+    @Headers('authorization') authHeader: string,
+    @Param('userId') partnerId: string,
+  ) {
+    const userId = this.extractUserId(authHeader);
+    return this.home.listMessages(userId, partnerId);
+  }
+
+  @Post('chat/:userId')
+  async sendChat(
+    @Headers('authorization') authHeader: string,
+    @Param('userId') partnerId: string,
+    @Body() body: { content: string },
+  ) {
+    const userId = this.extractUserId(authHeader);
+    if (!body.content) throw new BadRequestException('Inhalt fehlt');
+    return this.home.sendMessage(userId, partnerId, body.content);
+  }
+
+  @Put('chat/:userId/read')
+  async markRead(
+    @Headers('authorization') authHeader: string,
+    @Param('userId') partnerId: string,
+  ) {
+    const userId = this.extractUserId(authHeader);
+    return this.home.markConversationRead(userId, partnerId);
+  }
+
+  // -------------------------------------------------------------------------
   // Notes
   // -------------------------------------------------------------------------
 

@@ -123,3 +123,87 @@ export function useDeleteEvent() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['home', 'calendar'] }),
   });
 }
+
+// -------------------- Presence -------------------- //
+
+export interface PresenceUser {
+  id: string;
+  name: string;
+  firstName: string | null;
+  email: string;
+  avatarUrl: string | null;
+  role: string;
+  online: boolean;
+  lastActiveAt: string | null;
+  unread: number;
+}
+
+export function useHeartbeat() {
+  return useMutation({
+    mutationFn: () => homeFetch<{ ok: boolean }>('/heartbeat', { method: 'POST' }),
+  });
+}
+
+export function usePresence() {
+  return useQuery<PresenceUser[]>({
+    queryKey: ['home', 'presence'],
+    queryFn: () => homeFetch<PresenceUser[]>('/presence'),
+    refetchInterval: 30_000, // poll every 30s
+    refetchOnWindowFocus: true,
+  });
+}
+
+// -------------------- Direct Messages -------------------- //
+
+export interface DirectMessage {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  content: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export function useChatThread(partnerId: string | null) {
+  return useQuery<DirectMessage[]>({
+    queryKey: ['home', 'chat', partnerId],
+    queryFn: () => homeFetch<DirectMessage[]>(`/chat/${partnerId}`),
+    enabled: !!partnerId,
+    refetchInterval: partnerId ? 5_000 : false,
+  });
+}
+
+export function useSendMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ partnerId, content }: { partnerId: string; content: string }) =>
+      homeFetch<DirectMessage>(`/chat/${partnerId}`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['home', 'chat', vars.partnerId] });
+      qc.invalidateQueries({ queryKey: ['home', 'presence'] });
+    },
+  });
+}
+
+export function useMarkRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (partnerId: string) =>
+      homeFetch<{ ok: boolean }>(`/chat/${partnerId}/read`, { method: 'PUT' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['home', 'presence'] });
+      qc.invalidateQueries({ queryKey: ['home', 'chat-unread'] });
+    },
+  });
+}
+
+export function useTotalUnread() {
+  return useQuery<{ count: number }>({
+    queryKey: ['home', 'chat-unread'],
+    queryFn: () => homeFetch<{ count: number }>('/chat/unread-count'),
+    refetchInterval: 30_000,
+  });
+}

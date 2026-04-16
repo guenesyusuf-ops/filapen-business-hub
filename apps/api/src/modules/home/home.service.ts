@@ -1,9 +1,130 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+
+const ONLINE_WINDOW_MINUTES = 5;
 
 @Injectable()
 export class HomeService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // -------------------------------------------------------------------------
+  // Presence
+  // -------------------------------------------------------------------------
+
+  /** Heartbeat — updates lastActiveAt for the calling user. */
+  async heartbeat(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastActiveAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  /** List all team members with their online status (active within 5 min). */
+  async listPresence(currentUserId: string) {
+    const cutoff = new Date(Date.now() - ONLINE_WINDOW_MINUTES * 60_000);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        status: 'active',
+        id: { not: currentUserId }, // exclude self
+      },
+      select: {
+        id: true,
+        name: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        avatarUrl: true,
+        role: true,
+        lastActiveAt: true,
+      },
+      orderBy: { lastActiveAt: 'desc' },
+    });
+
+    // Unread DM counts per sender
+    const unread = await this.prisma.directMessage.groupBy({
+      by: ['senderId'],
+      where: { recipientId: currentUserId, readAt: null },
+      _count: { _all: true },
+    });
+    const unreadMap = new Map(unread.map((u) => [u.senderId, u._count._all]));
+
+    return users.map((u) => ({
+      id: u.id,
+      name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email.split('@')[0],
+      firstName: u.firstName,
+      email: u.email,
+      avatarUrl: u.avatarUrl,
+      role: u.role,
+      online: u.lastActiveAt ? u.lastActiveAt > cutoff : false,
+      lastActiveAt: u.lastActiveAt,
+      unread: unreadMap.get(u.id) ?? 0,
+    }));
+  }
+
+  // -------------------------------------------------------------------------
+  // Direct Messages
+  // -------------------------------------------------------------------------
+
+  /** Conversation between current user and the given partner. Oldest first. */
+  async listMessages(currentUserId: string, partnerId: string) {
+    if (currentUserId === partnerId) {
+      throw new BadRequestException('Du kannst nicht mit dir selbst chatten');
+    }
+
+    const messages = await this.prisma.directMessage.findMany({
+      where: {
+        OR: [
+          { senderId: currentUserId, recipientId: partnerId },
+          { senderId: partnerId, recipientId: currentUserId },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+
+    return messages;
+  }
+
+  async sendMessage(currentUserId: string, partnerId: string, content: string) {
+    if (!content.trim()) {
+      throw new BadRequestException('Nachricht darf nicht leer sein');
+    }
+    if (currentUserId === partnerId) {
+      throw new BadRequestException('Du kannst nicht dir selbst schreiben');
+    }
+
+    const partner = await this.prisma.user.findUnique({ where: { id: partnerId } });
+    if (!partner) throw new NotFoundException('Empfaenger nicht gefunden');
+
+    return this.prisma.directMessage.create({
+      data: {
+        senderId: currentUserId,
+        recipientId: partnerId,
+        content: content.trim(),
+      },
+    });
+  }
+
+  async markConversationRead(currentUserId: string, partnerId: string) {
+    await this.prisma.directMessage.updateMany({
+      where: {
+        senderId: partnerId,
+        recipientId: currentUserId,
+        readAt: null,
+      },
+      data: { readAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  async unreadCount(currentUserId: string) {
+    const count = await this.prisma.directMessage.count({
+      where: { recipientId: currentUserId, readAt: null },
+    });
+    return { count };
+  }
 
   // -------------------------------------------------------------------------
   // Personal Notes

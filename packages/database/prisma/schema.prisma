@@ -716,6 +716,21 @@ model PersonalNote {
   @@map("personal_notes")
 }
 
+/// Direct messages between two users (DM chat on /home widget).
+/// Ordered chronologically per (sender,recipient) pair.
+model DirectMessage {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderId    String    @map("sender_id") @db.Uuid
+  recipientId String    @map("recipient_id") @db.Uuid
+  content     String    @db.Text
+  readAt      DateTime? @map("read_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([recipientId, readAt])
+  @@index([senderId, recipientId, createdAt])
+  @@map("direct_messages")
+}
+
 /// Personal calendar events — per-user, visible only to creator.
 /// Used on the home dashboard + in the calendar widget.
 model PersonalCalendarEvent {
