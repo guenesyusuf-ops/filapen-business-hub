@@ -1470,12 +1470,49 @@ model ContentPiece {
 // WORK MANAGEMENT — Kanban Boards, Tasks, Comments, Attachments, Labels
 // =============================================================================
 
+/// Admin-defined project categories (replaces hardcoded list).
+model WmCategory {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  name      String   @db.VarChar(100)
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([orgId, name], map: "uq_wm_category")
+  @@index([orgId, position])
+  @@map("wm_categories")
+}
+
+/// Approval step for sequential approval workflows.
+/// Each step represents one approver in order. When all steps are
+/// approved the task moves to the final "Genehmigt" column.
+model WmApprovalStep {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId     String    @map("task_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  position   Int       @default(0)
+  status     String    @default("pending") @db.VarChar(20)
+  comment    String?   @db.Text
+  deadline   DateTime? @db.Timestamptz
+  decidedAt  DateTime? @map("decided_at") @db.Timestamptz
+  version    Int       @default(1)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  task WmTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, position])
+  @@index([userId, status])
+  @@map("wm_approval_steps")
+}
+
 model WmProject {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId       String   @map("org_id") @db.Uuid
   name        String   @db.VarChar(255)
   description String?  @db.Text
   color       String?  @db.VarChar(20)
+  /// "kanban" (default) or "approval" for sequential approval workflow
+  projectType String   @default("kanban") @map("project_type") @db.VarChar(20)
   createdBy   String   @map("created_by") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
@@ -1539,14 +1576,21 @@ model WmTask {
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  project     WmProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  column      WmColumn      @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  parentTask  WmTask?       @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
-  subtasks    WmTask[]      @relation("Subtasks")
-  comments    WmComment[]
-  attachments WmAttachment[]
-  taskLabels  WmTaskLabel[]
-  activities  WmActivity[]
+  /// For approval projects: current approval status of this task.
+  /// null for normal kanban tasks; "draft" | "in_review" | "approved" | "rejected"
+  approvalStatus  String?  @map("approval_status") @db.VarChar(20)
+  /// How many times this task was submitted for approval (increments on each re-submit after rejection)
+  approvalVersion Int      @default(1) @map("approval_version")
+
+  project        WmProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  column         WmColumn         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  parentTask     WmTask?          @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks       WmTask[]         @relation("Subtasks")
+  comments       WmComment[]
+  attachments    WmAttachment[]
+  taskLabels     WmTaskLabel[]
+  activities     WmActivity[]
+  approvalSteps  WmApprovalStep[]
 
   @@index([projectId])
   @@index([columnId])
