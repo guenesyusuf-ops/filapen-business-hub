@@ -42,7 +42,7 @@ export default function WorkloadPage() {
       {!isLoading && !error && workload && workload.length > 0 && (
         <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)] overflow-hidden">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_7rem_5rem_7rem_6rem_1fr] gap-2 px-5 py-3 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div className="grid hidden md:grid grid-cols-[1fr_7rem_5rem_7rem_6rem_1fr] gap-2 px-5 py-3 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             <span>Mitglied</span>
             <span className="text-center">Offene Tasks</span>
             <span className="text-center">Heute</span>
@@ -51,7 +51,34 @@ export default function WorkloadPage() {
             <span>Auslastung</span>
           </div>
 
-          {/* Rows */}
+          {/* Mobile card view */}
+          <div className="md:hidden divide-y divide-gray-100 dark:divide-white/5">
+            {workload.map((entry) => {
+              const barWidth = (entry.openTasks / maxTasks) * 100;
+              const barColor = entry.overdue > 0 ? 'bg-red-400' : entry.highPriority > 2 ? 'bg-orange-400' : 'bg-primary-400';
+              return (
+                <div key={`m-${entry.memberId}`} className="px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-300">
+                      {entry.memberName.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white flex-1 truncate">{entry.memberName}</span>
+                    <span className="text-xs font-bold text-gray-500">{entry.openTasks} offen</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-blue-400" />{entry.dueToday} heute</span>
+                    <span className={cn('flex items-center gap-1', entry.overdue > 0 && 'text-red-500 font-semibold')}><AlertTriangle className="h-3 w-3" />{entry.overdue} ueberfaellig</span>
+                    <span className="flex items-center gap-1"><Flag className="h-3 w-3 text-orange-400" />{entry.highPriority} hoch</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                    <div className={cn('h-full rounded-full', barColor)} style={{ width: `${barWidth}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table rows */}
           {workload.map((entry) => {
             const barWidth = (entry.openTasks / maxTasks) * 100;
             const barColor = entry.overdue > 0
@@ -63,7 +90,7 @@ export default function WorkloadPage() {
             return (
               <div
                 key={entry.memberId}
-                className="grid grid-cols-[1fr_7rem_5rem_7rem_6rem_1fr] gap-2 px-5 py-3 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors items-center"
+                className="hidden md:grid grid-cols-[1fr_7rem_5rem_7rem_6rem_1fr] gap-2 px-5 py-3 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors items-center"
               >
                 {/* Name */}
                 <div className="flex items-center gap-2">

@@ -311,7 +311,7 @@ export function TaskDetailModal({
             onClick={handleSave}
             disabled={(!hasChanges && saveState === 'idle') || saveState === 'saving'}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all min-w-[200px] justify-center',
+              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all min-w-0 sm:min-w-[180px] justify-center',
               saveState === 'saved'
                 ? 'bg-emerald-500 text-white shadow-sm'
                 : saveState === 'error'

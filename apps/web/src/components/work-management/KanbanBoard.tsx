@@ -157,7 +157,7 @@ export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskCli
         <button
           onClick={onAddColumn}
           className={cn(
-            'flex items-center justify-center gap-2 w-72 min-w-[18rem] flex-shrink-0 rounded-xl',
+            'flex items-center justify-center gap-2 w-[75vw] sm:w-72 min-w-0 sm:min-w-[18rem] flex-shrink-0 rounded-xl',
             'border-2 border-dashed border-gray-300 dark:border-white/10',
             'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300',
             'hover:border-gray-400 dark:hover:border-white/20 transition-colors',

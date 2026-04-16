@@ -82,7 +82,7 @@ export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, o
   return (
     <div
       className={cn(
-        'flex flex-col w-72 min-w-[18rem] flex-shrink-0 rounded-xl',
+        'flex flex-col w-[75vw] sm:w-72 min-w-0 sm:min-w-[18rem] flex-shrink-0 rounded-xl',
         'bg-gray-50/80 dark:bg-white/[0.03] border border-gray-200/60 dark:border-white/8',
         isOver && 'ring-2 ring-primary-400/50 bg-primary-50/30 dark:bg-primary-900/10',
       )}

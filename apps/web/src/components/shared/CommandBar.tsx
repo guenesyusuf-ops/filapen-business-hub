@@ -90,7 +90,7 @@ export function CommandBar({ open, onClose }: CommandBarProps) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSubmit();
             }}
-            placeholder="Frag Filapen... z.B. 'Welche Tasks sind ueberfaellig?' oder 'Wie ist der Umsatz heute?'"
+            placeholder="Frag Filapen..."
             className="flex-1 bg-transparent text-base text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
           />
           {loading ? (

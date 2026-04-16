@@ -180,7 +180,7 @@ const NAV_ITEMS: NavItem[] = [
 // Sidebar component
 // ---------------------------------------------------------------------------
 
-function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean; user: { name: string | null; email: string; firstName?: string | null; avatarUrl?: string | null; role?: string; menuPermissions?: string[] } | null; pendingApprovalCount: number }) {
+function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { collapsed: boolean; user: { name: string | null; email: string; firstName?: string | null; avatarUrl?: string | null; role?: string; menuPermissions?: string[] } | null; pendingApprovalCount: number; toggleSidebar?: () => void }) {
   const pathname = usePathname();
   const { t } = useTranslation();
 
@@ -233,12 +233,22 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
   }
 
   return (
+    <>
+    {/* Mobile backdrop */}
+    {!collapsed && (
+      <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => toggleSidebar?.()} />
+    )}
     <nav
       className={cn(
         'flex flex-col h-full border-r border-border transition-all duration-300 ease-in-out',
         'bg-gradient-to-b from-white via-white to-gray-50/80',
         'dark:from-[#0f1117] dark:via-[#0f1117] dark:to-[#1a1d2e]/80 dark:border-white/8',
-        collapsed ? 'w-16' : 'w-64',
+        // Desktop: normal sidebar behavior
+        'md:relative md:translate-x-0',
+        collapsed ? 'md:w-16' : 'md:w-64',
+        // Mobile: overlay sidebar, hidden by default
+        'fixed inset-y-0 left-0 z-40 w-64',
+        collapsed ? '-translate-x-full md:translate-x-0' : 'translate-x-0',
       )}
     >
       {/* Logo */}
@@ -400,6 +410,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
         </Link>
       </div>
     </nav>
+    </>
   );
 }
 
@@ -587,6 +598,13 @@ export default function DashboardLayout({
     }
   }, [currentUser, pathname, router]);
 
+  // Auto-collapse sidebar on mobile screens on first load
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768 && !sidebarCollapsed) {
+      toggleSidebar();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Refresh user data from backend on mount — ensures avatar/profile updates
   // made from another session or directly in the DB are reflected here.
   useEffect(() => {
@@ -670,7 +688,7 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden bg-surface-secondary dark:bg-[#0f1117]">
       {/* Sidebar */}
-      <Sidebar collapsed={sidebarCollapsed} user={currentUser} pendingApprovalCount={pendingApprovalCount} />
+      <Sidebar collapsed={sidebarCollapsed} user={currentUser} pendingApprovalCount={pendingApprovalCount} toggleSidebar={toggleSidebar} />
 
       {/* Main area */}
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -683,7 +701,7 @@ export default function DashboardLayout({
         />
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
           {children}
         </main>
       </div>

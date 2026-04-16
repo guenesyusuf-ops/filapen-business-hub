@@ -250,7 +250,7 @@ export default function ProjectDetailPage() {
   }));
 
   return (
-    <div className="flex flex-col h-full -m-6">
+    <div className="flex flex-col h-full -m-3 sm:-m-4 md:-m-6">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-white/10 bg-white/50 dark:bg-[#0f1117]/50 backdrop-blur-sm">
         <div className="flex items-center gap-3">

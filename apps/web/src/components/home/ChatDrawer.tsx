@@ -67,7 +67,7 @@ export function ChatDrawer({ partner, onClose }: ChatDrawerProps) {
   }
 
   return (
-    <div className="fixed bottom-0 right-6 z-40 w-80 sm:w-96 h-[500px] max-h-[calc(100vh-2rem)] rounded-t-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-2xl flex flex-col animate-slide-up">
+    <div className="fixed z-40 bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-2xl flex flex-col animate-slide-up inset-0 sm:inset-auto sm:bottom-0 sm:right-6 sm:w-96 sm:h-[500px] sm:max-h-[calc(100vh-2rem)] sm:rounded-t-2xl">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5 bg-gradient-to-r from-primary-50/50 to-transparent dark:from-primary-900/10">
         <div className="flex items-center gap-3 min-w-0">
