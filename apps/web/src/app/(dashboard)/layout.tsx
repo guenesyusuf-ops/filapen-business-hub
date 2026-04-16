@@ -57,6 +57,7 @@ import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useThemeStore } from '@/stores/theme';
 import { hasMenuAccess, pathToPermission, type MenuPermissionKey } from '@/lib/permissions';
+import { CommandBar, useCommandBar } from '@/components/shared/CommandBar';
 
 // ---------------------------------------------------------------------------
 // Sidebar navigation definition
@@ -406,7 +407,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
 // Top Bar
 // ---------------------------------------------------------------------------
 
-function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout }: { onToggleSidebar: () => void; sidebarCollapsed: boolean; user: { name: string | null; email: string; firstName?: string | null; avatarUrl?: string | null } | null; onLogout: () => void }) {
+function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout, onOpenCommand }: { onToggleSidebar: () => void; sidebarCollapsed: boolean; user: { name: string | null; email: string; firstName?: string | null; avatarUrl?: string | null } | null; onLogout: () => void; onOpenCommand?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
@@ -466,14 +467,17 @@ function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout }: { onToggl
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Search */}
-      <div className="hidden md:flex items-center gap-2 rounded-xl border border-gray-200/80 dark:border-white/10 bg-gray-50/80 dark:bg-white/5 px-3 py-1.5 text-sm text-gray-400 w-64 shadow-inner dark:shadow-none transition-all duration-200 focus-within:border-primary-300 focus-within:bg-white dark:focus-within:bg-white/10 focus-within:shadow-sm">
+      {/* Ask Filapen (Cmd+K) */}
+      <button
+        onClick={onOpenCommand}
+        className="hidden md:flex items-center gap-2 rounded-xl border border-gray-200/80 dark:border-white/10 bg-gray-50/80 dark:bg-white/5 px-3 py-1.5 text-sm text-gray-400 w-64 shadow-inner dark:shadow-none transition-all duration-200 hover:border-primary-300 dark:hover:border-primary-500/40 hover:bg-white dark:hover:bg-white/10 cursor-pointer"
+      >
         <Search className="h-3.5 w-3.5 text-gray-400" />
-        <span>{t('common.search')}...</span>
-        <span className="ml-auto text-xxs border border-gray-200 rounded-md px-1.5 py-0.5 bg-white text-gray-400 font-mono">
-          /
+        <span>Ask Filapen...</span>
+        <span className="ml-auto text-xxs border border-gray-200 dark:border-white/10 rounded-md px-1.5 py-0.5 bg-white dark:bg-white/5 text-gray-400 font-mono">
+          ⌘K
         </span>
-      </div>
+      </button>
 
       {/* Theme Toggle */}
       <ThemeToggle />
@@ -536,6 +540,7 @@ export default function DashboardLayout({
   const { sidebarCollapsed, toggleSidebar } = useFinanceUI();
   const { theme, setTheme } = useThemeStore();
   const { logout, setAuth } = useAuthStore();
+  const [commandBarOpen, toggleCommandBar] = useCommandBar();
 
   // Read localStorage directly — no Zustand hydration timing needed
   const [authChecked, setAuthChecked] = useState(false);
@@ -601,6 +606,22 @@ export default function DashboardLayout({
       });
   }, [currentToken, setAuth]);
 
+  // Presence heartbeat — keep the user's online status fresh every 60s while
+  // the dashboard is open. Only fires when a valid auth token is present.
+  useEffect(() => {
+    if (!currentToken) return;
+    const ping = () =>
+      fetch(`${API_URL}/api/home/heartbeat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${currentToken}` },
+      }).catch(() => {
+        // Silent — presence is best-effort
+      });
+    ping();
+    const id = setInterval(ping, 60_000);
+    return () => clearInterval(id);
+  }, [currentToken]);
+
   // Fetch pending approval count for admin badge
   useEffect(() => {
     if (!currentToken || !currentUser) return;
@@ -658,6 +679,7 @@ export default function DashboardLayout({
           sidebarCollapsed={sidebarCollapsed}
           user={currentUser}
           onLogout={handleLogout}
+          onOpenCommand={toggleCommandBar}
         />
 
         {/* Content */}
@@ -665,6 +687,9 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+
+      {/* Global Cmd+K command bar */}
+      <CommandBar open={commandBarOpen} onClose={toggleCommandBar} />
     </div>
   );
 }
