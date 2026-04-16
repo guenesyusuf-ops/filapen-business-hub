@@ -23,7 +23,8 @@ export function CreateApprovalProjectModal({ open, onClose, onSubmit, loading }:
   const [color, setColor] = useState(PROJECT_COLORS[0]);
   const [selectedApprovers, setSelectedApprovers] = useState<PresenceUser[]>([]);
   const [showPicker, setShowPicker] = useState(false);
-  const { data: users = [] } = usePresence();
+  const [error, setError] = useState<string | null>(null);
+  const { data: users = [], isLoading: loadingUsers } = usePresence();
 
   if (!open) return null;
 

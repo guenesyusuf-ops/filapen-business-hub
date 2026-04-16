@@ -451,6 +451,9 @@ export default function WorkManagementPage() {
         onSubmit={(data) => {
           createApprovalProject.mutate(data, {
             onSuccess: () => setShowCreateApproval(false),
+            onError: (err: any) => {
+              alert(`Fehler: ${err?.message || 'Projekt konnte nicht erstellt werden'}`);
+            },
           });
         }}
         loading={createApprovalProject.isPending}

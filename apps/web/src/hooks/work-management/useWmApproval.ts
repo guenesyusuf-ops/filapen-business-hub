@@ -65,7 +65,10 @@ export function useCreateApprovalProject() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { name: string; description?: string; color?: string; approverIds: string[] }) =>
-      wmFetch('/projects/approval', { method: 'POST', body: JSON.stringify(data) }),
+      wmFetch('/projects', {
+        method: 'POST',
+        body: JSON.stringify({ ...data, projectType: 'approval' }),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['wm', 'projects'] }),
   });
 }

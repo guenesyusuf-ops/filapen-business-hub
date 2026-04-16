@@ -18,6 +18,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { WorkManagementService } from './work-management.service';
+import { WmApprovalService } from './wm-approval.service';
 import { AuthService } from '../auth/auth.service';
 
 const DEV_USER_ID = '00000000-0000-0000-0000-000000000099';
@@ -29,6 +30,7 @@ export class WorkManagementController {
 
   constructor(
     private readonly wmService: WorkManagementService,
+    private readonly wmApproval: WmApprovalService,
     private readonly auth: AuthService,
   ) {}
 
@@ -60,16 +62,39 @@ export class WorkManagementController {
   @Post('projects')
   async createProject(
     @Headers('authorization') authHeader: string,
-    @Body() body: { name: string; description?: string; color?: string },
+    @Body() body: {
+      name: string;
+      description?: string;
+      color?: string;
+      projectType?: 'kanban' | 'approval';
+      approverIds?: string[];
+    },
   ) {
     try {
+      const userId = this.extractUserId(authHeader);
+
+      // If approval project, delegate to the approval service
+      if (body.projectType === 'approval') {
+        if (!body.approverIds?.length) {
+          throw new BadRequestException('Mindestens ein Genehmiger erforderlich');
+        }
+        return await this.wmApproval.createApprovalProject({
+          name: body.name,
+          description: body.description,
+          color: body.color,
+          createdBy: userId,
+          approverIds: body.approverIds,
+        });
+      }
+
       return await this.wmService.createProject({
         name: body.name,
         description: body.description,
         color: body.color,
-        createdBy: this.extractUserId(authHeader),
+        createdBy: userId,
       });
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('createProject failed', error);
       throw new HttpException('Failed to create project', HttpStatus.INTERNAL_SERVER_ERROR);
     }
