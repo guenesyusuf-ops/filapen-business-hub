@@ -8,6 +8,8 @@ interface AuthUser {
   role: string;
   status: string;
   orgId: string;
+  menuPermissions?: string[];
+  mustChangePassword?: boolean;
 }
 
 interface AuthState {

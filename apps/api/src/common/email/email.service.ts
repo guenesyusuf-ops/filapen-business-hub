@@ -92,6 +92,98 @@ export class EmailService {
     }
   }
 
+  /**
+   * Sends a team invitation with a temporary password.
+   * The recipient uses the temp password to log in, then is forced to change it.
+   */
+  async sendTeamInviteWithTempPassword(params: {
+    to: string;
+    roleLabel: string;
+    tempPassword: string;
+    loginLink: string;
+  }): Promise<boolean> {
+    if (!this.apiKey) {
+      this.logger.warn(
+        `Email not sent (no RESEND_API_KEY): Team invite with temp password -> ${params.to}`,
+      );
+      this.logger.log(`Temp password: ${params.tempPassword}`);
+      this.logger.log(`Login link: ${params.loginLink}`);
+      return false;
+    }
+
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: this.fromEmail,
+          to: [params.to],
+          subject: `Du wurdest zu Filapen Business Hub eingeladen`,
+          html: this.buildTeamInviteWithPasswordHtml(params),
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.text();
+        this.logger.error(`Failed to send team invite email: ${error}`);
+        return false;
+      }
+
+      this.logger.log(`Team invite with temp password sent to ${params.to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Team invite email error: ${error}`);
+      return false;
+    }
+  }
+
+  private buildTeamInviteWithPasswordHtml(params: {
+    to: string;
+    roleLabel: string;
+    tempPassword: string;
+    loginLink: string;
+  }): string {
+    return `
+      <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <div style="display: inline-block; width: 40px; height: 40px; background: #7C3AED; border-radius: 10px; line-height: 40px; color: white; font-weight: bold; font-size: 18px;">F</div>
+        </div>
+        <h1 style="font-size: 22px; font-weight: 600; color: #111; text-align: center; margin-bottom: 12px;">
+          Willkommen bei Filapen Business Hub
+        </h1>
+        <p style="font-size: 15px; color: #444; text-align: center; margin-bottom: 24px; line-height: 1.5;">
+          Du wurdest als <strong>${params.roleLabel}</strong> eingeladen.
+        </p>
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 28px;">
+          <p style="font-size: 13px; color: #666; margin: 0 0 6px 0; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">
+            Dein temporaeres Passwort
+          </p>
+          <p style="font-family: 'Courier New', monospace; font-size: 18px; font-weight: 700; color: #111; margin: 0; letter-spacing: 0.05em;">
+            ${params.tempPassword}
+          </p>
+          <p style="font-size: 12px; color: #999; margin: 12px 0 0 0;">
+            Login mit deiner E-Mail-Adresse: <strong>${params.to}</strong>
+          </p>
+        </div>
+        <div style="text-align: center; margin-bottom: 32px;">
+          <a href="${params.loginLink}" style="display: inline-block; background: #7C3AED; color: white; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 14px; font-weight: 600;">
+            Jetzt anmelden
+          </a>
+        </div>
+        <p style="font-size: 13px; color: #666; text-align: center; line-height: 1.5;">
+          Aus Sicherheitsgruenden wirst du beim ersten Login aufgefordert, dein Passwort zu aendern.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
+        <p style="font-size: 12px; color: #999; text-align: center;">
+          Filapen Business Hub
+        </p>
+      </div>
+    `;
+  }
+
   async sendProjectInvitationEmail(params: {
     to: string;
     creatorName: string;

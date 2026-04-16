@@ -27,6 +27,10 @@ function LoginPageInner() {
   useEffect(() => {
     // If already logged in, check status
     if (token && user) {
+      if (user.mustChangePassword) {
+        router.replace('/change-password');
+        return;
+      }
       if (user.status === 'pending') {
         setMode('pending');
         return;
@@ -46,9 +50,9 @@ function LoginPageInner() {
       logout();
     }
 
-    // If invite token present, show invite registration form
+    // If invite token present, show login screen with invite notice (user logs in with temp password)
     if (inviteToken) {
-      setMode('invite');
+      setMode('login');
       return;
     }
 
@@ -103,6 +107,12 @@ function LoginPageInner() {
 
         const data = await res.json();
         setAuth(data.token, data.user);
+
+        // Force password change for newly-invited users
+        if (data.user.mustChangePassword) {
+          router.replace('/change-password');
+          return;
+        }
 
         // Route based on user status
         if (data.user.status === 'active') {
@@ -253,6 +263,16 @@ function LoginPageInner() {
             <p className="mt-1 text-xs text-gray-400">{subtext}</p>
           )}
         </div>
+
+        {/* Invite notice */}
+        {inviteToken && mode === 'login' && (
+          <div className="mb-4 rounded-xl border border-purple-200 bg-purple-50 p-4 text-center">
+            <p className="text-xs font-semibold text-purple-800 mb-1">Du hast eine Einladung erhalten</p>
+            <p className="text-[11px] text-purple-700 leading-relaxed">
+              Logge dich mit deiner E-Mail und dem temporaeren Passwort aus der Einladungs-E-Mail ein.
+            </p>
+          </div>
+        )}
 
         {/* Form */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">

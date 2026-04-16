@@ -4,12 +4,38 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../../common/email/email.service';
 import { UserRole } from '@prisma/client';
+import * as crypto from 'crypto';
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 100000, 64, 'sha512')
+    .toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function generateTempPassword(): string {
+  // 10-char password: mix of letters and digits, excluding ambiguous (0/O, 1/l/I)
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let out = '';
+  const bytes = crypto.randomBytes(10);
+  for (let i = 0; i < 10; i++) {
+    out += chars[bytes[i] % chars.length];
+  }
+  return out;
+}
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
    * List all team members for an organization.
@@ -24,6 +50,7 @@ export class AdminService {
         avatarUrl: true,
         role: true,
         status: true,
+        menuPermissions: true,
         lastActiveAt: true,
         createdAt: true,
       },
@@ -32,13 +59,16 @@ export class AdminService {
   }
 
   /**
-   * Invite a user by email. Creates a TeamInvite record.
+   * Invite a user by email. Creates a TeamInvite record with a temp password
+   * and sends an email. When the user logs in with the temp password we create
+   * the actual User record (see AuthService.loginWithInvite).
    */
   async inviteTeamMember(
     orgId: string,
     invitedBy: string,
     email: string,
     role: UserRole,
+    menuPermissions: string[] = [],
   ) {
     // Check for existing active user with this email
     const existingUser = await this.prisma.user.findFirst({
@@ -46,31 +76,48 @@ export class AdminService {
     });
 
     if (existingUser) {
-      throw new ConflictException('A user with this email already exists in the organization');
+      throw new ConflictException('Ein Benutzer mit dieser E-Mail-Adresse existiert bereits');
     }
 
-    // Check for existing pending invite
-    const existingInvite = await this.prisma.teamInvite.findFirst({
+    // Remove any expired/stale invite for this email so we don't collide
+    await this.prisma.teamInvite.deleteMany({
       where: { orgId, email, status: 'pending' },
     });
-
-    if (existingInvite) {
-      throw new ConflictException('A pending invite for this email already exists');
-    }
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 day expiry
 
-    return this.prisma.teamInvite.create({
+    // Admins get all permissions (empty array means "all" for mitarbeiter)
+    const finalPermissions = role === 'admin' || role === 'owner' ? [] : menuPermissions;
+
+    const tempPassword = generateTempPassword();
+    const tempPasswordHash = hashPassword(tempPassword);
+
+    const invite = await this.prisma.teamInvite.create({
       data: {
         orgId,
         email,
         role,
+        menuPermissions: finalPermissions,
+        tempPasswordHash,
         invitedBy,
         status: 'pending',
         expiresAt,
       },
     });
+
+    // Fire-and-log the email: don't block the API call if email service fails
+    const webUrl = this.config.get<string>('WEB_APP_URL', 'https://filapen.vercel.app');
+    const loginLink = `${webUrl}/login?invite=${invite.id}`;
+    const roleLabel = role === 'admin' || role === 'owner' ? 'Admin' : 'Mitarbeiter';
+    await this.email.sendTeamInviteWithTempPassword({
+      to: email,
+      roleLabel,
+      tempPassword,
+      loginLink,
+    });
+
+    return invite;
   }
 
   /**
@@ -134,6 +181,50 @@ export class AdminService {
       where: { id: userId },
       data: { role: newRole },
     });
+  }
+
+  /**
+   * Update a user's menu permissions.
+   * Admins/owners always have full access (menuPermissions is ignored for them).
+   */
+  async updateMenuPermissions(
+    orgId: string,
+    userId: string,
+    menuPermissions: string[],
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, orgId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found in this organization');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { menuPermissions },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        menuPermissions: true,
+      },
+    });
+  }
+
+  /**
+   * Cancel a pending invite.
+   */
+  async cancelInvite(orgId: string, inviteId: string) {
+    const invite = await this.prisma.teamInvite.findFirst({
+      where: { id: inviteId, orgId },
+    });
+    if (!invite) {
+      throw new NotFoundException('Invite not found');
+    }
+    await this.prisma.teamInvite.delete({ where: { id: inviteId } });
+    return { success: true };
   }
 
   /**

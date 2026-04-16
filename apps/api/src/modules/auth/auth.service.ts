@@ -52,6 +52,8 @@ export interface AuthResponse {
     role: string;
     status: string;
     orgId: string;
+    menuPermissions: string[];
+    mustChangePassword: boolean;
   };
 }
 
@@ -182,6 +184,9 @@ export class AuthService {
 
   /**
    * Login with email + password.
+   * If there is a pending TeamInvite with matching email + temp password,
+   * the invite is consumed and a new User is created (menuPermissions applied,
+   * mustChangePassword=true).
    * Allows pending/rejected users to log in so the frontend can display their status.
    * Only suspended/deactivated users are blocked entirely.
    */
@@ -190,7 +195,43 @@ export class AuthService {
       where: { email },
     });
 
-    if (!user || !user.passwordHash) {
+    // If user doesn't exist yet, try to consume a pending invite (temp password login)
+    if (!user) {
+      const invite = await this.prisma.teamInvite.findFirst({
+        where: { email, status: 'pending' },
+      });
+
+      if (invite && invite.tempPasswordHash && verifyPassword(password, invite.tempPasswordHash)) {
+        if (new Date() > invite.expiresAt) {
+          throw new UnauthorizedException('Die Einladung ist abgelaufen. Bitte kontaktiere einen Administrator.');
+        }
+
+        const newUser = await this.prisma.user.create({
+          data: {
+            orgId: invite.orgId,
+            email: invite.email,
+            name: invite.email.split('@')[0],
+            clerkUserId: `local-${crypto.randomUUID()}`,
+            passwordHash: invite.tempPasswordHash,
+            role: invite.role,
+            status: 'active',
+            menuPermissions: invite.menuPermissions ?? [],
+            mustChangePassword: true,
+          },
+        });
+
+        await this.prisma.teamInvite.update({
+          where: { id: invite.id },
+          data: { status: 'accepted' },
+        });
+
+        return this.createAuthResponse(newUser);
+      }
+
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (!user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -245,12 +286,15 @@ export class AuthService {
       status: user.status,
       orgId: user.orgId,
       avatarUrl: user.avatarUrl,
+      menuPermissions: user.menuPermissions ?? [],
+      mustChangePassword: user.mustChangePassword ?? false,
       createdAt: user.createdAt.toISOString(),
     };
   }
 
   /**
-   * Change password for authenticated user
+   * Change password for authenticated user.
+   * Also clears the mustChangePassword flag so the forced-change guard stops firing.
    */
   async changePassword(
     userId: string,
@@ -266,14 +310,18 @@ export class AuthService {
     }
 
     if (!verifyPassword(currentPassword, user.passwordHash)) {
-      throw new UnauthorizedException('Current password is incorrect');
+      throw new UnauthorizedException('Aktuelles Passwort ist falsch');
+    }
+
+    if (currentPassword === newPassword) {
+      throw new ConflictException('Neues Passwort muss sich vom aktuellen unterscheiden');
     }
 
     const passwordHash = hashPassword(newPassword);
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash },
+      data: { passwordHash, mustChangePassword: false },
     });
 
     return { success: true };
@@ -303,6 +351,8 @@ export class AuthService {
         role: user.role,
         status: user.status,
         orgId: user.orgId,
+        menuPermissions: user.menuPermissions ?? [],
+        mustChangePassword: user.mustChangePassword ?? false,
       },
     };
   }

@@ -53,6 +53,7 @@ import { useTranslation } from '@/i18n/useTranslation';
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useThemeStore } from '@/stores/theme';
+import { hasMenuAccess, pathToPermission, type MenuPermissionKey } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
 // Sidebar navigation definition
@@ -62,6 +63,7 @@ interface NavItem {
   labelKey: string;
   href: string;
   icon: React.ElementType;
+  permissionKey?: MenuPermissionKey | null;
   children?: NavItem[];
 }
 
@@ -70,11 +72,13 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.dashboard',
     href: '/finance',
     icon: LayoutDashboard,
+    permissionKey: 'finance',
   },
   {
     labelKey: 'nav.financeHub',
     href: '/finance',
     icon: DollarSign,
+    permissionKey: 'finance',
     children: [
       { labelKey: 'nav.overview', href: '/finance', icon: BarChart3 },
       { labelKey: 'nav.revenue', href: '/finance/revenue', icon: TrendingUp },
@@ -94,6 +98,7 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.channelsHub',
     href: '/channels',
     icon: Store,
+    permissionKey: 'channels',
     children: [
       { labelKey: 'nav.overview', href: '/channels', icon: BarChart3 },
       { labelKey: 'nav.shopify', href: '/channels/shopify', icon: ShoppingBag },
@@ -103,6 +108,7 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.creatorHub',
     href: '/creators',
     icon: Users,
+    permissionKey: 'creators',
     children: [
       { labelKey: 'nav.overview', href: '/creators', icon: BarChart3 },
       { labelKey: 'nav.creators', href: '/creators/list', icon: UserCircle },
@@ -116,6 +122,7 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.influencerHub',
     href: '/influencers',
     icon: Heart,
+    permissionKey: 'influencers',
     children: [
       { labelKey: 'nav.overview', href: '/influencers', icon: BarChart3 },
       { labelKey: 'nav.discovery', href: '/influencers/discovery', icon: Search },
@@ -127,6 +134,7 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.contentHub',
     href: '/content',
     icon: Wand2,
+    permissionKey: 'content',
     children: [
       { labelKey: 'nav.overview', href: '/content', icon: BarChart3 },
       { labelKey: 'nav.library', href: '/content/library', icon: BookOpen },
@@ -139,6 +147,7 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.workManagement',
     href: '/work-management',
     icon: ListTodo,
+    permissionKey: 'work-management',
     children: [
       { labelKey: 'nav.wmProjects', href: '/work-management', icon: ListTodo },
       { labelKey: 'nav.wmMyTasks', href: '/work-management/my-tasks', icon: ClipboardList },
@@ -161,9 +170,14 @@ const NAV_ITEMS: NavItem[] = [
 // Sidebar component
 // ---------------------------------------------------------------------------
 
-function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean; user: { name: string | null; email: string } | null; pendingApprovalCount: number }) {
+function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean; user: { name: string | null; email: string; role?: string; menuPermissions?: string[] } | null; pendingApprovalCount: number }) {
   const pathname = usePathname();
   const { t } = useTranslation();
+
+  // Filter nav based on user's menu permissions
+  const visibleNavItems = NAV_ITEMS.filter((item) =>
+    hasMenuAccess(user?.role, user?.menuPermissions, item.permissionKey ?? null),
+  );
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     const initial = new Set<string>();
     if (pathname.startsWith('/finance')) {
@@ -236,7 +250,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-3 px-2 scrollbar-thin">
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const label = t(item.labelKey);
           const active = isActive(item.href);
@@ -471,6 +485,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar } = useFinanceUI();
   const { theme, setTheme } = useThemeStore();
   const { logout } = useAuthStore();
@@ -492,6 +507,11 @@ export default function DashboardLayout({
             router.replace('/login');
             return;
           }
+          // Force password change if flagged
+          if (state.user.mustChangePassword) {
+            router.replace('/change-password');
+            return;
+          }
           setCurrentToken(state.token);
           setCurrentUser(state.user);
           setAuthChecked(true);
@@ -504,6 +524,19 @@ export default function DashboardLayout({
     // No valid auth — redirect to login
     router.replace('/login');
   }, [router]);
+
+  // Enforce route-level permission check — redirect to first allowed page if current is forbidden
+  useEffect(() => {
+    if (!currentUser) return;
+    const requiredKey = pathToPermission(pathname);
+    if (!hasMenuAccess(currentUser.role, currentUser.menuPermissions, requiredKey)) {
+      // Find first permitted menu and redirect there, or /settings if none
+      const firstAllowed = NAV_ITEMS.find((item) =>
+        hasMenuAccess(currentUser.role, currentUser.menuPermissions, item.permissionKey ?? null),
+      );
+      router.replace(firstAllowed?.href ?? '/settings/general');
+    }
+  }, [currentUser, pathname, router]);
 
   // Fetch pending approval count for admin badge
   useEffect(() => {

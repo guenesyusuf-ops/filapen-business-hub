@@ -340,17 +340,19 @@ model Organization {
 }
 
 model User {
-  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId        String     @map("org_id") @db.Uuid
-  clerkUserId  String     @default("") @map("clerk_user_id") @db.VarChar(255)
-  email        String     @db.VarChar(320)
-  name         String?    @db.VarChar(255)
-  passwordHash String?    @map("password_hash") @db.Text
-  avatarUrl    String?    @map("avatar_url") @db.Text
-  role         UserRole   @default(member)
-  status       UserStatus @default(active)
-  lastActiveAt DateTime?  @map("last_active_at") @db.Timestamptz
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId               String     @map("org_id") @db.Uuid
+  clerkUserId         String     @default("") @map("clerk_user_id") @db.VarChar(255)
+  email               String     @db.VarChar(320)
+  name                String?    @db.VarChar(255)
+  passwordHash        String?    @map("password_hash") @db.Text
+  avatarUrl           String?    @map("avatar_url") @db.Text
+  role                UserRole   @default(member)
+  status              UserStatus @default(active)
+  menuPermissions     String[]   @default([]) @map("menu_permissions")
+  mustChangePassword  Boolean    @default(false) @map("must_change_password")
+  lastActiveAt        DateTime?  @map("last_active_at") @db.Timestamptz
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   auditLogs    AuditLog[]
@@ -363,14 +365,16 @@ model User {
 }
 
 model TeamInvite {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId     String   @map("org_id") @db.Uuid
-  email     String   @db.VarChar(255)
-  role      UserRole @default(member)
-  invitedBy String   @map("invited_by") @db.Uuid
-  status    String   @default("pending") @db.VarChar(20)
-  expiresAt DateTime @map("expires_at") @db.Timestamptz
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String   @map("org_id") @db.Uuid
+  email            String   @db.VarChar(255)
+  role             UserRole @default(member)
+  menuPermissions  String[] @default([]) @map("menu_permissions")
+  tempPasswordHash String?  @map("temp_password_hash") @db.Text
+  invitedBy        String   @map("invited_by") @db.Uuid
+  status           String   @default("pending") @db.VarChar(20)
+  expiresAt        DateTime @map("expires_at") @db.Timestamptz
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 

@@ -40,7 +40,7 @@ export class AdminController {
   @Post('team/invite')
   @HttpCode(HttpStatus.CREATED)
   async inviteTeamMember(
-    @Body() body: { email: string; role?: UserRole },
+    @Body() body: { email: string; role?: UserRole; menuPermissions?: string[] },
   ) {
     if (!body.email || !body.email.includes('@')) {
       throw new BadRequestException('Valid email is required');
@@ -56,7 +56,29 @@ export class AdminController {
       '00000000-0000-0000-0000-000000000002',
       body.email.toLowerCase().trim(),
       role,
+      Array.isArray(body.menuPermissions) ? body.menuPermissions : [],
     );
+  }
+
+  @Put('team/:userId/permissions')
+  async updatePermissions(
+    @Param('userId') userId: string,
+    @Body() body: { menuPermissions: string[] },
+  ) {
+    if (!Array.isArray(body.menuPermissions)) {
+      throw new BadRequestException('menuPermissions must be an array');
+    }
+    return this.adminService.updateMenuPermissions(
+      this.DEV_ORG_ID,
+      userId,
+      body.menuPermissions,
+    );
+  }
+
+  @Delete('team/invite/:inviteId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async cancelInvite(@Param('inviteId') inviteId: string) {
+    await this.adminService.cancelInvite(this.DEV_ORG_ID, inviteId);
   }
 
   @Delete('team/:userId')
