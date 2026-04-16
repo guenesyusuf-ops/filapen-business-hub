@@ -347,6 +347,11 @@ export function TaskDetailModal({
           </button>
         </div>
 
+        {/* Approval panel — inside the modal, above the content */}
+        {(isApprovalProject || (task as any).approvalStatus) && (
+          <ApprovalPanel taskId={task.id} />
+        )}
+
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
           <div className="flex flex-col md:flex-row h-full">
@@ -845,11 +850,6 @@ export function TaskDetailModal({
           </div>
         </div>
       </div>
-
-      {/* Approval workflow panel (for approval projects or tasks with approval status) */}
-      {(isApprovalProject || (task as any).approvalStatus) && (
-        <ApprovalPanel taskId={task.id} />
-      )}
 
       {/* Attachment preview lightbox */}
       {previewAttachment && (
