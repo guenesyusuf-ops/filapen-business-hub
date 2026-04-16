@@ -372,6 +372,10 @@ export default function ProjectDetailPage() {
           onAddLabel={(taskId, labelId) => addLabelToTask.mutate({ taskId, labelId, projectId })}
           onRemoveLabel={(taskId, labelId) => removeLabelFromTask.mutate({ taskId, labelId, projectId })}
           onCreateLabel={(name, color) => createLabel.mutate({ projectId, name, color })}
+          onDeleteTask={(taskId) => {
+            deleteTask.mutate({ id: taskId, projectId });
+            setSelectedTask(null);
+          }}
         />
       )}
     </div>

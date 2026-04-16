@@ -128,7 +128,7 @@ export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, o
             ))
           ) : (
             tasks.map((task) => (
-              <KanbanTaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />
+              <KanbanTaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} onDelete={onDeleteTask} />
             ))
           )}
         </SortableContext>

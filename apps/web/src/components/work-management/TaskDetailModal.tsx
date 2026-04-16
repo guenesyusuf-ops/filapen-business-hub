@@ -50,12 +50,13 @@ interface TaskDetailModalProps {
   onAddLabel?: (taskId: string, labelId: string) => void;
   onRemoveLabel?: (taskId: string, labelId: string) => void;
   onCreateLabel?: (name: string, color: string) => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
 export function TaskDetailModal({
   task, columns, members, labels, comments, activities = [], open, onClose,
   onUpdate, onAddComment, onUploadAttachment, onDeleteAttachment,
-  onAddLabel, onRemoveLabel, onCreateLabel,
+  onAddLabel, onRemoveLabel, onCreateLabel, onDeleteTask,
 }: TaskDetailModalProps) {
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDesc, setEditDesc] = useState(task.description ?? '');
@@ -285,6 +286,21 @@ export function TaskDetailModal({
             <span className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider truncate">
               Aufgabe bearbeiten
             </span>
+            {onDeleteTask && (
+              <button
+                onClick={() => {
+                  if (confirm('Aufgabe wirklich loeschen? Das kann nicht rueckgaengig gemacht werden.')) {
+                    onDeleteTask(task.id);
+                    handleClose();
+                  }
+                }}
+                className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0"
+                title="Aufgabe loeschen"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Loeschen
+              </button>
+            )}
           </div>
           <button
             onClick={handleSave}
