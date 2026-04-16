@@ -347,11 +347,6 @@ export function TaskDetailModal({
           </button>
         </div>
 
-        {/* Approval panel — inside the modal, above the content */}
-        {(isApprovalProject || (task as any).approvalStatus) && (
-          <ApprovalPanel taskId={task.id} />
-        )}
-
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
           <div className="flex flex-col md:flex-row h-full">
@@ -846,6 +841,11 @@ export function TaskDetailModal({
                   className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] px-2.5 py-1.5 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-400"
                 />
               </div>
+
+              {/* Approval panel (inside sidebar, below time estimate) */}
+              {(isApprovalProject || (task as any).approvalStatus) && (
+                <ApprovalPanel taskId={task.id} />
+              )}
             </div>
           </div>
         </div>
