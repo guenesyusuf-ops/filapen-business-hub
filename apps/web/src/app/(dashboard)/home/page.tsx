@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OnlineUsersWidget } from '@/components/home/OnlineUsersWidget';
+import { PendingApprovalsWidget } from '@/components/home/PendingApprovalsWidget';
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -672,6 +673,7 @@ export default function HomePage() {
     <div className="space-y-5 animate-fade-in max-w-7xl">
       <GreetingCard />
       <QuickStats />
+      <PendingApprovalsWidget />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <TasksWidget />
         <CalendarWidget />

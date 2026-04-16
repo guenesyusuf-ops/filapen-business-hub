@@ -3,12 +3,15 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Plus, FolderKanban, Users, ListChecks, BarChart3, CheckCircle2, AlertTriangle, CalendarClock, Tag, Bell, X, Trash2 } from 'lucide-react';
-import { useWmProjects, useCreateWmProject, useDeleteWmProject } from '@/hooks/work-management/useWm';
+import { Plus, FolderKanban, Users, ListChecks, BarChart3, CheckCircle2, AlertTriangle, CalendarClock, Tag, Bell, X, Trash2, ShieldCheck } from 'lucide-react';
+import { useWmProjects, useCreateWmProject, useDeleteWmProject, useWmMembers } from '@/hooks/work-management/useWm';
 import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory, useWmNotifications, useWmUnreadCount, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/work-management/useWmDashboard';
+import { useWmCategories, useCreateWmCategory, useDeleteWmCategory, useCreateApprovalProject } from '@/hooks/work-management/useWmApproval';
 import { CreateProjectModal } from '@/components/work-management/CreateProjectModal';
+import { useAuthStore } from '@/stores/auth';
 
-const PROJECT_CATEGORIES = ['Alle', 'Marketing', 'Produkt', 'Intern', 'Vertrieb', 'Sonstige'] as const;
+// Categories are now loaded from the DB (admin can add/remove via + button)
+// Fallback defaults only used before first load.
 
 interface KpiCardProps {
   label: string;
@@ -46,9 +49,13 @@ function KpiCard({ label, value, icon: Icon, iconColor, bgColor, alert }: KpiCar
 }
 
 export default function WorkManagementPage() {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || user?.role === 'owner';
   const { data: projects, isLoading, error } = useWmProjects();
   const { data: dashboard } = useWmDashboard();
   const { data: projectsWithCat } = useWmProjectsWithCategory();
+  const { data: categories = [] } = useWmCategories();
+  const createCategory = useCreateWmCategory();
   const createProject = useCreateWmProject();
   const deleteProject = useDeleteWmProject();
   const updateCategory = useUpdateProjectCategory();
@@ -60,6 +67,10 @@ export default function WorkManagementPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('Alle');
   const [showCategoryPicker, setShowCategoryPicker] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const categoryNames = ['Alle', ...categories.map((c) => c.name)];
 
   function handleCreate(data: { name: string; description: string; color: string }) {
     createProject.mutate(data, {
@@ -214,7 +225,7 @@ export default function WorkManagementPage() {
       {/* Category Filter */}
       <div className="flex items-center gap-2 flex-wrap">
         <Tag className="h-4 w-4 text-gray-400" />
-        {PROJECT_CATEGORIES.map((cat) => (
+        {categoryNames.map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
@@ -228,6 +239,44 @@ export default function WorkManagementPage() {
             {cat}
           </button>
         ))}
+        {/* Admin: + Button to add category */}
+        {isAdmin && !showAddCategory && (
+          <button
+            onClick={() => setShowAddCategory(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-full border-2 border-dashed border-gray-300 dark:border-white/10 text-gray-400 hover:text-primary-500 hover:border-primary-300 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        )}
+        {isAdmin && showAddCategory && (
+          <div className="flex items-center gap-1">
+            <input
+              autoFocus
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newCategoryName.trim()) {
+                  createCategory.mutate(newCategoryName.trim());
+                  setNewCategoryName('');
+                  setShowAddCategory(false);
+                }
+                if (e.key === 'Escape') {
+                  setNewCategoryName('');
+                  setShowAddCategory(false);
+                }
+              }}
+              placeholder="Neue Kategorie..."
+              className="rounded-full border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-1 text-xs w-32 focus:outline-none focus:ring-2 focus:ring-primary-400"
+            />
+            <button
+              onClick={() => { setNewCategoryName(''); setShowAddCategory(false); }}
+              className="text-gray-400 hover:text-red-500"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Loading */}
@@ -345,7 +394,7 @@ export default function WorkManagementPage() {
                     </button>
                     {showCategoryPicker === project.id && (
                       <div className="absolute bottom-full left-0 mb-1 z-20 bg-white dark:bg-[#1a1d2e] border border-gray-200 dark:border-white/10 rounded-lg shadow-lg py-1 min-w-[120px]">
-                        {['Keine', 'Marketing', 'Produkt', 'Intern', 'Vertrieb', 'Sonstige'].map((c) => (
+                        {['Keine', ...categories.map((c) => c.name)].map((c) => (
                           <button
                             key={c}
                             onClick={(e) => {
