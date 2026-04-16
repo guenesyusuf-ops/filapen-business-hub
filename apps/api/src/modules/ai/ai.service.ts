@@ -74,6 +74,86 @@ const TOOLS: Anthropic.Tool[] = [
       'Returns high-level KPIs: total open tasks, overdue tasks, completed last 7 days, due today. Use for "how are we doing", "what is the team workload".',
     input_schema: { type: 'object' as const, properties: {} },
   },
+  {
+    name: 'list_deals',
+    description:
+      'Lists creator deals (UGC, sponsoring, etc.), optionally filtered by creator name, stage (lead/negotiation/contracted/briefing_sent/content_received/live/completed/cancelled), or payment status. Use for deal pipeline questions.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        creatorName: { type: 'string', description: 'Filter by creator name (partial match)' },
+        stage: { type: 'string', description: 'Filter by deal stage' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_products',
+    description:
+      'Lists Shopify products, optionally filtered by title/name or category. Shows title, status, vendor, variant count. Use for product-related questions.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        search: { type: 'string', description: 'Filter by product title (partial match)' },
+        category: { type: 'string', description: 'Filter by category' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'order_revenue_summary',
+    description:
+      'Aggregated revenue and order stats for a custom date range, optionally grouped by product or top-N products. Use for "revenue this week", "top products by revenue", "how many orders this month".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        from: { type: 'string', description: 'Start date ISO (e.g. 2026-04-01)' },
+        to: { type: 'string', description: 'End date ISO (e.g. 2026-04-16)' },
+        topProducts: { type: 'number', description: 'Return top N products by revenue' },
+      },
+    },
+  },
+  {
+    name: 'list_influencers',
+    description:
+      'Lists influencer profiles from the Influencer Hub, optionally filtered by platform, niche, or min followers. Use for discovery or watchlist-related questions.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        platform: { type: 'string', description: 'Filter by platform (instagram, tiktok, youtube...)' },
+        niche: { type: 'string', description: 'Filter by niche (partial match)' },
+        minFollowers: { type: 'number', description: 'Minimum follower count' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_content_pieces',
+    description:
+      'Lists content pieces from the Content Hub (blog posts, UGC scripts, hooks, etc.), optionally filtered by type, status (draft/published/archived), or tags.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        type: { type: 'string', description: 'Content type (headline, primary_text, ugc_script, hook, video_concept)' },
+        status: { type: 'string', enum: ['draft', 'published', 'archived'], description: 'Filter by status' },
+        search: { type: 'string', description: 'Search in title (partial match)' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_briefings',
+    description:
+      'Lists creator briefings, optionally filtered by product name, status, or creator name. Use for questions about briefings, scripts.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        productName: { type: 'string', description: 'Filter by product name (partial match)' },
+        status: { type: 'string', description: 'Filter by briefing status' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `Du bist "Filapen Assistant", der KI-Copilot fuer die Filapen Business Hub Software. Antworte immer auf Deutsch, knapp und handlungsorientiert.
@@ -178,6 +258,18 @@ export class AiService {
           return this.tool_shopifyToday();
         case 'dashboard_kpis':
           return this.tool_dashboardKpis();
+        case 'list_deals':
+          return this.tool_listDeals(input);
+        case 'list_products':
+          return this.tool_listProducts(input);
+        case 'order_revenue_summary':
+          return this.tool_orderRevenueSummary(input);
+        case 'list_influencers':
+          return this.tool_listInfluencers(input);
+        case 'list_content_pieces':
+          return this.tool_listContentPieces(input);
+        case 'list_briefings':
+          return this.tool_listBriefings(input);
         default:
           return { error: `Unknown tool: ${name}` };
       }
@@ -417,6 +509,176 @@ export class AiService {
       dueTodayTasks: dueToday,
       totalCreators,
       totalUploads,
+    };
+  }
+
+  // --- Deals ---
+  private async tool_listDeals(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.stage) where.stage = input.stage;
+    if (input?.creatorName) {
+      const creators = await this.prisma.creator.findMany({
+        where: { orgId: DEV_ORG_ID, name: { contains: input.creatorName, mode: 'insensitive' as const } },
+        select: { id: true },
+      });
+      where.creatorId = { in: creators.map((c) => c.id) };
+    }
+    const deals = await this.prisma.deal.findMany({
+      where,
+      select: {
+        id: true, title: true, type: true, stage: true,
+        amount: true, currency: true, paymentStatus: true,
+        deadline: true,
+        creator: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return {
+      count: deals.length,
+      deals: deals.map((d) => ({ ...d, creatorName: d.creator.name, creator: undefined })),
+    };
+  }
+
+  // --- Products ---
+  private async tool_listProducts(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.search) where.title = { contains: input.search, mode: 'insensitive' as const };
+    if (input?.category) where.category = { contains: input.category, mode: 'insensitive' as const };
+
+    const products = await this.prisma.product.findMany({
+      where,
+      select: {
+        id: true, title: true, status: true, vendor: true, category: true, sku: true,
+        _count: { select: { variants: true } },
+      },
+      orderBy: { title: 'asc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return {
+      count: products.length,
+      products: products.map((p) => ({ ...p, variantCount: p._count.variants, _count: undefined })),
+    };
+  }
+
+  // --- Order Revenue Summary ---
+  private async tool_orderRevenueSummary(input: any): Promise<unknown> {
+    const from = input?.from ? new Date(input.from) : (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d; })();
+    const to = input?.to ? new Date(input.to) : new Date();
+    // Make `to` inclusive — set to end of day
+    to.setHours(23, 59, 59, 999);
+
+    const orders = await this.prisma.order.findMany({
+      where: { orgId: DEV_ORG_ID, placedAt: { gte: from, lte: to } },
+      select: { totalPrice: true },
+    });
+    const totalRevenue = orders.reduce((s, o) => s + Number(o.totalPrice ?? 0), 0);
+    const result: any = {
+      from: from.toISOString().split('T')[0],
+      to: to.toISOString().split('T')[0],
+      totalOrders: orders.length,
+      totalRevenue: totalRevenue.toFixed(2),
+      averageOrderValue: orders.length ? (totalRevenue / orders.length).toFixed(2) : '0',
+      currency: 'EUR',
+    };
+
+    // Optional: top products by revenue
+    if (input?.topProducts) {
+      const items = await this.prisma.orderLineItem.findMany({
+        where: { order: { orgId: DEV_ORG_ID, placedAt: { gte: from, lte: to } } },
+        select: { title: true, lineTotal: true, quantity: true },
+      });
+      const map = new Map<string, { revenue: number; qty: number }>();
+      for (const li of items) {
+        const key = li.title;
+        const prev = map.get(key) ?? { revenue: 0, qty: 0 };
+        prev.revenue += Number(li.lineTotal ?? 0);
+        prev.qty += li.quantity;
+        map.set(key, prev);
+      }
+      const sorted = Array.from(map.entries())
+        .sort((a, b) => b[1].revenue - a[1].revenue)
+        .slice(0, Math.min(input.topProducts, 20));
+      result.topProducts = sorted.map(([title, s]) => ({
+        title,
+        revenue: s.revenue.toFixed(2),
+        quantity: s.qty,
+      }));
+    }
+    return result;
+  }
+
+  // --- Influencers ---
+  private async tool_listInfluencers(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.platform) where.platform = input.platform.toLowerCase();
+    if (input?.niche) where.niche = { contains: input.niche, mode: 'insensitive' as const };
+    if (input?.minFollowers) where.followerCount = { gte: input.minFollowers };
+
+    const profiles = await this.prisma.influencerProfile.findMany({
+      where,
+      select: {
+        id: true, displayName: true, handle: true, platform: true,
+        followerCount: true, engagementRate: true, niche: true, isVerified: true,
+      },
+      orderBy: { followerCount: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return { count: profiles.length, influencers: profiles };
+  }
+
+  // --- Content Pieces ---
+  private async tool_listContentPieces(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.type) where.type = input.type;
+    if (input?.status) where.status = input.status;
+    if (input?.search) where.title = { contains: input.search, mode: 'insensitive' as const };
+
+    const pieces = await this.prisma.contentPiece.findMany({
+      where,
+      select: {
+        id: true, title: true, type: true, status: true, platform: true,
+        aiGenerated: true, tags: true, createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return { count: pieces.length, contentPieces: pieces };
+  }
+
+  // --- Briefings ---
+  private async tool_listBriefings(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.status) where.status = input.status;
+    if (input?.productName) {
+      const products = await this.prisma.product.findMany({
+        where: { orgId: DEV_ORG_ID, title: { contains: input.productName, mode: 'insensitive' as const } },
+        select: { id: true },
+      });
+      where.productId = { in: products.map((p) => p.id) };
+    }
+
+    const briefings = await this.prisma.briefing.findMany({
+      where,
+      select: {
+        id: true, title: true, status: true, notes: true, createdAt: true,
+        deal: { select: { title: true, creator: { select: { name: true } } } },
+        product: { select: { title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return {
+      count: briefings.length,
+      briefings: briefings.map((b) => ({
+        id: b.id,
+        title: b.title,
+        status: b.status,
+        dealTitle: b.deal?.title,
+        creatorName: b.deal?.creator?.name,
+        productTitle: b.product?.title,
+        createdAt: b.createdAt,
+      })),
     };
   }
 }
