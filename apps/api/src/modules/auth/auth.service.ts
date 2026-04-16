@@ -49,6 +49,10 @@ export interface AuthResponse {
     id: string;
     email: string;
     name: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    avatarUrl: string | null;
     role: string;
     status: string;
     orgId: string;
@@ -306,6 +310,9 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
+      phone: user.phone ?? null,
       role: user.role,
       status: user.status,
       orgId: user.orgId,
@@ -314,6 +321,57 @@ export class AuthService {
       mustChangePassword: user.mustChangePassword ?? false,
       createdAt: user.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Update own profile (firstName, lastName, phone, avatarUrl).
+   * Email and role are not self-editable.
+   */
+  async updateProfile(
+    userId: string,
+    data: {
+      firstName?: string | null;
+      lastName?: string | null;
+      phone?: string | null;
+      avatarUrl?: string | null;
+    },
+  ) {
+    // Validate avatar payload — accept either a remote URL or a data URL,
+    // and cap size so we don't bloat the DB with enormous base64 blobs.
+    if (data.avatarUrl && data.avatarUrl.length > 0) {
+      const isDataUrl = data.avatarUrl.startsWith('data:image/');
+      const isHttpUrl = data.avatarUrl.startsWith('http://') || data.avatarUrl.startsWith('https://');
+      if (!isDataUrl && !isHttpUrl) {
+        throw new ConflictException('Ungueltiges Bild-Format');
+      }
+      // 400KB base64 cap (~300KB actual image) — protect the DB row size
+      if (data.avatarUrl.length > 400_000) {
+        throw new ConflictException('Bild zu gross. Bitte ein kleineres Bild verwenden (max 300KB).');
+      }
+    }
+
+    // Derive `name` from firstName + lastName so the rest of the app keeps working
+    const existing = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
+      throw new UnauthorizedException('User not found');
+    }
+    const nextFirstName = data.firstName !== undefined ? data.firstName : existing.firstName;
+    const nextLastName = data.lastName !== undefined ? data.lastName : existing.lastName;
+    const derivedName =
+      [nextFirstName, nextLastName].filter(Boolean).join(' ').trim() || existing.name;
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.firstName !== undefined && { firstName: data.firstName || null }),
+        ...(data.lastName !== undefined && { lastName: data.lastName || null }),
+        ...(data.phone !== undefined && { phone: data.phone || null }),
+        ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl || null }),
+        name: derivedName,
+      },
+    });
+
+    return this.getUserById(updated.id);
   }
 
   /**
@@ -372,6 +430,10 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
+        firstName: user.firstName ?? null,
+        lastName: user.lastName ?? null,
+        phone: user.phone ?? null,
+        avatarUrl: user.avatarUrl ?? null,
         role: user.role,
         status: user.status,
         orgId: user.orgId,

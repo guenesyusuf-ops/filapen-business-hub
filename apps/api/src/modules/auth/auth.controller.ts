@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Headers,
   HttpException,
@@ -134,6 +135,39 @@ export class AuthController {
       if (error instanceof HttpException) throw error;
       throw new HttpException(
         'Failed to change password',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * PATCH /api/auth/profile
+   * Update own profile: firstName, lastName, phone, avatarUrl.
+   */
+  @Patch('profile')
+  async updateProfile(
+    @Headers('authorization') authHeader: string,
+    @Body()
+    body: {
+      firstName?: string | null;
+      lastName?: string | null;
+      phone?: string | null;
+      avatarUrl?: string | null;
+    },
+  ) {
+    const token = this.extractToken(authHeader);
+    if (!token) {
+      throw new HttpException('No token provided', HttpStatus.UNAUTHORIZED);
+    }
+
+    try {
+      const payload = this.authService.validateToken(token);
+      return await this.authService.updateProfile(payload.sub, body);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('Update profile failed', error);
+      throw new HttpException(
+        'Profil konnte nicht aktualisiert werden',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

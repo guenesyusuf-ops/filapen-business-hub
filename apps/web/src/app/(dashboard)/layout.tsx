@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore, getAuthHeaders } from '@/stores/auth';
 import { API_URL } from '@/lib/api';
 import { AdminNotificationBell } from '@/components/admin/AdminNotificationBell';
 import {
@@ -46,6 +46,8 @@ import {
   ListTodo,
   ClipboardList,
   BarChart,
+  LogOut,
+  UserCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -160,6 +162,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: Settings,
     children: [
       { labelKey: 'nav.general', href: '/settings/general', icon: Sliders },
+      { labelKey: 'nav.profile', href: '/settings/profile', icon: UserCog },
       { labelKey: 'nav.team', href: '/settings/team', icon: Users },
       { labelKey: 'nav.approvals', href: '/settings/approvals', icon: ShieldCheck },
     ],
@@ -170,7 +173,7 @@ const NAV_ITEMS: NavItem[] = [
 // Sidebar component
 // ---------------------------------------------------------------------------
 
-function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean; user: { name: string | null; email: string; role?: string; menuPermissions?: string[] } | null; pendingApprovalCount: number }) {
+function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean; user: { name: string | null; email: string; firstName?: string | null; avatarUrl?: string | null; role?: string; menuPermissions?: string[] } | null; pendingApprovalCount: number }) {
   const pathname = usePathname();
   const { t } = useTranslation();
 
@@ -355,15 +358,26 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
 
       {/* Bottom section - User */}
       <div className="border-t border-gray-100 dark:border-white/8 px-2 py-2 space-y-0.5">
-        <div className={cn(
-          'flex items-center rounded-lg px-2.5 py-2',
-          collapsed ? 'justify-center' : 'gap-2.5',
-        )}>
-          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0">
-            <span className="text-[10px] font-bold text-white">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-            </span>
-          </div>
+        <Link
+          href="/settings/profile"
+          className={cn(
+            'flex items-center rounded-lg px-2.5 py-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors',
+            collapsed ? 'justify-center' : 'gap-2.5',
+          )}
+        >
+          {user?.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={user.name || user.email}
+              className="h-7 w-7 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-[10px] font-bold text-white">
+                {user?.firstName ? user.firstName.charAt(0).toUpperCase() : user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+              </span>
+            </div>
+          )}
           {!collapsed && (
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
@@ -374,7 +388,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
               </span>
             </div>
           )}
-        </div>
+        </Link>
       </div>
     </nav>
   );
@@ -384,9 +398,19 @@ function Sidebar({ collapsed, user, pendingApprovalCount }: { collapsed: boolean
 // Top Bar
 // ---------------------------------------------------------------------------
 
-function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout }: { onToggleSidebar: () => void; sidebarCollapsed: boolean; user: { name: string | null; email: string } | null; onLogout: () => void }) {
+function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout }: { onToggleSidebar: () => void; sidebarCollapsed: boolean; user: { name: string | null; email: string; firstName?: string | null; avatarUrl?: string | null } | null; onLogout: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useTranslation();
+
+  // Compute initial letter for avatar fallback
+  const initial = user?.firstName
+    ? user.firstName.charAt(0).toUpperCase()
+    : user?.name
+      ? user.name.charAt(0).toUpperCase()
+      : user?.email
+        ? user.email.charAt(0).toUpperCase()
+        : 'U';
 
   // Build breadcrumbs from pathname
   const segments = pathname.split('/').filter(Boolean);
@@ -452,25 +476,40 @@ function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout }: { onToggl
       {/* Notifications */}
       <AdminNotificationBell />
 
-      {/* User avatar + logout */}
-      <div className="flex items-center gap-2">
-        {user?.name && (
-          <span className="hidden lg:inline text-xs font-medium text-gray-600 dark:text-gray-400">
-            {user.name}
-          </span>
-        )}
-        <button
-          onClick={onLogout}
-          title="Sign out"
-          className="rounded-full transition-all duration-150 hover:ring-2 hover:ring-red-100 active:scale-95"
-        >
+      {/* User name (optional) */}
+      {user?.name && (
+        <span className="hidden lg:inline text-xs font-medium text-gray-600 dark:text-gray-400">
+          {user.name}
+        </span>
+      )}
+
+      {/* Profile avatar — click opens persönliche Einstellungen */}
+      <button
+        onClick={() => router.push('/settings/profile')}
+        title="Persoenliche Einstellungen"
+        className="rounded-full transition-all duration-150 hover:ring-2 hover:ring-primary-200 dark:hover:ring-primary-400/40 active:scale-95 overflow-hidden"
+      >
+        {user?.avatarUrl ? (
+          <img
+            src={user.avatarUrl}
+            alt={user.name || user.email}
+            className="h-8 w-8 rounded-full object-cover"
+          />
+        ) : (
           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
-            <span className="text-xs font-bold text-white">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-            </span>
+            <span className="text-xs font-bold text-white">{initial}</span>
           </div>
-        </button>
-      </div>
+        )}
+      </button>
+
+      {/* Logout — separate button */}
+      <button
+        onClick={onLogout}
+        title="Abmelden"
+        className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-all duration-150 active:scale-95"
+      >
+        <LogOut className="h-4 w-4" />
+      </button>
     </header>
   );
 }
@@ -488,7 +527,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar } = useFinanceUI();
   const { theme, setTheme } = useThemeStore();
-  const { logout } = useAuthStore();
+  const { logout, setAuth } = useAuthStore();
 
   // Read localStorage directly — no Zustand hydration timing needed
   const [authChecked, setAuthChecked] = useState(false);
@@ -537,6 +576,25 @@ export default function DashboardLayout({
       router.replace(firstAllowed?.href ?? '/settings/general');
     }
   }, [currentUser, pathname, router]);
+
+  // Refresh user data from backend on mount — ensures avatar/profile updates
+  // made from another session or directly in the DB are reflected here.
+  useEffect(() => {
+    if (!currentToken) return;
+    fetch(`${API_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${currentToken}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me) => {
+        if (me && me.id) {
+          setAuth(currentToken, me);
+          setCurrentUser(me);
+        }
+      })
+      .catch(() => {
+        // Silent fail — keep existing cached user
+      });
+  }, [currentToken, setAuth]);
 
   // Fetch pending approval count for admin badge
   useEffect(() => {
