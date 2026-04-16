@@ -810,43 +810,83 @@ export class WorkManagementService {
     const tasks = await this.prisma.wmTask.findMany({
       where,
       select: {
+        id: true,
         assigneeId: true,
         completed: true,
         dueDate: true,
+        priority: true,
       },
     });
 
-    const now = new Date();
-    const byAssignee: Record<string, { open: number; completed: number; dueSoon: number; overdue: number }> = {};
+    // Build assignee mapping from multi-assignee join table
+    const taskIds = tasks.map((t) => t.id);
+    const joins = taskIds.length
+      ? await this.prisma.wmTaskAssignee.findMany({
+          where: { taskId: { in: taskIds } },
+          select: { taskId: true, userId: true },
+        })
+      : [];
+
+    // Map each task → set of assignee user IDs
+    const taskAssignees = new Map<string, Set<string>>();
+    for (const j of joins) {
+      if (!taskAssignees.has(j.taskId)) taskAssignees.set(j.taskId, new Set());
+      taskAssignees.get(j.taskId)!.add(j.userId);
+    }
+    // Legacy fallback
+    for (const t of tasks) {
+      if (t.assigneeId && !taskAssignees.has(t.id)) {
+        taskAssignees.set(t.id, new Set([t.assigneeId]));
+      }
+    }
+
+    const today = new Date(new Date().toDateString());
+    const tomorrow = new Date(today.getTime() + 86_400_000);
+
+    interface Stats { openTasks: number; dueToday: number; overdue: number; highPriority: number }
+    const byUser = new Map<string, Stats>();
 
     for (const task of tasks) {
-      const key = task.assigneeId || 'unassigned';
-      if (!byAssignee[key]) {
-        byAssignee[key] = { open: 0, completed: 0, dueSoon: 0, overdue: 0 };
-      }
+      const assignees = taskAssignees.get(task.id);
+      if (!assignees || assignees.size === 0) continue;
 
-      if (task.completed) {
-        byAssignee[key].completed++;
-      } else {
-        byAssignee[key].open++;
+      for (const userId of assignees) {
+        if (!byUser.has(userId)) byUser.set(userId, { openTasks: 0, dueToday: 0, overdue: 0, highPriority: 0 });
+        const s = byUser.get(userId)!;
+
+        if (task.completed) continue;
+        s.openTasks++;
+        if (task.priority === 'high' || task.priority === 'urgent') s.highPriority++;
         if (task.dueDate) {
           const due = new Date(task.dueDate);
-          if (due < now) {
-            byAssignee[key].overdue++;
-          } else {
-            const diffDays = (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-            if (diffDays <= 3) {
-              byAssignee[key].dueSoon++;
-            }
-          }
+          if (due < today) s.overdue++;
+          else if (due >= today && due < tomorrow) s.dueToday++;
         }
       }
     }
 
-    return Object.entries(byAssignee).map(([assigneeId, stats]) => ({
-      assigneeId,
-      ...stats,
-    }));
+    // Resolve user names
+    const userIds = Array.from(byUser.keys());
+    const users = userIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, name: true, firstName: true, lastName: true, email: true },
+        })
+      : [];
+    const nameMap = new Map(
+      users.map((u) => [
+        u.id,
+        u.name || [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email.split('@')[0],
+      ]),
+    );
+
+    return Array.from(byUser.entries())
+      .map(([userId, stats]) => ({
+        memberId: userId,
+        memberName: nameMap.get(userId) || 'Unbekannt',
+        ...stats,
+      }))
+      .sort((a, b) => b.openTasks - a.openTasks);
   }
 
   // =========================================================================
