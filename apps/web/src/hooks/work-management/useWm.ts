@@ -465,11 +465,29 @@ export function useUploadWmAttachment() {
         headers: hdrs,
         body: formData,
       });
-      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-      return res.json() as Promise<WmAttachment>;
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Upload fehlgeschlagen (${res.status}): ${body || 'keine Details'}`);
+      }
+      return res.json() as Promise<WmAttachment & { projectId: string }>;
     },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['wm', 'task', vars.taskId] });
+    onSuccess: (attachment, vars) => {
+      // Inject the new attachment into the project cache so the modal + card update
+      // immediately without waiting for a full refetch.
+      if (attachment.projectId) {
+        qc.setQueryData(['wm', 'project', attachment.projectId], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            tasks: (old.tasks ?? []).map((t: any) =>
+              t.id === vars.taskId
+                ? { ...t, attachments: [attachment, ...(t.attachments ?? [])] }
+                : t,
+            ),
+          };
+        });
+        qc.invalidateQueries({ queryKey: ['wm', 'project', attachment.projectId] });
+      }
     },
   });
 }
@@ -477,10 +495,29 @@ export function useUploadWmAttachment() {
 export function useDeleteWmAttachment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { taskId: string; attachmentId: string }) =>
+    mutationFn: (data: { taskId: string; attachmentId: string; projectId?: string }) =>
       wmFetch(`/tasks/${data.taskId}/attachments/${data.attachmentId}`, { method: 'DELETE' }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['wm', 'task', vars.taskId] });
+    onMutate: async (vars) => {
+      if (!vars.projectId) return {};
+      const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: (old.tasks ?? []).map((t: any) =>
+            t.id === vars.taskId
+              ? { ...t, attachments: (t.attachments ?? []).filter((a: any) => a.id !== vars.attachmentId) }
+              : t,
+          ),
+        };
+      });
+      return { prev };
+    },
+    onError: (_, vars, ctx: any) => {
+      if (vars.projectId && ctx?.prev) qc.setQueryData(['wm', 'project', vars.projectId], ctx.prev);
+    },
+    onSettled: (_, __, vars) => {
+      if (vars.projectId) qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
     },
   });
 }

@@ -75,6 +75,8 @@ export function TaskDetailModal({
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
 
@@ -217,10 +219,27 @@ export function TaskDetailModal({
     setShowNewLabel(false);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) onUploadAttachment(file);
     e.target.value = '';
+    if (!file) return;
+    // Reasonable guard: 100 MB matches backend multer limit
+    if (file.size > 100 * 1024 * 1024) {
+      setUploadError('Datei ist groesser als 100 MB');
+      setUploadState('error');
+      setTimeout(() => { setUploadState('idle'); setUploadError(null); }, 4000);
+      return;
+    }
+    setUploadState('uploading');
+    setUploadError(null);
+    try {
+      await Promise.resolve(onUploadAttachment(file));
+      setUploadState('idle');
+    } catch (err: any) {
+      setUploadError(err?.message || 'Upload fehlgeschlagen');
+      setUploadState('error');
+      setTimeout(() => { setUploadState('idle'); setUploadError(null); }, 4000);
+    }
   }
 
   function handleClose() {
@@ -410,14 +429,34 @@ export function TaskDetailModal({
                     ))}
                   </div>
                 )}
-                <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+                <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} disabled={uploadState === 'uploading'} />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                  disabled={uploadState === 'uploading'}
+                  className={cn(
+                    'flex items-center gap-1.5 text-sm transition-colors disabled:cursor-wait',
+                    uploadState === 'uploading'
+                      ? 'text-primary-600 dark:text-primary-400'
+                      : 'text-gray-500 hover:text-primary-600 dark:hover:text-primary-400',
+                  )}
                 >
-                  <Plus className="h-4 w-4" />
-                  Datei hinzufuegen
+                  {uploadState === 'uploading' ? (
+                    <>
+                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-600/30 border-t-primary-600" />
+                      Laedt hoch...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      Datei hinzufuegen
+                    </>
+                  )}
                 </button>
+                {uploadState === 'error' && uploadError && (
+                  <div className="mt-2 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 px-3 py-2 text-xs text-red-700 dark:text-red-400">
+                    {uploadError}
+                  </div>
+                )}
               </div>
 
               {/* Comments / Activity Tabs */}

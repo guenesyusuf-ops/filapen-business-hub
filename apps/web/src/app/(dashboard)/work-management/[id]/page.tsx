@@ -346,8 +346,29 @@ export default function ProjectDetailPage() {
           onClose={() => setSelectedTask(null)}
           onUpdate={handleUpdateTask}
           onAddComment={(content) => createComment.mutate({ taskId: selectedTask.id, content })}
-          onUploadAttachment={(file) => uploadAttachment.mutate({ taskId: selectedTask.id, file })}
-          onDeleteAttachment={(attachmentId) => deleteAttachment.mutate({ taskId: selectedTask.id, attachmentId })}
+          onUploadAttachment={(file) =>
+            uploadAttachment.mutate(
+              { taskId: selectedTask.id, file },
+              {
+                onSuccess: (att) => {
+                  // Mirror the new attachment into local selectedTask so the open modal shows it
+                  setSelectedTask((prev) =>
+                    prev && prev.id === selectedTask.id
+                      ? { ...prev, attachments: [att, ...(prev.attachments ?? [])] }
+                      : prev,
+                  );
+                },
+              },
+            )
+          }
+          onDeleteAttachment={(attachmentId) => {
+            deleteAttachment.mutate({ taskId: selectedTask.id, attachmentId, projectId });
+            setSelectedTask((prev) =>
+              prev && prev.id === selectedTask.id
+                ? { ...prev, attachments: (prev.attachments ?? []).filter((a) => a.id !== attachmentId) }
+                : prev,
+            );
+          }}
           onAddLabel={(taskId, labelId) => addLabelToTask.mutate({ taskId, labelId, projectId })}
           onRemoveLabel={(taskId, labelId) => removeLabelFromTask.mutate({ taskId, labelId, projectId })}
           onCreateLabel={(name, color) => createLabel.mutate({ projectId, name, color })}

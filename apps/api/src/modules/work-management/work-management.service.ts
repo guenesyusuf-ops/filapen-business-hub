@@ -225,6 +225,7 @@ export class WorkManagementService {
           include: {
             taskLabels: { include: { label: true } },
             subtasks: true,
+            attachments: { orderBy: { createdAt: 'desc' } },
           },
           orderBy: { position: 'asc' },
         },
@@ -400,7 +401,7 @@ export class WorkManagementService {
     await this.logActivity(created.id, data.projectId, data.createdById, 'System', 'created', `Aufgabe "${data.title}" erstellt`);
     const refreshed = await this.prisma.wmTask.findUnique({
       where: { id: created.id },
-      include: { taskLabels: { include: { label: true } }, subtasks: true },
+      include: { taskLabels: { include: { label: true } }, subtasks: true, attachments: true },
     });
     const [enriched] = await this.enrichTasksWithUsers([refreshed ?? created]);
     return enriched;
@@ -499,7 +500,7 @@ export class WorkManagementService {
 
     const refreshed = await this.prisma.wmTask.findUnique({
       where: { id },
-      include: { taskLabels: { include: { label: true } }, subtasks: true },
+      include: { taskLabels: { include: { label: true } }, subtasks: true, attachments: true },
     });
     const [enriched] = await this.enrichTasksWithUsers([refreshed ?? updated]);
     return enriched;
@@ -635,7 +636,8 @@ export class WorkManagementService {
     taskId: string,
     file: Express.Multer.File,
   ) {
-    await this.ensureTaskExists(taskId);
+    const task = await this.prisma.wmTask.findUnique({ where: { id: taskId } });
+    if (!task) throw new NotFoundException('Task not found');
 
     const timestamp = Date.now();
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -643,7 +645,7 @@ export class WorkManagementService {
 
     const fileUrl = await this.storage.upload(storageKey, file.buffer, file.mimetype);
 
-    return this.prisma.wmAttachment.create({
+    const attachment = await this.prisma.wmAttachment.create({
       data: {
         taskId,
         fileName: file.originalname,
@@ -653,6 +655,9 @@ export class WorkManagementService {
         fileType: file.mimetype,
       },
     });
+
+    // Return attachment + projectId so the client can invalidate the right cache
+    return { ...attachment, projectId: task.projectId };
   }
 
   async deleteAttachment(id: string) {
