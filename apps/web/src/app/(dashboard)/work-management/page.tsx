@@ -98,7 +98,10 @@ export default function WorkManagementPage() {
   // Filter projects by category
   const filteredProjects = projects?.filter((p) => {
     if (selectedCategory === 'Alle') return true;
-    const cat = categoryMap.get(p.id);
+    // Check both the raw SQL category map AND the Prisma-level category
+    const cat = categoryMap.get(p.id) ?? (p as any).category;
+    // For "Abnahmen" also match by projectType
+    if (selectedCategory === 'Abnahmen' && (p as any).projectType === 'approval') return true;
     return cat === selectedCategory;
   });
 
@@ -364,6 +367,12 @@ export default function WorkManagementPage() {
                     <h3 className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-1">
                       {project.name}
                     </h3>
+                    {(project as any).projectType === 'approval' && (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex-shrink-0">
+                        <ShieldCheck className="h-3 w-3" />
+                        Abnahme
+                      </span>
+                    )}
                   </div>
 
                   {project.description && (

@@ -42,6 +42,8 @@ export interface WmProject {
   name: string;
   description?: string;
   color: string;
+  projectType?: 'kanban' | 'approval';
+  category?: string | null;
   taskCount: number;
   memberCount: number;
   createdAt: string;

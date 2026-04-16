@@ -79,6 +79,7 @@ export class WmApprovalService {
         description: data.description || null,
         color: data.color || '#8B5CF6',
         projectType: 'approval',
+        category: 'Abnahmen',
         createdBy: data.createdBy,
       },
     });

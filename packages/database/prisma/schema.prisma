@@ -1513,6 +1513,7 @@ model WmProject {
   color       String?  @db.VarChar(20)
   /// "kanban" (default) or "approval" for sequential approval workflow
   projectType String   @default("kanban") @map("project_type") @db.VarChar(20)
+  category    String?  @db.VarChar(50)
   createdBy   String   @map("created_by") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
