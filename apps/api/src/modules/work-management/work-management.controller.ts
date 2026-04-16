@@ -213,24 +213,54 @@ export class WorkManagementController {
     @Body()
     body: {
       projectId: string;
-      columnId: string;
+      columnId?: string;
       title: string;
       description?: string;
       assigneeId?: string;
       assigneeIds?: string[];
+      approverIds?: string[];
+      isApproval?: boolean;
       priority?: string;
       dueDate?: string;
       estimatedMinutes?: number;
+      deadlineHours?: number;
       color?: string;
       section?: string;
     },
   ) {
     try {
+      const userId = this.extractUserId(authHeader);
+
+      // Auto-detect approval project or explicit isApproval flag
+      if (body.isApproval || body.approverIds) {
+        return await this.wmApproval.createApprovalTask({
+          projectId: body.projectId,
+          title: body.title,
+          description: body.description,
+          createdById: userId,
+          approverIds: body.approverIds,
+          deadlineHours: body.deadlineHours,
+        });
+      }
+
+      // Also auto-detect: check if the project is of type 'approval'
+      const project = await this.wmService.getProjectType(body.projectId);
+      if (project === 'approval') {
+        return await this.wmApproval.createApprovalTask({
+          projectId: body.projectId,
+          title: body.title,
+          description: body.description,
+          createdById: userId,
+        });
+      }
+
       return await this.wmService.createTask({
         ...body,
-        createdById: this.extractUserId(authHeader),
+        columnId: body.columnId!,
+        createdById: userId,
       });
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('createTask failed', error);
       throw new HttpException('Failed to create task', HttpStatus.INTERNAL_SERVER_ERROR);
     }

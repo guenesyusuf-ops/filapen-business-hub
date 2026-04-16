@@ -161,14 +161,11 @@ export default function ProjectDetailPage() {
 
   const handleAddTask = useCallback(
     (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string }) => {
-      if (isApprovalProject) {
-        // Backend auto-derives approvers from project columns — no need to extract here
-        createApprovalTask.mutate({ projectId, title: data.title });
-      } else {
-        createTask.mutate({ projectId, columnId, ...data });
-      }
+      // Backend auto-detects approval projects — just send the task data.
+      // For approval projects it creates an approval task with auto-derived approvers.
+      createTask.mutate({ projectId, columnId, ...data });
     },
-    [createTask, createApprovalTask, projectId, isApprovalProject],
+    [createTask, projectId],
   );
 
   const handleAddColumn = useCallback(() => {

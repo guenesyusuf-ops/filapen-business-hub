@@ -146,7 +146,10 @@ export function useCreateApprovalTask() {
       description?: string;
       approverIds?: string[];
       deadlineHours?: number;
-    }) => wmFetch<ApprovalTaskDetail>('/tasks/approval', { method: 'POST', body: JSON.stringify(data) }),
+    }) => wmFetch<ApprovalTaskDetail>('/tasks', {
+      method: 'POST',
+      body: JSON.stringify({ ...data, isApproval: true }),
+    }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
     },

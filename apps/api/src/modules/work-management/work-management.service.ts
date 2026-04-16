@@ -954,6 +954,15 @@ export class WorkManagementService {
     return project;
   }
 
+  /** Quick lookup — returns the project type without loading relations. */
+  async getProjectType(projectId: string): Promise<string> {
+    const p = await this.prisma.wmProject.findUnique({
+      where: { id: projectId },
+      select: { projectType: true },
+    });
+    return p?.projectType ?? 'kanban';
+  }
+
   private async ensureTaskExists(id: string) {
     const task = await this.prisma.wmTask.findUnique({ where: { id } });
     if (!task) throw new NotFoundException('Task not found');
