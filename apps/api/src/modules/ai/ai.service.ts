@@ -49,9 +49,29 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: { type: 'object' as const, properties: {} },
   },
   {
+    name: 'list_creator_uploads',
+    description:
+      'Lists recent creator uploads (photos, videos, etc.), optionally filtered by creator name, live status, or review status. Use for "who uploaded", "pending uploads", "live content".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        creatorName: { type: 'string', description: 'Filter by creator name (partial match)' },
+        liveStatus: { type: 'string', enum: ['live', 'offline', 'pending'], description: 'Filter by live status' },
+        unreviewed: { type: 'boolean', description: 'Only show uploads not yet reviewed by admin' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
     name: 'shopify_today_summary',
     description:
       'Returns today\'s Shopify revenue, order count and average order value compared to yesterday. Use for "how are we doing today" kind of questions.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'dashboard_kpis',
+    description:
+      'Returns high-level KPIs: total open tasks, overdue tasks, completed last 7 days, due today. Use for "how are we doing", "what is the team workload".',
     input_schema: { type: 'object' as const, properties: {} },
   },
 ];
@@ -150,10 +170,14 @@ export class AiService {
           return this.tool_listProjects();
         case 'list_creators':
           return this.tool_listCreators(input);
+        case 'list_creator_uploads':
+          return this.tool_listCreatorUploads(input);
         case 'list_team_members':
           return this.tool_listTeamMembers();
         case 'shopify_today_summary':
           return this.tool_shopifyToday();
+        case 'dashboard_kpis':
+          return this.tool_dashboardKpis();
         default:
           return { error: `Unknown tool: ${name}` };
       }
@@ -224,11 +248,27 @@ export class AiService {
         orgId: DEV_ORG_ID,
         ...(input?.search ? { name: { contains: input.search, mode: 'insensitive' as const } } : {}),
       },
-      select: { id: true, name: true, platform: true, followerCount: true, status: true },
+      select: {
+        id: true,
+        name: true,
+        platform: true,
+        followerCount: true,
+        status: true,
+        totalDeals: true,
+        totalSpend: true,
+        _count: { select: { uploads: true } },
+      },
       take: Math.min(input?.limit || 20, 50),
       orderBy: { createdAt: 'desc' },
     });
-    return { count: creators.length, creators };
+    return {
+      count: creators.length,
+      creators: creators.map((c) => ({
+        ...c,
+        uploadCount: c._count.uploads,
+        _count: undefined,
+      })),
+    };
   }
 
   private async tool_listTeamMembers(): Promise<unknown> {
@@ -280,6 +320,103 @@ export class AiService {
       yesterdayRevenue: yesterdayRevenue.toFixed(2),
       deltaPercentVsYesterday: delta !== null ? delta.toFixed(1) : null,
       currency: 'EUR',
+    };
+  }
+
+  private async tool_listCreatorUploads(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+
+    if (input?.liveStatus) where.liveStatus = input.liveStatus;
+    if (input?.unreviewed) where.seenByAdmin = false;
+
+    // Filter by creator name via a sub-query
+    if (input?.creatorName) {
+      const creators = await this.prisma.creator.findMany({
+        where: {
+          orgId: DEV_ORG_ID,
+          name: { contains: input.creatorName, mode: 'insensitive' as const },
+        },
+        select: { id: true },
+      });
+      where.creatorId = { in: creators.map((c) => c.id) };
+    }
+
+    const uploads = await this.prisma.creatorUpload.findMany({
+      where,
+      select: {
+        id: true,
+        fileName: true,
+        fileType: true,
+        tab: true,
+        liveStatus: true,
+        seenByAdmin: true,
+        createdAt: true,
+        creator: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+
+    return {
+      count: uploads.length,
+      uploads: uploads.map((u) => ({
+        id: u.id,
+        fileName: u.fileName,
+        fileType: u.fileType,
+        tab: u.tab,
+        liveStatus: u.liveStatus,
+        reviewed: u.seenByAdmin,
+        creatorName: u.creator.name,
+        createdAt: u.createdAt,
+      })),
+    };
+  }
+
+  private async tool_dashboardKpis(): Promise<unknown> {
+    const today = new Date(new Date().toDateString());
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const [totalOpen, overdue, completedLast7, dueToday, totalCreators, totalUploads] =
+      await Promise.all([
+        this.prisma.wmTask.count({
+          where: { orgId: DEV_ORG_ID, parentTaskId: null, completed: false },
+        }),
+        this.prisma.wmTask.count({
+          where: {
+            orgId: DEV_ORG_ID,
+            parentTaskId: null,
+            completed: false,
+            dueDate: { lt: today },
+          },
+        }),
+        this.prisma.wmTask.count({
+          where: {
+            orgId: DEV_ORG_ID,
+            parentTaskId: null,
+            completed: true,
+            completedAt: { gte: sevenDaysAgo },
+          },
+        }),
+        this.prisma.wmTask.count({
+          where: {
+            orgId: DEV_ORG_ID,
+            parentTaskId: null,
+            completed: false,
+            dueDate: { gte: today, lt: new Date(today.getTime() + 86_400_000) },
+          },
+        }),
+        this.prisma.creator.count({ where: { orgId: DEV_ORG_ID } }),
+        this.prisma.creatorUpload.count({ where: { orgId: DEV_ORG_ID } }),
+      ]);
+
+    return {
+      totalOpenTasks: totalOpen,
+      overdueTasks: overdue,
+      completedLast7Days: completedLast7,
+      dueTodayTasks: dueToday,
+      totalCreators,
+      totalUploads,
     };
   }
 }
