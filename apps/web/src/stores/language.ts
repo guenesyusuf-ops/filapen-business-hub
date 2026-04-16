@@ -9,7 +9,7 @@ interface LanguageState {
 export const useLanguageStore = create<LanguageState>()(
   persist(
     (set) => ({
-      locale: 'en',
+      locale: 'de',
       setLocale: (locale) => set({ locale }),
     }),
     { name: 'filapen-language' },

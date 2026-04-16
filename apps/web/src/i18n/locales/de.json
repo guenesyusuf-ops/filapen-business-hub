@@ -63,10 +63,10 @@
     "creatorPortal": "Creator Portal",
     "channelsHub": "Channels",
     "shopify": "Shopify",
-    "workManagement": "Work Management",
+    "workManagement": "Aufgabenverwaltung",
     "wmProjects": "Projekte",
     "wmMyTasks": "Meine Aufgaben",
-    "wmWorkload": "Workload"
+    "wmWorkload": "Auslastung"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",

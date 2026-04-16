@@ -33,9 +33,22 @@ export class WorkManagementService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Count eligible org users — used as fallback member count for projects
+    // that were created before auto-population (legacy projects).
+    const eligibleCount = await this.prisma.user.count({
+      where: {
+        orgId: DEV_ORG_ID,
+        status: 'active',
+        OR: [
+          { role: { in: ['owner', 'admin'] } },
+          { menuPermissions: { has: 'work-management' } },
+        ],
+      },
+    });
+
     return projects.map((p) => ({
       ...p,
-      memberCount: p._count.members,
+      memberCount: Math.max(p._count.members, eligibleCount),
       taskCount: p._count.tasks,
       _count: undefined,
     }));
@@ -61,6 +74,33 @@ export class WorkManagementService {
       })),
     });
 
+    // Auto-populate members with all eligible org users:
+    //   - Admins/Owners (always get full access)
+    //   - Mitarbeiter with 'work-management' in menuPermissions
+    const eligibleUsers = await this.prisma.user.findMany({
+      where: {
+        orgId: DEV_ORG_ID,
+        status: 'active',
+        OR: [
+          { role: { in: ['owner', 'admin'] } },
+          { menuPermissions: { has: 'work-management' } },
+        ],
+      },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    if (eligibleUsers.length > 0) {
+      await this.prisma.wmProjectMember.createMany({
+        data: eligibleUsers.map((u) => ({
+          projectId: project.id,
+          userId: u.id,
+          userName: u.name || u.email.split('@')[0],
+          role: u.id === data.createdBy ? 'admin' : 'member',
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     return this.getProjectById(project.id);
   }
 
@@ -82,7 +122,10 @@ export class WorkManagementService {
     });
 
     if (!project) throw new NotFoundException('Project not found');
-    return project;
+
+    // Override members with the resilient listMembers (includes all eligible org users)
+    const members = await this.listMembers(id);
+    return { ...project, members };
   }
 
   async updateProject(id: string, data: { name?: string; description?: string; color?: string }) {
@@ -538,10 +581,40 @@ export class WorkManagementService {
   // =========================================================================
 
   async listMembers(projectId: string) {
-    return this.prisma.wmProjectMember.findMany({
+    const members = await this.prisma.wmProjectMember.findMany({
       where: { projectId },
       orderBy: { userName: 'asc' },
     });
+
+    // Backfill: if there are no members (legacy projects) or to ensure newly-invited
+    // users appear, return the union with all active org users who have WM access.
+    const eligibleUsers = await this.prisma.user.findMany({
+      where: {
+        orgId: DEV_ORG_ID,
+        status: 'active',
+        OR: [
+          { role: { in: ['owner', 'admin'] } },
+          { menuPermissions: { has: 'work-management' } },
+        ],
+      },
+      select: { id: true, name: true, email: true, avatarUrl: true },
+    });
+
+    const existingUserIds = new Set(members.map((m) => m.userId));
+    const virtualMembers = eligibleUsers
+      .filter((u) => !existingUserIds.has(u.id))
+      .map((u) => ({
+        id: `virtual-${u.id}`,
+        projectId,
+        userId: u.id,
+        userName: u.name || u.email.split('@')[0],
+        role: 'member',
+        joinedAt: new Date(),
+      }));
+
+    return [...members, ...virtualMembers].sort((a, b) =>
+      (a.userName || '').localeCompare(b.userName || ''),
+    );
   }
 
   async addMember(projectId: string, data: { userId: string; userName: string; role?: string }) {

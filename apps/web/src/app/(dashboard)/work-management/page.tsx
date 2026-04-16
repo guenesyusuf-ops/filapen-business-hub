@@ -92,7 +92,7 @@ export default function WorkManagementPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Work Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Aufgabenverwaltung</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projekte und Aufgaben verwalten</p>
         </div>
         <div className="flex items-center gap-3">

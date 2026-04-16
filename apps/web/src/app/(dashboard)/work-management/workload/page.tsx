@@ -13,7 +13,7 @@ export default function WorkloadPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Workload</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Auslastung</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Uebersicht der Aufgabenverteilung im Team
         </p>
@@ -27,14 +27,14 @@ export default function WorkloadPage() {
 
       {error && (
         <div className="rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 p-4 text-sm text-red-600 dark:text-red-400">
-          Fehler beim Laden der Workload-Daten.
+          Fehler beim Laden der Auslastungs-Daten.
         </div>
       )}
 
       {!isLoading && !error && workload && workload.length === 0 && (
         <div className="text-center py-16">
           <Users className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Keine Workload-Daten</h3>
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Keine Auslastungs-Daten</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Erstelle Projekte und weise Aufgaben zu.</p>
         </div>
       )}

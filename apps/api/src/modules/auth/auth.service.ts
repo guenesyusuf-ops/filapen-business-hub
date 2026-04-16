@@ -225,6 +225,30 @@ export class AuthService {
           data: { status: 'accepted' },
         });
 
+        // If this user has Work Management access (admin or explicit permission),
+        // add them to ALL existing WM projects so they show up in assignee lists.
+        const hasWmAccess =
+          invite.role === 'admin' ||
+          invite.role === 'owner' ||
+          (invite.menuPermissions ?? []).includes('work-management');
+        if (hasWmAccess) {
+          const projects = await this.prisma.wmProject.findMany({
+            where: { orgId: invite.orgId },
+            select: { id: true },
+          });
+          if (projects.length > 0) {
+            await this.prisma.wmProjectMember.createMany({
+              data: projects.map((p) => ({
+                projectId: p.id,
+                userId: newUser.id,
+                userName: newUser.name || newUser.email.split('@')[0],
+                role: 'member',
+              })),
+              skipDuplicates: true,
+            });
+          }
+        }
+
         return this.createAuthResponse(newUser);
       }
 
