@@ -42,7 +42,7 @@ export default function WorkloadPage() {
       {!isLoading && !error && workload && workload.length > 0 && (
         <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)] overflow-hidden">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_6rem_5rem_5rem_5rem_1fr] gap-2 px-5 py-3 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div className="grid grid-cols-[1fr_7rem_5rem_7rem_6rem_1fr] gap-2 px-5 py-3 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             <span>Mitglied</span>
             <span className="text-center">Offene Tasks</span>
             <span className="text-center">Heute</span>
@@ -63,7 +63,7 @@ export default function WorkloadPage() {
             return (
               <div
                 key={entry.memberId}
-                className="grid grid-cols-[1fr_6rem_5rem_5rem_5rem_1fr] gap-2 px-5 py-3 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors items-center"
+                className="grid grid-cols-[1fr_7rem_5rem_7rem_6rem_1fr] gap-2 px-5 py-3 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors items-center"
               >
                 {/* Name */}
                 <div className="flex items-center gap-2">
