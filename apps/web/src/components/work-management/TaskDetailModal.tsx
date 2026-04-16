@@ -122,17 +122,20 @@ export function TaskDetailModal({
   async function handleSave() {
     setSaveState('saving');
     try {
-      await Promise.resolve(
-        onUpdate({
-          id: task.id,
-          title: editTitle.trim(),
-          description: editDesc,
-          priority: editPriority,
-          dueDate: editDueDate || undefined,
-          assigneeIds: editAssigneeIds,
-          columnId: editColumnId,
-        } as any),
-      );
+      const updateData: any = {
+        id: task.id,
+        title: editTitle.trim(),
+        description: editDesc,
+        priority: editPriority,
+        dueDate: editDueDate || undefined,
+        assigneeIds: editAssigneeIds,
+      };
+      // For approval tasks, don't send columnId — the approval workflow manages it.
+      // Sending it would overwrite the approval-driven column move.
+      if (!isApprovalProject && !(task as any).approvalStatus) {
+        updateData.columnId = editColumnId;
+      }
+      await Promise.resolve(onUpdate(updateData));
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 2000);
     } catch {
