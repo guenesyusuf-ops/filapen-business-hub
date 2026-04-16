@@ -14,14 +14,34 @@ export const metadata: Metadata = {
   description: 'Unified finance, creator, and influencer management platform',
 };
 
+// Inline script that runs before React hydrates — prevents flash of wrong theme.
+// Reads the persisted Zustand store from localStorage and sets the `dark` class
+// on <html> synchronously so Tailwind dark: variants are active from the first paint.
+const themeScript = `
+(function(){
+  try {
+    var s = localStorage.getItem('filapen-theme');
+    if (s) {
+      var t = JSON.parse(s).state?.theme;
+      if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme:dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    }
+  } catch(e){}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-gray-50 font-sans antialiased">
+    <html lang="de" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="min-h-screen bg-gray-50 dark:bg-[#0f1117] font-sans antialiased">
         <Providers>
           {children}
         </Providers>
