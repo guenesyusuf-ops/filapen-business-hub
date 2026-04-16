@@ -26,24 +26,24 @@ interface KpiCardProps {
 function KpiCard({ label, value, icon: Icon, iconColor, bgColor, alert }: KpiCardProps) {
   return (
     <div className={cn(
-      'rounded-xl border p-4 flex items-center gap-4 transition-all',
+      'rounded-xl border p-3 sm:p-4 flex items-center gap-3 sm:gap-4 transition-all',
       alert && value > 0
         ? 'border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10'
         : 'border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)]',
     )}>
-      <div className={cn('flex items-center justify-center h-10 w-10 rounded-lg', bgColor)}>
-        <Icon className={cn('h-5 w-5', iconColor)} />
+      <div className={cn('flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex-shrink-0', bgColor)}>
+        <Icon className={cn('h-4 w-4 sm:h-5 sm:w-5', iconColor)} />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className={cn(
-          'text-2xl font-bold',
+          'text-xl sm:text-2xl font-bold',
           alert && value > 0
             ? 'text-red-600 dark:text-red-400'
             : 'text-gray-900 dark:text-white',
         )}>
           {value}
         </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">{label}</p>
       </div>
     </div>
   );
@@ -106,18 +106,18 @@ export default function WorkManagementPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Aufgabenverwaltung</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Projekte und Aufgaben verwalten</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Aufgabenverwaltung</h1>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 hidden sm:block">Projekte und Aufgaben verwalten</p>
+          </div>
           {/* Notification Bell */}
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+            className="relative p-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex-shrink-0"
           >
             <Bell className="h-4 w-4 text-gray-600 dark:text-gray-400" />
             {(unreadCount?.count ?? 0) > 0 && (
@@ -126,16 +126,19 @@ export default function WorkManagementPage() {
               </span>
             )}
           </button>
+        </div>
+        {/* Action buttons — stacked on mobile, inline on desktop */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCreateApproval(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-xs sm:text-sm font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
           >
             <ShieldCheck className="h-4 w-4" />
             Abnahme
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors shadow-sm"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-lg bg-primary-600 text-white text-xs sm:text-sm font-semibold hover:bg-primary-700 transition-colors shadow-sm"
           >
             <Plus className="h-4 w-4" />
             Neues Projekt
@@ -202,7 +205,7 @@ export default function WorkManagementPage() {
 
       {/* KPI Cards */}
       {dashboard && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <KpiCard
             label="Offene Aufgaben"
             value={dashboard.totalOpen}
@@ -236,14 +239,14 @@ export default function WorkManagementPage() {
       )}
 
       {/* Category Filter */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Tag className="h-4 w-4 text-gray-400" />
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
+        <Tag className="h-4 w-4 text-gray-400 flex-shrink-0 hidden sm:block" />
         {categoryNames.map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
             className={cn(
-              'px-3 py-1.5 text-xs font-semibold rounded-full border transition-all',
+              'px-3 py-2 sm:py-1.5 text-xs font-semibold rounded-full border transition-all whitespace-nowrap flex-shrink-0',
               selectedCategory === cat
                 ? 'bg-primary-600 text-white border-primary-600'
                 : 'bg-white dark:bg-[var(--card-bg,#1a1d2e)] text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-primary-300 dark:hover:border-primary-500/40',
@@ -342,7 +345,7 @@ export default function WorkManagementPage() {
 
       {/* Project grid */}
       {!isLoading && !error && filteredProjects && filteredProjects.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {filteredProjects.map((project) => {
             const cat = categoryMap.get(project.id);
             return (
