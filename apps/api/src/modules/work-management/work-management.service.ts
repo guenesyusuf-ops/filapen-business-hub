@@ -39,12 +39,17 @@ export class WorkManagementService {
       orderBy: { assignedAt: 'asc' },
     });
 
-    // Collect all distinct user IDs we need (assignees + createdBy + legacy assigneeId)
+    // Collect all distinct user IDs we need (assignees + createdBy + legacy assigneeId + approval steps)
     const userIds = new Set<string>();
     for (const j of joins) userIds.add(j.userId);
     for (const t of tasks) {
       if (t.assigneeId) userIds.add(t.assigneeId);
       if (t.createdById) userIds.add(t.createdById);
+      // Also collect IDs from approval steps if present
+      const steps = (t as any).approvalSteps;
+      if (steps && Array.isArray(steps)) {
+        for (const s of steps) { if (s.userId) userIds.add(s.userId); }
+      }
     }
 
     const users = userIds.size
@@ -84,10 +89,31 @@ export class WorkManagementService {
       }
       const primary = assignees[0];
       const creator = t.createdById ? userMap.get(t.createdById) : undefined;
+
+      // Approval progress (for tasks that have approvalSteps from the include)
+      let approvalProgress: { approved: number; total: number } | undefined;
+      const steps = (t as any).approvalSteps;
+      if (steps && Array.isArray(steps) && steps.length > 0) {
+        const version = (t as any).approvalVersion ?? 1;
+        const currentSteps = steps.filter((s: any) => s.version === version);
+        approvalProgress = {
+          approved: currentSteps.filter((s: any) => s.status === 'approved').length,
+          total: currentSteps.length,
+        };
+        // Enrich step user names
+        for (const s of steps) {
+          if (userMap.has(s.userId)) {
+            s.userName = userMap.get(s.userId)!.userName;
+            s.userAvatarUrl = userMap.get(s.userId)!.avatarUrl;
+          }
+        }
+      }
+
       return {
         ...t,
         assignees,
         assigneeIds: assignees.map((a) => a.userId),
+        ...(approvalProgress ? { approvalProgress } : {}),
         ...(primary
           ? { assigneeName: primary.userName, assigneeAvatarUrl: primary.avatarUrl }
           : {}),
@@ -226,6 +252,7 @@ export class WorkManagementService {
             taskLabels: { include: { label: true } },
             subtasks: true,
             attachments: { orderBy: { createdAt: 'desc' } },
+            approvalSteps: { orderBy: { position: 'asc' } },
           },
           orderBy: { position: 'asc' },
         },

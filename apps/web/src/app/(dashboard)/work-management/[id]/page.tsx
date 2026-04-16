@@ -23,6 +23,7 @@ import {
   useRemoveLabelFromTask,
   useWmActivities,
 } from '@/hooks/work-management/useWm';
+import { useCreateApprovalTask } from '@/hooks/work-management/useWmApproval';
 import type { WmTask, WmColumn } from '@/hooks/work-management/useWm';
 import dynamic from 'next/dynamic';
 
@@ -127,6 +128,7 @@ export default function ProjectDetailPage() {
 
   const { data: project, isLoading, error } = useWmProject(projectId);
   const createTask = useCreateWmTask();
+  const createApprovalTask = useCreateApprovalTask();
   const updateTask = useUpdateWmTask();
   const deleteTask = useDeleteWmTask();
   const moveTask = useMoveWmTask();
@@ -157,9 +159,26 @@ export default function ProjectDetailPage() {
 
   const handleAddTask = useCallback(
     (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string }) => {
-      createTask.mutate({ projectId, columnId, ...data });
+      const isApproval = (project as any)?.projectType === 'approval';
+
+      if (isApproval) {
+        // Extract approver user IDs from columns (positions 1..N-1, excluding Entwurf[0] and Genehmigt[last])
+        const cols = project?.columns ?? [];
+        const approverColumns = cols.slice(1, -1); // between Entwurf and Genehmigt
+        const approverIds = (project?.members ?? [])
+          .filter((m: any) => approverColumns.some((c: any) => c.name === ((m as any).userName || (m as any).name)))
+          .map((m: any) => (m as any).userId || (m as any).id);
+
+        createApprovalTask.mutate({
+          projectId,
+          title: data.title,
+          approverIds: approverIds.length > 0 ? approverIds : members.map((m: any) => m.userId || m.id).filter(Boolean),
+        });
+      } else {
+        createTask.mutate({ projectId, columnId, ...data });
+      }
     },
-    [createTask, projectId],
+    [createTask, createApprovalTask, projectId, project, members],
   );
 
   const handleAddColumn = useCallback(() => {
@@ -230,6 +249,10 @@ export default function ProjectDetailPage() {
     assignees: t.assignees ?? [],
     assigneeIds: t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []),
     assigneeName: t.assigneeName ?? t.assignees?.[0]?.userName,
+    approvalSteps: t.approvalSteps ?? [],
+    approvalProgress: t.approvalProgress ?? null,
+    approvalStatus: t.approvalStatus ?? null,
+    approvalVersion: t.approvalVersion ?? 1,
   })) as WmTask[];
 
   const columns = (project.columns ?? []).map((col: WmColumn) => ({
