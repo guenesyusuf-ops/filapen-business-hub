@@ -329,6 +329,67 @@ export class WorkManagementController {
     }
   }
 
+  // =========================================================================
+  // APPROVAL WORKFLOW (consolidated here to avoid route conflicts)
+  // =========================================================================
+
+  @Get('tasks/:id/approval-detail')
+  async getApprovalDetail(@Param('id') taskId: string) {
+    try {
+      return await this.wmApproval.getApprovalTaskDetail(taskId);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('getApprovalDetail failed', error);
+      throw new HttpException('Failed to get approval detail', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Post('tasks/:id/submit-approval')
+  async submitForApproval(
+    @Headers('authorization') authHeader: string,
+    @Param('id') taskId: string,
+  ) {
+    try {
+      const userId = this.extractUserId(authHeader);
+      return await this.wmApproval.submitForApproval(taskId, userId);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('submitForApproval failed', error);
+      throw new HttpException('Failed to submit for approval', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Post('tasks/:id/approval-decide')
+  async approvalDecide(
+    @Headers('authorization') authHeader: string,
+    @Param('id') taskId: string,
+    @Body() body: { action: 'approved' | 'rejected'; comment?: string },
+  ) {
+    try {
+      const userId = this.extractUserId(authHeader);
+      return await this.wmApproval.decide(taskId, userId, body.action, body.comment);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error('approvalDecide failed', error);
+      throw new HttpException('Failed to process approval decision', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('pending-approvals')
+  async getPendingApprovals(@Headers('authorization') authHeader: string) {
+    try {
+      const userId = this.extractUserId(authHeader);
+      return await this.wmApproval.getPendingApprovals(userId);
+    } catch (error) {
+      this.logger.error('getPendingApprovals failed', error);
+      throw new HttpException('Failed to get pending approvals', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  // =========================================================================
+  // SUBTASKS
+  // =========================================================================
+
   @Patch('projects/:id/tasks/reorder')
   async bulkReorderTasks(
     @Param('id') projectId: string,

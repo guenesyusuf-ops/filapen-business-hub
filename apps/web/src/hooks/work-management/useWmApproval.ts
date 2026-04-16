@@ -160,7 +160,7 @@ export function useSubmitForApproval() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (taskId: string) =>
-      wmFetch<ApprovalTaskDetail>(`/tasks/${taskId}/approval/submit`, { method: 'POST' }),
+      wmFetch<ApprovalTaskDetail>(`/tasks/${taskId}/submit-approval`, { method: 'POST' }),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', result.projectId] });
       qc.invalidateQueries({ queryKey: ['wm', 'approval', result.id] });
@@ -173,7 +173,7 @@ export function useApprovalDecide() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ taskId, action, comment }: { taskId: string; action: 'approved' | 'rejected'; comment?: string }) =>
-      wmFetch<ApprovalTaskDetail>(`/tasks/${taskId}/approval/decide`, {
+      wmFetch<ApprovalTaskDetail>(`/tasks/${taskId}/approval-decide`, {
         method: 'POST',
         body: JSON.stringify({ action, comment }),
       }),
@@ -189,7 +189,7 @@ export function useApprovalDecide() {
 export function useApprovalDetail(taskId: string | null) {
   return useQuery<ApprovalTaskDetail>({
     queryKey: ['wm', 'approval', taskId],
-    queryFn: () => wmFetch(`/tasks/${taskId}/approval`),
+    queryFn: () => wmFetch(`/tasks/${taskId}/approval-detail`),
     enabled: !!taskId,
   });
 }
@@ -210,7 +210,7 @@ export interface PendingApproval {
 export function usePendingApprovals() {
   return useQuery<PendingApproval[]>({
     queryKey: ['wm', 'approvals-pending'],
-    queryFn: () => wmFetch('/approvals/pending'),
+    queryFn: () => wmFetch('/pending-approvals'),
     refetchInterval: 30_000,
   });
 }
