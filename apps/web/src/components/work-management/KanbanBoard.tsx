@@ -27,7 +27,7 @@ interface KanbanBoardProps {
   columns: ColumnWithTasks[];
   members?: { id: string; userId?: string; userName?: string; name?: string }[];
   onMoveTask: (taskId: string, columnId: string, position: number) => void;
-  onAddTask: (columnId: string, data: { title: string; assigneeId?: string; priority?: string }) => void;
+  onAddTask: (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string }) => void;
   onTaskClick: (task: WmTask) => void;
   onDeleteTask?: (taskId: string) => void;
   onAddColumn: () => void;

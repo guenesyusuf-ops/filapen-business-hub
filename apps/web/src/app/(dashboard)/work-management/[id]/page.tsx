@@ -156,7 +156,7 @@ export default function ProjectDetailPage() {
   );
 
   const handleAddTask = useCallback(
-    (columnId: string, data: { title: string; assigneeId?: string; priority?: string }) => {
+    (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string }) => {
       createTask.mutate({ projectId, columnId, ...data });
     },
     [createTask, projectId],
@@ -222,7 +222,9 @@ export default function ProjectDetailPage() {
     labels: (t.taskLabels ?? []).map((tl: any) => tl.label).filter(Boolean),
     subtasks: t.subtasks ?? [],
     attachments: t.attachments ?? [],
-    assigneeName: t.assigneeName ?? (t.assigneeId ? 'Mitarbeiter' : undefined),
+    assignees: t.assignees ?? [],
+    assigneeIds: t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []),
+    assigneeName: t.assigneeName ?? t.assignees?.[0]?.userName,
   })) as WmTask[];
 
   const columns = (project.columns ?? []).map((col: WmColumn) => ({

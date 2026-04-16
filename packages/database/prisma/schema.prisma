@@ -716,6 +716,20 @@ model PersonalNote {
   @@map("personal_notes")
 }
 
+/// Join table enabling multi-assignee on WmTask. The legacy WmTask.assigneeId
+/// field is kept as a convenience mirror of the first/primary assignee.
+model WmTaskAssignee {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId     String   @map("task_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+
+  @@unique([taskId, userId], map: "uq_task_assignee")
+  @@index([userId])
+  @@index([taskId])
+  @@map("wm_task_assignees")
+}
+
 /// Direct messages between two users (DM chat on /home widget).
 /// Ordered chronologically per (sender,recipient) pair.
 model DirectMessage {

@@ -20,43 +20,115 @@ export class WorkManagementService {
   ) {}
 
   /**
-   * Enriches an array of tasks with assignee + creator display info
-   * (assigneeName, assigneeAvatarUrl, createdByName, createdByAvatarUrl)
-   * resolved from the User table. Tasks without assigneeId are untouched.
+   * Enriches tasks with:
+   *   - assignees: [{ userId, userName, avatarUrl }]  (multi-assignee join)
+   *   - assigneeName / assigneeAvatarUrl              (first assignee, back-compat)
+   *   - createdByName / createdByAvatarUrl
+   *
+   * Reads the wm_task_assignees join table once per call for all passed tasks.
    */
-  private async enrichTasksWithUsers<T extends { assigneeId: string | null; createdById?: string | null }>(
+  private async enrichTasksWithUsers<T extends { id: string; assigneeId: string | null; createdById?: string | null }>(
     tasks: T[],
-  ): Promise<(T & { assigneeName?: string; assigneeAvatarUrl?: string; createdByName?: string; createdByAvatarUrl?: string })[]> {
+  ): Promise<any[]> {
+    if (tasks.length === 0) return tasks;
+
+    // Load all assignees from the join table for these tasks in one query
+    const taskIds = tasks.map((t) => t.id);
+    const joins = await this.prisma.wmTaskAssignee.findMany({
+      where: { taskId: { in: taskIds } },
+      orderBy: { assignedAt: 'asc' },
+    });
+
+    // Collect all distinct user IDs we need (assignees + createdBy + legacy assigneeId)
     const userIds = new Set<string>();
+    for (const j of joins) userIds.add(j.userId);
     for (const t of tasks) {
       if (t.assigneeId) userIds.add(t.assigneeId);
       if (t.createdById) userIds.add(t.createdById);
     }
-    if (userIds.size === 0) return tasks as any;
 
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: Array.from(userIds) } },
-      select: { id: true, name: true, firstName: true, lastName: true, email: true, avatarUrl: true },
-    });
+    const users = userIds.size
+      ? await this.prisma.user.findMany({
+          where: { id: { in: Array.from(userIds) } },
+          select: { id: true, name: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+        })
+      : [];
+
     const userMap = new Map(
       users.map((u) => [
         u.id,
         {
-          name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email.split('@')[0],
+          userId: u.id,
+          userName: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email.split('@')[0],
           avatarUrl: u.avatarUrl || undefined,
         },
       ]),
     );
 
-    return tasks.map((t) => ({
-      ...t,
-      ...(t.assigneeId && userMap.has(t.assigneeId)
-        ? { assigneeName: userMap.get(t.assigneeId)!.name, assigneeAvatarUrl: userMap.get(t.assigneeId)!.avatarUrl }
-        : {}),
-      ...(t.createdById && userMap.has(t.createdById)
-        ? { createdByName: userMap.get(t.createdById)!.name, createdByAvatarUrl: userMap.get(t.createdById)!.avatarUrl }
-        : {}),
-    }));
+    // Group assignees per task
+    const assigneesByTask = new Map<string, { userId: string; userName: string; avatarUrl?: string }[]>();
+    for (const j of joins) {
+      const user = userMap.get(j.userId);
+      if (!user) continue;
+      const list = assigneesByTask.get(j.taskId) ?? [];
+      list.push(user);
+      assigneesByTask.set(j.taskId, list);
+    }
+
+    return tasks.map((t) => {
+      let assignees = assigneesByTask.get(t.id) ?? [];
+      // Fallback: if join table is empty for this task but legacy assigneeId
+      // still points at a valid user, expose it as a single-element assignees array.
+      if (assignees.length === 0 && t.assigneeId && userMap.has(t.assigneeId)) {
+        assignees = [userMap.get(t.assigneeId)!];
+      }
+      const primary = assignees[0];
+      const creator = t.createdById ? userMap.get(t.createdById) : undefined;
+      return {
+        ...t,
+        assignees,
+        assigneeIds: assignees.map((a) => a.userId),
+        ...(primary
+          ? { assigneeName: primary.userName, assigneeAvatarUrl: primary.avatarUrl }
+          : {}),
+        ...(creator
+          ? { createdByName: creator.userName, createdByAvatarUrl: creator.avatarUrl }
+          : {}),
+      };
+    });
+  }
+
+  /**
+   * Replace the full set of assignees for a given task.
+   * Keeps the legacy WmTask.assigneeId mirror pointing to the first assignee.
+   */
+  private async setTaskAssignees(taskId: string, userIds: string[]) {
+    const unique = Array.from(new Set(userIds.filter(Boolean)));
+
+    // Guard: only allow actual users, silently drop unknown ids
+    const existingUsers = unique.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: unique } },
+          select: { id: true },
+        })
+      : [];
+    const validIds = existingUsers.map((u) => u.id);
+
+    await this.prisma.$transaction([
+      this.prisma.wmTaskAssignee.deleteMany({ where: { taskId } }),
+      ...(validIds.length
+        ? [
+            this.prisma.wmTaskAssignee.createMany({
+              data: validIds.map((userId) => ({ taskId, userId })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
+      this.prisma.wmTask.update({
+        where: { id: taskId },
+        data: { assigneeId: validIds[0] ?? null },
+      }),
+    ]);
   }
 
   // =========================================================================
@@ -275,7 +347,10 @@ export class WorkManagementService {
     columnId: string;
     title: string;
     description?: string;
+    /** Primary assignee (legacy) — takes precedence if assigneeIds not given. */
     assigneeId?: string;
+    /** Multi-assignee — replaces assigneeId semantics. */
+    assigneeIds?: string[];
     createdById: string;
     priority?: string;
     dueDate?: string;
@@ -288,6 +363,14 @@ export class WorkManagementService {
       _max: { position: true },
     });
 
+    // Consolidate assignee inputs — assigneeIds wins if provided, else legacy assigneeId
+    const finalAssigneeIds =
+      data.assigneeIds && data.assigneeIds.length > 0
+        ? data.assigneeIds
+        : data.assigneeId
+          ? [data.assigneeId]
+          : [];
+
     const created = await this.prisma.wmTask.create({
       data: {
         orgId: DEV_ORG_ID,
@@ -295,7 +378,7 @@ export class WorkManagementService {
         columnId: data.columnId,
         title: data.title,
         description: data.description,
-        assigneeId: data.assigneeId,
+        assigneeId: finalAssigneeIds[0] ?? null,
         createdById: data.createdById,
         priority: data.priority || 'medium',
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
@@ -310,8 +393,16 @@ export class WorkManagementService {
       },
     });
 
+    if (finalAssigneeIds.length > 0) {
+      await this.setTaskAssignees(created.id, finalAssigneeIds);
+    }
+
     await this.logActivity(created.id, data.projectId, data.createdById, 'System', 'created', `Aufgabe "${data.title}" erstellt`);
-    const [enriched] = await this.enrichTasksWithUsers([created]);
+    const refreshed = await this.prisma.wmTask.findUnique({
+      where: { id: created.id },
+      include: { taskLabels: { include: { label: true } }, subtasks: true },
+    });
+    const [enriched] = await this.enrichTasksWithUsers([refreshed ?? created]);
     return enriched;
   }
 
@@ -342,6 +433,7 @@ export class WorkManagementService {
       priority?: string;
       dueDate?: string | null;
       assigneeId?: string | null;
+      assigneeIds?: string[];
       columnId?: string;
       completed?: boolean;
       estimatedMinutes?: number | null;
@@ -356,7 +448,10 @@ export class WorkManagementService {
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.priority !== undefined) updateData.priority = data.priority;
-    if (data.assigneeId !== undefined) updateData.assigneeId = data.assigneeId;
+    // Primary assignee mirror — only set when explicitly provided and no assigneeIds given
+    if (data.assigneeId !== undefined && data.assigneeIds === undefined) {
+      updateData.assigneeId = data.assigneeId;
+    }
     if (data.columnId !== undefined) updateData.columnId = data.columnId;
     if (data.estimatedMinutes !== undefined) updateData.estimatedMinutes = data.estimatedMinutes;
     if (data.color !== undefined) updateData.color = data.color;
@@ -395,7 +490,18 @@ export class WorkManagementService {
       }
     }
 
-    const [enriched] = await this.enrichTasksWithUsers([updated]);
+    // Multi-assignee sync (either explicit list or legacy single set)
+    if (data.assigneeIds !== undefined) {
+      await this.setTaskAssignees(id, data.assigneeIds);
+    } else if (data.assigneeId !== undefined) {
+      await this.setTaskAssignees(id, data.assigneeId ? [data.assigneeId] : []);
+    }
+
+    const refreshed = await this.prisma.wmTask.findUnique({
+      where: { id },
+      include: { taskLabels: { include: { label: true } }, subtasks: true },
+    });
+    const [enriched] = await this.enrichTasksWithUsers([refreshed ?? updated]);
     return enriched;
   }
 

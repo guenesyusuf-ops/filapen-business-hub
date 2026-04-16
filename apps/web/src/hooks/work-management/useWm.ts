@@ -63,6 +63,13 @@ export interface WmLabel {
   color: string;
 }
 
+/** A single task assignee as returned by the backend enrichment. */
+export interface WmTaskAssignee {
+  userId: string;
+  userName: string;
+  avatarUrl?: string;
+}
+
 export interface WmMember {
   /** WmProjectMember row id — NOT the user id. Use `userId` for assignments. */
   id: string;
@@ -109,6 +116,10 @@ export interface WmTask {
   description?: string;
   position: number;
   assigneeId?: string;
+  /** All assignees resolved from wm_task_assignees join table. */
+  assignees?: WmTaskAssignee[];
+  /** Convenience list of just the user IDs (mirrors assignees[].userId). */
+  assigneeIds?: string[];
   assigneeName?: string;
   dueDate?: string;
   priority: 'urgent' | 'high' | 'medium' | 'low';
@@ -219,7 +230,7 @@ export function useWmTask(id: string) {
 export function useCreateWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { projectId: string; columnId: string; title: string; assigneeId?: string; priority?: string; position?: number }) =>
+    mutationFn: (data: { projectId: string; columnId: string; title: string; assigneeId?: string; assigneeIds?: string[]; priority?: string; position?: number }) =>
       wmFetch<WmTask>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });

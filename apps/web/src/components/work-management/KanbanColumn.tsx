@@ -13,7 +13,7 @@ interface KanbanColumnProps {
   column: WmColumn;
   tasks: WmTask[];
   members?: { id: string; userId?: string; userName?: string; name?: string }[];
-  onAddTask: (columnId: string, data: { title: string; assigneeId?: string; priority?: string; section?: string }) => void;
+  onAddTask: (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string; section?: string }) => void;
   onTaskClick: (task: WmTask) => void;
   onDeleteTask?: (taskId: string) => void;
 }

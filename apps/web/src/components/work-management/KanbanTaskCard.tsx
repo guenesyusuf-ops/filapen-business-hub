@@ -157,30 +157,57 @@ export function KanbanTaskCard({ task, onClick, onDelete }: KanbanTaskCardProps)
         {/* Spacer */}
         <span className="flex-1" />
 
-        {/* Person avatar — assignee if set, otherwise creator */}
+        {/* Avatar stack — multiple assignees + creator fallback */}
         {(() => {
-          const name = task.assigneeName || (task as any).createdByName || task.createdBy || '';
-          if (!name) return null;
-          const avatarUrl = (task as any).assigneeAvatarUrl || (task as any).createdByAvatarUrl;
-          const isAssignee = !!task.assigneeName;
+          const assignees = task.assignees ?? [];
+          const visible = assignees.slice(0, 3);
+          const overflow = assignees.length - visible.length;
+
+          if (visible.length > 0) {
+            const tooltip = `Zugewiesen: ${assignees.map((a) => a.userName).join(', ')}`;
+            return (
+              <div className="flex -space-x-1.5" title={tooltip}>
+                {visible.map((a) => (
+                  a.avatarUrl ? (
+                    <img
+                      key={a.userId}
+                      src={a.avatarUrl}
+                      alt={a.userName}
+                      className="h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] object-cover"
+                    />
+                  ) : (
+                    <span
+                      key={a.userId}
+                      className="h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] flex items-center justify-center text-[9px] font-bold bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300"
+                    >
+                      {getInitials(a.userName)}
+                    </span>
+                  )
+                ))}
+                {overflow > 0 && (
+                  <span className="h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] flex items-center justify-center text-[9px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                    +{overflow}
+                  </span>
+                )}
+              </div>
+            );
+          }
+
+          // Fallback: show creator's avatar/initial
+          const createdByName = (task as any).createdByName || task.createdBy;
+          if (!createdByName) return null;
+          const avatarUrl = (task as any).createdByAvatarUrl;
           return (
-            <div className="flex -space-x-1.5" title={isAssignee ? `Zugewiesen: ${name}` : `Erstellt von: ${name}`}>
+            <div className="flex -space-x-1.5" title={`Erstellt von: ${createdByName}`}>
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
-                  alt={name}
+                  alt={createdByName}
                   className="h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] object-cover"
                 />
               ) : (
-                <span
-                  className={cn(
-                    'h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] flex items-center justify-center text-[9px] font-bold',
-                    isAssignee
-                      ? 'bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
-                  )}
-                >
-                  {getInitials(name)}
+                <span className="h-6 w-6 rounded-full border-2 border-white dark:border-[#1a1d2e] flex items-center justify-center text-[9px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                  {getInitials(createdByName)}
                 </span>
               )}
             </div>

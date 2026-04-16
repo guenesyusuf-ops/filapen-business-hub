@@ -12,7 +12,7 @@ interface Member {
 }
 
 interface InlineTaskCreateProps {
-  onSubmit: (data: { title: string; assigneeId?: string; priority: string }) => void;
+  onSubmit: (data: { title: string; assigneeIds?: string[]; priority: string }) => void;
   members?: Member[];
 }
 
@@ -31,7 +31,8 @@ const PRIORITY_LABELS: Record<number, string> = {
 export function InlineTaskCreate({ onSubmit, members = [] }: InlineTaskCreateProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [assigneeId, setAssigneeId] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
   const [stars, setStars] = useState(2); // default medium
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -41,23 +42,27 @@ export function InlineTaskCreate({ onSubmit, members = [] }: InlineTaskCreatePro
     }
   }, [isOpen]);
 
+  function toggleAssignee(id: string) {
+    setAssigneeIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
   function handleSubmit() {
     const trimmed = title.trim();
     if (!trimmed) return;
     onSubmit({
       title: trimmed,
-      assigneeId: assigneeId || undefined,
+      assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
       priority: PRIORITY_MAP[stars] || 'medium',
     });
     setTitle('');
-    setAssigneeId('');
+    setAssigneeIds([]);
     setStars(2);
     setIsOpen(false);
   }
 
   function handleCancel() {
     setTitle('');
-    setAssigneeId('');
+    setAssigneeIds([]);
     setStars(2);
     setIsOpen(false);
   }
@@ -97,21 +102,63 @@ export function InlineTaskCreate({ onSubmit, members = [] }: InlineTaskCreatePro
         className="w-full rounded-md border border-gray-200 dark:border-white/10 bg-transparent px-2.5 py-1.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400"
       />
 
-      {/* Assignee */}
-      <div className="flex items-center gap-2">
-        <UserCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-        <select
-          value={assigneeId}
-          onChange={(e) => setAssigneeId(e.target.value)}
-          className="flex-1 rounded-md border border-gray-200 dark:border-white/10 bg-transparent px-2 py-1 text-xs text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-400"
+      {/* Assignees — multi-select */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowPicker((s) => !s)}
+          className="flex items-center gap-2 w-full rounded-md border border-gray-200 dark:border-white/10 bg-transparent px-2 py-1 text-xs text-left focus:outline-none focus:ring-1 focus:ring-primary-400"
         >
-          <option value="">Nicht zugewiesen</option>
-          {members.map((m) => (
-            <option key={m.userId || m.id} value={m.userId || m.id}>
-              {m.userName || m.name || 'Unbekannt'}
-            </option>
-          ))}
-        </select>
+          <UserCircle className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+          {assigneeIds.length === 0 ? (
+            <span className="text-gray-400">Mitarbeiter waehlen...</span>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {assigneeIds.map((id) => {
+                const m = members.find((x) => (x.userId || x.id) === id);
+                const name = m?.userName || m?.name || '?';
+                return (
+                  <span key={id} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300">
+                    {name}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleAssignee(id); }}
+                      className="hover:text-primary-900"
+                    >
+                      <X className="h-2 w-2" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </button>
+        {showPicker && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setShowPicker(false)} />
+            <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-lg py-1">
+              {members.length === 0 && (
+                <div className="px-3 py-1.5 text-[11px] text-gray-400">Keine Mitarbeiter</div>
+              )}
+              {members.map((m) => {
+                const uid = m.userId || m.id;
+                const checked = assigneeIds.includes(uid);
+                const name = m.userName || m.name || 'Unbekannt';
+                return (
+                  <button
+                    key={uid}
+                    type="button"
+                    onClick={() => toggleAssignee(uid)}
+                    className="flex items-center gap-2 w-full px-2 py-1 text-xs text-left hover:bg-gray-50 dark:hover:bg-white/5"
+                  >
+                    <input type="checkbox" checked={checked} readOnly className="accent-primary-600 h-3 w-3" />
+                    <span className="text-gray-700 dark:text-gray-300">{name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Priority Stars */}

@@ -60,7 +60,10 @@ export function TaskDetailModal({
   const [editDesc, setEditDesc] = useState(task.description ?? '');
   const [editPriority, setEditPriority] = useState<WmTask['priority']>(task.priority);
   const [editDueDate, setEditDueDate] = useState(task.dueDate ? task.dueDate.split('T')[0] : '');
-  const [editAssigneeId, setEditAssigneeId] = useState(task.assigneeId ?? '');
+  const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>(
+    task.assigneeIds ?? (task.assigneeId ? [task.assigneeId] : []),
+  );
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [editColumnId, setEditColumnId] = useState(task.columnId);
   const [newSubtask, setNewSubtask] = useState('');
   const [commentText, setCommentText] = useState('');
@@ -89,18 +92,23 @@ export function TaskDetailModal({
     setEditDesc(task.description ?? '');
     setEditPriority(task.priority);
     setEditDueDate(task.dueDate ? task.dueDate.split('T')[0] : '');
-    setEditAssigneeId(task.assigneeId ?? '');
+    setEditAssigneeIds(task.assigneeIds ?? (task.assigneeId ? [task.assigneeId] : []));
     setEditColumnId(task.columnId);
   }, [task]);
 
   if (!open) return null;
+
+  const currentAssigneeIds = task.assigneeIds ?? (task.assigneeId ? [task.assigneeId] : []);
+  const assigneesChanged =
+    editAssigneeIds.length !== currentAssigneeIds.length ||
+    editAssigneeIds.some((id, i) => id !== currentAssigneeIds[i]);
 
   const hasChanges =
     editTitle.trim() !== task.title ||
     editDesc !== (task.description ?? '') ||
     editPriority !== task.priority ||
     editDueDate !== (task.dueDate ? task.dueDate.split('T')[0] : '') ||
-    editAssigneeId !== (task.assigneeId ?? '') ||
+    assigneesChanged ||
     editColumnId !== task.columnId;
 
   function handleSave() {
@@ -110,9 +118,15 @@ export function TaskDetailModal({
       description: editDesc,
       priority: editPriority,
       dueDate: editDueDate || undefined,
-      assigneeId: editAssigneeId || undefined,
+      assigneeIds: editAssigneeIds,
       columnId: editColumnId,
-    });
+    } as any);
+  }
+
+  function toggleAssignee(userId: string) {
+    setEditAssigneeIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
+    );
   }
 
   function handleAddSubtask() {
@@ -504,23 +518,80 @@ export function TaskDetailModal({
                 </select>
               </div>
 
-              {/* Assignee */}
-              <div>
+              {/* Assignees — multi-select */}
+              <div className="relative">
                 <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                   <User className="h-3 w-3" /> Zugewiesen an
                 </label>
-                <select
-                  value={editAssigneeId}
-                  onChange={(e) => setEditAssigneeId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] px-2.5 py-1.5 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                <button
+                  type="button"
+                  onClick={() => setShowAssigneePicker((s) => !s)}
+                  className="w-full min-h-[36px] rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] px-2.5 py-1.5 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary-400"
                 >
-                  <option value="">Nicht zugewiesen</option>
-                  {members.map((m) => (
-                    <option key={m.userId || m.id} value={m.userId || m.id}>
-                      {m.userName || m.name || 'Unbekannt'}
-                    </option>
-                  ))}
-                </select>
+                  {editAssigneeIds.length === 0 ? (
+                    <span className="text-gray-400">Mitarbeiter auswaehlen...</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {editAssigneeIds.map((id) => {
+                        const member = members.find((m) => (m.userId || m.id) === id);
+                        const name = member?.userName || member?.name || 'Unbekannt';
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300"
+                          >
+                            {name}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleAssignee(id);
+                              }}
+                              className="hover:text-primary-900 dark:hover:text-white"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </button>
+
+                {showAssigneePicker && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowAssigneePicker(false)} />
+                    <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-lg py-1">
+                      {members.length === 0 && (
+                        <div className="px-3 py-2 text-xs text-gray-400">Keine Mitarbeiter</div>
+                      )}
+                      {members.map((m) => {
+                        const uid = m.userId || m.id;
+                        const checked = editAssigneeIds.includes(uid);
+                        const name = m.userName || m.name || 'Unbekannt';
+                        return (
+                          <button
+                            key={uid}
+                            type="button"
+                            onClick={() => toggleAssignee(uid)}
+                            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-gray-50 dark:hover:bg-white/5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              readOnly
+                              className="accent-primary-600 h-3.5 w-3.5"
+                            />
+                            <span className="h-5 w-5 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[9px] font-bold text-primary-700 dark:text-primary-300">
+                              {name.charAt(0).toUpperCase()}
+                            </span>
+                            <span className="text-gray-700 dark:text-gray-300">{name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Due date */}

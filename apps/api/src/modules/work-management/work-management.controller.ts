@@ -192,6 +192,7 @@ export class WorkManagementController {
       title: string;
       description?: string;
       assigneeId?: string;
+      assigneeIds?: string[];
       priority?: string;
       dueDate?: string;
       estimatedMinutes?: number;
@@ -231,6 +232,7 @@ export class WorkManagementController {
       priority?: string;
       dueDate?: string | null;
       assigneeId?: string | null;
+      assigneeIds?: string[];
       columnId?: string;
       completed?: boolean;
       estimatedMinutes?: number | null;
