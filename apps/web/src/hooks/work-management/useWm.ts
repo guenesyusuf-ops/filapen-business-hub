@@ -272,25 +272,49 @@ export function useCreateWmTask() {
 export function useUpdateWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: Partial<WmTask> & { id: string }) =>
+    mutationFn: ({ id, ...data }: Partial<WmTask> & { id: string; assigneeIds?: string[] }) =>
       wmFetch<WmTask>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     onMutate: async (vars) => {
       // We need projectId to update the cache — try to find it from existing data
       const allQueries = qc.getQueriesData<any>({ queryKey: ['wm', 'project'] });
       let projectId: string | undefined;
+      let members: any[] = [];
       for (const [, data] of allQueries) {
         if (data?.tasks?.some((t: any) => t.id === vars.id)) {
           projectId = data.id;
+          members = data.members ?? [];
           break;
         }
       }
       if (!projectId) return {};
       await qc.cancelQueries({ queryKey: ['wm', 'project', projectId] });
       const prev = qc.getQueryData(['wm', 'project', projectId]);
+
+      // If assigneeIds changed, also build the corresponding assignees[] array
+      // so the UI (avatar stack, chips, my-tasks) updates immediately.
+      let assignees: any[] | undefined;
+      const assigneeIds = (vars as any).assigneeIds as string[] | undefined;
+      if (Array.isArray(assigneeIds)) {
+        assignees = assigneeIds.map((uid) => {
+          const m = members.find((mem: any) => (mem.userId || mem.id) === uid);
+          return {
+            userId: uid,
+            userName: m?.userName || m?.name || 'Unbekannt',
+            avatarUrl: m?.avatarUrl,
+          };
+        });
+      }
+
       qc.setQueryData(['wm', 'project', projectId], (old: any) => {
         if (!old) return old;
         const tasks = (old.tasks ?? []).map((t: any) =>
-          t.id === vars.id ? { ...t, ...vars } : t,
+          t.id === vars.id
+            ? {
+                ...t,
+                ...vars,
+                ...(assignees ? { assignees, assigneeIds, assigneeName: assignees[0]?.userName } : {}),
+              }
+            : t,
         );
         return { ...old, tasks };
       });
@@ -299,6 +323,20 @@ export function useUpdateWmTask() {
     onError: (_, __, context: any) => {
       if (context?.prev && context?.projectId) {
         qc.setQueryData(['wm', 'project', context.projectId], context.prev);
+      }
+    },
+    onSuccess: (task, vars) => {
+      // Write the server response straight into the cache so the UI reflects
+      // the final enriched state (assignees + assigneeName) without waiting
+      // for the invalidation refetch.
+      if (task?.projectId) {
+        qc.setQueryData(['wm', 'project', task.projectId], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            tasks: (old.tasks ?? []).map((t: any) => (t.id === task.id ? { ...t, ...task } : t)),
+          };
+        });
       }
     },
     onSettled: (task) => {

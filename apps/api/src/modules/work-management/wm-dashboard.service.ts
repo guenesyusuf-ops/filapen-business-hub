@@ -123,12 +123,27 @@ export class WmDashboardService {
   // =========================================================================
 
   async getMyTasks(userId?: string) {
+    // Multi-assignee: lookup all task ids the user is assigned to via the join table
+    let joinTaskIds: string[] = [];
+    if (userId) {
+      const joins = await this.prisma.wmTaskAssignee.findMany({
+        where: { userId },
+        select: { taskId: true },
+      });
+      joinTaskIds = joins.map((j) => j.taskId);
+    }
+
     const where: any = {
       orgId: DEV_ORG_ID,
       parentTaskId: null,
     };
-    // If userId is provided, only return tasks assigned to this user
-    if (userId) where.assigneeId = userId;
+    if (userId) {
+      // Match EITHER legacy single-assignee OR any join-table entry
+      where.OR = [
+        { assigneeId: userId },
+        ...(joinTaskIds.length ? [{ id: { in: joinTaskIds } }] : []),
+      ];
+    }
 
     const tasks = await this.prisma.wmTask.findMany({
       where,

@@ -176,12 +176,17 @@ export default function ProjectDetailPage() {
 
   const handleUpdateTask = useCallback(
     (data: Partial<WmTask> & { id: string }) => {
-      updateTask.mutate(data, {
-        onSuccess: (updated) => {
-          if (selectedTask?.id === updated.id) {
-            setSelectedTask(updated);
-          }
-        },
+      // Return a promise so TaskDetailModal's save-button spinner can await success/failure
+      return new Promise<WmTask>((resolve, reject) => {
+        updateTask.mutate(data, {
+          onSuccess: (updated) => {
+            if (selectedTask?.id === updated.id) {
+              setSelectedTask(updated);
+            }
+            resolve(updated);
+          },
+          onError: (err) => reject(err),
+        });
       });
     },
     [updateTask, selectedTask],

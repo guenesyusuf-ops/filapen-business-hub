@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import {
   X, Calendar, User, Flag, Tag, Clock, Paperclip, Send,
   CheckSquare, Square, Plus, Trash2, Download, Save, Activity,
-  MessageSquare,
+  MessageSquare, CheckCircle2,
 } from 'lucide-react';
 import type { WmTask, WmSubtask, WmComment, WmAttachment, WmColumn, WmMember, WmLabel, WmActivity } from '@/hooks/work-management/useWm';
 
@@ -74,6 +74,7 @@ export function TaskDetailModal({
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
 
@@ -111,16 +112,26 @@ export function TaskDetailModal({
     assigneesChanged ||
     editColumnId !== task.columnId;
 
-  function handleSave() {
-    onUpdate({
-      id: task.id,
-      title: editTitle.trim(),
-      description: editDesc,
-      priority: editPriority,
-      dueDate: editDueDate || undefined,
-      assigneeIds: editAssigneeIds,
-      columnId: editColumnId,
-    } as any);
+  async function handleSave() {
+    setSaveState('saving');
+    try {
+      await Promise.resolve(
+        onUpdate({
+          id: task.id,
+          title: editTitle.trim(),
+          description: editDesc,
+          priority: editPriority,
+          dueDate: editDueDate || undefined,
+          assigneeIds: editAssigneeIds,
+          columnId: editColumnId,
+        } as any),
+      );
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2000);
+    } catch {
+      setSaveState('error');
+      setTimeout(() => setSaveState('idle'), 3000);
+    }
   }
 
   function toggleAssignee(userId: string) {
@@ -256,16 +267,44 @@ export function TaskDetailModal({
           </div>
           <button
             onClick={handleSave}
-            disabled={!hasChanges}
+            disabled={(!hasChanges && saveState === 'idle') || saveState === 'saving'}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
-              hasChanges
-                ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm'
-                : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 cursor-not-allowed',
+              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all min-w-[200px] justify-center',
+              saveState === 'saved'
+                ? 'bg-emerald-500 text-white shadow-sm'
+                : saveState === 'error'
+                  ? 'bg-red-500 text-white shadow-sm'
+                  : saveState === 'saving'
+                    ? 'bg-primary-500 text-white cursor-wait'
+                    : hasChanges
+                      ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm'
+                      : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 cursor-not-allowed',
             )}
           >
-            <Save className="h-4 w-4" />
-            Aenderungen speichern
+            {saveState === 'saving' && (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                Speichere...
+              </>
+            )}
+            {saveState === 'saved' && (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                Gespeichert
+              </>
+            )}
+            {saveState === 'error' && (
+              <>
+                <X className="h-4 w-4" />
+                Fehler
+              </>
+            )}
+            {saveState === 'idle' && (
+              <>
+                <Save className="h-4 w-4" />
+                Aenderungen speichern
+              </>
+            )}
           </button>
         </div>
 
