@@ -4,12 +4,14 @@ import {
   Patch,
   Param,
   Body,
+  Headers,
   Logger,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { WmDashboardService } from './wm-dashboard.service';
 import { WmNotificationService } from './wm-notification.service';
+import { AuthService } from '../auth/auth.service';
 
 @Controller('wm')
 export class WmDashboardController {
@@ -18,7 +20,19 @@ export class WmDashboardController {
   constructor(
     private readonly dashboardService: WmDashboardService,
     private readonly notificationService: WmNotificationService,
+    private readonly auth: AuthService,
   ) {}
+
+  private extractUserId(authHeader: string | undefined): string | undefined {
+    if (!authHeader) return undefined;
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer') return undefined;
+    try {
+      return this.auth.validateToken(parts[1]).sub;
+    } catch {
+      return undefined;
+    }
+  }
 
   // =========================================================================
   // DASHBOARD KPIs
@@ -39,9 +53,10 @@ export class WmDashboardController {
   // =========================================================================
 
   @Get('my-tasks')
-  async getMyTasks() {
+  async getMyTasks(@Headers('authorization') authHeader: string) {
     try {
-      return await this.dashboardService.getMyTasks();
+      const userId = this.extractUserId(authHeader);
+      return await this.dashboardService.getMyTasks(userId);
     } catch (error) {
       this.logger.error('getMyTasks failed', error);
       throw new HttpException('Failed to get my tasks', HttpStatus.INTERNAL_SERVER_ERROR);

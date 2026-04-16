@@ -64,9 +64,16 @@ export interface WmLabel {
 }
 
 export interface WmMember {
+  /** WmProjectMember row id — NOT the user id. Use `userId` for assignments. */
   id: string;
-  name: string;
-  email: string;
+  /** User id that is referenced by WmTask.assigneeId and similar foreign keys. */
+  userId: string;
+  /** Display name (first + last). Prefer this over `name`. */
+  userName: string;
+  role?: string;
+  // Backwards-compat aliases (some code paths still read these):
+  name?: string;
+  email?: string;
   avatarUrl?: string;
 }
 

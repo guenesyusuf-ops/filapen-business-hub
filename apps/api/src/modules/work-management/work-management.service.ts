@@ -19,6 +19,46 @@ export class WorkManagementService {
     private readonly storage: StorageService,
   ) {}
 
+  /**
+   * Enriches an array of tasks with assignee + creator display info
+   * (assigneeName, assigneeAvatarUrl, createdByName, createdByAvatarUrl)
+   * resolved from the User table. Tasks without assigneeId are untouched.
+   */
+  private async enrichTasksWithUsers<T extends { assigneeId: string | null; createdById?: string | null }>(
+    tasks: T[],
+  ): Promise<(T & { assigneeName?: string; assigneeAvatarUrl?: string; createdByName?: string; createdByAvatarUrl?: string })[]> {
+    const userIds = new Set<string>();
+    for (const t of tasks) {
+      if (t.assigneeId) userIds.add(t.assigneeId);
+      if (t.createdById) userIds.add(t.createdById);
+    }
+    if (userIds.size === 0) return tasks as any;
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: Array.from(userIds) } },
+      select: { id: true, name: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+    });
+    const userMap = new Map(
+      users.map((u) => [
+        u.id,
+        {
+          name: u.name || [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email.split('@')[0],
+          avatarUrl: u.avatarUrl || undefined,
+        },
+      ]),
+    );
+
+    return tasks.map((t) => ({
+      ...t,
+      ...(t.assigneeId && userMap.has(t.assigneeId)
+        ? { assigneeName: userMap.get(t.assigneeId)!.name, assigneeAvatarUrl: userMap.get(t.assigneeId)!.avatarUrl }
+        : {}),
+      ...(t.createdById && userMap.has(t.createdById)
+        ? { createdByName: userMap.get(t.createdById)!.name, createdByAvatarUrl: userMap.get(t.createdById)!.avatarUrl }
+        : {}),
+    }));
+  }
+
   // =========================================================================
   // PROJECTS
   // =========================================================================
@@ -125,7 +165,8 @@ export class WorkManagementService {
 
     // Override members with the resilient listMembers (includes all eligible org users)
     const members = await this.listMembers(id);
-    return { ...project, members };
+    const tasks = await this.enrichTasksWithUsers(project.tasks);
+    return { ...project, members, tasks };
   }
 
   async updateProject(id: string, data: { name?: string; description?: string; color?: string }) {
@@ -270,7 +311,8 @@ export class WorkManagementService {
     });
 
     await this.logActivity(created.id, data.projectId, data.createdById, 'System', 'created', `Aufgabe "${data.title}" erstellt`);
-    return created;
+    const [enriched] = await this.enrichTasksWithUsers([created]);
+    return enriched;
   }
 
   async getTaskById(id: string) {
@@ -353,7 +395,8 @@ export class WorkManagementService {
       }
     }
 
-    return updated;
+    const [enriched] = await this.enrichTasksWithUsers([updated]);
+    return enriched;
   }
 
   async deleteTask(id: string) {

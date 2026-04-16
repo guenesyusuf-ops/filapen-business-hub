@@ -8,6 +8,7 @@ import {
   Query,
   Param,
   Body,
+  Headers,
   Logger,
   HttpException,
   HttpStatus,
@@ -17,6 +18,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { WorkManagementService } from './work-management.service';
+import { AuthService } from '../auth/auth.service';
 
 const DEV_USER_ID = '00000000-0000-0000-0000-000000000099';
 const DEV_USER_NAME = 'Dev User';
@@ -25,7 +27,21 @@ const DEV_USER_NAME = 'Dev User';
 export class WorkManagementController {
   private readonly logger = new Logger(WorkManagementController.name);
 
-  constructor(private readonly wmService: WorkManagementService) {}
+  constructor(
+    private readonly wmService: WorkManagementService,
+    private readonly auth: AuthService,
+  ) {}
+
+  private extractUserId(authHeader: string | undefined): string {
+    if (!authHeader) return DEV_USER_ID;
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer') return DEV_USER_ID;
+    try {
+      return this.auth.validateToken(parts[1]).sub;
+    } catch {
+      return DEV_USER_ID;
+    }
+  }
 
   // =========================================================================
   // PROJECTS
@@ -42,13 +58,16 @@ export class WorkManagementController {
   }
 
   @Post('projects')
-  async createProject(@Body() body: { name: string; description?: string; color?: string }) {
+  async createProject(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { name: string; description?: string; color?: string },
+  ) {
     try {
       return await this.wmService.createProject({
         name: body.name,
         description: body.description,
         color: body.color,
-        createdBy: DEV_USER_ID,
+        createdBy: this.extractUserId(authHeader),
       });
     } catch (error) {
       this.logger.error('createProject failed', error);
@@ -165,6 +184,7 @@ export class WorkManagementController {
 
   @Post('tasks')
   async createTask(
+    @Headers('authorization') authHeader: string,
     @Body()
     body: {
       projectId: string;
@@ -182,7 +202,7 @@ export class WorkManagementController {
     try {
       return await this.wmService.createTask({
         ...body,
-        createdById: DEV_USER_ID,
+        createdById: this.extractUserId(authHeader),
       });
     } catch (error) {
       this.logger.error('createTask failed', error);

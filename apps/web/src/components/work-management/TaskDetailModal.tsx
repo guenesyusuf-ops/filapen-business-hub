@@ -164,7 +164,7 @@ export function TaskDetailModal({
 
   const filteredMentionMembers = useMemo(() => {
     return members.filter((m) => {
-      const name = m.name || '';
+      const name = m.userName || m.name || '';
       return name.toLowerCase().includes(mentionFilter);
     });
   }, [members, mentionFilter]);
@@ -438,18 +438,21 @@ export function TaskDetailModal({
                       {/* @Mention Dropdown */}
                       {showMentionDropdown && filteredMentionMembers.length > 0 && (
                         <div className="absolute bottom-full left-0 mb-1 w-56 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl z-10 max-h-40 overflow-y-auto">
-                          {filteredMentionMembers.map((m) => (
-                            <button
-                              key={m.id}
-                              onClick={() => insertMention(m.name)}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                            >
-                              <span className="h-5 w-5 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[9px] font-bold text-primary-700 dark:text-primary-300">
-                                {(m.name || '?').charAt(0).toUpperCase()}
-                              </span>
-                              <span className="text-gray-700 dark:text-gray-300">{m.name}</span>
-                            </button>
-                          ))}
+                          {filteredMentionMembers.map((m) => {
+                            const displayName = m.userName || m.name || 'Unbekannt';
+                            return (
+                              <button
+                                key={m.userId || m.id}
+                                onClick={() => insertMention(displayName)}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                              >
+                                <span className="h-5 w-5 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[9px] font-bold text-primary-700 dark:text-primary-300">
+                                  {displayName.charAt(0).toUpperCase()}
+                                </span>
+                                <span className="text-gray-700 dark:text-gray-300">{displayName}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -513,7 +516,9 @@ export function TaskDetailModal({
                 >
                   <option value="">Nicht zugewiesen</option>
                   {members.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
+                    <option key={m.userId || m.id} value={m.userId || m.id}>
+                      {m.userName || m.name || 'Unbekannt'}
+                    </option>
                   ))}
                 </select>
               </div>

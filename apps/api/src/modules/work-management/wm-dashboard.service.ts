@@ -122,20 +122,45 @@ export class WmDashboardService {
   // MY TASKS
   // =========================================================================
 
-  async getMyTasks() {
-    return this.prisma.wmTask.findMany({
-      where: {
-        orgId: DEV_ORG_ID,
-        parentTaskId: null,
-        // In production, filter by assigneeId from auth context
-        // For dev, return all tasks
-      },
+  async getMyTasks(userId?: string) {
+    const where: any = {
+      orgId: DEV_ORG_ID,
+      parentTaskId: null,
+    };
+    // If userId is provided, only return tasks assigned to this user
+    if (userId) where.assigneeId = userId;
+
+    const tasks = await this.prisma.wmTask.findMany({
+      where,
       include: {
         taskLabels: { include: { label: true } },
         subtasks: true,
       },
       orderBy: [{ dueDate: 'asc' }, { priority: 'asc' }, { createdAt: 'desc' }],
     });
+
+    // Enrich with assignee names
+    const userIds = new Set<string>();
+    for (const t of tasks) {
+      if (t.assigneeId) userIds.add(t.assigneeId);
+      if (t.createdById) userIds.add(t.createdById);
+    }
+    if (userIds.size === 0) return tasks;
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: Array.from(userIds) } },
+      select: { id: true, name: true, email: true, avatarUrl: true },
+    });
+    const map = new Map(
+      users.map((u) => [u.id, { name: u.name || u.email.split('@')[0], avatarUrl: u.avatarUrl || undefined }]),
+    );
+
+    return tasks.map((t) => ({
+      ...t,
+      assigneeName: t.assigneeId ? map.get(t.assigneeId)?.name : undefined,
+      assigneeAvatarUrl: t.assigneeId ? map.get(t.assigneeId)?.avatarUrl : undefined,
+      createdByName: t.createdById ? map.get(t.createdById)?.name : undefined,
+    }));
   }
 
   // =========================================================================

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { StorageModule } from '../../common/storage/storage.module';
+import { AuthModule } from '../auth/auth.module';
 import { WorkManagementController } from './work-management.controller';
 import { WorkManagementService } from './work-management.service';
 import { WmDashboardController } from './wm-dashboard.controller';
@@ -10,7 +11,7 @@ import { WmSchedulerService } from './wm-scheduler.service';
 import { WmNotificationService } from './wm-notification.service';
 
 @Module({
-  imports: [StorageModule],
+  imports: [StorageModule, AuthModule],
   controllers: [WorkManagementController, WmDashboardController, WmChatController],
   providers: [
     WorkManagementService,
