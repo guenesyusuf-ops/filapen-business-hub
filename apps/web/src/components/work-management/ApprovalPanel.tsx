@@ -33,12 +33,15 @@ function formatDate(iso: string | null): string {
 
 export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
   const { user } = useAuthStore();
-  const { data: detail, isLoading } = useApprovalDetail(taskId);
+  const { data: detail, isLoading, refetch } = useApprovalDetail(taskId);
   const submitForApproval = useSubmitForApproval();
   const decide = useApprovalDecide();
   const [rejectComment, setRejectComment] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [actionDone, setActionDone] = useState<string | null>(null);
+
+  const busy = submitForApproval.isPending || decide.isPending;
 
   if (isLoading) return (
     <div className="border-t border-gray-200 dark:border-white/10 px-6 py-4">
@@ -144,28 +147,50 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
 
       {/* Action buttons */}
       <div className="px-6 pb-4 flex items-center gap-2 flex-wrap">
+        {/* Success message after action */}
+        {actionDone && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
+            <CheckCircle2 className="h-4 w-4" />
+            {actionDone}
+          </div>
+        )}
+
         {/* Creator: Submit / Resubmit */}
-        {isCreator && (detail.approvalStatus === 'draft' || detail.approvalStatus === 'rejected') && (
+        {!actionDone && isCreator && (detail.approvalStatus === 'draft' || detail.approvalStatus === 'rejected') && (
           <button
-            onClick={() => submitForApproval.mutate(taskId)}
-            disabled={submitForApproval.isPending}
+            onClick={() => {
+              submitForApproval.mutate(taskId, {
+                onSuccess: () => { setActionDone('Zur Genehmigung eingereicht'); refetch(); setTimeout(() => setActionDone(null), 3000); },
+              });
+            }}
+            disabled={busy}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors disabled:opacity-50"
           >
-            <Send className="h-3.5 w-3.5" />
-            {detail.approvalStatus === 'rejected' ? 'Erneut einreichen' : 'Genehmigung einholen'}
+            {busy ? (
+              <><div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Wird eingereicht...</>
+            ) : (
+              <><Send className="h-3.5 w-3.5" /> {detail.approvalStatus === 'rejected' ? 'Erneut einreichen' : 'Genehmigung einholen'}</>
+            )}
           </button>
         )}
 
         {/* Approver: Approve */}
-        {isMyTurn && (
+        {!actionDone && isMyTurn && (
           <>
             <button
-              onClick={() => decide.mutate({ taskId, action: 'approved' })}
-              disabled={decide.isPending}
+              onClick={() => {
+                decide.mutate({ taskId, action: 'approved' }, {
+                  onSuccess: () => { setActionDone('Genehmigt'); refetch(); setTimeout(() => setActionDone(null), 3000); },
+                });
+              }}
+              disabled={busy}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
             >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Genehmigen
+              {busy ? (
+                <><div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Wird verarbeitet...</>
+              ) : (
+                <><CheckCircle2 className="h-3.5 w-3.5" /> Genehmigen</>
+              )}
             </button>
 
             {showRejectInput ? (
@@ -178,9 +203,9 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
                   className="flex-1 rounded-lg border border-red-200 dark:border-red-900/30 bg-white dark:bg-white/5 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && rejectComment.trim()) {
-                      decide.mutate({ taskId, action: 'rejected', comment: rejectComment.trim() });
-                      setShowRejectInput(false);
-                      setRejectComment('');
+                      decide.mutate({ taskId, action: 'rejected', comment: rejectComment.trim() }, {
+                        onSuccess: () => { setActionDone('Abgelehnt'); refetch(); setShowRejectInput(false); setRejectComment(''); setTimeout(() => setActionDone(null), 3000); },
+                      });
                     }
                     if (e.key === 'Escape') { setShowRejectInput(false); setRejectComment(''); }
                   }}
@@ -188,12 +213,12 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
                 <button
                   onClick={() => {
                     if (rejectComment.trim()) {
-                      decide.mutate({ taskId, action: 'rejected', comment: rejectComment.trim() });
-                      setShowRejectInput(false);
-                      setRejectComment('');
+                      decide.mutate({ taskId, action: 'rejected', comment: rejectComment.trim() }, {
+                        onSuccess: () => { setActionDone('Abgelehnt'); refetch(); setShowRejectInput(false); setRejectComment(''); setTimeout(() => setActionDone(null), 3000); },
+                      });
                     }
                   }}
-                  disabled={!rejectComment.trim()}
+                  disabled={!rejectComment.trim() || busy}
                   className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50"
                 >
                   Ablehnen

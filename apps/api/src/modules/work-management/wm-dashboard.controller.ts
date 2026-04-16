@@ -4,6 +4,7 @@ import {
   Patch,
   Param,
   Body,
+  Query,
   Headers,
   Logger,
   HttpException,
@@ -112,9 +113,10 @@ export class WmDashboardController {
   // =========================================================================
 
   @Get('notifications')
-  async getNotifications() {
+  async getNotifications(@Headers('authorization') authHeader: string) {
     try {
-      return await this.notificationService.getNotifications();
+      const userId = this.extractUserId(authHeader);
+      return await this.notificationService.getNotifications(userId);
     } catch (error) {
       this.logger.error('getNotifications failed', error);
       throw new HttpException('Failed to get notifications', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -122,9 +124,10 @@ export class WmDashboardController {
   }
 
   @Get('notifications/unread-count')
-  async getUnreadCount() {
+  async getUnreadCount(@Headers('authorization') authHeader: string) {
     try {
-      return await this.notificationService.getUnreadCount();
+      const userId = this.extractUserId(authHeader);
+      return await this.notificationService.getUnreadCount(userId);
     } catch (error) {
       this.logger.error('getUnreadCount failed', error);
       throw new HttpException('Failed to get unread count', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -142,9 +145,10 @@ export class WmDashboardController {
   }
 
   @Patch('notifications/read-all')
-  async markAllNotificationsRead() {
+  async markAllNotificationsRead(@Headers('authorization') authHeader: string) {
     try {
-      return await this.notificationService.markAllAsRead();
+      const userId = this.extractUserId(authHeader);
+      return await this.notificationService.markAllAsRead(userId);
     } catch (error) {
       this.logger.error('markAllNotificationsRead failed', error);
       throw new HttpException('Failed to mark all as read', HttpStatus.INTERNAL_SERVER_ERROR);

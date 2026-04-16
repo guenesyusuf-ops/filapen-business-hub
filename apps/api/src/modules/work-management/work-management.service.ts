@@ -127,6 +127,7 @@ export class WorkManagementService {
   /**
    * Replace the full set of assignees for a given task.
    * Keeps the legacy WmTask.assigneeId mirror pointing to the first assignee.
+   * Sends notifications to newly added assignees.
    */
   private async setTaskAssignees(taskId: string, userIds: string[]) {
     const unique = Array.from(new Set(userIds.filter(Boolean)));
@@ -139,6 +140,13 @@ export class WorkManagementService {
         })
       : [];
     const validIds = existingUsers.map((u) => u.id);
+
+    // Find previously assigned users to detect new additions
+    const previousAssignees = await this.prisma.wmTaskAssignee.findMany({
+      where: { taskId },
+      select: { userId: true },
+    });
+    const previousIds = new Set(previousAssignees.map((a) => a.userId));
 
     await this.prisma.$transaction([
       this.prisma.wmTaskAssignee.deleteMany({ where: { taskId } }),
@@ -155,6 +163,31 @@ export class WorkManagementService {
         data: { assigneeId: validIds[0] ?? null },
       }),
     ]);
+
+    // Notify newly added assignees
+    const newlyAdded = validIds.filter((id) => !previousIds.has(id));
+    if (newlyAdded.length > 0) {
+      const task = await this.prisma.wmTask.findUnique({
+        where: { id: taskId },
+        select: { title: true, projectId: true },
+      });
+      if (task) {
+        for (const userId of newlyAdded) {
+          try {
+            await this.prisma.wmNotification.create({
+              data: {
+                userId,
+                type: 'assignment',
+                title: 'Neue Aufgabe zugewiesen',
+                message: `Dir wurde die Aufgabe "${task.title}" zugewiesen.`,
+                taskId,
+                projectId: task.projectId,
+              },
+            });
+          } catch { /* ignore */ }
+        }
+      }
+    }
   }
 
   // =========================================================================
