@@ -8,6 +8,7 @@ import {
   MessageSquare, CheckCircle2,
 } from 'lucide-react';
 import type { WmTask, WmSubtask, WmComment, WmAttachment, WmColumn, WmMember, WmLabel, WmActivity } from '@/hooks/work-management/useWm';
+import { AttachmentPreview, AttachmentRow } from './AttachmentPreview';
 
 const PRIORITY_OPTIONS: { value: WmTask['priority']; label: string; color: string }[] = [
   { value: 'urgent', label: 'Dringend', color: 'bg-red-500' },
@@ -77,6 +78,7 @@ export function TaskDetailModal({
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<WmAttachment | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
 
@@ -414,18 +416,14 @@ export function TaskDetailModal({
                   Anhaenge
                 </label>
                 {(task.attachments ?? []).length > 0 && (
-                  <div className="space-y-1 mb-2">
+                  <div className="space-y-0.5 mb-2">
                     {task.attachments.map((att) => (
-                      <div key={att.id} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 px-2 py-1.5 rounded-md hover:bg-gray-50 dark:hover:bg-white/5">
-                        <Paperclip className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span className="truncate flex-1">{att.filename}</span>
-                        <a href={att.url} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-primary-500">
-                          <Download className="h-3.5 w-3.5" />
-                        </a>
-                        <button onClick={() => onDeleteAttachment(att.id)} className="text-gray-400 hover:text-red-500">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      <AttachmentRow
+                        key={att.id}
+                        attachment={att}
+                        onOpen={() => setPreviewAttachment(att)}
+                        onDelete={() => onDeleteAttachment(att.id)}
+                      />
                     ))}
                   </div>
                 )}
@@ -829,6 +827,14 @@ export function TaskDetailModal({
           </div>
         </div>
       </div>
+
+      {/* Attachment preview lightbox */}
+      {previewAttachment && (
+        <AttachmentPreview
+          attachment={previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
     </div>
   );
 }

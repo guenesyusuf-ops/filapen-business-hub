@@ -92,9 +92,10 @@ export interface WmSubtask {
 
 export interface WmAttachment {
   id: string;
-  filename: string;
-  url: string;
-  size: number;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number | null;
+  fileType: string | null;
   createdAt: string;
 }
 
