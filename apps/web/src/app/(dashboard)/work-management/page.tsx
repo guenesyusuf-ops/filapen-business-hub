@@ -316,15 +316,27 @@ export default function WorkManagementPage() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             {selectedCategory === 'Alle'
               ? 'Erstelle dein erstes Projekt, um Aufgaben zu organisieren.'
-              : 'Weise einem Projekt diese Kategorie zu oder erstelle ein neues.'}
+              : selectedCategory === 'Abnahmen'
+                ? 'Erstelle ein Abnahme-Projekt mit Genehmiger-Kette.'
+                : 'Weise einem Projekt diese Kategorie zu oder erstelle ein neues.'}
           </p>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            {selectedCategory === 'Alle' ? 'Erstes Projekt erstellen' : 'Neues Projekt'}
-          </button>
+          {selectedCategory === 'Abnahmen' ? (
+            <button
+              onClick={() => setShowCreateApproval(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Abnahme-Projekt erstellen
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              {selectedCategory === 'Alle' ? 'Erstes Projekt erstellen' : 'Neues Projekt'}
+            </button>
+          )}
         </div>
       )}
 
