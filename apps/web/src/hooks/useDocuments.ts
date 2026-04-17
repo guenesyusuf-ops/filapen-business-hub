@@ -5,15 +5,25 @@ import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
 
 async function docFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const hdrs = getAuthHeaders();
+  // Wait for auth hydration — if no token yet, the query will be disabled
+  if (!hdrs.Authorization) {
+    throw new Error('AUTH_NOT_READY');
+  }
   const res = await fetch(`${API_URL}/api/documents${path}`, {
     ...options,
-    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json', ...(options?.headers || {}) },
+    headers: { ...hdrs, 'Content-Type': 'application/json', ...(options?.headers || {}) },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(body || `Error ${res.status}`);
   }
   return res.json();
+}
+
+/** Returns true when auth token is available (Zustand hydrated). */
+function isAuthReady(): boolean {
+  return !!getAuthHeaders().Authorization;
 }
 
 // ---------- Types ----------
@@ -62,6 +72,9 @@ export function useDocFolders(parentId: string | null) {
   return useQuery<DocFolder[]>({
     queryKey: ['docs', 'folders', parentId ?? 'root'],
     queryFn: () => docFetch(`/folders${parentId ? `?parentId=${parentId}` : ''}`),
+    enabled: isAuthReady(),
+    retry: (count, err) => err.message === 'AUTH_NOT_READY' ? count < 5 : count < 1,
+    retryDelay: 500,
   });
 }
 
@@ -119,6 +132,9 @@ export function useDocFiles(folderId: string | null, search?: string) {
   return useQuery<DocFile[]>({
     queryKey: ['docs', 'files', folderId ?? 'root', search ?? ''],
     queryFn: () => docFetch(`/files${qs ? `?${qs}` : ''}`),
+    enabled: isAuthReady(),
+    retry: (count, err) => err.message === 'AUTH_NOT_READY' ? count < 5 : count < 1,
+    retryDelay: 500,
   });
 }
 
