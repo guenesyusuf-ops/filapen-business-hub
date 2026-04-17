@@ -15,7 +15,8 @@ const TABS = [
   { href: '#more', icon: Menu, label: 'Mehr', isMore: true },
 ];
 
-const MORE_ITEMS = [
+const MORE_ITEMS: { href: string; label: string; isAI?: boolean }[] = [
+  { href: '#ask-filapen', label: '✨ Ask Filapen (KI)', isAI: true },
   { href: '/finance', label: 'Finanzen' },
   { href: '/channels', label: 'Channels' },
   { href: '/creators', label: 'Creator Hub' },
@@ -47,21 +48,35 @@ export function BottomNav() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowMore(false)} />
           <div className="absolute bottom-16 left-0 right-0 z-[91] mx-3 mb-1 rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden animate-scale-in">
             <div className="py-2 max-h-[50vh] overflow-y-auto">
-              {MORE_ITEMS.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setShowMore(false)}
-                  className={cn(
-                    'flex items-center px-5 py-3 text-sm font-medium transition-colors',
-                    pathname.startsWith(item.href)
-                      ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5',
-                  )}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {MORE_ITEMS.map((item) =>
+                item.isAI ? (
+                  <button
+                    key={item.href}
+                    onClick={() => {
+                      setShowMore(false);
+                      // Trigger Cmd+K
+                      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+                    }}
+                    className="flex items-center w-full px-5 py-3 text-sm font-semibold text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors border-b border-gray-100 dark:border-white/5"
+                  >
+                    {item.label}
+                  </button>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setShowMore(false)}
+                    className={cn(
+                      'flex items-center px-5 py-3 text-sm font-medium transition-colors',
+                      pathname.startsWith(item.href)
+                        ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5',
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              )}
             </div>
           </div>
         </div>
