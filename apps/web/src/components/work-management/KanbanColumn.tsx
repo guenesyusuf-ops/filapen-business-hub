@@ -17,6 +17,7 @@ interface KanbanColumnProps {
   onTaskClick: (task: WmTask) => void;
   onDeleteTask?: (taskId: string) => void;
   onMoveColumn?: (columnId: string, direction: -1 | 1) => void;
+  onDeleteColumn?: (columnId: string) => void;
   isFirst?: boolean;
   isLast?: boolean;
 }
@@ -49,7 +50,7 @@ function groupTasksBySections(tasks: WmTask[]): { name: string; tasks: WmTask[] 
   return sections;
 }
 
-export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, onDeleteTask, onMoveColumn, isFirst, isLast }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, onDeleteTask, onMoveColumn, onDeleteColumn, isFirst, isLast }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${column.id}`,
     data: { type: 'column', column },
@@ -122,6 +123,19 @@ export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, o
               <ChevronRightIcon className="h-3.5 w-3.5" />
             </button>
           </div>
+        )}
+        {onDeleteColumn && (
+          <button
+            onClick={() => {
+              if (confirm(`Spalte "${column.name}" löschen? Tasks in dieser Spalte werden ebenfalls gelöscht.`)) {
+                onDeleteColumn(column.id);
+              }
+            }}
+            className="p-1 rounded text-gray-400 hover:text-red-500 transition-colors"
+            title="Spalte löschen"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         )}
       </div>
 

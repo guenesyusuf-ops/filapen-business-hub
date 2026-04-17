@@ -211,6 +211,15 @@ export default function ProjectDetailPage() {
     createColumn.mutate({ projectId, name, color });
   }, [createColumn, projectId]);
 
+  const handleDeleteColumn = useCallback((columnId: string) => {
+    fetch(`${API_URL}/api/wm/columns/${columnId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['wm', 'project', projectId] });
+    }).catch((err) => console.error('Column delete failed:', err));
+  }, [projectId, queryClient]);
+
   const handleTaskClick = useCallback((task: WmTask) => {
     setSelectedTask(task);
   }, []);
@@ -353,6 +362,7 @@ export default function ProjectDetailPage() {
             onDeleteTask={(taskId) => deleteTask.mutate({ id: taskId, projectId })}
             onAddColumn={handleAddColumn}
             onMoveColumn={handleMoveColumn}
+            onDeleteColumn={isApprovalProject ? undefined : handleDeleteColumn}
           />
         ) : activeTab === 'list' ? (
           <TaskListView

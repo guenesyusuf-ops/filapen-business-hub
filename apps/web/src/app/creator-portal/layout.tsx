@@ -257,7 +257,7 @@ export default function CreatorPortalLayout({
               onClick={handleLogout}
               className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
             >
-              Logout
+              Abmelden
             </button>
           </div>
         )}
@@ -274,7 +274,7 @@ export default function CreatorPortalLayout({
             />
             <NavTab
               href="/creator-portal/uploads"
-              label="My Uploads"
+              label="Meine Uploads"
               active={pathname === '/creator-portal/uploads'}
             />
             <NavTab
@@ -293,8 +293,13 @@ export default function CreatorPortalLayout({
               active={pathname === '/creator-portal/briefings'}
             />
             <NavTab
+              href="/creator-portal/invoices"
+              label="Rechnung hochladen"
+              active={pathname === '/creator-portal/invoices'}
+            />
+            <NavTab
               href="/creator-portal/profile"
-              label="Profile"
+              label="Profil"
               active={pathname === '/creator-portal/profile'}
             />
           </div>

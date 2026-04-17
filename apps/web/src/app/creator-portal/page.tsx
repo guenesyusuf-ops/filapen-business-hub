@@ -391,23 +391,23 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Upload Content</h3>
+              <h3 className="text-sm font-semibold text-gray-900">Inhalte hochladen</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Upload images, videos, or raw files
+                Bilder, Videos oder Rohdateien hochladen
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-violet-600 transition-colors" />
           </div>
         </Link>
         <Link
-          href="/creator-portal/deals"
+          href="/creator-portal/invitations"
           className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">View Deals</h3>
+              <h3 className="text-sm font-semibold text-gray-900">Meine Einladungen</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Check your active and completed deals
+                Projekteinladungen ansehen und annehmen
               </p>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-violet-600 transition-colors" />
