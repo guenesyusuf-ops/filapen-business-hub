@@ -154,6 +154,59 @@ const TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  {
+    name: 'search_documents',
+    description:
+      'Searches the Dokumente module (file management system) for folders and files by name or tags. Use for "where is the file X", "find document Y", "which files are in folder Z".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Search term (matches file/folder names and tags)' },
+        folderId: { type: 'string', description: 'Restrict search to a specific folder' },
+        fileType: { type: 'string', description: 'Filter by file type (image, video, pdf, document, spreadsheet)' },
+      },
+    },
+  },
+  {
+    name: 'list_document_folders',
+    description:
+      'Lists folders in the Dokumente module, optionally within a parent folder. Shows folder structure, file counts, lock status.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        parentId: { type: 'string', description: 'Parent folder ID (omit for root folders)' },
+      },
+    },
+  },
+  {
+    name: 'list_personal_notes',
+    description:
+      'Lists the current user\'s personal notes from the home dashboard. Use for "what did I note", "my notes".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'list_calendar_events',
+    description:
+      'Lists personal calendar events for the current user, optionally filtered by date range.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        from: { type: 'string', description: 'Start date ISO' },
+        to: { type: 'string', description: 'End date ISO' },
+      },
+    },
+  },
+  {
+    name: 'list_approval_tasks',
+    description:
+      'Lists approval (Abnahme) tasks — pending approvals for the current user, or all approval tasks. Use for "what needs my approval", "which approvals are pending".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        pendingOnly: { type: 'boolean', description: 'Only show tasks waiting for my approval' },
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `Du bist "Filapen Assistant", der KI-Copilot fuer die Filapen Business Hub Software. Antworte immer auf Deutsch, knapp und handlungsorientiert.
@@ -270,6 +323,16 @@ export class AiService {
           return this.tool_listContentPieces(input);
         case 'list_briefings':
           return this.tool_listBriefings(input);
+        case 'search_documents':
+          return this.tool_searchDocuments(input);
+        case 'list_document_folders':
+          return this.tool_listDocumentFolders(input);
+        case 'list_personal_notes':
+          return this.tool_listPersonalNotes(userId);
+        case 'list_calendar_events':
+          return this.tool_listCalendarEvents(input, userId);
+        case 'list_approval_tasks':
+          return this.tool_listApprovalTasks(input, userId);
         default:
           return { error: `Unknown tool: ${name}` };
       }
@@ -680,5 +743,113 @@ export class AiService {
         createdAt: b.createdAt,
       })),
     };
+  }
+
+  // --- Documents ---
+  private async tool_searchDocuments(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID, trashedAt: null };
+    if (input?.folderId) where.folderId = input.folderId;
+    if (input?.fileType) where.fileType = input.fileType;
+
+    const [folders, files] = await Promise.all([
+      input?.query ? this.prisma.docFolder.findMany({
+        where: {
+          orgId: DEV_ORG_ID,
+          trashedAt: null,
+          OR: [
+            { name: { contains: input.query, mode: 'insensitive' as const } },
+            { tags: { has: input.query } },
+          ],
+        },
+        select: { id: true, name: true, parentId: true, locked: true },
+        take: 15,
+      }) : Promise.resolve([]),
+      this.prisma.docFile.findMany({
+        where: {
+          ...where,
+          ...(input?.query ? {
+            OR: [
+              { fileName: { contains: input.query, mode: 'insensitive' as const } },
+              { tags: { has: input.query } },
+            ],
+          } : {}),
+        },
+        select: { id: true, fileName: true, fileType: true, fileSize: true, folderId: true, status: true, createdAt: true },
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      folders: folders.map((f) => ({ ...f })),
+      files: files.map((f) => ({ ...f, fileSize: f.fileSize ? Number(f.fileSize) : null })),
+      totalFound: folders.length + files.length,
+    };
+  }
+
+  private async tool_listDocumentFolders(input: any): Promise<unknown> {
+    const folders = await this.prisma.docFolder.findMany({
+      where: { orgId: DEV_ORG_ID, parentId: input?.parentId || null, trashedAt: null },
+      include: { _count: { select: { children: true, files: true } } },
+      orderBy: { name: 'asc' },
+    });
+    return folders.map((f) => ({
+      id: f.id,
+      name: f.name,
+      locked: f.locked,
+      childFolders: f._count.children,
+      fileCount: f._count.files,
+    }));
+  }
+
+  // --- Personal Notes ---
+  private async tool_listPersonalNotes(userId: string): Promise<unknown> {
+    const notes = await this.prisma.personalNote.findMany({
+      where: { userId },
+      orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+      take: 20,
+    });
+    return { count: notes.length, notes: notes.map((n) => ({ id: n.id, content: n.content.slice(0, 200), pinned: n.pinned, createdAt: n.createdAt })) };
+  }
+
+  // --- Calendar Events ---
+  private async tool_listCalendarEvents(input: any, userId: string): Promise<unknown> {
+    const where: any = { userId };
+    if (input?.from || input?.to) {
+      where.startsAt = {};
+      if (input.from) where.startsAt.gte = new Date(input.from);
+      if (input.to) where.startsAt.lte = new Date(input.to);
+    }
+    const events = await this.prisma.personalCalendarEvent.findMany({
+      where,
+      orderBy: { startsAt: 'asc' },
+      take: 30,
+    });
+    return { count: events.length, events: events.map((e) => ({ id: e.id, title: e.title, startsAt: e.startsAt, allDay: e.allDay })) };
+  }
+
+  // --- Approval Tasks ---
+  private async tool_listApprovalTasks(input: any, userId: string): Promise<unknown> {
+    if (input?.pendingOnly) {
+      const steps = await this.prisma.wmApprovalStep.findMany({
+        where: { userId, status: 'pending' },
+        select: { taskId: true },
+      });
+      const taskIds = steps.map((s) => s.taskId);
+      if (taskIds.length === 0) return { count: 0, tasks: [] };
+      const tasks = await this.prisma.wmTask.findMany({
+        where: { id: { in: taskIds }, approvalStatus: 'in_review' },
+        select: { id: true, title: true, approvalStatus: true, approvalVersion: true, projectId: true },
+      });
+      return { count: tasks.length, tasks };
+    }
+    // All approval tasks
+    const tasks = await this.prisma.wmTask.findMany({
+      where: { orgId: DEV_ORG_ID, approvalStatus: { not: null } },
+      select: { id: true, title: true, approvalStatus: true, approvalVersion: true, projectId: true },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+    return { count: tasks.length, tasks };
   }
 }
