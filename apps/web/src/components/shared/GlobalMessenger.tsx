@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePresence, useTotalUnread, type PresenceUser } from '@/hooks/useHome';
@@ -12,13 +12,40 @@ function initials(name: string): string {
   return (name[0] || '?').toUpperCase();
 }
 
+/** Plays a short notification "pop" sound via Web Audio API. */
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);        // A5
+    osc.frequency.setValueAtTime(1174, ctx.currentTime + 0.08); // D6
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.2);
+  } catch { /* Audio not available */ }
+}
+
 export function GlobalMessenger() {
   const [open, setOpen] = useState(false);
   const [chatPartner, setChatPartner] = useState<PresenceUser | null>(null);
   const { data: users = [] } = usePresence();
   const { data: unread } = useTotalUnread();
+  const prevUnreadRef = useRef<number>(0);
 
+  // Play sound when new unread messages arrive
   const totalUnread = unread?.count ?? 0;
+  useEffect(() => {
+    if (totalUnread > prevUnreadRef.current && prevUnreadRef.current >= 0) {
+      playNotificationSound();
+    }
+    prevUnreadRef.current = totalUnread;
+  }, [totalUnread]);
+
   const online = users.filter((u) => u.online);
 
   if (chatPartner) {
