@@ -155,7 +155,12 @@ export function useUploadDocFile() {
         xhr.send(formData);
       });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['docs'] }),
+    onSuccess: () => {
+      // Force refetch of ALL doc queries to show the new file immediately
+      qc.invalidateQueries({ queryKey: ['docs', 'files'] });
+      qc.invalidateQueries({ queryKey: ['docs', 'folders'] });
+      qc.refetchQueries({ queryKey: ['docs', 'files'] });
+    },
   });
 }
 

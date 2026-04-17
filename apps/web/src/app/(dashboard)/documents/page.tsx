@@ -54,7 +54,7 @@ export default function DocumentsPage() {
   const [newFolderName, setNewFolderName] = useState('');
 
   const { data: folders = [], isLoading: foldersLoading } = useDocFolders(currentFolderId);
-  const { data: files = [], isLoading: filesLoading } = useDocFiles(currentFolderId, searchQuery || undefined);
+  const { data: files = [], isLoading: filesLoading, refetch: refetchFiles } = useDocFiles(currentFolderId, searchQuery || undefined);
   const { data: searchResults } = useDocSearch(searchQuery);
 
   const createFolder = useCreateDocFolder();
@@ -71,8 +71,13 @@ export default function DocumentsPage() {
   const [uploadFileName, setUploadFileName] = useState('');
   const [dragOver, setDragOver] = useState(false);
 
-  function navigateToFolder(id: string | null, name: string) {
+  function navigateToFolder(id: string | null, name: string, locked?: boolean) {
     if (id === currentFolderId) return;
+    // Block non-admin access to locked folders
+    if (locked && !isAdmin) {
+      alert('Dieser Ordner ist gesperrt. Nur Admins haben Zugriff.');
+      return;
+    }
     const existingIdx = folderPath.findIndex((p) => p.id === id);
     if (existingIdx >= 0) {
       setFolderPath(folderPath.slice(0, existingIdx + 1));
@@ -104,9 +109,10 @@ export default function DocumentsPage() {
         });
         setUploadProgress(100);
       }
-      // Show "fertig" briefly
+      // Show "fertig" briefly + force refetch to show files
       setUploadFileName('Alle Dateien hochgeladen ✓');
       setUploadProgress(100);
+      refetchFiles();
       await new Promise((r) => setTimeout(r, 1200));
     } catch { /* handled by mutation */ }
     setUploading(false);
@@ -311,7 +317,7 @@ export default function DocumentsPage() {
                 {displayFolders.map((folder) => (
                   <button
                     key={folder.id}
-                    onClick={() => navigateToFolder(folder.id, folder.name)}
+                    onClick={() => navigateToFolder(folder.id, folder.name, folder.locked)}
                     className="group relative flex flex-col items-center gap-2 p-3 sm:p-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] hover:shadow-md hover:border-primary-300 dark:hover:border-primary-500/40 transition-all text-center"
                   >
                     {folder.locked && (
@@ -429,7 +435,7 @@ export default function DocumentsPage() {
             {displayFolders.map((folder) => (
               <button
                 key={folder.id}
-                onClick={() => navigateToFolder(folder.id, folder.name)}
+                onClick={() => navigateToFolder(folder.id, folder.name, folder.locked)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors text-left"
               >
                 <Folder className="h-5 w-5 flex-shrink-0" style={{ color: folder.color || '#6366f1' }} />

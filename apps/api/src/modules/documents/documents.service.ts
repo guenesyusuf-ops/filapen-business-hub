@@ -99,6 +99,12 @@ export class DocumentsService {
   // =========================================================================
 
   async listFiles(folderId: string | null, userId: string, filters?: { search?: string; fileType?: string; status?: string; tags?: string[] }) {
+    // Check if the folder is locked and user has no access
+    if (folderId) {
+      const accessDenied = await this.isFolderLockedForUser(folderId, userId);
+      if (accessDenied) return [];
+    }
+
     const where: any = { orgId: DEV_ORG_ID, trashedAt: null };
     if (folderId) where.folderId = folderId;
     else where.folderId = null; // root files
@@ -351,6 +357,36 @@ export class DocumentsService {
   }
 
   // =========================================================================
+  // LOCK CHECK
+
+  /**
+   * Returns true if the folder is locked AND the user is NOT an admin
+   * AND has no explicit permission. Admins always have access.
+   */
+  async isFolderLockedForUser(folderId: string, userId: string): Promise<boolean> {
+    const folder = await this.prisma.docFolder.findUnique({
+      where: { id: folderId },
+      select: { locked: true, createdBy: true },
+    });
+    if (!folder || !folder.locked) return false;
+
+    // Creator always has access
+    if (folder.createdBy === userId) return false;
+
+    // Check if user is admin/owner
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (user?.role === 'admin' || user?.role === 'owner') return false;
+
+    // Check explicit permission
+    const perm = await this.prisma.docPermission.findFirst({
+      where: { folderId, userId, canRead: true },
+    });
+    return !perm; // locked = true if no permission found
+  }
+
   // HELPERS
   // =========================================================================
 
