@@ -88,6 +88,19 @@ export class UploadService {
       },
     });
 
+    // =========================================================================
+    // AUTOMATION: When a creator uploads an invoice (tab='rechnungen'),
+    // auto-create a task in the "Rechnungen" WM project.
+    // =========================================================================
+    if (data.tab === 'rechnungen') {
+      try {
+        await this.autoCreateInvoiceTask(orgId, creator.name, upload.id);
+      } catch (err) {
+        this.logger.warn('Auto-create invoice task failed:', err);
+        // Don't fail the upload if the task creation fails
+      }
+    }
+
     return this.serialize(upload);
   }
 
@@ -486,6 +499,89 @@ export class UploadService {
       ...this.serialize(u),
       creator: (u as any).creator,
     }));
+  }
+
+  /**
+   * Auto-creates a task in the "Rechnungen" project when a creator uploads an invoice.
+   * Assignees: Mazlum + Yavuz. Due: 5 business days. Column: To Do.
+   */
+  private async autoCreateInvoiceTask(orgId: string, creatorName: string, uploadId: string) {
+    // Find the Rechnungen project
+    const project = await this.prisma.wmProject.findFirst({
+      where: { orgId, name: { contains: 'Rechnungen', mode: 'insensitive' } },
+      include: { columns: { orderBy: { position: 'asc' } } },
+    });
+    if (!project) {
+      this.logger.warn('Rechnungen project not found — skipping auto-task');
+      return;
+    }
+
+    // Find the "To Do" column (first column)
+    const todoColumn = project.columns[0];
+    if (!todoColumn) return;
+
+    // Find Mazlum and Yavuz
+    const assignees = await this.prisma.user.findMany({
+      where: {
+        orgId,
+        OR: [
+          { name: { contains: 'Mazlum', mode: 'insensitive' } },
+          { name: { contains: 'Yavuz', mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    // Calculate 5 business days from now
+    const dueDate = new Date();
+    let addedDays = 0;
+    while (addedDays < 5) {
+      dueDate.setDate(dueDate.getDate() + 1);
+      const day = dueDate.getDay();
+      if (day !== 0 && day !== 6) addedDays++; // skip weekends
+    }
+
+    // Create the task
+    const task = await this.prisma.wmTask.create({
+      data: {
+        orgId,
+        projectId: project.id,
+        columnId: todoColumn.id,
+        title: `${creatorName} Rechnung`,
+        description: `Automatisch erstellt nach Rechnungs-Upload (Upload-ID: ${uploadId})`,
+        priority: 'medium',
+        assigneeId: assignees[0]?.id || null,
+        createdById: assignees[0]?.id || orgId,
+        dueDate,
+        position: 0,
+      },
+    });
+
+    // Assign both Mazlum and Yavuz
+    if (assignees.length > 0) {
+      await this.prisma.wmTaskAssignee.createMany({
+        data: assignees.map((u) => ({ taskId: task.id, userId: u.id })),
+        skipDuplicates: true,
+      });
+    }
+
+    // Notify assignees
+    for (const u of assignees) {
+      try {
+        await this.prisma.wmNotification.create({
+          data: {
+            userId: u.id,
+            type: 'assignment',
+            title: 'Neue Rechnung eingegangen',
+            message: `${creatorName} hat eine Rechnung hochgeladen. Bitte innerhalb von 5 Werktagen bearbeiten.`,
+            taskId: task.id,
+            projectId: project.id,
+          },
+        });
+      } catch { /* ignore */ }
+    }
+
+    this.logger.log(`Auto-created invoice task "${task.title}" for ${assignees.length} assignees`);
   }
 
   private serialize(upload: any) {
