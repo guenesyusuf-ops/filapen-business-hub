@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FileText, Upload, Trash2, Download, Eye, CheckCircle2 } from 'lucide-react';
+import { FileText, Upload, Download, Eye, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { uploadFile } from '@/lib/supabase';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://filapenapi-production.up.railway.app';
 
@@ -32,16 +33,11 @@ export default function CreatorInvoicesPage() {
   const creatorId = typeof window !== 'undefined'
     ? JSON.parse(sessionStorage.getItem('creator_data') || '{}')?.id
     : null;
-  const token = typeof window !== 'undefined'
-    ? sessionStorage.getItem('creator_token')
-    : null;
 
   const fetchInvoices = useCallback(async () => {
     if (!creatorId) return;
     try {
-      const res = await fetch(`${API_URL}/api/creator-uploads?creatorId=${creatorId}&tab=rechnungen`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await fetch(`${API_URL}/api/creator-uploads?creatorId=${creatorId}&tab=rechnungen`);
       if (res.ok) {
         const data = await res.json();
         setInvoices((data || []).map((u: any) => ({
@@ -55,7 +51,7 @@ export default function CreatorInvoicesPage() {
       }
     } catch { /* ignore */ }
     setLoading(false);
-  }, [creatorId, token]);
+  }, [creatorId]);
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
@@ -68,26 +64,42 @@ export default function CreatorInvoicesPage() {
       setError('Datei zu groß (max 20 MB)');
       return;
     }
+    if (!creatorId) {
+      setError('Creator nicht geladen. Bitte erneut einloggen.');
+      return;
+    }
 
     setUploading(true);
     setError('');
     setUploadSuccess(false);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('creatorId', creatorId);
-      formData.append('tab', 'rechnungen');
-      formData.append('category', 'rechnungen');
-      formData.append('label', `Rechnung ${new Date().toLocaleDateString('de-DE')}`);
+      // Step 1: Upload file to R2 storage
+      const uploadResult = await uploadFile(file, () => {});
 
+      // Step 2: Create the upload record via API (JSON, not FormData)
       const res = await fetch(`${API_URL}/api/creator-uploads`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          creatorId,
+          fileName: file.name,
+          fileUrl: uploadResult.url,
+          fileType: 'file',
+          mimeType: file.type,
+          fileSize: file.size,
+          tab: 'rechnungen',
+          category: 'rechnungen',
+          label: `Rechnung ${new Date().toLocaleDateString('de-DE')}`,
+          storageKey: uploadResult.key || null,
+        }),
       });
 
-      if (!res.ok) throw new Error('Upload fehlgeschlagen');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || 'Upload fehlgeschlagen');
+      }
+
       setUploadSuccess(true);
       fetchInvoices();
       setTimeout(() => setUploadSuccess(false), 3000);
@@ -122,7 +134,7 @@ export default function CreatorInvoicesPage() {
           type="file"
           accept="application/pdf"
           className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+          onChange={(e) => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); e.target.value = ''; }}
         />
         {uploading ? (
           <div className="flex flex-col items-center gap-2">
@@ -174,21 +186,10 @@ export default function CreatorInvoicesPage() {
               )}>
                 {inv.status === 'live' ? 'Geprüft' : 'Hochgeladen'}
               </span>
-              <a
-                href={inv.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="p-1.5 rounded text-gray-400 hover:text-violet-600 transition-colors"
-                title="Ansehen"
-              >
+              <a href={inv.fileUrl} target="_blank" rel="noreferrer" className="p-1.5 rounded text-gray-400 hover:text-violet-600" title="Ansehen">
                 <Eye className="h-4 w-4" />
               </a>
-              <a
-                href={inv.fileUrl}
-                download={inv.fileName}
-                className="p-1.5 rounded text-gray-400 hover:text-violet-600 transition-colors"
-                title="Herunterladen"
-              >
+              <a href={inv.fileUrl} download={inv.fileName} className="p-1.5 rounded text-gray-400 hover:text-violet-600" title="Herunterladen">
                 <Download className="h-4 w-4" />
               </a>
             </div>
