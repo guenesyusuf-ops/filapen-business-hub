@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import {
   X, Calendar, User, Flag, Tag, Clock, Paperclip, Send,
@@ -79,6 +79,19 @@ export function TaskDetailModal({
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-save description after 1.5s of inactivity
+  useEffect(() => {
+    if (editDesc === (task.description ?? '')) return; // no change
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      onUpdate({ id: task.id, description: editDesc } as any);
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 1500);
+    }, 1500);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [editDesc]); // eslint-disable-line react-hooks/exhaustive-deps
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<WmAttachment | null>(null);

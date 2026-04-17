@@ -31,9 +31,10 @@ interface KanbanBoardProps {
   onTaskClick: (task: WmTask) => void;
   onDeleteTask?: (taskId: string) => void;
   onAddColumn: () => void;
+  onMoveColumn?: (columnId: string, direction: -1 | 1) => void;
 }
 
-export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskClick, onDeleteTask, onAddColumn }: KanbanBoardProps) {
+export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskClick, onDeleteTask, onAddColumn, onMoveColumn }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<WmTask | null>(null);
   const [localColumns, setLocalColumns] = useState<ColumnWithTasks[]>(columns);
 
@@ -141,7 +142,7 @@ export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskCli
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 overflow-x-auto pb-4 h-full">
-        {localColumns.map((col) => (
+        {localColumns.map((col, i) => (
           <KanbanColumn
             key={col.id}
             column={col}
@@ -150,6 +151,9 @@ export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskCli
             onAddTask={onAddTask}
             onTaskClick={onTaskClick}
             onDeleteTask={onDeleteTask}
+            onMoveColumn={onMoveColumn}
+            isFirst={i === 0}
+            isLast={i === localColumns.length - 1}
           />
         ))}
 

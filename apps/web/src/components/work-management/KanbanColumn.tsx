@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import type { WmTask, WmColumn } from '@/hooks/work-management/useWm';
 import { KanbanTaskCard } from './KanbanTaskCard';
 import { InlineTaskCreate } from './InlineTaskCreate';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 
 interface KanbanColumnProps {
   column: WmColumn;
@@ -16,6 +16,9 @@ interface KanbanColumnProps {
   onAddTask: (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string; section?: string }) => void;
   onTaskClick: (task: WmTask) => void;
   onDeleteTask?: (taskId: string) => void;
+  onMoveColumn?: (columnId: string, direction: -1 | 1) => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }
 
 const DEFAULT_SECTION = 'Allgemein';
@@ -46,7 +49,7 @@ function groupTasksBySections(tasks: WmTask[]): { name: string; tasks: WmTask[] 
   return sections;
 }
 
-export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, onDeleteTask }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, onDeleteTask, onMoveColumn, isFirst, isLast }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${column.id}`,
     data: { type: 'column', column },
@@ -100,6 +103,26 @@ export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, o
             {tasks.length}
           </span>
         </div>
+        {onMoveColumn && (
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => onMoveColumn(column.id, -1)}
+              disabled={isFirst}
+              className="p-1 rounded text-gray-400 hover:text-gray-600 disabled:opacity-20 transition-colors"
+              title="Nach links"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => onMoveColumn(column.id, 1)}
+              disabled={isLast}
+              className="p-1 rounded text-gray-400 hover:text-gray-600 disabled:opacity-20 transition-colors"
+              title="Nach rechts"
+            >
+              <ChevronRightIcon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tasks */}

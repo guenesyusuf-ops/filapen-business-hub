@@ -981,6 +981,14 @@ export class WorkManagementService {
   // HELPERS
   // =========================================================================
 
+  async getUserName(userId: string): Promise<string> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, firstName: true, email: true },
+    });
+    return u?.name || u?.firstName || u?.email?.split('@')[0] || 'Unbekannt';
+  }
+
   private async ensureProjectExists(id: string) {
     const project = await this.prisma.wmProject.findUnique({ where: { id } });
     if (!project) throw new NotFoundException('Project not found');

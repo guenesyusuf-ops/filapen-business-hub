@@ -125,20 +125,35 @@ export function useDocFiles(folderId: string | null, search?: string) {
 export function useUploadDocFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { folderId?: string; file: File; tags?: string[] }) => {
-      const formData = new FormData();
-      formData.append('file', data.file);
-      if (data.folderId) formData.append('folderId', data.folderId);
-      if (data.tags?.length) formData.append('tags', JSON.stringify(data.tags));
-      const hdrs = getAuthHeaders();
-      delete (hdrs as any)['Content-Type'];
-      const res = await fetch(`${API_URL}/api/documents/files/upload`, {
-        method: 'POST',
-        headers: hdrs,
-        body: formData,
+    mutationFn: async (data: { folderId?: string; file: File; tags?: string[]; onProgress?: (pct: number) => void }) => {
+      return new Promise<DocFile>((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', data.file);
+        if (data.folderId) formData.append('folderId', data.folderId);
+        if (data.tags?.length) formData.append('tags', JSON.stringify(data.tags));
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_URL}/api/documents/files/upload`);
+
+        const hdrs = getAuthHeaders();
+        if (hdrs.Authorization) xhr.setRequestHeader('Authorization', hdrs.Authorization);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && data.onProgress) {
+            data.onProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(JSON.parse(xhr.responseText));
+          } else {
+            reject(new Error(`Upload fehlgeschlagen: ${xhr.status}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Netzwerkfehler'));
+        xhr.send(formData);
       });
-      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-      return res.json() as Promise<DocFile>;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['docs'] }),
   });

@@ -59,6 +59,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useThemeStore } from '@/stores/theme';
 import { hasMenuAccess, pathToPermission, type MenuPermissionKey } from '@/lib/permissions';
 import { CommandBar, useCommandBar } from '@/components/shared/CommandBar';
+import { GlobalMessenger } from '@/components/shared/GlobalMessenger';
 
 // ---------------------------------------------------------------------------
 // Sidebar navigation definition
@@ -714,6 +715,9 @@ export default function DashboardLayout({
 
       {/* Global Cmd+K command bar */}
       <CommandBar open={commandBarOpen} onClose={toggleCommandBar} />
+
+      {/* Global messenger — always visible */}
+      <GlobalMessenger />
     </div>
   );
 }

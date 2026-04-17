@@ -2,7 +2,10 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 import { Columns3, List, ArrowLeft, Plus, X, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -125,6 +128,7 @@ class WmErrorBoundary extends React.Component<{ children: React.ReactNode }, { e
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params.id as string;
+  const queryClient = useQueryClient();
 
   const { data: project, isLoading, error } = useWmProject(projectId);
   const createTask = useCreateWmTask();
@@ -171,6 +175,24 @@ export default function ProjectDetailPage() {
   const handleAddColumn = useCallback(() => {
     setShowAddColumn(true);
   }, []);
+
+  const handleMoveColumn = useCallback((columnId: string, direction: -1 | 1) => {
+    const cols = project?.columns ?? [];
+    const idx = cols.findIndex((c: any) => c.id === columnId);
+    if (idx < 0) return;
+    const target = idx + direction;
+    if (target < 0 || target >= cols.length) return;
+    const newOrder = cols.map((c: any) => c.id);
+    [newOrder[idx], newOrder[target]] = [newOrder[target], newOrder[idx]];
+    // Call backend reorder
+    fetch(`${API_URL}/api/wm/projects/${projectId}/columns/reorder`, {
+      method: 'PATCH',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnIds: newOrder }),
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['wm', 'project', projectId] });
+    }).catch(() => {});
+  }, [project, projectId]);
 
   const handleCreateColumn = useCallback((name: string, color: string) => {
     createColumn.mutate({ projectId, name, color });
@@ -317,6 +339,7 @@ export default function ProjectDetailPage() {
             onTaskClick={handleTaskClick}
             onDeleteTask={(taskId) => deleteTask.mutate({ id: taskId, projectId })}
             onAddColumn={handleAddColumn}
+            onMoveColumn={handleMoveColumn}
           />
         ) : activeTab === 'list' ? (
           <TaskListView

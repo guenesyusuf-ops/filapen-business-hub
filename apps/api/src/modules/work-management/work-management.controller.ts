@@ -452,14 +452,17 @@ export class WorkManagementController {
 
   @Post('tasks/:id/comments')
   async createComment(
+    @Headers('authorization') authHeader: string,
     @Param('id') taskId: string,
-    @Body() body: { message: string },
+    @Body() body: { content?: string; message?: string },
   ) {
     try {
+      const userId = this.extractUserId(authHeader);
+      const user = await this.wmService.getUserName(userId);
       return await this.wmService.createComment(taskId, {
-        userId: DEV_USER_ID,
-        userName: DEV_USER_NAME,
-        message: body.message,
+        userId,
+        userName: user,
+        message: body.content || body.message || '',
       });
     } catch (error) {
       if (error instanceof HttpException) throw error;

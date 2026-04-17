@@ -67,6 +67,8 @@ export default function DocumentsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadFileName, setUploadFileName] = useState('');
   const [dragOver, setDragOver] = useState(false);
 
   function navigateToFolder(id: string | null, name: string) {
@@ -89,11 +91,21 @@ export default function DocumentsPage() {
   async function handleFileUpload(fileList: FileList) {
     setUploading(true);
     try {
-      for (const file of Array.from(fileList)) {
-        await uploadFile.mutateAsync({ folderId: currentFolderId || undefined, file });
+      const files = Array.from(fileList);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadFileName(`${file.name} (${i + 1}/${files.length})`);
+        setUploadProgress(0);
+        await uploadFile.mutateAsync({
+          folderId: currentFolderId || undefined,
+          file,
+          onProgress: (pct) => setUploadProgress(pct),
+        });
       }
     } catch { /* handled by mutation */ }
     setUploading(false);
+    setUploadProgress(0);
+    setUploadFileName('');
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -225,6 +237,22 @@ export default function DocumentsPage() {
           </button>
         </div>
       </div>
+
+      {/* Upload progress */}
+      {uploading && (
+        <div className="rounded-lg border border-primary-200 dark:border-primary-900/30 bg-primary-50/50 dark:bg-primary-900/10 px-4 py-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-medium text-primary-700 dark:text-primary-400 truncate">{uploadFileName || 'Lade hoch...'}</span>
+            <span className="text-xs font-bold text-primary-600">{uploadProgress}%</span>
+          </div>
+          <div className="h-2 bg-primary-200 dark:bg-primary-900/30 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary-500 rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Create folder inline */}
       {showCreateFolder && (
