@@ -184,15 +184,28 @@ export default function ProjectDetailPage() {
     if (target < 0 || target >= cols.length) return;
     const newOrder = cols.map((c: any) => c.id);
     [newOrder[idx], newOrder[target]] = [newOrder[target], newOrder[idx]];
-    // Call backend reorder
+    // Optimistic: reorder columns locally for instant feedback
+    queryClient.setQueryData(['wm', 'project', projectId], (old: any) => {
+      if (!old) return old;
+      const reordered = [...old.columns].sort(
+        (a: any, b: any) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id),
+      );
+      reordered.forEach((c: any, i: number) => { c.position = i; });
+      return { ...old, columns: reordered };
+    });
+
+    // Persist to backend
     fetch(`${API_URL}/api/wm/projects/${projectId}/columns/reorder`, {
       method: 'PATCH',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ columnIds: newOrder }),
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['wm', 'project', projectId] });
-    }).catch(() => {});
-  }, [project, projectId]);
+    }).catch((err) => {
+      console.error('Column reorder failed:', err);
+      queryClient.invalidateQueries({ queryKey: ['wm', 'project', projectId] });
+    });
+  }, [project, projectId, queryClient]);
 
   const handleCreateColumn = useCallback((name: string, color: string) => {
     createColumn.mutate({ projectId, name, color });

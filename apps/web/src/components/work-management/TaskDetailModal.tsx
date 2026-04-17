@@ -527,14 +527,14 @@ export function TaskDetailModal({
                         {comments.map((c) => (
                           <div key={c.id} className="flex gap-2">
                             <div className="h-6 w-6 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300 flex-shrink-0 mt-0.5">
-                              {c.authorName.charAt(0).toUpperCase()}
+                              {(c.userName || '?').charAt(0).toUpperCase()}
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.authorName}</span>
+                                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.userName}</span>
                                 <span className="text-[10px] text-gray-400">{new Date(c.createdAt).toLocaleDateString('de-DE')}</span>
                               </div>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{renderCommentContent(c.content)}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{renderCommentContent(c.message || '')}</p>
                             </div>
                           </div>
                         ))}

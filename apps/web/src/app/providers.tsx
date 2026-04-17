@@ -9,10 +9,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30 * 1000,           // Data considered fresh for 30s
-            gcTime: 5 * 60 * 1000,          // Keep unused data for 5 min
-            refetchOnWindowFocus: true,      // Auto-refresh when user returns
-            refetchOnReconnect: true,        // Auto-refresh after network reconnect
+            staleTime: 2 * 60 * 1000,        // Data fresh for 2 min (avoids excessive refetches)
+            gcTime: 10 * 60 * 1000,         // Keep unused data for 10 min
+            refetchOnWindowFocus: false,     // Don't refetch on tab switch (mutations handle freshness)
+            refetchOnReconnect: true,        // Refresh after network reconnect
             retry: 1,
           },
         },

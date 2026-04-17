@@ -104,9 +104,9 @@ export interface WmAttachment {
 export interface WmComment {
   id: string;
   taskId: string;
-  authorId: string;
-  authorName: string;
-  content: string;
+  userId: string;
+  userName: string;
+  message: string;
   createdAt: string;
 }
 
