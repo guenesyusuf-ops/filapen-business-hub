@@ -265,6 +265,58 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'create_folder',
+    description:
+      'Creates a new folder in the Dokumente module. Can create in root or inside an existing folder. Use when user says "erstelle Ordner", "neuer Ordner", "Unterordner anlegen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        name: { type: 'string', description: 'Folder name' },
+        parentFolderName: { type: 'string', description: 'Name of the parent folder (omit for root). Will be matched by partial name.' },
+        color: { type: 'string', description: 'Optional color hex (e.g. #6366f1)' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'move_file',
+    description:
+      'Moves a file to a different folder. Use when user says "verschiebe Datei", "Datei in Ordner legen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        fileName: { type: 'string', description: 'File name (partial match)' },
+        targetFolderName: { type: 'string', description: 'Target folder name (partial match). Use "root" for root level.' },
+      },
+      required: ['fileName', 'targetFolderName'],
+    },
+  },
+  {
+    name: 'lock_folder',
+    description:
+      'Locks or unlocks a folder (admin action). Locked folders are only accessible to admins. Use when user says "sperre Ordner", "Ordner sperren/entsperren".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        folderName: { type: 'string', description: 'Folder name (partial match)' },
+        lock: { type: 'boolean', description: 'true to lock, false to unlock' },
+      },
+      required: ['folderName', 'lock'],
+    },
+  },
+  {
+    name: 'delete_file',
+    description:
+      'Moves a file to trash (soft delete). Use when user says "lösche Datei", "Datei entfernen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        fileName: { type: 'string', description: 'File name (partial match)' },
+      },
+      required: ['fileName'],
+    },
+  },
+  {
     name: 'send_direct_message',
     description:
       'Sends a direct message to a team member. Use when user says "schreib an", "nachricht an", "sag Peter".',
@@ -444,6 +496,14 @@ export class AiService {
           return this.action_createNote(input, userId);
         case 'create_calendar_event':
           return this.action_createCalendarEvent(input, userId);
+        case 'create_folder':
+          return this.action_createFolder(input);
+        case 'move_file':
+          return this.action_moveFile(input);
+        case 'lock_folder':
+          return this.action_lockFolder(input, userId);
+        case 'delete_file':
+          return this.action_deleteFile(input);
         case 'send_direct_message':
           return this.action_sendDirectMessage(input, userId);
         default:
@@ -1099,6 +1159,76 @@ export class AiService {
       data: { senderId: userId, recipientId: recipient.id, content: input.message },
     });
     return { success: true, to: recipient.name, message: input.message, info: 'Nachricht gesendet' };
+  }
+
+  // --- Document management actions ---
+
+  private async action_createFolder(input: any): Promise<unknown> {
+    let parentId: string | null = null;
+    if (input.parentFolderName) {
+      const parent = await this.prisma.docFolder.findFirst({
+        where: { orgId: DEV_ORG_ID, name: { contains: input.parentFolderName, mode: 'insensitive' as const }, trashedAt: null },
+        select: { id: true, name: true },
+      });
+      if (!parent) return { error: `Ordner "${input.parentFolderName}" nicht gefunden` };
+      parentId = parent.id;
+    }
+    const folder = await this.prisma.docFolder.create({
+      data: {
+        orgId: DEV_ORG_ID,
+        name: input.name,
+        parentId,
+        color: input.color || null,
+        createdBy: DEV_ORG_ID, // system-created via AI
+      },
+    });
+    return { success: true, folderId: folder.id, name: folder.name, parent: input.parentFolderName || 'Root' };
+  }
+
+  private async action_moveFile(input: any): Promise<unknown> {
+    const file = await this.prisma.docFile.findFirst({
+      where: { orgId: DEV_ORG_ID, fileName: { contains: input.fileName, mode: 'insensitive' as const }, trashedAt: null },
+      select: { id: true, fileName: true },
+    });
+    if (!file) return { error: `Datei "${input.fileName}" nicht gefunden` };
+
+    let folderId: string | null = null;
+    if (input.targetFolderName && input.targetFolderName !== 'root') {
+      const folder = await this.prisma.docFolder.findFirst({
+        where: { orgId: DEV_ORG_ID, name: { contains: input.targetFolderName, mode: 'insensitive' as const }, trashedAt: null },
+        select: { id: true, name: true },
+      });
+      if (!folder) return { error: `Ordner "${input.targetFolderName}" nicht gefunden` };
+      folderId = folder.id;
+    }
+
+    await this.prisma.docFile.update({ where: { id: file.id }, data: { folderId } });
+    return { success: true, file: file.fileName, movedTo: input.targetFolderName || 'Root' };
+  }
+
+  private async action_lockFolder(input: any, userId: string): Promise<unknown> {
+    const folder = await this.prisma.docFolder.findFirst({
+      where: { orgId: DEV_ORG_ID, name: { contains: input.folderName, mode: 'insensitive' as const }, trashedAt: null },
+      select: { id: true, name: true, locked: true },
+    });
+    if (!folder) return { error: `Ordner "${input.folderName}" nicht gefunden` };
+
+    await this.prisma.docFolder.update({
+      where: { id: folder.id },
+      data: { locked: input.lock, lockedBy: input.lock ? userId : null },
+    });
+    return { success: true, folder: folder.name, locked: input.lock };
+  }
+
+  private async action_deleteFile(input: any): Promise<unknown> {
+    const file = await this.prisma.docFile.findFirst({
+      where: { orgId: DEV_ORG_ID, fileName: { contains: input.fileName, mode: 'insensitive' as const }, trashedAt: null },
+      select: { id: true, fileName: true },
+    });
+    if (!file) return { error: `Datei "${input.fileName}" nicht gefunden` };
+
+    await this.prisma.docFile.update({ where: { id: file.id }, data: { trashedAt: new Date() } });
+    return { success: true, file: file.fileName, message: 'In den Papierkorb verschoben' };
   }
 
   // ==========================================================================
