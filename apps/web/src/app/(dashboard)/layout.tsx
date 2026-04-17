@@ -667,10 +667,11 @@ export default function DashboardLayout({
       });
   }, [currentToken, currentUser]);
 
-  // Re-apply theme on mount (handles SSR hydration and system preference changes)
+  // Listen for system preference changes (only relevant when theme='system').
+  // Theme is already applied by the inline <script> in layout.tsx + Zustand's
+  // onRehydrateStorage. Do NOT call setTheme(theme) on mount — that would
+  // flash to 'light' before Zustand hydrates the persisted value.
   useEffect(() => {
-    setTheme(theme);
-
     if (theme === 'system') {
       const mq = window.matchMedia('(prefers-color-scheme: dark)');
       const handler = () => setTheme('system');
