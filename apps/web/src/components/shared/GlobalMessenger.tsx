@@ -56,8 +56,9 @@ export function GlobalMessenger() {
     <>
       {/* Floating button */}
       <button
+        data-messenger-toggle
         onClick={() => setOpen(!open)}
-        className="fixed bottom-5 right-5 z-30 h-12 w-12 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg flex items-center justify-center transition-all active:scale-95"
+        className="fixed bottom-20 md:bottom-5 right-5 z-30 h-12 w-12 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg flex items-center justify-center transition-all active:scale-95"
       >
         {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
         {!open && totalUnread > 0 && (

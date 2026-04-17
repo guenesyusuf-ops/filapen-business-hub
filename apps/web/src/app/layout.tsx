@@ -12,6 +12,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Filapen Business Hub',
   description: 'Unified finance, creator, and influencer management platform',
+  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1',
 };
 
 // Inline script that runs before React hydrates — prevents flash of wrong theme.
