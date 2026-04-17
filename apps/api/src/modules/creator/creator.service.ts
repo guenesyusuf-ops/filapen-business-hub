@@ -42,6 +42,8 @@ export interface ListCreatorsParams {
   status?: string;
   niche?: string;
   platform?: string;
+  compensation?: string;
+  kids?: string | boolean;
   tags?: string[];
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
@@ -74,6 +76,8 @@ export class CreatorService {
       status,
       niche,
       platform,
+      compensation,
+      kids,
       sortBy = 'createdAt',
       sortOrder = 'desc',
       page = 1,
@@ -84,12 +88,21 @@ export class CreatorService {
 
     if (status) {
       where.status = status as any;
+    } else {
+      // Default: exclude deleted (churned) creators
+      where.status = { not: 'churned' };
     }
     if (niche) {
       where.niche = { equals: niche, mode: 'insensitive' };
     }
     if (platform) {
       where.platform = { equals: platform, mode: 'insensitive' };
+    }
+    if (compensation) {
+      where.compensation = compensation;
+    }
+    if (kids !== undefined && kids !== null && kids !== '') {
+      where.kids = kids === 'true' || kids === true;
     }
     if (search) {
       where.OR = [
@@ -282,10 +295,13 @@ export class CreatorService {
       throw new NotFoundException('Creator not found');
     }
 
-    // Soft delete: set status to churned
+    // Soft delete: set status to churned + revoke portal access
     await this.prisma.creator.update({
       where: { id: creatorId },
-      data: { status: 'churned' },
+      data: {
+        status: 'churned',
+        inviteCode: null, // revoke portal access
+      },
     });
 
     return { success: true };

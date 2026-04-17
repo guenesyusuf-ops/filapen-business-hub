@@ -65,6 +65,8 @@ export interface CreatorsListParams {
   status?: string;
   niche?: string;
   platform?: string;
+  compensation?: string;
+  kids?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   page?: number;
@@ -345,6 +347,8 @@ export function useCreators(params: CreatorsListParams = {}) {
         if (params.status && params.status !== 'all') queryParams.status = params.status;
         if (params.niche && params.niche !== 'all') queryParams.niche = params.niche;
         if (params.platform && params.platform !== 'all') queryParams.platform = params.platform;
+        if (params.compensation) queryParams.compensation = params.compensation;
+        if (params.kids) queryParams.kids = params.kids;
         if (params.sortBy) queryParams.sortBy = params.sortBy;
         if (params.sortOrder) queryParams.sortOrder = params.sortOrder;
         if (params.page) queryParams.page = String(params.page);

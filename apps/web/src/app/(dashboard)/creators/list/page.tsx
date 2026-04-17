@@ -383,12 +383,19 @@ function CreatorListPageInner() {
   const [status, setStatus] = useState('all');
   const [niche, setNiche] = useState('all');
   const [platform, setPlatform] = useState('all');
+  const [compensation, setCompensation] = useState('all');
+  const [kids, setKids] = useState('all');
   const [page, setPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(searchParams.get('action') === 'add');
 
   const params: CreatorsListParams = useMemo(
-    () => ({ search, status, niche, platform, sortBy: 'name', sortOrder: 'asc', page, pageSize: 25 }),
-    [search, status, niche, platform, page],
+    () => ({
+      search, status, niche, platform,
+      compensation: compensation !== 'all' ? compensation : undefined,
+      kids: kids !== 'all' ? kids : undefined,
+      sortBy: 'name', sortOrder: 'asc', page, pageSize: 25,
+    }),
+    [search, status, niche, platform, compensation, kids, page],
   );
 
   const { data, isLoading, isError } = useCreators(params);
@@ -470,9 +477,29 @@ function CreatorListPageInner() {
         >
           {PLATFORM_OPTIONS.map((p) => (
             <option key={p} value={p}>
-              {p === 'all' ? 'All Platforms' : p.charAt(0).toUpperCase() + p.slice(1)}
+              {p === 'all' ? 'Alle Plattformen' : p.charAt(0).toUpperCase() + p.slice(1)}
             </option>
           ))}
+        </select>
+        <select
+          value={compensation}
+          onChange={(e) => { setCompensation(e.target.value); setPage(1); }}
+          className="rounded-lg border border-border px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-creator/30"
+        >
+          <option value="all">Alle Vergütungen</option>
+          <option value="prozent">Prozent</option>
+          <option value="fest">Feste Vergütung</option>
+          <option value="kostenlos">Kostenlos</option>
+          <option value="tausch">Produkttausch</option>
+        </select>
+        <select
+          value={kids}
+          onChange={(e) => { setKids(e.target.value); setPage(1); }}
+          className="rounded-lg border border-border px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-creator/30"
+        >
+          <option value="all">Kinder: Alle</option>
+          <option value="true">Kinder: Ja</option>
+          <option value="false">Kinder: Nein</option>
         </select>
       </div>
 

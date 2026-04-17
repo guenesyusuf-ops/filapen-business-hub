@@ -362,7 +362,7 @@ export default function CreatorDetailPage() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete
+              Löschen
             </button>
           </div>
 
@@ -410,7 +410,7 @@ export default function CreatorDetailPage() {
                 disabled={deleteMutation.isPending}
                 className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete Creator'}
+                {deleteMutation.isPending ? 'Wird gelöscht...' : 'Creator löschen'}
               </button>
             </div>
           </div>
