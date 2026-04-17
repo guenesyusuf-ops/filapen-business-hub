@@ -499,7 +499,7 @@ export function useDeleteWmAttachment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { taskId: string; attachmentId: string; projectId?: string }) =>
-      wmFetch(`/tasks/${data.taskId}/attachments/${data.attachmentId}`, { method: 'DELETE' }),
+      wmFetch(`/attachments/${data.attachmentId}`, { method: 'DELETE' }),
     onMutate: async (vars) => {
       if (!vars.projectId) return {};
       const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
