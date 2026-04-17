@@ -112,7 +112,7 @@ function BriefingFolder({
         className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
-        Zurueck zu Briefings
+        Zurück zu Briefings
       </button>
 
       {/* Header */}

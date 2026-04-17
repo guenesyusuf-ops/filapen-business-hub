@@ -95,7 +95,7 @@ export function CreatorsAnalyticsTable({ rows, loading }: Props) {
               <th className="px-5 py-3 text-left font-medium">Name</th>
               <th className="px-4 py-3 text-left font-medium">Produkt</th>
               <th className="px-4 py-3 text-left font-medium">Batch</th>
-              <th className="px-4 py-3 text-left font-medium">Verguetung</th>
+              <th className="px-4 py-3 text-left font-medium">Vergütung</th>
               <th className="px-5 py-3 text-right font-medium">Letzter Upload</th>
             </tr>
           </thead>

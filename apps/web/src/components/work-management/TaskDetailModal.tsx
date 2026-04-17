@@ -32,7 +32,7 @@ const ACTION_LABELS: Record<string, string> = {
   assigned: 'hat die Aufgabe zugewiesen',
   label_added: 'hat ein Label hinzugefuegt',
   label_removed: 'hat ein Label entfernt',
-  priority_changed: 'hat die Prioritaet geaendert',
+  priority_changed: 'hat die Prioritaet geändert',
 };
 
 interface TaskDetailModalProps {
@@ -246,7 +246,7 @@ export function TaskDetailModal({
     if (!file) return;
     // Reasonable guard: 100 MB matches backend multer limit
     if (file.size > 100 * 1024 * 1024) {
-      setUploadError('Datei ist groesser als 100 MB');
+      setUploadError('Datei ist größer als 100 MB');
       setUploadState('error');
       setTimeout(() => { setUploadState('idle'); setUploadError(null); }, 4000);
       return;
@@ -307,16 +307,16 @@ export function TaskDetailModal({
             {onDeleteTask && (
               <button
                 onClick={() => {
-                  if (confirm('Aufgabe wirklich loeschen? Das kann nicht rueckgaengig gemacht werden.')) {
+                  if (confirm('Aufgabe wirklich löschen? Das kann nicht rückgängig gemacht werden.')) {
                     onDeleteTask(task.id);
                     handleClose();
                   }
                 }}
                 className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0"
-                title="Aufgabe loeschen"
+                title="Aufgabe löschen"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Loeschen
+                Löschen
               </button>
             )}
           </div>
@@ -357,7 +357,7 @@ export function TaskDetailModal({
             {saveState === 'idle' && (
               <>
                 <Save className="h-4 w-4" />
-                Aenderungen speichern
+                Änderungen speichern
               </>
             )}
           </button>
@@ -385,7 +385,7 @@ export function TaskDetailModal({
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
                   rows={4}
-                  placeholder="Beschreibung hinzufuegen..."
+                  placeholder="Beschreibung hinzufügen..."
                   className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
                 />
               </div>
@@ -432,7 +432,7 @@ export function TaskDetailModal({
                     value={newSubtask}
                     onChange={(e) => setNewSubtask(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddSubtask()}
-                    placeholder="Unteraufgabe hinzufuegen..."
+                    placeholder="Unteraufgabe hinzufügen..."
                     className="flex-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] px-3 py-1.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400"
                   />
                   <button
@@ -447,7 +447,7 @@ export function TaskDetailModal({
               {/* Attachments */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
-                  Anhaenge
+                  Anhänge
                 </label>
                 {(task.attachments ?? []).length > 0 && (
                   <div className="space-y-0.5 mb-2">
@@ -480,7 +480,7 @@ export function TaskDetailModal({
                   ) : (
                     <>
                       <Plus className="h-4 w-4" />
-                      Datei hinzufuegen
+                      Datei hinzufügen
                     </>
                   )}
                 </button>
@@ -516,7 +516,7 @@ export function TaskDetailModal({
                     )}
                   >
                     <Activity className="h-3.5 w-3.5" />
-                    Aktivitaet {activities.length > 0 && `(${activities.length})`}
+                    Aktivität {activities.length > 0 && `(${activities.length})`}
                   </button>
                 </div>
 
@@ -586,7 +586,7 @@ export function TaskDetailModal({
                 {activeBottomTab === 'activity' && (
                   <div className="space-y-3">
                     {activities.length === 0 && (
-                      <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">Noch keine Aktivitaeten</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">Noch keine Aktivitäten</p>
                     )}
                     {activities.map((act) => (
                       <div key={act.id} className="flex gap-2">
@@ -639,7 +639,7 @@ export function TaskDetailModal({
                   className="w-full min-h-[36px] rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] px-2.5 py-1.5 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary-400"
                 >
                   {editAssigneeIds.length === 0 ? (
-                    <span className="text-gray-400">Mitarbeiter auswaehlen...</span>
+                    <span className="text-gray-400">Mitarbeiter auswählen...</span>
                   ) : (
                     <div className="flex flex-wrap gap-1">
                       {editAssigneeIds.map((id) => {
@@ -707,7 +707,7 @@ export function TaskDetailModal({
               {/* Due date */}
               <div>
                 <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Calendar className="h-3 w-3" /> Faelligkeitsdatum
+                  <Calendar className="h-3 w-3" /> Fälligkeitsdatum
                 </label>
                 <input
                   type="date"
@@ -846,7 +846,7 @@ export function TaskDetailModal({
               {/* Time estimate */}
               <div>
                 <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Clock className="h-3 w-3" /> Zeitschaetzung
+                  <Clock className="h-3 w-3" /> Zeitschätzung
                 </label>
                 <input
                   type="number"

@@ -11,7 +11,7 @@ const POPULAR_CURRENCIES = [
   { code: 'USD', flag: '🇺🇸', name: 'US Dollar' },
   { code: 'GBP', flag: '🇬🇧', name: 'Pfund' },
   { code: 'CHF', flag: '🇨🇭', name: 'Franken' },
-  { code: 'TRY', flag: '🇹🇷', name: 'Tuerk. Lira' },
+  { code: 'TRY', flag: '🇹🇷', name: 'Türk. Lira' },
   { code: 'PLN', flag: '🇵🇱', name: 'Zloty' },
   { code: 'SEK', flag: '🇸🇪', name: 'Krone' },
   { code: 'JPY', flag: '🇯🇵', name: 'Yen' },
@@ -72,7 +72,7 @@ export function CurrencyWidget() {
       <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary-500" />
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Waehrungsrechner</h2>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Währungsrechner</h2>
         </div>
         <button
           onClick={convert}

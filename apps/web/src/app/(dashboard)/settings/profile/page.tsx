@@ -72,7 +72,7 @@ export default function ProfileSettingsPage() {
     e.target.value = ''; // allow re-selecting same file later
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      setError('Bitte eine Bilddatei auswaehlen');
+      setError('Bitte eine Bilddatei auswählen');
       return;
     }
     setError(null);
@@ -143,7 +143,7 @@ export default function ProfileSettingsPage() {
   return (
     <div className="max-w-2xl space-y-4 sm:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Persoenliche Einstellungen</h1>
+        <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Persönliche Einstellungen</h1>
         <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
           Dein Profil, Bild und Kontaktdaten.
         </p>
@@ -182,7 +182,7 @@ export default function ProfileSettingsPage() {
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
             >
               <Camera className="h-4 w-4" />
-              {avatarUrl ? 'Bild aendern' : 'Bild hochladen'}
+              {avatarUrl ? 'Bild ändern' : 'Bild hochladen'}
             </button>
             <p className="text-[11px] text-gray-400">
               JPG oder PNG, wird auf 400x400 skaliert (max 300KB).
@@ -237,7 +237,7 @@ export default function ProfileSettingsPage() {
             className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-500 dark:text-gray-500 cursor-not-allowed"
           />
           <p className="text-[11px] text-gray-400 mt-1">
-            E-Mail kann nur von einem Admin geaendert werden.
+            E-Mail kann nur von einem Admin geändert werden.
           </p>
         </div>
 

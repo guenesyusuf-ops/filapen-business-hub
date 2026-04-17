@@ -55,7 +55,7 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
     .every((s) => s.status === 'approved');
 
   const statusLabel = detail.approvalStatus === 'draft' ? 'Entwurf'
-    : detail.approvalStatus === 'in_review' ? 'In Pruefung'
+    : detail.approvalStatus === 'in_review' ? 'In Prüfung'
       : detail.approvalStatus === 'approved' ? 'Genehmigt'
         : 'Abgelehnt';
 
@@ -137,7 +137,7 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
                     'text-[9px] font-semibold flex-shrink-0',
                     isOverdue ? 'text-red-600' : isUrgent ? 'text-orange-500' : 'text-gray-400',
                   )}>
-                    {isOverdue ? 'Ueberfaellig' : `${hours}h`}
+                    {isOverdue ? 'Überfällig' : `${hours}h`}
                   </span>
                 );
               })()}
@@ -295,13 +295,13 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
               </div>
             ))}
             {(detail.activities ?? []).length === 0 && (
-              <p className="text-[10px] text-gray-400 italic">Noch keine Aktivitaeten</p>
+              <p className="text-[10px] text-gray-400 italic">Noch keine Aktivitäten</p>
             )}
 
             {/* Attachment diff for resubmissions */}
             {detail.approvalVersion > 1 && (detail.attachments ?? []).length > 0 && (
               <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/5">
-                <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Anhaenge (V{detail.approvalVersion})</p>
+                <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Anhänge (V{detail.approvalVersion})</p>
                 {detail.attachments.map((att: any) => (
                   <div key={att.id} className="flex items-center gap-1.5 text-[10px] text-gray-600 dark:text-gray-400">
                     <span className="h-1 w-1 rounded-full bg-emerald-400 flex-shrink-0" />

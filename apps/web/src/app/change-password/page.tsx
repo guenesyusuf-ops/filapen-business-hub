@@ -38,7 +38,7 @@ export default function ChangePasswordPage() {
         return;
       }
       if (next !== confirm) {
-        setError('Passwoerter stimmen nicht ueberein');
+        setError('Passwörter stimmen nicht ueberein');
         return;
       }
       if (next === current) {
@@ -64,7 +64,7 @@ export default function ChangePasswordPage() {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Passwort konnte nicht geaendert werden');
+          throw new Error(data.message || 'Passwort konnte nicht geändert werden');
         }
 
         // Refresh user data so mustChangePassword flips to false
@@ -97,9 +97,9 @@ export default function ChangePasswordPage() {
           <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-200">
             <Lock className="h-5 w-5 text-white" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Passwort aendern</h1>
+          <h1 className="text-xl font-bold text-gray-900">Passwort ändern</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Aus Sicherheitsgruenden musst du dein temporaeres Passwort jetzt aendern.
+            Aus Sicherheitsgründen musst du dein temporäres Passwort jetzt ändern.
           </p>
         </div>
 
@@ -107,14 +107,14 @@ export default function ChangePasswordPage() {
           {success ? (
             <div className="py-6 text-center">
               <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500 mb-3" />
-              <p className="text-sm font-medium text-gray-900">Passwort erfolgreich geaendert</p>
+              <p className="text-sm font-medium text-gray-900">Passwort erfolgreich geändert</p>
               <p className="text-xs text-gray-500 mt-1">Du wirst weitergeleitet ...</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Temporaeres Passwort (aktuell)
+                  Temporäres Passwort (aktuell)
                 </label>
                 <input
                   type="password"
@@ -145,7 +145,7 @@ export default function ChangePasswordPage() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Neues Passwort bestaetigen
+                  Neues Passwort bestätigen
                 </label>
                 <input
                   type="password"
@@ -170,7 +170,7 @@ export default function ChangePasswordPage() {
                 disabled={submitting}
                 className="w-full rounded-lg bg-purple-600 py-2.5 text-sm font-semibold text-white hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {submitting ? 'Speichere ...' : 'Passwort aendern'}
+                {submitting ? 'Speichere ...' : 'Passwort ändern'}
               </button>
 
               <button

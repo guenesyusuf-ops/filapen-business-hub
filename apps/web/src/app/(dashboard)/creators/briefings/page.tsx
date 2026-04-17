@@ -338,7 +338,7 @@ function BriefingDetail({
         className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
-        Zurueck
+        Zurück
       </button>
 
       <div className="rounded-xl bg-white shadow-card p-6 space-y-4">
@@ -400,7 +400,7 @@ function BriefingDetail({
             disabled={saving}
             className="text-xs px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
           >
-            {saving ? 'Speichern...' : 'Aenderungen speichern'}
+            {saving ? 'Speichern...' : 'Änderungen speichern'}
           </button>
           {saveMsg && <span className="text-xs text-green-600">{saveMsg}</span>}
         </div>
@@ -466,7 +466,7 @@ function BriefingDetail({
                   <button
                     onClick={() => deleteAttachmentMutation.mutate({ briefingId, attachmentId: att.id })}
                     className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    title="Loeschen"
+                    title="Löschen"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -593,12 +593,12 @@ function BriefingsPageInner() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm('Briefing wirklich loeschen?')) {
+                        if (confirm('Briefing wirklich löschen?')) {
                           deleteMutation.mutate(briefing.id);
                         }
                       }}
                       className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Loeschen"
+                      title="Löschen"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

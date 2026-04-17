@@ -34,7 +34,7 @@ function ToolCard({ icon, title, subtitle, onClick, comingSoon }: ToolCardProps)
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-gray-900 dark:text-white">{title}</div>
         <div className="truncate text-xs text-gray-500 dark:text-white/40">
-          {comingSoon ? 'Bald verfuegbar' : subtitle}
+          {comingSoon ? 'Bald verfügbar' : subtitle}
         </div>
       </div>
       {!disabled && <ArrowRight className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/30" />}

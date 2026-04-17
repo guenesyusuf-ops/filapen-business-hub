@@ -108,7 +108,7 @@ export function TaskListView({ columns, onTaskClick, onToggleComplete }: TaskLis
           Zugewiesen <ArrowUpDown className="h-3 w-3" />
         </div>
         <div className={headerCls} onClick={() => toggleSort('dueDate')}>
-          Faellig <ArrowUpDown className="h-3 w-3" />
+          Fällig <ArrowUpDown className="h-3 w-3" />
         </div>
         <div className={headerCls} onClick={() => toggleSort('priority')}>
           Prio <ArrowUpDown className="h-3 w-3" />

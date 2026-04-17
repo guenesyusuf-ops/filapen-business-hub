@@ -57,10 +57,10 @@ function categorize(tasks: WmTask[]): TaskGroup[] {
   }
 
   const groups: TaskGroup[] = [];
-  if (overdue.length > 0) groups.push({ label: 'Ueberfaellig', icon: AlertTriangle, iconColor: 'text-red-500', bgColor: 'bg-red-50 dark:bg-red-900/10', tasks: overdue });
-  if (today.length > 0) groups.push({ label: 'Heute faellig', icon: Calendar, iconColor: 'text-orange-500', bgColor: 'bg-orange-50 dark:bg-orange-900/10', tasks: today });
+  if (overdue.length > 0) groups.push({ label: 'Überfällig', icon: AlertTriangle, iconColor: 'text-red-500', bgColor: 'bg-red-50 dark:bg-red-900/10', tasks: overdue });
+  if (today.length > 0) groups.push({ label: 'Heute fällig', icon: Calendar, iconColor: 'text-orange-500', bgColor: 'bg-orange-50 dark:bg-orange-900/10', tasks: today });
   if (thisWeek.length > 0) groups.push({ label: 'Diese Woche', icon: Clock, iconColor: 'text-blue-500', bgColor: 'bg-blue-50 dark:bg-blue-900/10', tasks: thisWeek });
-  if (later.length > 0) groups.push({ label: 'Spaeter', icon: ArrowRight, iconColor: 'text-gray-400', bgColor: '', tasks: later });
+  if (later.length > 0) groups.push({ label: 'Später', icon: ArrowRight, iconColor: 'text-gray-400', bgColor: '', tasks: later });
   if (noDue.length > 0) groups.push({ label: 'Ohne Deadline', icon: Flag, iconColor: 'text-gray-400', bgColor: '', tasks: noDue });
 
   return groups;
@@ -145,7 +145,7 @@ export default function MyTasksPage() {
               </h2>
               <span className={cn(
                 'text-xs font-bold px-1.5 py-0.5 rounded-full',
-                group.label === 'Ueberfaellig'
+                group.label === 'Überfällig'
                   ? 'bg-red-200 text-red-700 dark:bg-red-900/40 dark:text-red-300'
                   : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
               )}>
@@ -161,7 +161,7 @@ export default function MyTasksPage() {
                     key={task.id}
                     className={cn(
                       'flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-white dark:bg-[var(--card-bg,#1a1d2e)] hover:shadow-sm transition-all',
-                      group.label === 'Ueberfaellig'
+                      group.label === 'Überfällig'
                         ? 'border-red-200 dark:border-red-900/30'
                         : 'border-gray-200 dark:border-white/10',
                     )}

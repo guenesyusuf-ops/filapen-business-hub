@@ -260,7 +260,7 @@ function DayNoteEditor({ date, notes, onClose }: DayNoteEditorProps) {
             onClick={onClose}
             className="text-xs text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white"
           >
-            Schliessen
+            Schließen
           </button>
         </header>
 
@@ -326,7 +326,7 @@ function DayNoteEditor({ date, notes, onClose }: DayNoteEditorProps) {
                       disabled={deleteMut.isPending}
                       className="rounded-md px-2 py-1 text-xs text-red-500 dark:text-red-400/80 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50"
                     >
-                      Loeschen
+                      Löschen
                     </button>
                   </div>
                 </div>
@@ -357,7 +357,7 @@ function DayNoteEditor({ date, notes, onClose }: DayNoteEditorProps) {
                 onClick={() => setReminderTime('')}
                 className="text-[10px] text-gray-500 dark:text-white/40 hover:text-gray-900 dark:hover:text-white"
               >
-                zuruecksetzen
+                zurücksetzen
               </button>
             )}
           </div>

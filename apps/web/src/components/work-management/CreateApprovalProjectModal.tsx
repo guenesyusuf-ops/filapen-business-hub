@@ -186,9 +186,9 @@ export function CreateApprovalProjectModal({ open, onClose, onSubmit, loading }:
                   className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 font-medium"
                 >
                   <Plus className="h-4 w-4" />
-                  Genehmiger hinzufuegen
+                  Genehmiger hinzufügen
                   {availableUsers.length > 0 && (
-                    <span className="text-xs text-gray-400 font-normal">({availableUsers.length} verfuegbar)</span>
+                    <span className="text-xs text-gray-400 font-normal">({availableUsers.length} verfügbar)</span>
                   )}
                 </button>
               )}

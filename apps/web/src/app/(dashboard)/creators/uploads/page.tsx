@@ -60,12 +60,12 @@ function FolderCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (confirm(`Ordner "${folder.name}" mit allen Dateien loeschen?`)) {
+            if (confirm(`Ordner "${folder.name}" mit allen Dateien löschen?`)) {
               onDelete();
             }
           }}
           className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
-          title="Ordner loeschen"
+          title="Ordner löschen"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -178,7 +178,7 @@ export default function AllUploadsPage() {
                 className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Zurueck
+                Zurück
               </button>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">
@@ -379,7 +379,7 @@ export default function AllUploadsPage() {
                 disabled={page === 1}
                 className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
               >
-                Zurueck
+                Zurück
               </button>
               <span className="text-sm text-gray-500">
                 Seite {page} von {filesData.totalPages}

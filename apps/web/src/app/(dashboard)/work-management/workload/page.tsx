@@ -15,7 +15,7 @@ export default function WorkloadPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Auslastung</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Uebersicht der Aufgabenverteilung im Team
+          Übersicht der Aufgabenverteilung im Team
         </p>
       </div>
 
@@ -46,7 +46,7 @@ export default function WorkloadPage() {
             <span>Mitglied</span>
             <span className="text-center">Offene Tasks</span>
             <span className="text-center">Heute</span>
-            <span className="text-center">Ueberfaellig</span>
+            <span className="text-center">Überfällig</span>
             <span className="text-center">Prio Hoch</span>
             <span>Auslastung</span>
           </div>
@@ -67,7 +67,7 @@ export default function WorkloadPage() {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                     <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-blue-400" />{entry.dueToday} heute</span>
-                    <span className={cn('flex items-center gap-1', entry.overdue > 0 && 'text-red-500 font-semibold')}><AlertTriangle className="h-3 w-3" />{entry.overdue} ueberfaellig</span>
+                    <span className={cn('flex items-center gap-1', entry.overdue > 0 && 'text-red-500 font-semibold')}><AlertTriangle className="h-3 w-3" />{entry.overdue} überfällig</span>
                     <span className="flex items-center gap-1"><Flag className="h-3 w-3 text-orange-400" />{entry.highPriority} hoch</span>
                   </div>
                   <div className="h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">

@@ -855,7 +855,7 @@ export default function CreatorDetailPage() {
                     className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
                   >
                     <ArrowLeft className="h-3 w-3" />
-                    Zurueck
+                    Zurück
                   </button>
                 )}
                 {activeBatch !== null && (
@@ -934,14 +934,14 @@ export default function CreatorDetailPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`Ordner "${folder.name}" mit allen Dateien loeschen?`)) {
+                              if (confirm(`Ordner "${folder.name}" mit allen Dateien löschen?`)) {
                                 fetch(`${API_URL}/api/creator-uploads/batch?batch=${encodeURIComponent(folder.batch)}`, { method: 'DELETE' })
                                   .then(() => window.location.reload())
                                   .catch(() => {});
                               }
                             }}
                             className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
-                            title="Ordner loeschen"
+                            title="Ordner löschen"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
@@ -1051,7 +1051,7 @@ export default function CreatorDetailPage() {
                             <button
                               onClick={(e) => { e.stopPropagation(); setDeleteUploadConfirm(upload.id); }}
                               className="flex items-center justify-center rounded-md bg-red-500 p-1 text-white shadow-sm hover:bg-red-600 transition-colors"
-                              title="Loeschen"
+                              title="Löschen"
                             >
                               <Trash2 className="h-2.5 w-2.5" />
                             </button>
@@ -1069,7 +1069,7 @@ export default function CreatorDetailPage() {
                         disabled={folderPage === 1}
                         className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition-colors"
                       >
-                        Zurueck
+                        Zurück
                       </button>
                       <span className="text-xs text-gray-500">
                         Seite {folderPage} von {batchFiles.totalPages}

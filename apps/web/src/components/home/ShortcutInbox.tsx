@@ -120,7 +120,7 @@ export function ShortcutInbox() {
         {items.length === 0 && (
           <div className="py-10 px-5 text-center">
             <Bell className="h-8 w-8 text-gray-200 dark:text-gray-700 mx-auto mb-2" />
-            <p className="text-xs text-gray-400">Alles aufgeraeumt</p>
+            <p className="text-xs text-gray-400">Alles aufgeräumt</p>
           </div>
         )}
         {items.map((item) => {

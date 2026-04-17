@@ -169,7 +169,7 @@ export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskCli
           )}
         >
           <Plus className="h-5 w-5" />
-          <span className="text-sm font-medium">Spalte hinzufuegen</span>
+          <span className="text-sm font-medium">Spalte hinzufügen</span>
         </button>
       </div>
 

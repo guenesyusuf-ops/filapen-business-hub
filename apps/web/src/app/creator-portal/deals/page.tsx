@@ -149,7 +149,7 @@ export default function PortalDealsPage() {
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Zurueck zu Meine Projekte
+          Zurück zu Meine Projekte
         </button>
 
         {/* Header */}

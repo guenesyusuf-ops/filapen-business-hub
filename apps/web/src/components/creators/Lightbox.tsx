@@ -214,7 +214,7 @@ export function Lightbox({
                   <button
                     onClick={() => setShowLivePopover(!showLivePopover)}
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium hover:bg-emerald-100 transition-colors"
-                    title="Live-Datum aendern"
+                    title="Live-Datum ändern"
                   >
                     <Radio className="h-3.5 w-3.5" />
                     Live am{' '}

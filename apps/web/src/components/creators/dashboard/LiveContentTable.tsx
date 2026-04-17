@@ -33,7 +33,7 @@ export function LiveContentTable({ rows, loading, onGoOffline, offlineLoading }:
           <div>
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Live Content</h2>
             <p className="text-xs text-gray-500 dark:text-white/40">
-              Aktuell veroeffentlichte Inhalte
+              Aktuell veröffentlichte Inhalte
             </p>
           </div>
         </div>

@@ -219,7 +219,7 @@ export default function ProjectDetailPage() {
             </button>
             <button
               onClick={() => {
-                if (confirm('Projekt wirklich loeschen? Alle Einladungen und Dokumente werden entfernt.')) {
+                if (confirm('Projekt wirklich löschen? Alle Einladungen und Dokumente werden entfernt.')) {
                   deleteProject.mutate(id, {
                     onSuccess: () => router.push('/creators/projects'),
                   });
@@ -229,7 +229,7 @@ export default function ProjectDetailPage() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-500/30 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Loeschen
+              Löschen
             </button>
           </div>
         </div>
@@ -424,7 +424,7 @@ function ProjectDocumentsSection({ projectId }: { projectId: string }) {
   };
 
   const handleDelete = async (docId: string) => {
-    if (!confirm('Dokument wirklich loeschen?')) return;
+    if (!confirm('Dokument wirklich löschen?')) return;
     await deleteMutation.mutateAsync({ projectId, docId });
   };
 
@@ -499,7 +499,7 @@ function ProjectDocumentsSection({ projectId }: { projectId: string }) {
                         onClick={() => handleDelete(doc.id)}
                         disabled={deleteMutation.isPending}
                         className="p-1 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
-                        title="Loeschen"
+                        title="Löschen"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

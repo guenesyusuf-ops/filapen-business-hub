@@ -389,7 +389,7 @@ export function CreatorFormModal({
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5"
-            aria-label="Schliessen"
+            aria-label="Schließen"
           >
             <X className="h-4 w-4" />
           </button>

@@ -221,7 +221,7 @@ export default function WorkManagementPage() {
             bgColor="bg-green-100 dark:bg-green-900/30"
           />
           <KpiCard
-            label="Ueberfaellig"
+            label="Überfällig"
             value={dashboard.overdue}
             icon={AlertTriangle}
             iconColor="text-red-600 dark:text-red-400"
@@ -229,7 +229,7 @@ export default function WorkManagementPage() {
             alert
           />
           <KpiCard
-            label="Faellig heute"
+            label="Fällig heute"
             value={dashboard.dueToday}
             icon={CalendarClock}
             iconColor="text-orange-600 dark:text-orange-400"
@@ -364,12 +364,12 @@ export default function WorkManagementPage() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    if (confirm(`Projekt "${project.name}" wirklich loeschen? Alle Tasks, Spalten und Daten gehen verloren.`)) {
+                    if (confirm(`Projekt "${project.name}" wirklich löschen? Alle Tasks, Spalten und Daten gehen verloren.`)) {
                       deleteProject.mutate(project.id);
                     }
                   }}
                   className="absolute top-3 right-3 p-1 rounded-md bg-red-500/80 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10"
-                  title="Projekt loeschen"
+                  title="Projekt löschen"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -424,7 +424,7 @@ export default function WorkManagementPage() {
                       }}
                       className="text-[10px] text-gray-400 hover:text-primary-500 transition-colors"
                     >
-                      {cat ? 'Aendern' : '+ Kategorie'}
+                      {cat ? 'Ändern' : '+ Kategorie'}
                     </button>
                     {showCategoryPicker === project.id && (
                       <div className="absolute bottom-full left-0 mb-1 z-20 bg-white dark:bg-[#1a1d2e] border border-gray-200 dark:border-white/10 rounded-lg shadow-lg py-1 min-w-[120px]">

@@ -94,10 +94,10 @@ export function KanbanTaskCard({ task, onClick, onDelete }: KanbanTaskCardProps)
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (confirm('Aufgabe loeschen?')) onDelete(task.id);
+            if (confirm('Aufgabe löschen?')) onDelete(task.id);
           }}
           className="absolute top-1.5 right-1.5 p-0.5 rounded bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
-          title="Loeschen"
+          title="Löschen"
         >
           <X className="h-3 w-3" />
         </button>

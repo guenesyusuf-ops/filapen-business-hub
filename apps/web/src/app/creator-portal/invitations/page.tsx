@@ -375,7 +375,7 @@ export default function CreatorInvitationsPage() {
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex justify-end">
               <button onClick={() => setNoteModal(null)} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700">
-                Schliessen
+                Schließen
               </button>
             </div>
           </div>

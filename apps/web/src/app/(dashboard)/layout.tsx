@@ -516,7 +516,7 @@ function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout, onOpenComma
       {/* Profile avatar — click opens persönliche Einstellungen */}
       <button
         onClick={() => router.push('/settings/profile')}
-        title="Persoenliche Einstellungen"
+        title="Persönliche Einstellungen"
         className="rounded-full transition-all duration-150 hover:ring-2 hover:ring-primary-200 dark:hover:ring-primary-400/40 active:scale-95 overflow-hidden"
       >
         {user?.avatarUrl ? (

@@ -219,7 +219,7 @@ function InviteModal({
                   onClick={toggleAll}
                   className="text-xs text-primary-600 hover:text-primary-700 font-medium"
                 >
-                  {allSelected ? 'Alle abwaehlen' : 'Alle auswaehlen'}
+                  {allSelected ? 'Alle abwählen' : 'Alle auswählen'}
                 </button>
               </div>
               <div className="space-y-1.5 rounded-lg border border-gray-200 dark:border-white/10 p-2">
@@ -765,7 +765,7 @@ export default function TeamSettingsPage() {
                     <button
                       onClick={() => handleCancelInvite(invite.id)}
                       className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
-                      title="Einladung zurueckziehen"
+                      title="Einladung zurückziehen"
                     >
                       <X className="h-4 w-4" />
                     </button>

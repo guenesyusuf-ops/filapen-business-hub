@@ -239,7 +239,7 @@ export default function ProjectDetailPage() {
     return (
       <div className="space-y-4">
         <Link href="/work-management" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
-          <ArrowLeft className="h-4 w-4" /> Zurueck zu Projekte
+          <ArrowLeft className="h-4 w-4" /> Zurück zu Projekte
         </Link>
         <div className="rounded-xl border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 p-4 text-sm text-red-600 dark:text-red-400">
           Projekt konnte nicht geladen werden.

@@ -52,11 +52,11 @@ function greetingFor(date = new Date()): string {
 }
 
 const WELCOME_MESSAGES = [
-  'Schoen, dass du wieder da bist',
-  'Bereit, etwas Grosses zu erledigen?',
+  'Schön, dass du wieder da bist',
+  'Bereit, etwas Großes zu erledigen?',
   'Heute ist ein guter Tag, um Dinge zu bewegen',
   'Lass uns loslegen',
-  'Fokussiert bleibt am meisten haengen',
+  'Fokussiert bleibt am meisten hängen',
 ];
 
 function messageForToday(): string {
@@ -151,7 +151,7 @@ function TasksWidget() {
           {overdue > 0 && (
             <span className="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-red-600 dark:text-red-400">
               <AlertTriangle className="h-3 w-3" />
-              {overdue} ueberfaellig
+              {overdue} überfällig
             </span>
           )}
         </div>
@@ -356,7 +356,7 @@ function EventRow({ event }: { event: PersonalCalendarEvent }) {
         <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">{event.title}</p>
         <p className="text-[10px] text-gray-500 dark:text-gray-400">
           {event.allDay
-            ? 'Ganztaegig'
+            ? 'Ganztägig'
             : start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
           {event.reminderAt && (
             <span className="inline-flex items-center gap-0.5 ml-2">
@@ -437,7 +437,7 @@ function AddEventModal({ defaultDate, onClose }: { defaultDate: string; onClose:
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="accent-primary-600" />
-            Ganztaegig
+            Ganztägig
           </label>
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" checked={reminder} onChange={(e) => setReminder(e.target.checked)} className="accent-primary-600" />
@@ -645,7 +645,7 @@ function QuickStats() {
 
   const items = [
     { label: 'Offene Aufgaben', value: open, icon: ClipboardList, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    { label: 'Heute faellig', value: dueToday, icon: Clock, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+    { label: 'Heute fällig', value: dueToday, icon: Clock, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
     { label: 'Heute erledigt', value: completedToday, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
   ];
 

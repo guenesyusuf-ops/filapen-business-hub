@@ -69,7 +69,7 @@ export function AttachmentPreview({ attachment, onClose }: AttachmentPreviewProp
           <button
             onClick={onClose}
             className="rounded-lg p-2 bg-white/10 hover:bg-white/20 transition-colors"
-            title="Schliessen (ESC)"
+            title="Schließen (ESC)"
           >
             <X className="h-4 w-4" />
           </button>
@@ -137,7 +137,7 @@ export function AttachmentPreview({ attachment, onClose }: AttachmentPreviewProp
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
               Dieser Dateityp kann nicht direkt angezeigt werden.
-              {attachment.fileSize && <> Groesse: {formatSize(attachment.fileSize)}.</>}
+              {attachment.fileSize && <> Größe: {formatSize(attachment.fileSize)}.</>}
             </p>
             <a
               href={attachment.fileUrl}
@@ -178,7 +178,7 @@ export function AttachmentRow({
       <button
         onClick={onOpen}
         className="flex-shrink-0 h-10 w-10 rounded-md overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/5 flex items-center justify-center hover:border-primary-400 transition-colors"
-        title="Vorschau oeffnen"
+        title="Vorschau öffnen"
       >
         {isImage ? (
           <img src={attachment.fileUrl} alt={attachment.fileName} className="w-full h-full object-cover" />
@@ -219,7 +219,7 @@ export function AttachmentRow({
       <button
         onClick={onDelete}
         className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
-        title="Loeschen"
+        title="Löschen"
       >
         <X className="h-3.5 w-3.5" />
       </button>

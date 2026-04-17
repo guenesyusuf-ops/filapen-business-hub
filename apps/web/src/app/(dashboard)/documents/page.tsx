@@ -415,7 +415,7 @@ export default function DocumentsPage() {
           {/* Header */}
           <div className="hidden sm:grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 px-4 py-2 border-b border-gray-100 dark:border-white/5 text-[10px] font-bold text-gray-400 uppercase">
             <span>Name</span>
-            <span>Groesse</span>
+            <span>Größe</span>
             <span>Datum</span>
             <span>Status</span>
           </div>
