@@ -411,8 +411,7 @@ export function useCreateWmColumn() {
     mutationFn: (data: { projectId: string; name: string; color?: string }) =>
       wmFetch<WmColumn>(`/projects/${data.projectId}/columns`, { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
-      qc.invalidateQueries({ queryKey: ['wm', 'columns', vars.projectId] });
+      qc.refetchQueries({ queryKey: ['wm', 'project', vars.projectId] });
     },
   });
 }

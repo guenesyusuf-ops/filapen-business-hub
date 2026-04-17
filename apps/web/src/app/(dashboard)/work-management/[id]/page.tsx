@@ -200,24 +200,36 @@ export default function ProjectDetailPage() {
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ columnIds: newOrder }),
     }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['wm', 'project', projectId] });
+      queryClient.refetchQueries({ queryKey: ['wm', 'project', projectId] });
     }).catch((err) => {
       console.error('Column reorder failed:', err);
-      queryClient.invalidateQueries({ queryKey: ['wm', 'project', projectId] });
+      queryClient.refetchQueries({ queryKey: ['wm', 'project', projectId] });
     });
   }, [project, projectId, queryClient]);
 
   const handleCreateColumn = useCallback((name: string, color: string) => {
-    createColumn.mutate({ projectId, name, color });
-  }, [createColumn, projectId]);
+    createColumn.mutate({ projectId, name, color }, {
+      onSuccess: () => {
+        queryClient.refetchQueries({ queryKey: ['wm', 'project', projectId] });
+      },
+    });
+  }, [createColumn, projectId, queryClient]);
 
   const handleDeleteColumn = useCallback((columnId: string) => {
+    // Optimistic: remove column from cache immediately
+    queryClient.setQueryData(['wm', 'project', projectId], (old: any) => {
+      if (!old) return old;
+      return { ...old, columns: old.columns.filter((c: any) => c.id !== columnId) };
+    });
     fetch(`${API_URL}/api/wm/columns/${columnId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['wm', 'project', projectId] });
-    }).catch((err) => console.error('Column delete failed:', err));
+      queryClient.refetchQueries({ queryKey: ['wm', 'project', projectId] });
+    }).catch((err) => {
+      console.error('Column delete failed:', err);
+      queryClient.refetchQueries({ queryKey: ['wm', 'project', projectId] });
+    });
   }, [projectId, queryClient]);
 
   const handleTaskClick = useCallback((task: WmTask) => {
