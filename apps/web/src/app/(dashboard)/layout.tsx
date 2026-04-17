@@ -49,6 +49,7 @@ import {
   LogOut,
   UserCog,
   Home,
+  FolderOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -162,6 +163,11 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.wmMyTasks', href: '/work-management/my-tasks', icon: ClipboardList },
       { labelKey: 'nav.wmWorkload', href: '/work-management/workload', icon: BarChart },
     ],
+  },
+  {
+    labelKey: 'nav.documents',
+    href: '/documents',
+    icon: FolderOpen,
   },
   {
     labelKey: 'nav.settings',

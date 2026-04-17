@@ -15,6 +15,7 @@ import { StorageModule } from './common/storage/storage.module';
 import { WorkManagementModule } from './modules/work-management/work-management.module';
 import { HomeModule } from './modules/home/home.module';
 import { AiModule } from './modules/ai/ai.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -58,6 +59,7 @@ import { HealthController } from './health.controller';
     WorkManagementModule,
     HomeModule,
     AiModule,
+    DocumentsModule,
   ],
   controllers: [HealthController],
   providers: [],

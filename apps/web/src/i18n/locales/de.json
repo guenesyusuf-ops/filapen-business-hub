@@ -68,7 +68,8 @@
     "workManagement": "Aufgabenverwaltung",
     "wmProjects": "Projekte",
     "wmMyTasks": "Meine Aufgaben",
-    "wmWorkload": "Auslastung"
+    "wmWorkload": "Auslastung",
+    "documents": "Dokumente"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",

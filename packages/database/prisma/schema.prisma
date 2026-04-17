@@ -330,6 +330,9 @@ model Organization {
   influencerProfiles  InfluencerProfile[]
   watchlists          Watchlist[]
   brands              Brand[]
+  docFolders          DocFolder[]
+  docFiles            DocFile[]
+  docActivities       DocActivity[]
   brandVoices         BrandVoice[]
   contentTemplates    ContentTemplate[]
   contentPieces       ContentPiece[]
@@ -1694,4 +1697,151 @@ model WmNotification {
 
   @@index([userId, read])
   @@map("wm_notifications")
+}
+
+// =============================================================================
+// ENUMS — Documents Hub
+// =============================================================================
+
+// DocFile.status uses varchar: draft | approved | archived
+
+// =============================================================================
+// MODELS — Documents Hub
+// =============================================================================
+
+model DocFolder {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String    @map("org_id") @db.Uuid
+  parentId    String?   @map("parent_id") @db.Uuid
+  name        String    @db.VarChar(255)
+  color       String?   @db.VarChar(30)
+  description String?   @db.Text
+  createdBy   String    @map("created_by") @db.Uuid
+  locked      Boolean   @default(false)
+  lockedBy    String?   @map("locked_by") @db.Uuid
+  tags        String[]  @default([])
+  trashedAt   DateTime? @map("trashed_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  parent       DocFolder?      @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children     DocFolder[]     @relation("FolderTree")
+  files        DocFile[]
+  permissions  DocPermission[]
+  activities   DocActivity[]   @relation("FolderActivities")
+  favorites    DocFavorite[]   @relation("FolderFavorites")
+
+  @@index([orgId])
+  @@index([orgId, parentId])
+  @@index([orgId, trashedAt])
+  @@index([createdBy])
+  @@map("doc_folders")
+}
+
+model DocFile {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String        @map("org_id") @db.Uuid
+  folderId    String?       @map("folder_id") @db.Uuid
+  fileName    String        @map("file_name") @db.VarChar(500)
+  fileUrl     String        @map("file_url") @db.Text
+  storageKey  String?       @map("storage_key") @db.Text
+  fileSize    BigInt?       @map("file_size")
+  fileType    String?       @map("file_type") @db.VarChar(50)
+  mimeType    String?       @map("mime_type") @db.VarChar(100)
+  dimensions  Json?         @db.JsonB
+  createdBy   String        @map("created_by") @db.Uuid
+  status      String        @default("draft") @db.VarChar(20)
+  tags        String[]      @default([])
+  metadata    Json?
+  trashedAt   DateTime?     @map("trashed_at") @db.Timestamptz
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  folder       DocFolder?       @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  versions     DocFileVersion[]
+  activities   DocActivity[]    @relation("FileActivities")
+  favorites    DocFavorite[]    @relation("FileFavorites")
+
+  @@index([orgId])
+  @@index([folderId])
+  @@index([orgId, status])
+  @@index([orgId, trashedAt])
+  @@index([createdBy])
+  @@map("doc_files")
+}
+
+model DocFileVersion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fileId        String   @map("file_id") @db.Uuid
+  versionNum    Int      @map("version_num") @default(1)
+  fileName      String   @map("file_name") @db.VarChar(500)
+  fileUrl       String   @map("file_url") @db.Text
+  storageKey    String?  @map("storage_key") @db.Text
+  fileSize      BigInt?  @map("file_size")
+  createdBy     String   @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  file DocFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([fileId, versionNum])
+  @@map("doc_file_versions")
+}
+
+model DocPermission {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folderId  String   @map("folder_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  canRead   Boolean  @default(true) @map("can_read")
+  canUpload Boolean  @default(false) @map("can_upload")
+  canEdit   Boolean  @default(false) @map("can_edit")
+  canDelete Boolean  @default(false) @map("can_delete")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  folder DocFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, userId], map: "uq_doc_permission_folder_user")
+  @@index([userId])
+  @@map("doc_permissions")
+}
+
+model DocActivity {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  folderId  String?  @map("folder_id") @db.Uuid
+  fileId    String?  @map("file_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  userName  String   @map("user_name") @db.VarChar(255)
+  action    String   @db.VarChar(100)
+  details   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  folder       DocFolder?   @relation("FolderActivities", fields: [folderId], references: [id], onDelete: SetNull)
+  file         DocFile?     @relation("FileActivities", fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([orgId, createdAt])
+  @@index([folderId])
+  @@index([fileId])
+  @@index([userId])
+  @@map("doc_activities")
+}
+
+model DocFavorite {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  folderId  String?  @map("folder_id") @db.Uuid
+  fileId    String?  @map("file_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  folder DocFolder? @relation("FolderFavorites", fields: [folderId], references: [id], onDelete: Cascade)
+  file   DocFile?   @relation("FileFavorites", fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, folderId], map: "uq_doc_favorite_user_folder")
+  @@unique([userId, fileId], map: "uq_doc_favorite_user_file")
+  @@index([userId])
+  @@map("doc_favorites")
 }

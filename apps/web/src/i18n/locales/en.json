@@ -68,7 +68,8 @@
     "workManagement": "Work Management",
     "wmProjects": "Projects",
     "wmMyTasks": "My Tasks",
-    "wmWorkload": "Workload"
+    "wmWorkload": "Workload",
+    "documents": "Documents"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",
