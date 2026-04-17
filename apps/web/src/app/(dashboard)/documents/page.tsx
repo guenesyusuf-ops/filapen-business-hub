@@ -90,6 +90,7 @@ export default function DocumentsPage() {
 
   async function handleFileUpload(fileList: FileList) {
     setUploading(true);
+    setUploadProgress(0);
     try {
       const files = Array.from(fileList);
       for (let i = 0; i < files.length; i++) {
@@ -101,7 +102,12 @@ export default function DocumentsPage() {
           file,
           onProgress: (pct) => setUploadProgress(pct),
         });
+        setUploadProgress(100);
       }
+      // Show "fertig" briefly
+      setUploadFileName('Alle Dateien hochgeladen ✓');
+      setUploadProgress(100);
+      await new Promise((r) => setTimeout(r, 1200));
     } catch { /* handled by mutation */ }
     setUploading(false);
     setUploadProgress(0);
@@ -165,7 +171,7 @@ export default function DocumentsPage() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
           >
             <Upload className="h-4 w-4" />
-            {uploading ? 'Laedt...' : <span className="hidden sm:inline">Hochladen</span>}
+            {uploading ? 'Lädt...' : <span className="hidden sm:inline">Hochladen</span>}
           </button>
           <input
             ref={fileInputRef}
