@@ -94,7 +94,7 @@ export class UploadService {
     // =========================================================================
     if (data.tab === 'rechnungen') {
       try {
-        await this.autoCreateInvoiceTask(orgId, creator.name, upload.id);
+        await this.autoCreateInvoiceTask(orgId, creator.name, upload);
       } catch (err) {
         this.logger.warn('Auto-create invoice task failed:', err);
         // Don't fail the upload if the task creation fails
@@ -505,7 +505,7 @@ export class UploadService {
    * Auto-creates a task in the "Rechnungen" project when a creator uploads an invoice.
    * Assignees: Mazlum + Yavuz. Due: 5 business days. Column: To Do.
    */
-  private async autoCreateInvoiceTask(orgId: string, creatorName: string, uploadId: string) {
+  private async autoCreateInvoiceTask(orgId: string, creatorName: string, uploadData: { id: string; fileName: string; fileUrl: string; storageKey: string | null; fileSize: bigint | null; mimeType: string | null }) {
     // Find the Rechnungen project
     const project = await this.prisma.wmProject.findFirst({
       where: { orgId, name: { contains: 'Rechnungen', mode: 'insensitive' } },
@@ -548,12 +548,24 @@ export class UploadService {
         projectId: project.id,
         columnId: todoColumn.id,
         title: `${creatorName} Rechnung`,
-        description: `Automatisch erstellt nach Rechnungs-Upload (Upload-ID: ${uploadId})`,
+        description: `Automatisch erstellt nach Rechnungs-Upload (Upload-ID: ${uploadData.id})`,
         priority: 'medium',
         assigneeId: assignees[0]?.id || null,
         createdById: assignees[0]?.id || orgId,
         dueDate,
         position: 0,
+      },
+    });
+
+    // Attach the invoice PDF to the task
+    await this.prisma.wmAttachment.create({
+      data: {
+        taskId: task.id,
+        fileName: uploadData.fileName,
+        fileUrl: uploadData.fileUrl,
+        storageKey: uploadData.storageKey,
+        fileSize: uploadData.fileSize ? Number(uploadData.fileSize) : null,
+        fileType: uploadData.mimeType || 'application/pdf',
       },
     });
 
