@@ -59,14 +59,21 @@ export function CommandBar({ open, onClose }: CommandBarProps) {
     setLoading(true);
     setError(null);
 
-    // Add user message to chat
-    setMessages((prev) => [...prev, { role: 'user', content: userQuery }]);
+    // Add user message to chat + build history for context
+    const updatedMessages = [...messages, { role: 'user' as const, content: userQuery }];
+    setMessages(updatedMessages);
+
+    // Build conversation history for the API (last 10 messages for context)
+    const history = updatedMessages.slice(-10).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
     try {
       const res = await fetch(`${API_URL}/api/ai/ask`, {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: userQuery }),
+        body: JSON.stringify({ query: userQuery, history }),
       });
 
       if (!res.ok) {

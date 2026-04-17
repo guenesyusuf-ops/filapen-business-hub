@@ -36,7 +36,7 @@ export class AiController {
   @Post('ask')
   async ask(
     @Headers('authorization') authHeader: string,
-    @Body() body: { query: string },
+    @Body() body: { query: string; history?: { role: string; content: string }[] },
   ) {
     const userId = this.extractUserId(authHeader);
     if (!body.query || !body.query.trim()) {
@@ -44,7 +44,7 @@ export class AiController {
     }
 
     try {
-      return await this.ai.ask(userId, body.query.trim());
+      return await this.ai.ask(userId, body.query.trim(), body.history);
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error('AI ask failed', error);

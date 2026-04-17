@@ -318,7 +318,11 @@ export class AiService {
     }
   }
 
-  async ask(userId: string, query: string): Promise<{ answer: string; steps?: string[] }> {
+  async ask(
+    userId: string,
+    query: string,
+    history?: { role: string; content: string }[],
+  ): Promise<{ answer: string; steps?: string[] }> {
     if (!this.client) {
       throw new ServiceUnavailableException(
         'Ask Filapen ist nicht konfiguriert. Bitte setze ANTHROPIC_API_KEY in den Server-Variablen.',
@@ -326,10 +330,23 @@ export class AiService {
     }
     if (!query.trim()) throw new BadRequestException('Frage darf nicht leer sein');
 
-    // Max 5 agentic rounds to prevent runaway tool loops
-    const messages: Anthropic.MessageParam[] = [
-      { role: 'user', content: query },
-    ];
+    // Build conversation context from history (if provided)
+    const messages: Anthropic.MessageParam[] = [];
+
+    if (history && history.length > 1) {
+      // Include prior messages for context (skip the last one — that's the current query)
+      for (const msg of history.slice(0, -1)) {
+        if (msg.role === 'user') {
+          messages.push({ role: 'user', content: msg.content });
+        } else if (msg.role === 'assistant') {
+          messages.push({ role: 'assistant', content: msg.content });
+        }
+      }
+    }
+
+    // Add the current query
+    messages.push({ role: 'user', content: query });
+
     const steps: string[] = [];
 
     for (let round = 0; round < 5; round++) {
