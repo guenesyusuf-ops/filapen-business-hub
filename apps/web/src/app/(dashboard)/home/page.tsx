@@ -35,6 +35,7 @@ import {
 import { cn } from '@/lib/utils';
 import { OnlineUsersWidget } from '@/components/home/OnlineUsersWidget';
 import { PendingApprovalsWidget } from '@/components/home/PendingApprovalsWidget';
+import { ShortcutInbox } from '@/components/home/ShortcutInbox';
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -674,12 +675,13 @@ export default function HomePage() {
       <GreetingCard />
       <QuickStats />
       <PendingApprovalsWidget />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
         <TasksWidget />
         <CalendarWidget />
         <NotesWidget />
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+        <ShortcutInbox />
         <OnlineUsersWidget />
       </div>
     </div>

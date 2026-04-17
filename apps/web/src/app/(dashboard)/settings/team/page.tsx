@@ -569,18 +569,18 @@ export default function TeamSettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6 animate-fade-in">
+    <div className="max-w-4xl space-y-4 sm:space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Team-Verwaltung</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+          <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Team-Verwaltung</h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Mitglieder einladen und Zugriffsrechte verwalten
           </p>
         </div>
         <button
           onClick={() => setShowInvite(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 active:scale-[0.98] transition-all"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 active:scale-[0.98] transition-all w-full sm:w-auto"
         >
           <UserPlus className="h-4 w-4" />
           Mitglied einladen
@@ -595,7 +595,46 @@ export default function TeamSettingsPage() {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile card layout */}
+        <div className="md:hidden divide-y divide-gray-100 dark:divide-white/5">
+          {members.map((member) => {
+            const isAdminMember = member.role === 'owner' || member.role === 'admin';
+            const perms = member.menuPermissions ?? [];
+            return (
+              <div key={`m-${member.id}`} className="px-4 py-3 space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[11px] font-bold text-white">{(member.name || member.email).charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{member.name || member.email.split('@')[0]}</span>
+                      {roleBadge(member.role)}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.email}</div>
+                  </div>
+                  <ActionMenu member={member} onEditPermissions={setEditingMember} onChangeRole={handleChangeRole} onRemove={handleRemove} />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                  {isAdminMember ? (
+                    <span className="text-gray-400 italic">Alle Menues</span>
+                  ) : perms.length > 0 ? (
+                    perms.map((p) => {
+                      const meta = MENU_PERMISSIONS.find((m) => m.key === p);
+                      return <span key={p} className="px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 font-medium">{meta?.label || p}</span>;
+                    })
+                  ) : (
+                    <span className="text-red-500 italic">Kein Zugriff</span>
+                  )}
+                  <span className="text-gray-400 ml-auto">{formatLastActive(member.lastActiveAt)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-white/8">

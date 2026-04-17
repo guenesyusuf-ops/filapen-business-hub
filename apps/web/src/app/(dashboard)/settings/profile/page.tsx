@@ -141,17 +141,17 @@ export default function ProfileSettingsPage() {
     : user.email.charAt(0).toUpperCase();
 
   return (
-    <div className="max-w-2xl space-y-6 animate-fade-in">
+    <div className="max-w-2xl space-y-4 sm:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Persoenliche Einstellungen</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Persoenliche Einstellungen</h1>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
           Dein Profil, Bild und Kontaktdaten.
         </p>
       </div>
 
-      <form onSubmit={handleSave} className="rounded-xl bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)] p-6 space-y-6">
+      <form onSubmit={handleSave} className="rounded-xl bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)] p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* Avatar */}
-        <div className="flex items-center gap-5">
+        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
           <div className="relative">
             {avatarUrl ? (
               <img

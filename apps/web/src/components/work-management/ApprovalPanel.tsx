@@ -127,6 +127,20 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
               <span className="flex-1 truncate font-medium text-gray-700 dark:text-gray-300">
                 {step.userName}
               </span>
+              {step.deadline && step.status === 'pending' && (() => {
+                const remaining = new Date(step.deadline).getTime() - Date.now();
+                const hours = Math.floor(remaining / 3_600_000);
+                const isUrgent = remaining < 12 * 3_600_000;
+                const isOverdue = remaining < 0;
+                return (
+                  <span className={cn(
+                    'text-[9px] font-semibold flex-shrink-0',
+                    isOverdue ? 'text-red-600' : isUrgent ? 'text-orange-500' : 'text-gray-400',
+                  )}>
+                    {isOverdue ? 'Ueberfaellig' : `${hours}h`}
+                  </span>
+                );
+              })()}
               {step.comment && (
                 <span className="text-[9px] text-gray-400 truncate max-w-[80px]" title={step.comment}>
                   &ldquo;{step.comment}&rdquo;
@@ -243,14 +257,34 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
         </button>
 
         {showTimeline && (
-          <div className="space-y-1.5 max-h-32 overflow-y-auto">
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {/* Version markers */}
+            {detail.approvalVersion > 1 && (
+              <div className="flex items-center gap-1.5 pb-1">
+                {Array.from({ length: detail.approvalVersion }, (_, i) => i + 1).map((v) => (
+                  <span
+                    key={v}
+                    className={cn(
+                      'text-[9px] font-bold px-1.5 py-0.5 rounded',
+                      v === detail.approvalVersion
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400',
+                    )}
+                  >
+                    V{v}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {(detail.activities ?? []).map((act: any) => (
               <div key={act.id} className="flex items-start gap-1.5">
                 <div className={cn(
                   'mt-1 h-1.5 w-1.5 rounded-full flex-shrink-0',
                   act.action === 'approved' ? 'bg-emerald-500'
                     : act.action === 'rejected' ? 'bg-red-500'
-                      : 'bg-blue-500',
+                      : act.action === 'resubmitted' ? 'bg-amber-500'
+                        : 'bg-blue-500',
                 )} />
                 <div className="min-w-0">
                   <p className="text-[10px] text-gray-600 dark:text-gray-400 leading-snug">{act.details}</p>
@@ -262,6 +296,19 @@ export function ApprovalPanel({ taskId }: ApprovalPanelProps) {
             ))}
             {(detail.activities ?? []).length === 0 && (
               <p className="text-[10px] text-gray-400 italic">Noch keine Aktivitaeten</p>
+            )}
+
+            {/* Attachment diff for resubmissions */}
+            {detail.approvalVersion > 1 && (detail.attachments ?? []).length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/5">
+                <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Anhaenge (V{detail.approvalVersion})</p>
+                {detail.attachments.map((att: any) => (
+                  <div key={att.id} className="flex items-center gap-1.5 text-[10px] text-gray-600 dark:text-gray-400">
+                    <span className="h-1 w-1 rounded-full bg-emerald-400 flex-shrink-0" />
+                    <span className="truncate">{att.fileName}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
