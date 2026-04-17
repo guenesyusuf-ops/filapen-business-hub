@@ -487,10 +487,9 @@ function CreatorListPageInner() {
           className="rounded-lg border border-border px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-accent-creator/30"
         >
           <option value="all">Alle Vergütungen</option>
-          <option value="prozent">Prozent</option>
-          <option value="fest">Feste Vergütung</option>
-          <option value="kostenlos">Kostenlos</option>
-          <option value="tausch">Produkttausch</option>
+          <option value="Commission">Prozent / Provision</option>
+          <option value="Fixpreis">Fixpreis</option>
+          <option value="Both">Beides (Fix + Provision)</option>
         </select>
         <select
           value={kids}
