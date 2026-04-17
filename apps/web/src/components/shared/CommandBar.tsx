@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Search, Sparkles, ArrowRight, Wrench, Send } from 'lucide-react';
+import { X, Search, Sparkles, ArrowRight, Wrench, Send, Mic, MicOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
@@ -22,8 +22,49 @@ export function CommandBar({ open, onClose }: CommandBarProps) {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Check if speech recognition is available
+  const hasSpeech = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+
+  function toggleVoice() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'de-DE';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setQuery(transcript);
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+      // Auto-submit if we got text
+      setTimeout(() => inputRef.current?.focus(), 50);
+    };
+
+    recognition.onerror = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }
 
   // Focus + reset on open
   useEffect(() => {
@@ -201,6 +242,20 @@ export function CommandBar({ open, onClose }: CommandBarProps) {
               placeholder={messages.length > 0 ? 'Nachfrage stellen...' : 'Frag Filapen...'}
               className="flex-1 bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
             />
+            {hasSpeech && (
+              <button
+                onClick={toggleVoice}
+                className={cn(
+                  'flex items-center justify-center h-8 w-8 rounded-lg transition-colors',
+                  listening
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-primary-500',
+                )}
+                title={listening ? 'Diktat stoppen' : 'Diktat starten'}
+              >
+                {listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+              </button>
+            )}
             <button
               onClick={handleSubmit}
               disabled={!query.trim() || loading}
