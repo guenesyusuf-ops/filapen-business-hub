@@ -244,7 +244,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
     <>
     {/* Mobile backdrop */}
     {!collapsed && (
-      <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => toggleSidebar?.()} />
+      <div className="fixed inset-0 bg-black/40 z-[35] md:hidden" onClick={() => toggleSidebar?.()} />
     )}
     <nav
       className={cn(
@@ -694,7 +694,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-secondary dark:bg-[#0f1117]">
+    <div className="flex h-[100dvh] md:h-screen overflow-hidden bg-surface-secondary dark:bg-[#0f1117]">
       {/* Sidebar */}
       <Sidebar collapsed={sidebarCollapsed} user={currentUser} pendingApprovalCount={pendingApprovalCount} toggleSidebar={toggleSidebar} />
 

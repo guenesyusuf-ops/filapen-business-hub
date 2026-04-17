@@ -43,7 +43,7 @@ export function BottomNav() {
     <>
       {/* More menu overlay */}
       {showMore && (
-        <div className="fixed inset-0 z-[90]">
+        <div className="fixed inset-0 z-[75]">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowMore(false)} />
           <div className="absolute bottom-16 left-0 right-0 z-[91] mx-3 mb-1 rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden animate-scale-in">
             <div className="py-2 max-h-[50vh] overflow-y-auto">
@@ -68,7 +68,7 @@ export function BottomNav() {
       )}
 
       {/* Bottom bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-[80] md:hidden bg-white dark:bg-[#0f1117] border-t border-gray-200 dark:border-white/10 safe-area-bottom">
+      <nav className="fixed bottom-0 left-0 right-0 z-[70] md:hidden bg-white dark:bg-[#0f1117] border-t border-gray-200 dark:border-white/10 safe-area-bottom">
         <div className="flex items-center justify-around h-14 px-1">
           {TABS.map((tab) => {
             const active = isActive(tab.href);

@@ -58,7 +58,7 @@ export function GlobalMessenger() {
       <button
         data-messenger-toggle
         onClick={() => setOpen(!open)}
-        className="fixed bottom-20 md:bottom-5 right-5 z-30 h-12 w-12 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg flex items-center justify-center transition-all active:scale-95"
+        className="fixed bottom-[4.5rem] md:bottom-5 right-5 z-[75] h-12 w-12 rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg flex items-center justify-center transition-all active:scale-95"
       >
         {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
         {!open && totalUnread > 0 && (
@@ -70,7 +70,7 @@ export function GlobalMessenger() {
 
       {/* User list panel */}
       {open && (
-        <div className="fixed bottom-20 right-5 z-30 w-72 sm:w-80 rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden animate-scale-in">
+        <div className="fixed bottom-[7rem] md:bottom-20 right-5 z-[75] w-72 sm:w-80 max-h-[calc(100vh-9rem)] rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden animate-scale-in">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4 text-primary-500" />

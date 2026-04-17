@@ -192,7 +192,7 @@ export function KanbanBoard({ columns, members, onMoveTask, onAddTask, onTaskCli
         {/* Swipeable column */}
         {mobileCol && (
           <div
-            className="flex-1 overflow-y-auto"
+            className="flex-1 overflow-y-auto touch-pan-y"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
