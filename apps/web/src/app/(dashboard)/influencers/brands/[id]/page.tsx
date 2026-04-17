@@ -256,7 +256,7 @@ function TypeBreakdown({ breakdown }: { breakdown: Record<string, number> }) {
               />
               <span className="text-xs text-gray-600 capitalize">{TYPE_LABELS[type]}</span>
             </div>
-            <span className="text-xs font-semibold text-gray-900">{count}</span>
+            <span className="text-xs font-semibold text-gray-900 dark:text-white">{count}</span>
           </div>
         ))}
       </div>
@@ -361,7 +361,7 @@ function InfluencersTable({ influencers }: { influencers: any[] }) {
   return (
     <div className="rounded-xl bg-white shadow-card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-900">Associated Creators</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Associated Creators</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -431,7 +431,7 @@ function InfluencersTable({ influencers }: { influencers: any[] }) {
                     {PLATFORM_LABELS[inf.platform] ?? inf.platform}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-right text-xs font-medium text-gray-900">
+                <td className="px-3 py-3 text-right text-xs font-medium text-gray-900 dark:text-white">
                   {formatNumber(inf.followerCount)}
                 </td>
                 <td className="px-3 py-3 text-right text-xs text-gray-700">
@@ -493,7 +493,7 @@ function CompetitorOverlapSection({ data }: { data: any }) {
               <div className="flex items-center gap-2">
                 <BrandLogo name={comp.competitor.name} size="sm" />
                 <div>
-                  <span className="text-sm font-medium text-gray-900">{comp.competitor.name}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{comp.competitor.name}</span>
                   {comp.competitor.category && (
                     <span className="text-xs text-gray-400 ml-2">{comp.competitor.category}</span>
                   )}
@@ -679,7 +679,7 @@ export default function BrandDetailPage() {
               </span>
               <kpi.icon className="h-3.5 w-3.5" style={{ color: kpi.color }} />
             </div>
-            <div className="text-lg font-bold text-gray-900">
+            <div className="text-lg font-bold text-gray-900 dark:text-white">
               {kpi.format === 'percentage'
                 ? `${kpi.value.toFixed(1)}%`
                 : formatNumber(kpi.value)}

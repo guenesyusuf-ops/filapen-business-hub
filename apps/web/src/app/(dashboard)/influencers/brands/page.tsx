@@ -76,7 +76,7 @@ function CreateBrandModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-gray-900">Add Brand</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add Brand</h2>
           <button
             onClick={onClose}
             className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
@@ -166,13 +166,13 @@ function BrandCard({ brand }: { brand: any }) {
         <div className="flex items-center gap-1.5">
           <Users className="h-3 w-3 text-gray-400" />
           <span className="text-xs text-gray-600">
-            <span className="font-semibold text-gray-900">{brand.totalInfluencers}</span> creators
+            <span className="font-semibold text-gray-900 dark:text-white">{brand.totalInfluencers}</span> creators
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <MessageSquare className="h-3 w-3 text-gray-400" />
           <span className="text-xs text-gray-600">
-            <span className="font-semibold text-gray-900">{brand.totalMentions}</span> mentions
+            <span className="font-semibold text-gray-900 dark:text-white">{brand.totalMentions}</span> mentions
           </span>
         </div>
       </div>
@@ -219,7 +219,7 @@ export default function BrandsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Brands</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Brands</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Track brand relationships and influencer collaborations
           </p>

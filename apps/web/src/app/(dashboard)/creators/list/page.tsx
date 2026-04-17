@@ -408,7 +408,7 @@ function CreatorListPageInner() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Creators</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Creators</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {data ? `${data.total} creator${data.total !== 1 ? 's' : ''}` : 'Loading...'}
           </p>

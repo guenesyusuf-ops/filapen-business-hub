@@ -87,7 +87,7 @@ function CreateContentModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-dropdown w-full max-w-lg mx-4 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Create Content</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Create Content</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
@@ -793,7 +793,7 @@ export default function ContentLibraryPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Content Library</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Content Library</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {activeTab === 'content'
               ? `${total} piece${total !== 1 ? 's' : ''} of content`

@@ -109,7 +109,7 @@ export default function CampaignsPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Ad Campaigns</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Ad Campaigns</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Track spend, ROAS, and conversions across all campaigns
           </p>
@@ -253,7 +253,7 @@ export default function CampaignsPage() {
                     </td>
                     <td className="px-5 py-3 whitespace-nowrap">{statusBadge(c.status)}</td>
                     <td className="px-5 py-3 whitespace-nowrap text-gray-700">{formatDollars(c.spend)}</td>
-                    <td className="px-5 py-3 whitespace-nowrap font-medium text-gray-900">{formatDollars(c.revenue)}</td>
+                    <td className="px-5 py-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">{formatDollars(c.revenue)}</td>
                     <td className="px-5 py-3 whitespace-nowrap">
                       <span
                         className={cn(

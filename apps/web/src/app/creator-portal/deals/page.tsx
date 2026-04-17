@@ -153,13 +153,13 @@ export default function PortalDealsPage() {
         </button>
 
         {/* Header */}
-        <div className="rounded-xl bg-white border border-gray-200 shadow-card p-6">
+        <div className="rounded-xl bg-white dark:bg-white/5 border border-gray-200 shadow-card p-6">
           <div className="flex items-start gap-3">
             <div className="h-10 w-10 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 flex-shrink-0">
               <FolderKanban className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold text-gray-900">
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {projectDetail.name}
               </h1>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -195,7 +195,7 @@ export default function PortalDealsPage() {
 
         {/* Notes */}
         {projectDetail.notes && (
-          <div className="rounded-xl bg-white border border-gray-200 shadow-card p-5">
+          <div className="rounded-xl bg-white dark:bg-white/5 border border-gray-200 shadow-card p-5">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
               Notizen
             </h3>
@@ -218,7 +218,7 @@ export default function PortalDealsPage() {
           return (
             <div
               key={type}
-              className="rounded-xl bg-white border border-gray-200 shadow-card p-5"
+              className="rounded-xl bg-white dark:bg-white/5 border border-gray-200 shadow-card p-5"
             >
               <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
                 {label}
@@ -259,7 +259,7 @@ export default function PortalDealsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Meine Projekte</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Meine Projekte</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Projekte, die du angenommen hast
         </p>
@@ -270,7 +270,7 @@ export default function PortalDealsPage() {
           <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
         </div>
       ) : acceptedInvitations.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200 dark:border-white/10">
           <FolderKanban className="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <p className="text-sm font-medium text-gray-900 mb-1">
             Noch keine Projekte
@@ -288,7 +288,7 @@ export default function PortalDealsPage() {
             return (
               <div
                 key={inv.id}
-                className="rounded-xl bg-white p-5 border border-gray-200 hover:border-violet-200 hover:shadow-sm transition-all cursor-pointer"
+                className="rounded-xl bg-white dark:bg-white/5 p-5 border border-gray-200 hover:border-violet-200 hover:shadow-sm transition-all cursor-pointer"
                 onClick={() => fetchProjectDetail(project.id)}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -297,7 +297,7 @@ export default function PortalDealsPage() {
                       <FolderKanban className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-900">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                         {project.name}
                       </h3>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">

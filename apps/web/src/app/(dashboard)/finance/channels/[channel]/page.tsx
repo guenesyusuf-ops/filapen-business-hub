@@ -148,7 +148,7 @@ function CampaignBreakdownTable({ campaigns, loading }: { campaigns: CampaignSum
   return (
     <div className="rounded-xl bg-white shadow-card overflow-hidden">
       <div className="px-5 pt-5 pb-3">
-        <h3 className="text-sm font-semibold text-gray-900">Campaign Breakdown</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Campaign Breakdown</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -171,7 +171,7 @@ function CampaignBreakdownTable({ campaigns, loading }: { campaigns: CampaignSum
                 onClick={() => window.location.href = `/finance/campaigns/${c.id}`}
               >
                 <td className="px-5 py-3 whitespace-nowrap">
-                  <span className="font-medium text-gray-900">{c.name}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{c.name}</span>
                 </td>
                 <td className="px-5 py-3 whitespace-nowrap">
                   <span
@@ -188,7 +188,7 @@ function CampaignBreakdownTable({ campaigns, loading }: { campaigns: CampaignSum
                   </span>
                 </td>
                 <td className="px-5 py-3 whitespace-nowrap text-gray-700">{formatDollars(c.spend)}</td>
-                <td className="px-5 py-3 whitespace-nowrap font-medium text-gray-900">{formatDollars(c.revenue)}</td>
+                <td className="px-5 py-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">{formatDollars(c.revenue)}</td>
                 <td className={cn('px-5 py-3 whitespace-nowrap font-medium', roasColor(c.roas))}>
                   {c.roas > 0 ? `${c.roas.toFixed(2)}x` : '--'}
                 </td>
@@ -375,7 +375,7 @@ export default function ChannelDetailPage() {
               <Icon className={cn('h-5 w-5', meta.color)} />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">{meta.label}</h1>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{meta.label}</h1>
               <p className="text-sm text-gray-500 mt-0.5">Channel performance details</p>
             </div>
           </div>

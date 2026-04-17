@@ -588,7 +588,7 @@ function NoteCard({ note }: { note: PersonalNote }) {
       <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => updateNote.mutate({ id: note.id, pinned: !note.pinned })}
-          className="p-1 rounded hover:bg-black/10 text-gray-700"
+          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300"
           title={note.pinned ? 'Loesen' : 'Anpinnen'}
         >
           {note.pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
@@ -611,12 +611,12 @@ function NoteCard({ note }: { note: PersonalNote }) {
           onBlur={save}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); }}
           rows={3}
-          className="w-full bg-transparent text-gray-900 resize-none focus:outline-none pt-3"
+          className="w-full bg-transparent text-gray-900 dark:text-white resize-none focus:outline-none pt-3"
         />
       ) : (
         <p
           onClick={() => setEditing(true)}
-          className="text-gray-900 whitespace-pre-wrap pt-3 pr-5 cursor-text break-words"
+          className="text-gray-900 dark:text-white whitespace-pre-wrap pt-3 pr-5 cursor-text break-words"
         >
           {note.content}
         </p>

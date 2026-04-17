@@ -111,7 +111,7 @@ export default function CreatorInvitationsPage() {
 
   if (!creatorId) {
     return (
-      <div className="rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center">
+      <div className="rounded-xl border border-dashed border-gray-200 bg-white dark:bg-white/5 p-10 text-center">
         <Mail className="h-10 w-10 text-gray-300 mx-auto mb-3" />
         <h2 className="text-sm font-semibold text-gray-900 mb-1">
           Bitte einloggen
@@ -139,7 +139,7 @@ export default function CreatorInvitationsPage() {
 
   if (isError) {
     return (
-      <div className="rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center">
+      <div className="rounded-xl border border-dashed border-gray-200 bg-white dark:bg-white/5 p-10 text-center">
         <p className="text-sm text-gray-500">
           Einladungen konnten nicht geladen werden. Kommt in Kürze.
         </p>
@@ -155,7 +155,7 @@ export default function CreatorInvitationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
           Deine Einladungen
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
@@ -169,7 +169,7 @@ export default function CreatorInvitationsPage() {
           Ausstehend ({pending.length})
         </h2>
         {pending.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 bg-white p-8 text-center">
+          <div className="rounded-xl border border-dashed border-gray-200 bg-white dark:bg-white/5 p-8 text-center">
             <Mail className="h-8 w-8 text-gray-300 mx-auto mb-2" />
             <p className="text-sm text-gray-400">
               Keine offenen Einladungen
@@ -183,7 +183,7 @@ export default function CreatorInvitationsPage() {
               return (
                 <div
                   key={inv.id}
-                  className="rounded-xl bg-white border border-gray-200 shadow-card p-5"
+                  className="rounded-xl bg-white dark:bg-white/5 border border-gray-200 shadow-card p-5"
                 >
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -277,7 +277,7 @@ export default function CreatorInvitationsPage() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
             Historie ({other.length})
           </h2>
-          <div className="rounded-xl bg-white border border-gray-200 shadow-card overflow-hidden">
+          <div className="rounded-xl bg-white dark:bg-white/5 border border-gray-200 shadow-card overflow-hidden">
             <div className="divide-y divide-gray-100">
               {other.map((inv) => {
                 const ct = (inv.project?.campaignType ?? 'other') as ProjectCampaignType;
@@ -365,7 +365,7 @@ export default function CreatorInvitationsPage() {
           <div className="absolute inset-0" onClick={() => setNoteModal(null)} />
           <div className="relative z-10 w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900">Notiz vom Admin</h3>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Notiz vom Admin</h3>
               <button onClick={() => setNoteModal(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
                 <X className="h-4 w-4" />
               </button>

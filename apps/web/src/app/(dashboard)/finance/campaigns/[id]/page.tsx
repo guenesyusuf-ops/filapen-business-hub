@@ -221,7 +221,7 @@ export default function CampaignDetailPage() {
           </Link>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-xl font-semibold text-gray-900">{campaign.name}</h1>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{campaign.name}</h1>
               {platformBadge(campaign.platform)}
               {statusBadge(campaign.status)}
             </div>
@@ -312,19 +312,19 @@ export default function CampaignDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="space-y-1">
             <span className="text-xs text-gray-500 uppercase tracking-wider">Impressions</span>
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(totals.impressions)}</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatNumber(totals.impressions)}</p>
           </div>
           <div className="space-y-1">
             <span className="text-xs text-gray-500 uppercase tracking-wider">Clicks</span>
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(totals.clicks)}</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatNumber(totals.clicks)}</p>
           </div>
           <div className="space-y-1">
             <span className="text-xs text-gray-500 uppercase tracking-wider">Conversions</span>
-            <p className="text-lg font-semibold text-gray-900">{formatNumber(totals.conversions)}</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatNumber(totals.conversions)}</p>
           </div>
           <div className="space-y-1">
             <span className="text-xs text-gray-500 uppercase tracking-wider">CPC</span>
-            <p className="text-lg font-semibold text-gray-900">
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
               {totals.cpc > 0 ? formatDollars(totals.cpc) : '--'}
             </p>
           </div>

@@ -116,7 +116,7 @@ function BriefingFolder({
       </button>
 
       {/* Header */}
-      <div className="rounded-xl bg-white border border-gray-100 p-5">
+      <div className="rounded-xl bg-white dark:bg-white/5 border border-gray-100 p-5">
         <div className="flex items-start gap-4">
           {briefing.product?.imageUrl ? (
             <img
@@ -130,7 +130,7 @@ function BriefingFolder({
             </div>
           )}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{briefing.title}</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{briefing.title}</h2>
             {briefing.product && (
               <p className="text-sm text-gray-500">{briefing.product.title}</p>
             )}
@@ -154,7 +154,7 @@ function BriefingFolder({
       </div>
 
       {/* Attachments */}
-      <div className="rounded-xl bg-white border border-gray-100 overflow-hidden">
+      <div className="rounded-xl bg-white dark:bg-white/5 border border-gray-100 overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-50 bg-gray-50/50">
           <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
             Dateien ({loading ? '...' : attachments.length})
@@ -310,7 +310,7 @@ export default function PortalBriefingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Briefings / Skripte</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Briefings / Skripte</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Briefings und Dateien fuer deine Projekte
         </p>
@@ -319,7 +319,7 @@ export default function PortalBriefingsPage() {
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="rounded-xl bg-white p-4 border border-gray-100 animate-pulse">
+            <div key={i} className="rounded-xl bg-white dark:bg-white/5 p-4 border border-gray-100 animate-pulse">
               <div className="h-28 bg-gray-200 rounded-lg mb-3" />
               <div className="h-4 w-32 bg-gray-200 rounded mb-2" />
               <div className="h-3 w-24 bg-gray-100 rounded" />
@@ -327,7 +327,7 @@ export default function PortalBriefingsPage() {
           ))}
         </div>
       ) : briefings.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200 dark:border-white/10">
           <FolderOpen className="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <p className="text-sm font-medium text-gray-900 mb-1">Noch keine Briefings</p>
           <p className="text-xs text-gray-500">
@@ -340,7 +340,7 @@ export default function PortalBriefingsPage() {
             <button
               key={briefing.id}
               onClick={() => setSelectedBriefing(briefing)}
-              className="rounded-xl bg-white border border-gray-100 overflow-hidden text-left hover:shadow-md hover:border-violet-200 transition-all group"
+              className="rounded-xl bg-white dark:bg-white/5 border border-gray-100 overflow-hidden text-left hover:shadow-md hover:border-violet-200 transition-all group"
             >
               {/* Product image as folder preview */}
               <div className="h-32 bg-gray-50 flex items-center justify-center overflow-hidden">

@@ -33,7 +33,7 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
   'Shopify DTC': <ShoppingBag className="h-4 w-4 text-green-600" />,
   'Meta Ads': <Facebook className="h-4 w-4 text-blue-600" />,
   'Google Ads': <Search className="h-4 w-4 text-yellow-600" />,
-  'TikTok Ads': <Music2 className="h-4 w-4 text-gray-900" />,
+  'TikTok Ads': <Music2 className="h-4 w-4 text-gray-900 dark:text-white" />,
   'Direct / Organic': <Globe className="h-4 w-4 text-purple-600" />,
 };
 
@@ -89,7 +89,7 @@ export function ChannelTable({ data, onChannelClick, loading }: ChannelTableProp
               <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-gray-50">
                 {CHANNEL_ICONS[channel] ?? <Globe className="h-4 w-4 text-gray-400" />}
               </span>
-              <span className="font-medium text-gray-900">{channel}</span>
+              <span className="font-medium text-gray-900 dark:text-white">{channel}</span>
             </div>
           );
         },
@@ -241,7 +241,7 @@ export function ChannelTable({ data, onChannelClick, loading }: ChannelTableProp
   return (
     <div className="rounded-xl bg-white shadow-card overflow-hidden transition-shadow duration-200 hover:shadow-card-hover">
       <div className="px-5 pt-5 pb-3">
-        <h3 className="text-sm font-semibold text-gray-900">Channel Performance</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Channel Performance</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -288,7 +288,7 @@ export function ChannelTable({ data, onChannelClick, loading }: ChannelTableProp
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-gray-200 bg-gray-50/80">
-              <td className="px-5 py-3.5 font-semibold text-gray-900">Total</td>
+              <td className="px-5 py-3.5 font-semibold text-gray-900 dark:text-white">Total</td>
               <td className="px-5 py-3.5 font-semibold text-gray-900 tabular-nums">
                 {formatDollars(totals.totalRevenue)}
               </td>

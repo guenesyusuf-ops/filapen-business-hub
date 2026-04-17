@@ -238,7 +238,7 @@ export default function BenchmarksPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Industry Benchmarks</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Industry Benchmarks</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Compare your metrics against e-commerce industry standards
           </p>
@@ -257,7 +257,7 @@ export default function BenchmarksPage() {
         <div className="rounded-xl bg-gradient-to-r from-primary-50 to-blue-50 border border-primary-100 p-5">
           <div className="flex items-center gap-3 mb-2">
             <Award className="h-5 w-5 text-primary-600" />
-            <h2 className="text-sm font-semibold text-gray-900">Performance Summary</h2>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Performance Summary</h2>
           </div>
           <p className="text-sm text-gray-700">
             You are <span className="font-semibold text-emerald-600">above average</span> in{' '}
@@ -302,7 +302,7 @@ export default function BenchmarksPage() {
         <div className="rounded-xl bg-white p-5 shadow-card">
           <div className="flex items-center gap-2 mb-4">
             <Lightbulb className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-semibold text-gray-900">Recommendations</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Recommendations</h3>
           </div>
           <div className="space-y-3">
             {data.recommendations.map((rec, i) => (

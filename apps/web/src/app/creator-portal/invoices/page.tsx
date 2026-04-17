@@ -113,7 +113,7 @@ export default function CreatorInvoicesPage() {
   return (
     <div className="space-y-6 max-w-3xl animate-fade-in">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Rechnung hochladen</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Rechnung hochladen</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Lade deine Rechnungen als PDF hoch. Sie werden automatisch an das Team weitergeleitet.
         </p>
@@ -149,7 +149,7 @@ export default function CreatorInvoicesPage() {
         ) : (
           <>
             <Upload className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-gray-700">Klicke hier oder ziehe eine PDF-Datei</p>
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Klicke hier oder ziehe eine PDF-Datei</p>
             <p className="text-xs text-gray-400 mt-1">Nur PDF-Dateien, max 20 MB</p>
           </>
         )}
@@ -170,7 +170,7 @@ export default function CreatorInvoicesPage() {
           <p className="text-sm text-gray-400">Noch keine Rechnungen hochgeladen</p>
         </div>
       ) : (
-        <div className="rounded-xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+        <div className="rounded-xl bg-white dark:bg-white/5 border border-gray-200 divide-y divide-gray-100 overflow-hidden">
           {invoices.map((inv) => (
             <div key={inv.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
               <FileText className="h-5 w-5 text-red-500 flex-shrink-0" />

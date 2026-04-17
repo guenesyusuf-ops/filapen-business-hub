@@ -242,7 +242,7 @@ export default function DealDetailPage() {
                   {deal.creatorName.charAt(0)}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{deal.creatorName}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{deal.creatorName}</p>
                   <p className="text-xs text-gray-500">{deal.creatorHandle}</p>
                 </div>
               </div>
@@ -251,7 +251,7 @@ export default function DealDetailPage() {
             {/* Amount */}
             <div className="rounded-xl bg-white p-5 shadow-card">
               <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-3">Amount</h3>
-              <p className="text-xl font-bold text-gray-900">{formatDollars(deal.amount)}</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{formatDollars(deal.amount)}</p>
               <span
                 className={cn(
                   'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize mt-1',
@@ -267,7 +267,7 @@ export default function DealDetailPage() {
               <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-3">Deadline</h3>
               {deal.deadline ? (
                 <>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
                     {new Date(deal.deadline).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
@@ -343,7 +343,7 @@ export default function DealDetailPage() {
                 {briefings.map((briefing) => (
                   <div key={briefing.id} className="flex items-center justify-between px-5 py-3 hover:bg-surface-secondary transition-colors">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{briefing.title}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{briefing.title}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {new Date(briefing.createdAt).toLocaleDateString('en-US', {
                           month: 'short',
@@ -378,7 +378,7 @@ export default function DealDetailPage() {
               <div className="flex items-start gap-2.5">
                 <div className="h-2 w-2 rounded-full bg-accent-creator mt-1.5 shrink-0" />
                 <div>
-                  <p className="text-xs font-medium text-gray-900">Deal created</p>
+                  <p className="text-xs font-medium text-gray-900 dark:text-white">Deal created</p>
                   <p className="text-xxs text-gray-400">
                     {new Date(deal.createdAt).toLocaleDateString('en-US', {
                       month: 'short',
@@ -391,7 +391,7 @@ export default function DealDetailPage() {
               <div className="flex items-start gap-2.5">
                 <div className="h-2 w-2 rounded-full bg-gray-300 mt-1.5 shrink-0" />
                 <div>
-                  <p className="text-xs font-medium text-gray-900">Last updated</p>
+                  <p className="text-xs font-medium text-gray-900 dark:text-white">Last updated</p>
                   <p className="text-xxs text-gray-400">
                     {new Date(deal.updatedAt).toLocaleDateString('en-US', {
                       month: 'short',

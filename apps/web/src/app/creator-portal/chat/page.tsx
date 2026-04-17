@@ -155,7 +155,7 @@ export default function CreatorChatPage() {
     <div className="flex flex-col h-[calc(100vh-180px)] max-w-3xl mx-auto">
       {/* Header */}
       <div className="shrink-0 pb-4 border-b border-gray-200 mb-4">
-        <h1 className="text-lg font-semibold text-gray-900">Chat with Admin</h1>
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Chat with Admin</h1>
         <p className="text-sm text-gray-500">
           Send messages to your team manager
         </p>
@@ -195,7 +195,7 @@ export default function CreatorChatPage() {
                           'max-w-[75%] rounded-2xl px-4 py-2.5',
                           isCreator
                             ? 'bg-violet-600 text-white rounded-br-md'
-                            : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md',
+                            : 'bg-white dark:bg-white/5 border border-gray-200 text-gray-900 rounded-bl-md',
                         )}
                       >
                         {!isCreator && (
@@ -226,7 +226,7 @@ export default function CreatorChatPage() {
       {/* Input */}
       <form
         onSubmit={handleSend}
-        className="shrink-0 flex items-center gap-2 pt-3 border-t border-gray-200"
+        className="shrink-0 flex items-center gap-2 pt-3 border-t border-gray-200 dark:border-white/10"
       >
         <input
           type="text"

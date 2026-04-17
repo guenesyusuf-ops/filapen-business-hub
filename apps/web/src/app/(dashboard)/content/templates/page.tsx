@@ -76,7 +76,7 @@ function CreateTemplateModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-dropdown w-full max-w-lg mx-4 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Create Template</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Create Template</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
@@ -314,7 +314,7 @@ export default function TemplatesPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Content Templates</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Content Templates</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Reusable templates for consistent content creation
           </p>

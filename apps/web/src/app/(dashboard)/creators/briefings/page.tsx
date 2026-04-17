@@ -153,7 +153,7 @@ function CreateBriefingModal({
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white rounded-xl shadow-dropdown w-full max-w-lg mx-4 animate-slide-up max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-base font-semibold text-gray-900">Briefing erstellen</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Briefing erstellen</h2>
           <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-surface-secondary">
             <X className="h-4 w-4" />
           </button>
@@ -504,7 +504,7 @@ function BriefingsPageInner() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Briefings / Skripte</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Briefings / Skripte</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Briefings und Skripte fuer Creator verwalten
           </p>

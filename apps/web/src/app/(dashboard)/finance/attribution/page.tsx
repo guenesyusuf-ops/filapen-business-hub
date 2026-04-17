@@ -312,7 +312,7 @@ export default function AttributionPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Multi-Touch Attribution</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Multi-Touch Attribution</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Understand which channels drive revenue and optimize budget allocation
           </p>
@@ -413,7 +413,7 @@ export default function AttributionPage() {
       {/* Attribution Table */}
       <div className="rounded-xl bg-white shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
-          <h3 className="text-sm font-semibold text-gray-900">Channel Attribution Details</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Channel Attribution Details</h3>
         </div>
         {isLoading ? (
           <div className="p-5 space-y-3 animate-pulse">
@@ -441,10 +441,10 @@ export default function AttributionPage() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: getChannelColor(c.channel) }} />
-                        <span className="font-medium text-gray-900">{channelLabel(c.channel)}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{channelLabel(c.channel)}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{formatDollars(c.revenue)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">{formatDollars(c.revenue)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatDollars(c.spend)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={cn(
@@ -489,7 +489,7 @@ export default function AttributionPage() {
         <div className="rounded-xl bg-white p-5 shadow-card">
           <div className="flex items-center gap-2 mb-3">
             <Lightbulb className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-semibold text-gray-900">Insights</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Insights</h3>
           </div>
           <ul className="space-y-2">
             {attribution.insights.map((insight, i) => (

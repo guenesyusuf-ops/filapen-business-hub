@@ -500,7 +500,7 @@ export default function PortalUploadsPage() {
             ))}
           </div>
         ) : visibleFiles.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+          <div className="text-center py-12 bg-white rounded-xl border border-gray-200 dark:border-white/10">
             <Upload className="h-10 w-10 text-gray-300 mx-auto mb-2" />
             <p className="text-sm text-gray-500">Noch keine Dateien in diesem Ordner</p>
             <button
@@ -535,11 +535,11 @@ export default function PortalUploadsPage() {
                       <Play className="h-8 w-8 text-white opacity-75" />
                     </div>
                   ) : upload.fileType === 'link' ? (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-white/[0.03]">
                       <Link2 className="h-8 w-8 text-gray-400" />
                     </div>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-white/[0.03]">
                       <FileText className="h-8 w-8 text-gray-400" />
                     </div>
                   )}
@@ -613,7 +613,7 @@ export default function PortalUploadsPage() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-gray-50">
+              <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 bg-gray-50 dark:bg-white/[0.03]">
                 <span className="text-xs font-medium text-gray-700 truncate">
                   {selectedUpload.label || selectedUpload.fileName}
                 </span>
@@ -630,9 +630,9 @@ export default function PortalUploadsPage() {
 
             {/* Comments */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50 dark:bg-white/[0.03]">
                 <MessageCircle className="h-4 w-4 text-violet-600" />
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
                   Kommentare - {selectedUpload.label || selectedUpload.fileName}
                 </span>
               </div>
@@ -665,7 +665,7 @@ export default function PortalUploadsPage() {
                       )}
                     >
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-xs font-medium text-gray-700">
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
                           {c.authorName}
                         </span>
                         <span className="text-[10px] text-gray-400">
@@ -712,7 +712,7 @@ export default function PortalUploadsPage() {
             <div className="absolute inset-0" onClick={() => setShowUpload(false)} />
             <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-2xl">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h3 className="text-base font-semibold text-gray-900">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                   Datei hochladen
                 </h3>
                 <button
@@ -833,7 +833,7 @@ export default function PortalUploadsPage() {
               <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
                 <button
                   onClick={() => { setShowUpload(false); setUploadError(''); }}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:bg-white/[0.03]"
                 >
                   Abbrechen
                 </button>
@@ -860,7 +860,7 @@ export default function PortalUploadsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Meine Uploads</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Meine Uploads</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Verwalte deine Inhalte in Ordnern
           </p>
@@ -882,7 +882,7 @@ export default function PortalUploadsPage() {
           ))}
         </div>
       ) : folders.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200 dark:border-white/10">
           <Folder className="h-12 w-12 text-gray-300 mx-auto mb-3" />
           <p className="text-sm text-gray-500">Noch keine Ordner vorhanden</p>
           <button
@@ -898,7 +898,7 @@ export default function PortalUploadsPage() {
             <button
               key={folder.batch}
               onClick={() => setActiveFolder(folder.batch)}
-              className="text-left rounded-xl bg-white p-5 border border-gray-100 shadow-sm hover:shadow-md hover:border-violet-200 transition-all group"
+              className="text-left rounded-xl bg-white dark:bg-white/5 p-5 border border-gray-100 shadow-sm hover:shadow-md hover:border-violet-200 transition-all group"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -906,7 +906,7 @@ export default function PortalUploadsPage() {
                     <Folder className="h-5 w-5 text-violet-600" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                       {folder.name}
                     </h3>
                     <p className="text-xs text-gray-500 mt-0.5">
@@ -952,7 +952,7 @@ export default function PortalUploadsPage() {
           <div className="absolute inset-0" onClick={() => setShowFolderModal(false)} />
           <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-2xl">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-gray-900">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                 Ordner anlegen
               </h3>
               <button
@@ -1045,7 +1045,7 @@ export default function PortalUploadsPage() {
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
               <button
                 onClick={() => { setShowFolderModal(false); setFolderError(''); }}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:bg-white/[0.03]"
               >
                 Abbrechen
               </button>

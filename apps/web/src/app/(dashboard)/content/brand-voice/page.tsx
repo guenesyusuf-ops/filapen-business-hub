@@ -114,7 +114,7 @@ function BrandVoiceModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-dropdown w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             {editingVoice ? 'Edit Brand Voice' : 'Create Brand Voice'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -283,7 +283,7 @@ function BrandVoiceCard({
             <Mic className="h-4.5 w-4.5" />
           </div>
           <div>
-            <h4 className="text-sm font-medium text-gray-900">{voice.name}</h4>
+            <h4 className="text-sm font-medium text-gray-900 dark:text-white">{voice.name}</h4>
             {voice.isDefault && (
               <span className="inline-flex items-center gap-0.5 text-xxs text-accent-content font-medium">
                 <Star className="h-2.5 w-2.5 fill-accent-content" />
@@ -420,7 +420,7 @@ export default function BrandVoicePage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Brand Voice</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Brand Voice</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Define tone, style, and personality for your content
           </p>

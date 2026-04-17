@@ -168,7 +168,7 @@ function RevenueOverTimeChart({
   return (
     <div className="rounded-xl bg-white p-5 shadow-card">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-900">Revenue Over Time</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Revenue Over Time</h3>
         <div className="flex rounded-lg border border-border overflow-hidden">
           {(['daily', 'weekly', 'monthly'] as Granularity[]).map((g) => (
             <button
@@ -324,7 +324,7 @@ function RevenueByCountryTable({
     <div className="rounded-xl bg-white shadow-card overflow-hidden">
       <div className="px-5 py-4 border-b border-border flex items-center gap-2">
         <Globe className="h-4 w-4 text-gray-400" />
-        <h3 className="text-sm font-semibold text-gray-900">Revenue by Country</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Revenue by Country</h3>
       </div>
       {data.length === 0 ? (
         <div className="p-8 text-center text-sm text-gray-400">No country data available</div>
@@ -352,7 +352,7 @@ function RevenueByCountryTable({
                 const pct = total > 0 ? (Number(row.revenue) / total) * 100 : 0;
                 return (
                   <tr key={row.country_code} className="hover:bg-surface-secondary transition-colors">
-                    <td className="px-5 py-2.5 text-sm text-gray-900">
+                    <td className="px-5 py-2.5 text-sm text-gray-900 dark:text-white">
                       {COUNTRY_NAMES[row.country_code] ?? row.country_code}
                     </td>
                     <td className="px-5 py-2.5 text-sm text-gray-900 text-right font-medium">
@@ -415,7 +415,7 @@ function RevenueByProductTable({
     <div className="rounded-xl bg-white shadow-card overflow-hidden">
       <div className="px-5 py-4 border-b border-border flex items-center gap-2">
         <Package className="h-4 w-4 text-gray-400" />
-        <h3 className="text-sm font-semibold text-gray-900">Top Products by Revenue</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Top Products by Revenue</h3>
       </div>
       {data.length === 0 ? (
         <div className="p-8 text-center text-sm text-gray-400">No product data available</div>
@@ -490,7 +490,7 @@ export default function RevenuePage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Revenue</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Revenue</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Deep-dive into revenue performance across channels, countries, and products
           </p>

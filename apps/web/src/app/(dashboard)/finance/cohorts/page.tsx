@@ -75,7 +75,7 @@ function CohortHeatmap({
   return (
     <div className="rounded-xl bg-white shadow-card overflow-hidden">
       <div className="px-5 py-4 border-b border-border">
-        <h3 className="text-sm font-semibold text-gray-900">Cohort Retention Heatmap</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Cohort Retention Heatmap</h3>
         <p className="text-xs text-gray-500 mt-0.5">Each cell shows the % of customers from each cohort who returned</p>
       </div>
       <div className="overflow-x-auto">
@@ -327,7 +327,7 @@ export default function CohortsPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Cohort & Retention Analysis</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Cohort & Retention Analysis</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Understand customer retention patterns and lifetime value
           </p>
@@ -423,7 +423,7 @@ export default function CohortsPage() {
         <div className="xl:col-span-2">
           <div className="rounded-xl bg-white shadow-card overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
-              <h3 className="text-sm font-semibold text-gray-900">LTV by Customer Segment</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">LTV by Customer Segment</h3>
             </div>
             {ltvQuery.isLoading ? (
               <div className="p-5 space-y-3 animate-pulse">
@@ -448,9 +448,9 @@ export default function CohortsPage() {
                   <tbody className="divide-y divide-border">
                     {ltvData.segments.map((seg) => (
                       <tr key={seg.segment} className="hover:bg-surface-secondary transition-colors">
-                        <td className="px-5 py-3 font-medium text-gray-900">{seg.segment}</td>
+                        <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{seg.segment}</td>
                         <td className="px-5 py-3 text-gray-700">{formatNumber(seg.customerCount)}</td>
-                        <td className="px-5 py-3 font-medium text-gray-900">{formatDollarsFull(seg.avgLtv)}</td>
+                        <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{formatDollarsFull(seg.avgLtv)}</td>
                         <td className="px-5 py-3 text-gray-700">{seg.avgOrders.toFixed(1)}</td>
                         <td className="px-5 py-3 text-gray-700">{formatDollarsFull(seg.avgAov)}</td>
                         <td className="px-5 py-3 text-gray-700">

@@ -86,7 +86,7 @@ function LoginScreen({ onLogin }: { onLogin: (creator: PortalCreator) => void })
     <div className="flex items-center justify-center min-h-[70vh]">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-xl font-semibold text-gray-900">Welcome</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Welcome</h1>
           <p className="text-sm text-gray-500 mt-1">
             Enter your invite code to access your portal
           </p>
@@ -152,7 +152,7 @@ function CalendarWidget() {
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
+    <div className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100">
       <h3 className="text-sm font-semibold text-gray-900 mb-3 capitalize">{monthName}</h3>
       <div className="grid grid-cols-7 gap-0.5 text-center">
         {dayHeaders.map((d) => (
@@ -207,7 +207,7 @@ function ClockWidget() {
   const hrAngle = (((time.getHours() % 12) + time.getMinutes() / 60) / 12) * 360;
 
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+    <div className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 flex flex-col items-center justify-center">
       {/* Analog clock face */}
       <div className="relative w-32 h-32 mb-3">
         <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -322,7 +322,7 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
     <div className="space-y-6">
       {/* Welcome */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
           Welcome back, {creator.name}
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
@@ -342,35 +342,35 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
 
       {/* Quick stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
+        <div className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center">
               <Upload className="h-5 w-5 text-violet-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.uploads}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.uploads}</p>
               <p className="text-xs text-gray-500">Total Uploads</p>
             </div>
           </div>
         </div>
-        <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
+        <div className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
               <Handshake className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.deals}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.deals}</p>
               <p className="text-xs text-gray-500">Active Deals</p>
             </div>
           </div>
         </div>
-        <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
+        <div className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
               <FileText className="h-5 w-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.briefings}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.briefings}</p>
               <p className="text-xs text-gray-500">Briefings</p>
             </div>
           </div>
@@ -387,11 +387,11 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link
           href="/creator-portal/uploads"
-          className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
+          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Inhalte hochladen</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Inhalte hochladen</h3>
               <p className="text-xs text-gray-500 mt-0.5">
                 Bilder, Videos oder Rohdateien hochladen
               </p>
@@ -401,11 +401,11 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
         </Link>
         <Link
           href="/creator-portal/invitations"
-          className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
+          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Meine Einladungen</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Meine Einladungen</h3>
               <p className="text-xs text-gray-500 mt-0.5">
                 Projekteinladungen ansehen und annehmen
               </p>
@@ -415,11 +415,11 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
         </Link>
         <Link
           href="/creator-portal/briefings"
-          className="rounded-xl bg-white p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
+          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Briefings</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Briefings</h3>
               <p className="text-xs text-gray-500 mt-0.5">
                 View your briefings
               </p>

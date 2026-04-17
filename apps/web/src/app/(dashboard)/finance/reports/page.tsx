@@ -87,7 +87,7 @@ function ReportCard({ report }: { report: ReportDef }) {
           {report.icon}
         </div>
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-gray-900">{report.title}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{report.title}</h3>
           <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{report.description}</p>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function ReportsPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Page Header */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Reports</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Reports</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Generate and download financial reports for your business
         </p>

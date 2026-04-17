@@ -38,7 +38,7 @@ function CreateWatchlistModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-gray-900">Create Watchlist</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Create Watchlist</h2>
           <button
             onClick={onClose}
             className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
@@ -106,7 +106,7 @@ export default function WatchlistsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Watchlists</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Watchlists</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Track groups of influencers for campaigns and outreach
           </p>

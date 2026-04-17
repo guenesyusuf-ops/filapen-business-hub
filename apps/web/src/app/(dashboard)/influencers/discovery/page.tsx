@@ -175,7 +175,7 @@ function InfluencerCard({ profile }: { profile: any }) {
             <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
               <Users className="h-3 w-3" />
             </div>
-            <div className="text-xs font-bold text-gray-900">
+            <div className="text-xs font-bold text-gray-900 dark:text-white">
               {formatNumber(profile.followerCount)}
             </div>
             <div className="text-[10px] text-gray-400">Followers</div>
@@ -184,7 +184,7 @@ function InfluencerCard({ profile }: { profile: any }) {
             <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
               <Heart className="h-3 w-3" />
             </div>
-            <div className="text-xs font-bold text-gray-900">
+            <div className="text-xs font-bold text-gray-900 dark:text-white">
               {profile.engagementRate.toFixed(1)}%
             </div>
             <div className="text-[10px] text-gray-400">Engagement</div>
@@ -193,7 +193,7 @@ function InfluencerCard({ profile }: { profile: any }) {
             <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
               <MessageCircle className="h-3 w-3" />
             </div>
-            <div className="text-xs font-bold text-gray-900">
+            <div className="text-xs font-bold text-gray-900 dark:text-white">
               {formatNumber(profile.avgComments)}
             </div>
             <div className="text-[10px] text-gray-400">Avg Comments</div>
@@ -460,7 +460,7 @@ export default function InfluencerDiscoveryPage() {
     <div className="space-y-5 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Discovery</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Discovery</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Find and filter influencers across platforms
         </p>

@@ -311,7 +311,7 @@ export default function CreatorDetailPage() {
             />
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-lg font-semibold text-gray-900">{creator.name}</h1>
+                <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{creator.name}</h1>
                 <span
                   className={cn(
                     'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium capitalize',
@@ -385,7 +385,7 @@ export default function CreatorDetailPage() {
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
               <Trash2 className="h-5 w-5 text-red-600" />
             </div>
-            <h3 className="text-center text-lg font-semibold text-gray-900">Delete Creator?</h3>
+            <h3 className="text-center text-lg font-semibold text-gray-900 dark:text-white">Delete Creator?</h3>
             <p className="text-center text-sm text-gray-500 mt-2">
               This will permanently delete <strong>{creator.name}</strong> and revoke their portal access. All deals, uploads, and chat history will also be removed.
             </p>
@@ -448,13 +448,13 @@ export default function CreatorDetailPage() {
           <div className="space-y-2.5">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600">Per Post</span>
-              <span className="font-medium text-gray-900">
+              <span className="font-medium text-gray-900 dark:text-white">
                 {creator.ratePerPost ? formatDollars(creator.ratePerPost) : 'N/A'}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600">Per Video</span>
-              <span className="font-medium text-gray-900">
+              <span className="font-medium text-gray-900 dark:text-white">
                 {creator.ratePerVideo ? formatDollars(creator.ratePerVideo) : 'N/A'}
               </span>
             </div>
@@ -467,15 +467,15 @@ export default function CreatorDetailPage() {
           <div className="space-y-2.5">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600">Total Deals</span>
-              <span className="font-medium text-gray-900">{creator.totalDeals}</span>
+              <span className="font-medium text-gray-900 dark:text-white">{creator.totalDeals}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600">Total Spend</span>
-              <span className="font-medium text-gray-900">{formatDollars(creator.totalSpend)}</span>
+              <span className="font-medium text-gray-900 dark:text-white">{formatDollars(creator.totalSpend)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600">Avg Engagement</span>
-              <span className="font-medium text-gray-900">{creator.avgEngagement}%</span>
+              <span className="font-medium text-gray-900 dark:text-white">{creator.avgEngagement}%</span>
             </div>
           </div>
         </div>
@@ -575,13 +575,13 @@ export default function CreatorDetailPage() {
             {creator.provision && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Provision</span>
-                <span className="font-medium text-gray-900">{creator.provision}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{creator.provision}</span>
               </div>
             )}
             {creator.fixAmount != null && creator.fixAmount > 0 && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Fix Amount</span>
-                <span className="font-medium text-gray-900">{formatDollars(creator.fixAmount)}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{formatDollars(creator.fixAmount)}</span>
               </div>
             )}
           </div>
@@ -602,7 +602,7 @@ export default function CreatorDetailPage() {
               {creator.kidsAges && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Ages</span>
-                  <span className="font-medium text-gray-900">{creator.kidsAges}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{creator.kidsAges}</span>
                 </div>
               )}
               <div className="flex items-center justify-between text-sm">
@@ -680,7 +680,7 @@ export default function CreatorDetailPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowAddContract(false)} />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 animate-scale-in">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-gray-900">Vertrag hinzuf&uuml;gen</h3>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Vertrag hinzuf&uuml;gen</h3>
               <button onClick={() => setShowAddContract(false)} className="p-1 rounded-md text-gray-400 hover:text-gray-600">
                 <X className="h-4 w-4" />
               </button>
@@ -824,19 +824,19 @@ export default function CreatorDetailPage() {
             )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{creator.totalDeals}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{creator.totalDeals}</p>
                 <p className="text-xs text-gray-500">Total Deals</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{formatDollars(creator.totalSpend)}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatDollars(creator.totalSpend)}</p>
                 <p className="text-xs text-gray-500">Total Spend</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{creator.engagementRate ?? 0}%</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{creator.engagementRate ?? 0}%</p>
                 <p className="text-xs text-gray-500">Engagement Rate</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{uploads?.length ?? 0}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{uploads?.length ?? 0}</p>
                 <p className="text-xs text-gray-500">Uploads</p>
               </div>
             </div>
@@ -859,7 +859,7 @@ export default function CreatorDetailPage() {
                   </button>
                 )}
                 {activeBatch !== null && (
-                  <span className="text-sm font-medium text-gray-900">{activeBatchName}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{activeBatchName}</span>
                 )}
                 {activeBatch === null && (
                   <div className="flex gap-1.5 flex-wrap">
@@ -1116,7 +1116,7 @@ export default function CreatorDetailPage() {
                         onClick={() => router.push(`/creators/deals/${deal.id}`)}
                         className="cursor-pointer hover:bg-surface-secondary transition-colors"
                       >
-                        <td className="px-5 py-3 font-medium text-gray-900">{deal.title}</td>
+                        <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{deal.title}</td>
                         <td className="px-3 py-3">
                           <span
                             className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white"
@@ -1128,7 +1128,7 @@ export default function CreatorDetailPage() {
                         <td className="px-3 py-3 text-gray-600 capitalize text-xs">
                           {deal.type.replace('_', ' ')}
                         </td>
-                        <td className="px-3 py-3 text-right font-medium text-gray-900">
+                        <td className="px-3 py-3 text-right font-medium text-gray-900 dark:text-white">
                           {formatDollars(deal.amount)}
                         </td>
                         <td className="px-3 py-3 text-gray-600 text-xs">
@@ -1165,7 +1165,7 @@ export default function CreatorDetailPage() {
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mx-auto mb-4">
               <Radio className="h-5 w-5 text-green-600" />
             </div>
-            <h3 className="text-center text-lg font-semibold text-gray-900">Wann geht der Content live?</h3>
+            <h3 className="text-center text-lg font-semibold text-gray-900 dark:text-white">Wann geht der Content live?</h3>
             <p className="text-center text-sm text-gray-500 mt-2">
               W&auml;hle das Live-Datum f&uuml;r diesen Content.
             </p>
@@ -1205,7 +1205,7 @@ export default function CreatorDetailPage() {
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
               <Trash2 className="h-5 w-5 text-red-600" />
             </div>
-            <h3 className="text-center text-lg font-semibold text-gray-900">Upload l&ouml;schen?</h3>
+            <h3 className="text-center text-lg font-semibold text-gray-900 dark:text-white">Upload l&ouml;schen?</h3>
             <p className="text-center text-sm text-gray-500 mt-2">
               Dieser Upload wird unwiderruflich gel&ouml;scht.
             </p>

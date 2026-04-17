@@ -268,7 +268,7 @@ export default function CreativeAnalysisPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Creative Analysis</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Creative Analysis</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Analyze campaign performance, ROAS trends, and spend efficiency
           </p>
@@ -346,7 +346,7 @@ export default function CreativeAnalysisPage() {
       {/* Campaign Table */}
       <div className="rounded-xl bg-white shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">Campaign Performance (Ranked by ROAS)</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Campaign Performance (Ranked by ROAS)</h3>
           <span className="text-xs text-gray-400">
             {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}
           </span>
@@ -389,7 +389,7 @@ export default function CreativeAnalysisPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-700">{formatDollars(c.spend)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{formatDollars(c.revenue)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">{formatDollars(c.revenue)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={cn(
                         'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',

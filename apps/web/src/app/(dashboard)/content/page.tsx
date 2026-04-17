@@ -133,7 +133,7 @@ function ContentByStatusChart({
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="font-medium text-gray-900">{item.count}</span>
+              <span className="font-medium text-gray-900 dark:text-white">{item.count}</span>
               <span className="text-gray-400 text-xs">
                 ({total > 0 ? ((item.count / total) * 100).toFixed(0) : 0}%)
               </span>
@@ -160,7 +160,7 @@ export default function ContentHubOverview() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Content Hub</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Content Hub</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             AI-powered creative operations for ads, scripts, and content
           </p>
@@ -246,7 +246,7 @@ export default function ContentHubOverview() {
             <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-accent-content-light text-accent-content">
               <Wand2 className="h-4.5 w-4.5" />
             </div>
-            <span className="text-sm font-medium text-gray-900">Generate Content</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Generate Content</span>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-accent-content transition-colors" />
         </button>
@@ -258,7 +258,7 @@ export default function ContentHubOverview() {
             <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-orange-50 text-orange-600">
               <BookOpen className="h-4.5 w-4.5" />
             </div>
-            <span className="text-sm font-medium text-gray-900">Content Library</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Content Library</span>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-orange-600 transition-colors" />
         </button>
@@ -270,7 +270,7 @@ export default function ContentHubOverview() {
             <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-blue-50 text-blue-600">
               <LayoutTemplate className="h-4.5 w-4.5" />
             </div>
-            <span className="text-sm font-medium text-gray-900">Templates</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Templates</span>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
         </button>
@@ -282,7 +282,7 @@ export default function ContentHubOverview() {
             <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-purple-50 text-purple-600">
               <Mic className="h-4.5 w-4.5" />
             </div>
-            <span className="text-sm font-medium text-gray-900">Brand Voice</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Brand Voice</span>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-purple-600 transition-colors" />
         </button>

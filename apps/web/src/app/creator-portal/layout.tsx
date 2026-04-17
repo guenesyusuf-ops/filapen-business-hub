@@ -99,7 +99,7 @@ function NotificationBell({ creatorId }: { creatorId: string }) {
       {open && (
         <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <span className="text-sm font-semibold text-gray-900">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white">
               Benachrichtigungen
             </span>
             {unreadCount > 0 && (
@@ -235,14 +235,14 @@ export default function CreatorPortalLayout({
   const isLoggedIn = !!creator;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-white/[0.03]">
       {/* Simple header */}
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+      <header className="h-14 bg-white dark:bg-white/5 border-b border-gray-200 flex items-center justify-between px-6">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-lg bg-violet-600 flex items-center justify-center">
             <span className="text-xs font-bold text-white">F</span>
           </div>
-          <span className="text-sm font-semibold text-gray-900">Creator Portal</span>
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">Creator Portal</span>
         </div>
         {isLoggedIn && creator && (
           <div className="flex items-center gap-3">
@@ -265,7 +265,7 @@ export default function CreatorPortalLayout({
 
       {/* Portal navigation tabs */}
       {isLoggedIn && (
-        <nav className="bg-white border-b border-gray-200">
+        <nav className="bg-white dark:bg-white/5 border-b border-gray-200 dark:border-white/10">
           <div className="flex items-center gap-1 px-6 overflow-x-auto">
             <NavTab
               href="/creator-portal"

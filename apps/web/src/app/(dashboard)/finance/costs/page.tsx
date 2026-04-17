@@ -305,7 +305,7 @@ function PaymentMethodsTab() {
         cell: ({ getValue }) => (
           <div className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-gray-400" />
-            <span className="font-medium text-gray-900">{getValue<string>()}</span>
+            <span className="font-medium text-gray-900 dark:text-white">{getValue<string>()}</span>
           </div>
         ),
       },
@@ -408,7 +408,7 @@ function PaymentMethodsTab() {
               )}
             >
               <div className="flex items-center justify-between mb-4">
-                <Dialog.Title className="text-lg font-semibold text-gray-900">
+                <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
                   {editingMethod ? 'Edit' : 'Add'} Payment Method
                 </Dialog.Title>
                 <Dialog.Close asChild>
@@ -696,7 +696,7 @@ function FixedCostsTab() {
           </span>
         ),
         cell: ({ getValue }) => (
-          <span className="font-medium text-gray-900">{getValue<string>()}</span>
+          <span className="font-medium text-gray-900 dark:text-white">{getValue<string>()}</span>
         ),
       },
       {
@@ -858,7 +858,7 @@ function FixedCostsTab() {
               )}
             >
               <div className="flex items-center justify-between mb-4">
-                <Dialog.Title className="text-lg font-semibold text-gray-900">
+                <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
                   {editingCost ? 'Edit' : 'Add'} Fixed Cost
                 </Dialog.Title>
                 <Dialog.Close asChild>
@@ -952,7 +952,7 @@ export default function CostsPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Cost Management</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Cost Management</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Configure payment fees, fixed costs, and shipping rules
         </p>

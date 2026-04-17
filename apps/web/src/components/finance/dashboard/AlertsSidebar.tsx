@@ -106,7 +106,7 @@ export function AlertsSidebar({ alerts, onAcknowledge, loading }: AlertsSidebarP
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-900">{t('finance.alerts')}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('finance.alerts')}</h3>
           {activeAlerts.length > 0 && (
             <span
               className={cn(

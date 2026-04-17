@@ -153,7 +153,7 @@ function AudienceGenderChart({ data }: { data: { male: number; female: number; o
           <div key={seg.label} className="flex items-center gap-1.5">
             <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
             <span className="text-xs text-gray-600">{seg.label}</span>
-            <span className="text-xs font-bold text-gray-900">{seg.pct}%</span>
+            <span className="text-xs font-bold text-gray-900 dark:text-white">{seg.pct}%</span>
           </div>
         ))}
       </div>
@@ -289,7 +289,7 @@ function BrandRelationships({ brands, influencerName }: { brands: InfluencerBran
       {/* Collaboration History Table */}
       <div className="rounded-xl bg-white shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-900">Collaboration History</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Collaboration History</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -341,7 +341,7 @@ function BrandRelationships({ brands, influencerName }: { brands: InfluencerBran
                     <td className="px-3 py-3 text-right text-xs text-gray-700">
                       {mention.engagementRate != null ? `${mention.engagementRate.toFixed(1)}%` : '-'}
                     </td>
-                    <td className="px-5 py-3 text-right text-xs font-medium text-gray-900">
+                    <td className="px-5 py-3 text-right text-xs font-medium text-gray-900 dark:text-white">
                       {mention.estimatedReach != null ? formatNumber(mention.estimatedReach) : '-'}
                     </td>
                   </tr>
@@ -446,7 +446,7 @@ export default function InfluencerProfilePage() {
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-xl font-bold text-gray-900">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                   {profile.displayName}
                 </h1>
                 {profile.isVerified && (
@@ -603,7 +603,7 @@ export default function InfluencerProfilePage() {
               </span>
               <stat.icon className="h-3.5 w-3.5" style={{ color: stat.color }} />
             </div>
-            <div className="text-lg font-bold text-gray-900">{stat.value}</div>
+            <div className="text-lg font-bold text-gray-900 dark:text-white">{stat.value}</div>
             {stat.sub && (
               <div className="text-[10px] font-medium mt-0.5" style={{ color: stat.subColor }}>
                 {stat.sub}
@@ -635,7 +635,7 @@ export default function InfluencerProfilePage() {
             </div>
             <div>
               <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">{stat.label}</div>
-              <div className="text-sm font-bold text-gray-900">{stat.value}</div>
+              <div className="text-sm font-bold text-gray-900 dark:text-white">{stat.value}</div>
             </div>
           </div>
         ))}

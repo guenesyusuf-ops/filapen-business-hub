@@ -166,7 +166,7 @@ export default function WatchlistDetailPage() {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-gray-600">{item.influencer.niche ?? '-'}</td>
-                    <td className="px-3 py-3 text-right font-medium text-gray-900">
+                    <td className="px-3 py-3 text-right font-medium text-gray-900 dark:text-white">
                       {formatNumber(item.influencer.followerCount)}
                     </td>
                     <td className="px-3 py-3 text-right text-gray-700">

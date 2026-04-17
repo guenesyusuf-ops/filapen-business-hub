@@ -84,7 +84,7 @@ function PlatformDistribution({
               </span>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-gray-900">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
                 {item.count} profiles
               </span>
               <span className="text-xs text-gray-500">
@@ -180,7 +180,7 @@ function TopInfluencersTable({
   return (
     <div className="rounded-xl bg-white shadow-card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-900">Top Influencers by Score</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Top Influencers by Score</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -226,7 +226,7 @@ function TopInfluencersTable({
                   </span>
                 </td>
                 <td className="px-3 py-3 text-gray-600">{inf.niche ?? '-'}</td>
-                <td className="px-3 py-3 text-right font-medium text-gray-900">
+                <td className="px-3 py-3 text-right font-medium text-gray-900 dark:text-white">
                   {formatNumber(inf.followerCount)}
                 </td>
                 <td className="px-3 py-3 text-right text-gray-700">
@@ -270,7 +270,7 @@ export default function InfluencerHubOverview() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Influencer Hub</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Influencer Hub</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Discover and track social media influencers
           </p>
@@ -370,7 +370,7 @@ export default function InfluencerHubOverview() {
             <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-pink-50 text-pink-600">
               <Search className="h-4.5 w-4.5" />
             </div>
-            <span className="text-sm font-medium text-gray-900">Discovery Search</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Discovery Search</span>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-pink-600 transition-colors" />
         </button>
@@ -382,7 +382,7 @@ export default function InfluencerHubOverview() {
             <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-blue-50 text-blue-600">
               <Building2 className="h-4.5 w-4.5" />
             </div>
-            <span className="text-sm font-medium text-gray-900">Brand Intelligence</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Brand Intelligence</span>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
         </button>
@@ -394,7 +394,7 @@ export default function InfluencerHubOverview() {
             <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-purple-50 text-purple-600">
               <Eye className="h-4.5 w-4.5" />
             </div>
-            <span className="text-sm font-medium text-gray-900">Watchlists</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Watchlists</span>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-purple-600 transition-colors" />
         </button>
@@ -406,7 +406,7 @@ export default function InfluencerHubOverview() {
             <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-amber-50 text-amber-600">
               <Award className="h-4.5 w-4.5" />
             </div>
-            <span className="text-sm font-medium text-gray-900">Top Engagement</span>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">Top Engagement</span>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-amber-600 transition-colors" />
         </button>

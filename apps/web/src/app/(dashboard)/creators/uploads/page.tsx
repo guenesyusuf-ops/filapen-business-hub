@@ -160,7 +160,7 @@ export default function AllUploadsPage() {
         <div>
           {showFolders ? (
             <>
-              <h1 className="text-xl font-semibold text-gray-900">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
                 Alle Uploads
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
@@ -181,7 +181,7 @@ export default function AllUploadsPage() {
                 Zurück
               </button>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {activeBatchName}
                 </h1>
                 <p className="text-sm text-gray-500 mt-0.5">

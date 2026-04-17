@@ -355,7 +355,7 @@ export function Lightbox({
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
             <MessageCircle className="h-4 w-4 text-purple-600" />
-            <span className="text-sm font-semibold text-gray-900">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white">
               Comments ({comments.length})
             </span>
           </div>

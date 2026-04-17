@@ -64,7 +64,7 @@ function AngleCard({ angle }: { angle: AngleSuggestion }) {
           <Icon className="h-4.5 w-4.5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h4 className="text-sm font-semibold text-gray-900">{angle.name}</h4>
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{angle.name}</h4>
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">{angle.description}</p>
           <div className="flex flex-wrap items-center gap-2 mt-2.5">
             <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xxs font-medium text-rose-600">
@@ -357,7 +357,7 @@ export default function GenerateContentPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Generate Content</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Generate Content</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Elite content generation powered by proven copywriting frameworks.
           </p>
@@ -384,7 +384,7 @@ export default function GenerateContentPage() {
               <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-accent-content-light text-accent-content">
                 <Wand2 className="h-4 w-4" />
               </div>
-              <h2 className="text-sm font-semibold text-gray-900">Configuration</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Configuration</h2>
             </div>
 
             <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
@@ -1034,7 +1034,7 @@ export default function GenerateContentPage() {
               {/* Results header with view toggle */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-semibold text-gray-900">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Generated Content ({generatedItems.length} variants)
                   </h3>
                   <button

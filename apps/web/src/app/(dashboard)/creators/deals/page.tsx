@@ -74,7 +74,7 @@ function KanbanCard({
 
       {/* Meta */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-semibold text-gray-900">{formatDollars(deal.amount)}</span>
+        <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatDollars(deal.amount)}</span>
         <span
           className={cn(
             'rounded px-1.5 py-0.5 text-xxs font-medium capitalize',
@@ -155,7 +155,7 @@ function KanbanColumnComponent({
             className="h-2.5 w-2.5 rounded-full"
             style={{ backgroundColor: DEAL_STAGE_COLORS[column.stage] }}
           />
-          <span className="text-sm font-medium text-gray-900">{column.label}</span>
+          <span className="text-sm font-medium text-gray-900 dark:text-white">{column.label}</span>
           <span className="text-xs text-gray-400 bg-surface-secondary rounded-full px-1.5 py-0.5">
             {column.deals.length}
           </span>
@@ -227,7 +227,7 @@ function DealsListView({
                 onClick={() => onRowClick(deal.id)}
                 className="cursor-pointer hover:bg-surface-secondary transition-colors"
               >
-                <td className="px-5 py-3 font-medium text-gray-900">{deal.title}</td>
+                <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{deal.title}</td>
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-2">
                     <div className="h-6 w-6 rounded-full bg-accent-creator-light flex items-center justify-center text-accent-creator text-xxs font-medium">
@@ -254,7 +254,7 @@ function DealsListView({
                     {deal.type.replace('_', ' ')}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-right font-medium text-gray-900">
+                <td className="px-3 py-3 text-right font-medium text-gray-900 dark:text-white">
                   {formatDollars(deal.amount)}
                 </td>
                 <td className="px-3 py-3">
@@ -333,7 +333,7 @@ function NewDealModal({ open, onClose }: { open: boolean; onClose: () => void })
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white rounded-xl shadow-dropdown w-full max-w-md mx-4 animate-slide-up">
         <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-base font-semibold text-gray-900">New Deal</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">New Deal</h2>
           <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-surface-secondary">
             <X className="h-4 w-4" />
           </button>
@@ -471,7 +471,7 @@ function DealsPageInner() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Deals</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Deals</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Manage your creator deal pipeline
           </p>
