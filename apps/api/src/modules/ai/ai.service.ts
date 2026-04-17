@@ -196,6 +196,89 @@ const TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  // ==================== ACTION TOOLS (write) ====================
+  {
+    name: 'create_task',
+    description:
+      'Creates a new task in a work management project. Use when user says "erstelle Task", "neue Aufgabe", "trage ein". Requires projectId (ask user or pick most recent project).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        projectId: { type: 'string', description: 'Project ID to create the task in' },
+        title: { type: 'string', description: 'Task title' },
+        description: { type: 'string', description: 'Optional description' },
+        assigneeName: { type: 'string', description: 'Name of the person to assign (partial match)' },
+        priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Priority level' },
+        dueDate: { type: 'string', description: 'Due date ISO (e.g. 2026-04-20)' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'complete_task',
+    description:
+      'Marks a task as completed. Use when user says "erledigt", "abgehakt", "fertig".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        taskTitle: { type: 'string', description: 'Task title (partial match) to find and complete' },
+      },
+      required: ['taskTitle'],
+    },
+  },
+  {
+    name: 'invite_creators',
+    description:
+      'Sends portal invitations to creators who have not been invited yet. Use when user says "lade Creators ein", "Portal-Einladung". Can invite all or specific creators by name.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        creatorName: { type: 'string', description: 'Specific creator name to invite (omit to invite ALL uninvited)' },
+      },
+    },
+  },
+  {
+    name: 'create_note',
+    description:
+      'Creates a personal note on the user\'s home dashboard. Use when user says "notiere", "merke dir", "schreib auf".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        content: { type: 'string', description: 'Note content' },
+      },
+      required: ['content'],
+    },
+  },
+  {
+    name: 'create_calendar_event',
+    description:
+      'Creates a personal calendar event. Use when user says "trage ein", "Termin", "erinnere mich".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Event title' },
+        date: { type: 'string', description: 'Date ISO (e.g. 2026-04-20)' },
+        time: { type: 'string', description: 'Time (e.g. 10:00). Omit for all-day.' },
+        reminderMinutes: { type: 'number', description: 'Reminder X minutes before (e.g. 15)' },
+      },
+      required: ['title', 'date'],
+    },
+  },
+  {
+    name: 'send_direct_message',
+    description:
+      'Sends a direct message to a team member. Use when user says "schreib an", "nachricht an", "sag Peter".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        recipientName: { type: 'string', description: 'Name of the recipient (partial match)' },
+        message: { type: 'string', description: 'Message content' },
+      },
+      required: ['recipientName', 'message'],
+    },
+  },
+
+  // ==================== READ TOOLS (existing) ====================
   {
     name: 'list_approval_tasks',
     description:
@@ -333,6 +416,19 @@ export class AiService {
           return this.tool_listCalendarEvents(input, userId);
         case 'list_approval_tasks':
           return this.tool_listApprovalTasks(input, userId);
+        // Action tools
+        case 'create_task':
+          return this.action_createTask(input, userId);
+        case 'complete_task':
+          return this.action_completeTask(input);
+        case 'invite_creators':
+          return this.action_inviteCreators(input);
+        case 'create_note':
+          return this.action_createNote(input, userId);
+        case 'create_calendar_event':
+          return this.action_createCalendarEvent(input, userId);
+        case 'send_direct_message':
+          return this.action_sendDirectMessage(input, userId);
         default:
           return { error: `Unknown tool: ${name}` };
       }
@@ -827,6 +923,170 @@ export class AiService {
     });
     return { count: events.length, events: events.map((e) => ({ id: e.id, title: e.title, startsAt: e.startsAt, allDay: e.allDay })) };
   }
+
+  // ==========================================================================
+  // ACTION TOOLS (write operations)
+  // ==========================================================================
+
+  private async action_createTask(input: any, userId: string): Promise<unknown> {
+    // Find project — use provided ID or pick the most recent one
+    let projectId = input.projectId;
+    if (!projectId) {
+      const latest = await this.prisma.wmProject.findFirst({
+        where: { orgId: DEV_ORG_ID, projectType: 'kanban' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, name: true },
+      });
+      if (!latest) return { error: 'Kein Projekt gefunden. Bitte zuerst ein Projekt erstellen.' };
+      projectId = latest.id;
+    }
+
+    const project = await this.prisma.wmProject.findUnique({
+      where: { id: projectId },
+      include: { columns: { orderBy: { position: 'asc' } } },
+    });
+    if (!project) return { error: 'Projekt nicht gefunden' };
+    const firstCol = project.columns[0];
+    if (!firstCol) return { error: 'Projekt hat keine Spalten' };
+
+    // Resolve assignee by name
+    let assigneeId: string | undefined;
+    if (input.assigneeName) {
+      const user = await this.prisma.user.findFirst({
+        where: { orgId: DEV_ORG_ID, name: { contains: input.assigneeName, mode: 'insensitive' as const } },
+        select: { id: true, name: true },
+      });
+      if (user) assigneeId = user.id;
+    }
+
+    const task = await this.prisma.wmTask.create({
+      data: {
+        orgId: DEV_ORG_ID,
+        projectId,
+        columnId: firstCol.id,
+        title: input.title,
+        description: input.description || null,
+        assigneeId: assigneeId || null,
+        createdById: userId,
+        priority: input.priority || 'medium',
+        dueDate: input.dueDate ? new Date(input.dueDate) : null,
+        position: 0,
+      },
+    });
+
+    if (assigneeId) {
+      await this.prisma.wmTaskAssignee.create({ data: { taskId: task.id, userId: assigneeId } });
+    }
+
+    return { success: true, taskId: task.id, title: task.title, project: project.name, assignee: input.assigneeName || 'nicht zugewiesen' };
+  }
+
+  private async action_completeTask(input: any): Promise<unknown> {
+    const task = await this.prisma.wmTask.findFirst({
+      where: {
+        orgId: DEV_ORG_ID,
+        title: { contains: input.taskTitle, mode: 'insensitive' as const },
+        completed: false,
+      },
+      select: { id: true, title: true },
+    });
+    if (!task) return { error: `Keine offene Aufgabe mit "${input.taskTitle}" gefunden` };
+
+    await this.prisma.wmTask.update({
+      where: { id: task.id },
+      data: { completed: true, completedAt: new Date() },
+    });
+    return { success: true, taskId: task.id, title: task.title, message: `"${task.title}" als erledigt markiert` };
+  }
+
+  private async action_inviteCreators(input: any): Promise<unknown> {
+    const where: any = {
+      orgId: DEV_ORG_ID,
+      inviteCode: null, // not yet invited
+    };
+    if (input?.creatorName) {
+      where.name = { contains: input.creatorName, mode: 'insensitive' as const };
+    }
+
+    const creators = await this.prisma.creator.findMany({
+      where,
+      select: { id: true, name: true, email: true },
+    });
+
+    if (creators.length === 0) {
+      return { message: 'Keine uninvited Creators gefunden. Alle sind bereits eingeladen.' };
+    }
+
+    // Generate invite codes
+    const invited: string[] = [];
+    for (const c of creators) {
+      if (!c.email) continue;
+      const code = Math.random().toString(36).slice(2, 10).toUpperCase();
+      await this.prisma.creator.update({
+        where: { id: c.id },
+        data: { inviteCode: code },
+      });
+      invited.push(`${c.name} (${c.email}) → Code: ${code}`);
+    }
+
+    return {
+      success: true,
+      invitedCount: invited.length,
+      skipped: creators.filter((c) => !c.email).length,
+      invited,
+      message: `${invited.length} Creator eingeladen`,
+    };
+  }
+
+  private async action_createNote(input: any, userId: string): Promise<unknown> {
+    const note = await this.prisma.personalNote.create({
+      data: { userId, content: input.content, pinned: false },
+    });
+    return { success: true, noteId: note.id, message: 'Notiz gespeichert' };
+  }
+
+  private async action_createCalendarEvent(input: any, userId: string): Promise<unknown> {
+    const startsAt = input.time
+      ? new Date(`${input.date}T${input.time}`)
+      : new Date(`${input.date}T00:00:00`);
+    const allDay = !input.time;
+    const reminderAt = input.reminderMinutes
+      ? new Date(startsAt.getTime() - input.reminderMinutes * 60_000)
+      : null;
+
+    const event = await this.prisma.personalCalendarEvent.create({
+      data: {
+        userId,
+        title: input.title,
+        startsAt,
+        allDay,
+        reminderAt,
+      },
+    });
+    return { success: true, eventId: event.id, title: input.title, date: input.date, time: input.time || 'ganztägig' };
+  }
+
+  private async action_sendDirectMessage(input: any, userId: string): Promise<unknown> {
+    // Find recipient by name
+    const recipient = await this.prisma.user.findFirst({
+      where: {
+        orgId: DEV_ORG_ID,
+        name: { contains: input.recipientName, mode: 'insensitive' as const },
+        id: { not: userId },
+      },
+      select: { id: true, name: true },
+    });
+    if (!recipient) return { error: `Kein Teammitglied "${input.recipientName}" gefunden` };
+
+    await this.prisma.directMessage.create({
+      data: { senderId: userId, recipientId: recipient.id, content: input.message },
+    });
+    return { success: true, to: recipient.name, message: input.message, info: 'Nachricht gesendet' };
+  }
+
+  // ==========================================================================
+  // READ TOOLS (continued)
+  // ==========================================================================
 
   // --- Approval Tasks ---
   private async tool_listApprovalTasks(input: any, userId: string): Promise<unknown> {
