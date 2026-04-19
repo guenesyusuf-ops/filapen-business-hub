@@ -172,7 +172,7 @@ function OverviewCard({ kpis, dragHandleProps }: { kpis: OverviewKPIs; dragHandl
 interface ChannelPnLCardsProps {
   pnl?: any; // PnLResult from backend
   loading?: boolean;
-  amazonData?: { totalRevenue: number; totalOrders: number } | null;
+  amazonData?: { totalRevenue: number; totalOrders: number; cogs?: number; unitCount?: number } | null;
 }
 
 export function ChannelPnLCards({ pnl, loading, amazonData }: ChannelPnLCardsProps) {
@@ -205,11 +205,11 @@ export function ChannelPnLCards({ pnl, loading, amazonData }: ChannelPnLCardsPro
   // ---- Amazon P&L ----
   const amzRevenue = amazon?.totalRevenue ?? 0;
   const amzOrders = amazon?.totalOrders ?? 0;
-  // Amazon FBA: ~15% referral fee, ~19% VAT (already included in totalRevenue)
-  const amzVat = amzRevenue * 0.19 / 1.19;                     // MwSt herausrechnen
-  const amzPlatformFees = amzRevenue * 0.15;                    // ~15% Amazon Referral Fee
-  const amzShipping = amzRevenue * 0.08;                        // ~8% FBA fulfillment estimate
-  const amzNetProfit = amzRevenue - amzVat - amzPlatformFees - amzShipping;
+  const amzCogs = amazon?.cogs ?? 0;
+  const amzVat = amzRevenue * 0.19 / 1.19;
+  const amzPlatformFees = amzRevenue * 0.15;
+  const amzShipping = amzRevenue * 0.08;
+  const amzNetProfit = amzRevenue - amzVat - amzCogs - amzPlatformFees - amzShipping;
   const amzAvgOrder = amzOrders > 0 ? amzRevenue / amzOrders : 0;
 
   const channels: ChannelPnL[] = [
@@ -233,8 +233,8 @@ export function ChannelPnLCards({ pnl, loading, amazonData }: ChannelPnLCardsPro
       color: '#FF9900',
       grossRevenue: amzRevenue,
       vat: amzVat,
-      adSpend: 0,            // Amazon Ads API not connected yet
-      cogs: 0,               // Same products — COGS tracked in Shopify for now
+      adSpend: 0,
+      cogs: amzCogs,
       shippingCosts: amzShipping,
       platformFees: amzPlatformFees,
       netProfit: amzNetProfit,

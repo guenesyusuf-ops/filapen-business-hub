@@ -91,10 +91,11 @@ export function FinanceDashboard() {
   const amazon = amazonQuery.data;
   const amzRevenue = amazon?.totalRevenue ?? 0;
   const amzOrders = amazon?.totalOrders ?? 0;
+  const amzCogs = amazon?.cogs ?? 0;
   const amzVat = amzRevenue * 0.19 / 1.19;
   const amzFees = amzRevenue * 0.15;
   const amzShipping = amzRevenue * 0.08;
-  const amzNetProfit = amzRevenue - amzVat - amzFees - amzShipping;
+  const amzNetProfit = amzRevenue - amzVat - amzCogs - amzFees - amzShipping;
 
   const correctedKpis = kpis ? {
     ...kpis,
@@ -169,7 +170,7 @@ export function FinanceDashboard() {
               newCustomerRate: (dashboardQuery.data.kpis as any)?.newCustomerRate?.value ?? 0,
             } : undefined}
             loading={dashboardQuery.isLoading}
-            amazonData={amazon ? { totalRevenue: amzRevenue, totalOrders: amzOrders } : null}
+            amazonData={amazon ? { totalRevenue: amzRevenue, totalOrders: amzOrders, cogs: amzCogs } : null}
           />
         ),
       },

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../prisma/prisma.service';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const SellingPartner = require('amazon-sp-api');
 
@@ -47,7 +48,10 @@ export class AmazonService {
   private sp: any = null;
   private readonly marketplaceIds: string[];
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    private prisma: PrismaService,
+  ) {
     const refreshToken = this.config.get<string>('AMAZON_SP_REFRESH_TOKEN');
     const clientId = this.config.get<string>('AMAZON_SP_CLIENT_ID');
     const clientSecret = this.config.get<string>('AMAZON_SP_CLIENT_SECRET');
@@ -316,6 +320,28 @@ export class AmazonService {
   }
 
   // =========================================================================
+  // COGS — average cost per unit from product_variants
+  // =========================================================================
+
+  /**
+   * Get average COGS across all product variants that have a cost set.
+   * Used to estimate Amazon product costs (unitCount * avgCogs).
+   */
+  private async getAverageCogs(): Promise<number> {
+    try {
+      const result = await this.prisma.$queryRaw<[{ avg_cogs: number }]>`
+        SELECT COALESCE(AVG(cogs), 0)::float AS avg_cogs
+        FROM product_variants
+        WHERE cogs IS NOT NULL AND cogs > 0
+      `;
+      return result[0]?.avg_cogs ?? 0;
+    } catch (err: any) {
+      this.logger.warn(`getAverageCogs failed: ${err.message}`);
+      return 0;
+    }
+  }
+
+  // =========================================================================
   // REVENUE ESTIMATION
 
   /**
@@ -396,10 +422,14 @@ export class AmazonService {
     const createdAfter = getCreatedAfterISO(Math.max(daysBack, 0));
 
     // 1) Sales API — single call, exact Seller Central data (revenue + orders)
-    const salesMetrics = await this.getOrderMetrics(daysBack, 'Total');
+    // 2) Average COGS from product_variants
+    const [salesMetrics, avgCogs] = await Promise.all([
+      this.getOrderMetrics(daysBack, 'Total'),
+      this.getAverageCogs(),
+    ]);
     const metricsData = salesMetrics?.payload?.[0] ?? salesMetrics?.[0] ?? null;
 
-    // 2) Orders API — for the order list / details table
+    // 3) Orders API — for the order list / details table
     const orders = await this.getOrders(daysBack);
     this.logger.log(`getDashboardSummary: ${orders.length} orders from Orders API, sales metrics: ${metricsData ? 'yes' : 'no'}`);
 
@@ -425,11 +455,15 @@ export class AmazonService {
     // If Sales API returned data, use it as source of truth for revenue + order count
     let salesRevenue: number | null = null;
     let salesOrderCount: number | null = null;
+    let unitCount = 0;
+    let totalCogs = 0;
     if (metricsData) {
-      // getOrderMetrics returns: { unitCount, orderItemCount, orderCount, averageUnitPrice, totalSales }
       salesRevenue = parseFloat(metricsData.totalSales?.amount ?? '0');
       salesOrderCount = metricsData.orderCount ?? null;
-      this.logger.log(`Sales API: revenue=${salesRevenue}, orders=${salesOrderCount}`);
+      unitCount = metricsData.unitCount ?? 0;
+      // COGS = units sold × average cost per unit from product_variants
+      totalCogs = Math.round(unitCount * avgCogs * 100) / 100;
+      this.logger.log(`Sales API: revenue=${salesRevenue}, orders=${salesOrderCount}, units=${unitCount}, avgCogs=${avgCogs}, totalCogs=${totalCogs}`);
     }
 
     // Status breakdown
@@ -461,6 +495,9 @@ export class AmazonService {
       totalRevenue: Math.round(finalRevenue * 100) / 100,
       confirmedRevenue: totalEstimate.shippedRevenue,
       estimatedRevenue: totalEstimate.pendingEstimate,
+      unitCount,
+      cogs: totalCogs,
+      avgCogs: Math.round(avgCogs * 100) / 100,
       todayOrders: salesOrderCount ?? todayOrdersList.length,
       todayRevenue: salesRevenue != null ? Math.round(salesRevenue * 100) / 100 : todayEstimate.revenue,
       avgOrderValue: finalOrderCount > 0 ? Math.round((finalRevenue / finalOrderCount) * 100) / 100 : 0,
