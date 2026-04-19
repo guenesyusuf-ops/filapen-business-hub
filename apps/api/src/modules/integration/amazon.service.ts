@@ -90,20 +90,42 @@ export class AmazonService {
   async getOrders(daysBack = 30): Promise<any[]> {
     if (!this.sp) return [];
     try {
+      // For "today": start at midnight local time
       const after = new Date();
-      after.setDate(after.getDate() - daysBack);
+      if (daysBack <= 0) {
+        after.setHours(0, 0, 0, 0);
+      } else {
+        after.setDate(after.getDate() - daysBack);
+        after.setHours(0, 0, 0, 0);
+      }
 
-      const res = await this.sp.callAPI({
-        operation: 'getOrders',
-        endpoint: 'orders',
-        query: {
-          MarketplaceIds: [this.marketplaceId],
-          CreatedAfter: after.toISOString(),
-          OrderStatuses: ['Shipped', 'Unshipped', 'PartiallyShipped'],
-        },
-      });
+      const allOrders: any[] = [];
+      let nextToken: string | undefined;
 
-      return res?.Orders ?? [];
+      // Paginate through all results (max 10 pages = ~1000 orders)
+      for (let page = 0; page < 10; page++) {
+        const query: any = nextToken
+          ? { NextToken: nextToken }
+          : {
+              MarketplaceIds: [this.marketplaceId],
+              CreatedAfter: after.toISOString(),
+              OrderStatuses: ['Shipped', 'Unshipped', 'PartiallyShipped'],
+            };
+
+        const res = await this.sp.callAPI({
+          operation: nextToken ? 'getOrders' : 'getOrders',
+          endpoint: 'orders',
+          query,
+        });
+
+        const orders = res?.Orders ?? [];
+        allOrders.push(...orders);
+
+        nextToken = res?.NextToken;
+        if (!nextToken || orders.length === 0) break;
+      }
+
+      return allOrders;
     } catch (err) {
       this.logger.error('getOrders failed:', err);
       return [];
