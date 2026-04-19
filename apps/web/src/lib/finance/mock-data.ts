@@ -147,6 +147,7 @@ export const MOCK_PNL: PnLResult = {
   contributionMargin: 3682780,
   contributionMarginPercent: 0.296,
   fixedCosts: 537780,
+  totalVat: 0,
   netProfit: 3145000,
   netMarginPercent: 0.253,
   waterfall: MOCK_WATERFALL,

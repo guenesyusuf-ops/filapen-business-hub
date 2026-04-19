@@ -70,6 +70,7 @@ export class DashboardService {
     return {
       dateRange: { start: startDate, end: endDate },
       kpis,
+      pnl: currentPnL, // Full PnL with COGS, VAT, shipping, etc.
       revenueChart,
       timeSeries,
       waterfall,

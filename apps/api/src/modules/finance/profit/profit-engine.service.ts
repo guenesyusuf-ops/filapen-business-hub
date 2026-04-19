@@ -145,13 +145,35 @@ export class ProfitEngineService {
     const newCustomerCount = Number(row.new_customer_count);
     const refundCount = Number(row.refund_count);
 
-    // 4. Calculate derived metrics
+    // 4a. Calculate weighted VAT from actual line items + product vatRate
+    let totalVat = 0;
+    try {
+      const vatRows = await this.prisma.$queryRaw<{ total_vat: any }[]>`
+        SELECT COALESCE(SUM(
+          oli.line_total * (pv.vat_rate / (100 + pv.vat_rate))
+        ), 0) AS total_vat
+        FROM order_line_items oli
+        JOIN orders o ON o.id = oli.order_id
+        LEFT JOIN product_variants pv ON pv.id = oli.product_variant_id
+        WHERE o.org_id = ${orgId}::uuid
+          AND o.placed_at >= ${startDate}::date
+          AND o.placed_at <= (${endDate}::date + interval '1 day')
+          AND pv.vat_rate IS NOT NULL
+      `;
+      totalVat = Number(vatRows[0]?.total_vat ?? 0);
+    } catch (err) {
+      // Fallback: 19% pauschal
+      totalVat = grossRevenue * 0.19 / 1.19;
+      this.logger.warn('VAT calculation fallback to 19%:', err);
+    }
+
+    // 4b. Calculate derived metrics
     // grossRevenue (Shopify total_price) already has discounts/refunds deducted.
-    // Do NOT subtract discounts/refunds again — they are informational only.
     const netRevenue = grossRevenue;
     const grossProfit = netRevenue - cogs;
     const contributionMargin = grossProfit - adSpend - shippingCosts - paymentFees;
-    const netProfit = contributionMargin - fixedCosts;
+    const netProfitBeforeVat = contributionMargin - fixedCosts;
+    const netProfit = netProfitBeforeVat - totalVat;
 
     const grossMarginPercent =
       netRevenue > 0
@@ -196,6 +218,7 @@ export class ProfitEngineService {
       contributionMargin: round2(contributionMargin),
       contributionMarginPercent,
       fixedCosts: round2(fixedCosts),
+      totalVat: round2(totalVat),
       netProfit: round2(netProfit),
       netMarginPercent,
       waterfall,

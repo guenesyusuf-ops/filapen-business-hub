@@ -192,10 +192,9 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
     );
   }
 
-  // Calculate VAT (19% of netRevenue as approximation if not provided)
-  const vatRate = 0.19;
-  const grossRevShopify = pnl.netRevenue ?? (pnl.grossRevenue - (pnl.discounts ?? 0));
-  const vatShopify = grossRevShopify * vatRate / (1 + vatRate); // USt aus Brutto rausrechnen
+  // Use real VAT from backend (per-product weighted) or fallback to 19% pauschal
+  const grossRevShopify = pnl.netRevenue ?? pnl.grossRevenue;
+  const vatShopify = pnl.totalVat ?? (grossRevShopify * 0.19 / 1.19);
 
   const shopifyOrders = pnl.orderCount ?? 0;
   const shopifyAvgOrder = shopifyOrders > 0 ? grossRevShopify / shopifyOrders : 0;
@@ -211,7 +210,7 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
       cogs: pnl.cogs ?? 0,
       shippingCosts: pnl.shippingCosts ?? 0,
       platformFees: pnl.paymentFees ?? 0,
-      netProfit: grossRevShopify - vatShopify - (pnl.adSpend ?? 0) - (pnl.cogs ?? 0) - (pnl.shippingCosts ?? 0) - (pnl.paymentFees ?? 0) - (pnl.fixedCosts ?? 0),
+      netProfit: pnl.netProfit ?? (grossRevShopify - vatShopify - (pnl.adSpend ?? 0) - (pnl.cogs ?? 0) - (pnl.shippingCosts ?? 0) - (pnl.paymentFees ?? 0)),
       orderCount: shopifyOrders,
       avgOrderValue: shopifyAvgOrder,
     },

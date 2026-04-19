@@ -66,6 +66,7 @@ export interface DashboardOverviewResult {
     refundRate: KpiValue;
     newCustomerRate: KpiValue;
   };
+  pnl?: PnLResult;
   revenueChart: Array<{
     date: string;
     grossRevenue: number;
@@ -99,6 +100,7 @@ export interface PnLResult {
   contributionMargin: number;
   contributionMarginPercent: number;
   fixedCosts: number;
+  totalVat: number;
   netProfit: number;
   netMarginPercent: number;
   waterfall: WaterfallSegment[];

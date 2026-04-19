@@ -54,23 +54,8 @@ export function FinanceDashboard() {
   const waterfall = dashboardQuery.data?.waterfall ?? [];
   const timeSeries = dashboardQuery.data?.timeSeries;
 
-  // Calculate correct netProfit = grossRevenue - VAT - all costs
-  // The backend netProfit doesn't subtract VAT, so we override it here.
-  const grossRev = kpis?.grossRevenue?.value ?? 0;
-  const vatRate = 0.19; // weighted avg — will be per-product once COGS + vatRate data flows
-  const vatAmount = grossRev * vatRate / (1 + vatRate);
-  const correctedNetProfit = grossRev - vatAmount
-    - (kpis?.totalAdSpend?.value ?? 0)
-    - 0 // cogs — will come from product data
-    - 0 // shipping
-    - 0 // platform fees
-    - 0; // fixed costs
-
-  // Override kpis with corrected netProfit
-  const correctedKpis = kpis ? {
-    ...kpis,
-    netProfit: { ...kpis.netProfit, value: correctedNetProfit },
-  } : undefined;
+  // Backend now calculates netProfit with per-product VAT deducted.
+  const correctedKpis = kpis;
 
   const hasError = dashboardQuery.isError || channelsQuery.isError || alertsQuery.isError;
 
@@ -117,14 +102,7 @@ export function FinanceDashboard() {
         component: (
           <ChannelPnLCards
             pnl={dashboardQuery.data ? {
-              ...dashboardQuery.data.kpis,
-              netRevenue: dashboardQuery.data.kpis?.grossRevenue?.value ?? 0,
-              grossRevenue: dashboardQuery.data.kpis?.grossRevenue?.value ?? 0,
-              adSpend: dashboardQuery.data.kpis?.totalAdSpend?.value ?? 0,
-              cogs: 0,
-              shippingCosts: 0,
-              paymentFees: 0,
-              fixedCosts: 0,
+              ...(dashboardQuery.data as any).pnl,
               orderCount: dashboardQuery.data.kpis?.orderCount?.value ?? 0,
               avgOrderValue: dashboardQuery.data.kpis?.avgOrderValue?.value ?? 0,
               newCustomerRate: (dashboardQuery.data.kpis as any)?.newCustomerRate?.value ?? 0,
