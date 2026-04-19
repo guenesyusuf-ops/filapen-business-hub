@@ -29,7 +29,7 @@ function formatNegative(value: number): string {
 export function BreakdownTable({ data }: { data: RevenueBreakdown }) {
   return (
     <AnalyticsCard title="Aufschlüsselung des Gesamtumsatzes">
-      <div className="divide-y divide-white/5">
+      <div className="divide-y divide-gray-100 dark:divide-white/5">
         {BREAKDOWN_ROWS.map((row) => {
           const raw = data[row.key] ?? 0;
           const isEmph = row.emphasis === 'subtotal' || row.emphasis === 'total';
@@ -42,13 +42,13 @@ export function BreakdownTable({ data }: { data: RevenueBreakdown }) {
               key={row.key}
               className={[
                 'flex items-center justify-between py-3',
-                isTotal ? 'border-t border-white/10 pt-4 mt-1' : '',
+                isTotal ? 'border-t border-gray-200 dark:border-white/10 pt-4 mt-1' : '',
               ].join(' ')}
             >
               <span
                 className={[
                   'text-sm',
-                  isEmph ? 'font-semibold text-white' : 'text-gray-400',
+                  isEmph ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400',
                 ].join(' ')}
               >
                 {row.label}
@@ -57,12 +57,12 @@ export function BreakdownTable({ data }: { data: RevenueBreakdown }) {
                 className={[
                   'tabular-nums',
                   isTotal
-                    ? 'text-base font-bold text-white'
+                    ? 'text-base font-bold text-gray-900 dark:text-white'
                     : isEmph
-                      ? 'text-sm font-semibold text-white'
+                      ? 'text-sm font-semibold text-gray-900 dark:text-white'
                       : row.sign === 'negative'
-                        ? 'text-sm text-red-400'
-                        : 'text-sm text-gray-200',
+                        ? 'text-sm text-red-600 dark:text-red-400'
+                        : 'text-sm text-gray-700 dark:text-gray-200',
                 ].join(' ')}
               >
                 {display}
