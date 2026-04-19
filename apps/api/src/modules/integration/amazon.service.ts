@@ -299,7 +299,13 @@ export class AmazonService {
       const amount = parseFloat(o.OrderTotal?.Amount ?? '0');
       totalRevenue += amount;
 
-      const orderDate = (o.PurchaseDate ?? '').split('T')[0];
+      // Convert order date to Berlin timezone for comparison
+      const orderDate = o.PurchaseDate
+        ? new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Europe/Berlin',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+          }).format(new Date(o.PurchaseDate))
+        : '';
       if (orderDate === today) {
         todayRevenue += amount;
         todayOrders++;

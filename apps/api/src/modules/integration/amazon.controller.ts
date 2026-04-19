@@ -29,7 +29,7 @@ export class AmazonController {
     if (!this.amazon.isConfigured) {
       throw new HttpException('Amazon SP-API nicht konfiguriert', HttpStatus.SERVICE_UNAVAILABLE);
     }
-    const days = parseInt(daysStr || '30', 10) || 30;
+    const days = daysStr !== undefined ? parseInt(daysStr, 10) : 30;
     try {
       // Hard 50s timeout — ensures we always respond
       const result = await Promise.race([
@@ -55,7 +55,7 @@ export class AmazonController {
     if (!this.amazon.isConfigured) {
       throw new HttpException('Amazon SP-API nicht konfiguriert', HttpStatus.SERVICE_UNAVAILABLE);
     }
-    const days = parseInt(daysStr || '30', 10) || 30;
+    const days = daysStr !== undefined ? parseInt(daysStr, 10) : 30;
     try {
       return await this.amazon.getOrders(days);
     } catch (err) {
@@ -69,7 +69,7 @@ export class AmazonController {
     if (!this.amazon.isConfigured) {
       throw new HttpException('Amazon SP-API nicht konfiguriert', HttpStatus.SERVICE_UNAVAILABLE);
     }
-    const days = parseInt(daysStr || '30', 10) || 30;
+    const days = daysStr !== undefined ? parseInt(daysStr, 10) : 30;
     try {
       return await this.amazon.getFinancialEvents(days);
     } catch (err) {

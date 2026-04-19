@@ -29,7 +29,7 @@ function getDaysForPreset(preset: typeof DATE_PRESETS[number]): number {
     const jan1 = new Date(now.getFullYear(), 0, 1);
     return Math.ceil((now.getTime() - jan1.getTime()) / 86_400_000);
   }
-  return preset.days || 1;
+  return preset.days;
 }
 
 /** Calculate days between two date strings (YYYY-MM-DD). */
