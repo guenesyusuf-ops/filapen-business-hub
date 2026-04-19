@@ -3,18 +3,31 @@ import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const SellingPartner = require('amazon-sp-api');
 
-/** Wraps a promise with a timeout — rejects if it takes too long. */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
-    ),
-  ]);
+/** Returns "today minus daysBack" at midnight Europe/Berlin, as a UTC Date. */
+function germanMidnight(daysBack = 0): Date {
+  // Get current date in Berlin timezone (format: "2026-04-19")
+  const now = new Date();
+  const target = new Date(now.getTime() - daysBack * 86_400_000);
+  const berlinDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(target);
+  // Determine if Berlin is in CEST (+02:00) or CET (+01:00) right now
+  const berlinHour = parseInt(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Berlin', hour: 'numeric', hour12: false,
+    }).format(new Date(`${berlinDate}T12:00:00Z`)),
+  );
+  const offset = berlinHour === 14 ? '+02:00' : '+01:00';
+  return new Date(`${berlinDate}T00:00:00${offset}`);
+}
+
+/** Sleep helper for retry delays */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // EU marketplace IDs where seller is registered (DE, FR, IT, ES)
-// Amazon SP-API handles all in a single request — no separate calls needed
 const EU_MARKETPLACE_IDS = [
   'A1PA6795UKMFR9',  // DE
   'A13V1IB3VIYZZH',  // FR
@@ -47,7 +60,8 @@ export class AmazonService {
           },
           options: {
             auto_request_tokens: true,
-            auto_request_throttled: false,
+            auto_request_throttled: true,
+            only_grantless_operations: false,
           },
         });
         this.logger.log('Amazon SP-API client initialized');
@@ -70,7 +84,7 @@ export class AmazonService {
       const after = new Date();
       after.setDate(after.getDate() - 7);
 
-      const res: any = await withTimeout(
+      const res: any = await Promise.race([
         this.sp.callAPI({
           operation: 'getOrders',
           endpoint: 'orders',
@@ -79,9 +93,10 @@ export class AmazonService {
             CreatedAfter: after.toISOString(),
           },
         }),
-        15_000,
-        'debugConnection',
-      );
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('debug timed out after 15s')), 15_000),
+        ),
+      ]);
 
       return {
         success: true,
@@ -116,25 +131,20 @@ export class AmazonService {
     if (!this.sp) return [];
     try {
       const start = Date.now();
-      // For "today": start at midnight local time
-      const after = new Date();
-      if (daysBack <= 0) {
-        after.setHours(0, 0, 0, 0);
-      } else {
-        after.setDate(after.getDate() - daysBack);
-        after.setHours(0, 0, 0, 0);
-      }
+      // Use German midnight so "Heute" matches Seller Central
+      const after = germanMidnight(Math.max(daysBack, 0));
 
-      this.logger.log(`getOrders: fetching from ${after.toISOString()}, marketplaces: ${this.marketplaceIds.join(', ')}`);
+      this.logger.log(`getOrders: fetching from ${after.toISOString()} (daysBack=${daysBack}), marketplaces: ${this.marketplaceIds.join(', ')}`);
 
       const allOrders: any[] = [];
       let nextToken: string | undefined;
 
-      // Paginate through all results (max 10 pages, 45s timeout)
+      // Paginate — auto_request_throttled handles Amazon rate limits.
+      // Hard limit: 10 pages (~1000 orders) or 55 seconds total.
       for (let page = 0; page < 10; page++) {
-        // Safety: abort if taking too long (Amazon throttling can add up)
-        if (Date.now() - start > 45_000) {
-          this.logger.warn(`getOrders: timeout after ${page} pages, returning ${allOrders.length} orders`);
+        const elapsed = Date.now() - start;
+        if (elapsed > 55_000) {
+          this.logger.warn(`getOrders: hard timeout at ${elapsed}ms after ${page} pages, returning ${allOrders.length} orders`);
           break;
         }
 
@@ -148,14 +158,28 @@ export class AmazonService {
 
         let res: any;
         try {
-          res = await withTimeout(
+          // Each page gets up to 20s — auto_request_throttled will retry within this window
+          res = await Promise.race([
             this.sp.callAPI({ operation: 'getOrders', endpoint: 'orders', query }),
-            15_000,
-            `getOrders page ${page + 1}`,
-          );
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('page timeout')), 20_000),
+            ),
+          ]);
         } catch (pageErr: any) {
-          this.logger.warn(`getOrders: page ${page + 1} failed: ${pageErr.message} — returning ${allOrders.length} orders so far`);
-          break;
+          // If a page fails, wait 2s and try once more (throttle recovery)
+          this.logger.warn(`getOrders: page ${page + 1} attempt 1 failed: ${pageErr.message}`);
+          await sleep(2000);
+          try {
+            res = await Promise.race([
+              this.sp.callAPI({ operation: 'getOrders', endpoint: 'orders', query }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('page retry timeout')), 15_000),
+              ),
+            ]);
+          } catch (retryErr: any) {
+            this.logger.warn(`getOrders: page ${page + 1} retry failed: ${retryErr.message} — returning ${allOrders.length} orders`);
+            break;
+          }
         }
 
         const orders = res?.Orders ?? [];
