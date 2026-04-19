@@ -3,23 +3,34 @@ import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const SellingPartner = require('amazon-sp-api');
 
-/** Returns "today minus daysBack" at midnight Europe/Berlin, as a UTC Date. */
-function germanMidnight(daysBack = 0): Date {
-  // Get current date in Berlin timezone (format: "2026-04-19")
+/** Returns "today minus daysBack" at midnight Europe/Berlin, as a UTC ISO string. */
+function getCreatedAfterISO(daysBack = 0): string {
+  // Simple approach: Berlin is UTC+1 (winter) or UTC+2 (summer).
+  // We subtract the offset to get German midnight in UTC.
   const now = new Date();
-  const target = new Date(now.getTime() - daysBack * 86_400_000);
-  const berlinDate = new Intl.DateTimeFormat('en-CA', {
+
+  // Get Berlin date parts directly
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Berlin',
     year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(target);
-  // Determine if Berlin is in CEST (+02:00) or CET (+01:00) right now
-  const berlinHour = parseInt(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Europe/Berlin', hour: 'numeric', hour12: false,
-    }).format(new Date(`${berlinDate}T12:00:00Z`)),
-  );
-  const offset = berlinHour === 14 ? '+02:00' : '+01:00';
-  return new Date(`${berlinDate}T00:00:00${offset}`);
+  }).format(now).split('-').map(Number);
+
+  // Build date at midnight UTC, then subtract daysBack
+  const midnightUTC = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] - daysBack));
+
+  // Adjust for Berlin offset: in CEST (summer) midnight Berlin = 22:00 UTC prev day
+  // Check current Berlin offset by comparing UTC hour vs Berlin hour
+  const utcHour = now.getUTCHours();
+  const berlinHourStr = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Berlin', hour: 'numeric', hour12: false,
+  }).format(now);
+  const berlinHour = parseInt(berlinHourStr);
+  const offsetHours = ((berlinHour - utcHour) + 24) % 24;
+
+  // Subtract offset to convert Berlin midnight to UTC
+  midnightUTC.setUTCHours(midnightUTC.getUTCHours() - offsetHours);
+
+  return midnightUTC.toISOString();
 }
 
 /** Sleep helper for retry delays */
@@ -141,9 +152,9 @@ export class AmazonService {
     if (!this.sp) return [];
     try {
       const start = Date.now();
-      const after = germanMidnight(Math.max(daysBack, 0));
+      const createdAfter = getCreatedAfterISO(Math.max(daysBack, 0));
 
-      this.logger.log(`getOrders: fetching from ${after.toISOString()} (daysBack=${daysBack}), marketplaces: ${this.marketplaceIds.join(', ')}`);
+      this.logger.log(`getOrders: fetching from ${createdAfter} (daysBack=${daysBack}), marketplaces: ${this.marketplaceIds.join(', ')}`);
 
       const allOrders: any[] = [];
       let nextToken: string | undefined;
@@ -158,7 +169,7 @@ export class AmazonService {
           ? { NextToken: nextToken }
           : {
               MarketplaceIds: this.marketplaceIds,
-              CreatedAfter: after.toISOString(),
+              CreatedAfter: createdAfter,
               OrderStatuses: ['Shipped', 'Unshipped', 'PartiallyShipped', 'Pending'],
             };
 
@@ -272,7 +283,11 @@ export class AmazonService {
     const orders = await this.getOrders(daysBack);
     this.logger.log(`getDashboardSummary: ${orders.length} orders fetched for ${daysBack} days back`);
 
-    const today = new Date().toISOString().split('T')[0];
+    // Use Berlin date for "today" comparison, not UTC
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Berlin',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
     let totalRevenue = 0;
     let todayRevenue = 0;
     let todayOrders = 0;
