@@ -181,16 +181,21 @@ interface ChannelPnLCardsProps {
 /** Fetch Amazon Sales API data for the selected date range */
 function useAmazonSalesData() {
   const { dateRange } = useFinanceUI();
-  const days = Math.max(0, Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / 86_400_000));
+  // Safely get days — dateRange values may be strings after hydration
+  const start = dateRange?.start instanceof Date ? dateRange.start : new Date(dateRange?.start ?? Date.now());
+  const end = dateRange?.end instanceof Date ? dateRange.end : new Date(dateRange?.end ?? Date.now());
+  const days = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
 
   return useQuery({
     queryKey: ['amazon', 'sales-for-finance', days],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${days}`, {
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) return null;
-      return res.json();
+      try {
+        const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${days}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) return null;
+        return res.json();
+      } catch { return null; }
     },
     staleTime: 5 * 60_000,
     retry: 1,

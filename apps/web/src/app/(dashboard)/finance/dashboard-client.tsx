@@ -29,7 +29,9 @@ const SHOPIFY_CHANNEL_KEYS = new Set(['shopify', 'shopify_dtc']);
 /** Fetch Amazon Sales API data for the finance date range */
 function useAmazonForFinance() {
   const { dateRange } = useFinanceUI();
-  const days = Math.max(0, Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / 86_400_000));
+  const start = dateRange?.start instanceof Date ? dateRange.start : new Date(dateRange?.start ?? Date.now());
+  const end = dateRange?.end instanceof Date ? dateRange.end : new Date(dateRange?.end ?? Date.now());
+  const days = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
 
   return useQuery({
     queryKey: ['amazon', 'finance-kpi', days],
