@@ -48,7 +48,9 @@ interface AmazonDashboard {
     currency: string;
     date: string;
     items: number;
+    marketplace?: string;
   }[];
+  marketplaces?: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +73,20 @@ function useAmazonDashboard(days: number) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const MARKETPLACE_NAMES: Record<string, string> = {
+  A1PA6795UKMFR9: 'DE',
+  A13V1IB3VIYZZH: 'FR',
+  APJ6JRA9NG5V4: 'IT',
+  A1RKKUPIHCS9HS: 'ES',
+  A1F83G8C2ARO7P: 'UK',
+  A1805IZSGTT6HS: 'NL',
+  A2NODRKZP88ZB9: 'SE',
+  A1C3SOZRARQ6R3: 'PL',
+  A33AVAJ2PDY3EV: 'TR',
+  ARBP9OOSHTCHU: 'EG',
+  A2Q3Y263D00KWC: 'BE',
+};
 
 function eur(val: number, currency = 'EUR'): string {
   return val.toLocaleString('de-DE', { style: 'currency', currency, minimumFractionDigits: 2 });
@@ -214,6 +230,7 @@ export default function AmazonDashboardPage() {
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-white/5">
                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Bestellung</th>
+                    <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Marktplatz</th>
                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Betrag</th>
                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Artikel</th>
@@ -225,8 +242,16 @@ export default function AmazonDashboardPage() {
                     <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.03]">
                       <td className="px-5 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{o.id.slice(-8)}</td>
                       <td className="px-5 py-3">
-                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', o.status === 'Shipped' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400')}>
-                          {o.status === 'Shipped' ? 'Versendet' : o.status === 'Unshipped' ? 'Offen' : o.status}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300">
+                          {MARKETPLACE_NAMES[o.marketplace ?? ''] ?? o.marketplace?.slice(-4) ?? '–'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full',
+                          o.status === 'Shipped' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                            : o.status === 'Pending' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400')}>
+                          {o.status === 'Shipped' ? 'Versendet' : o.status === 'Unshipped' ? 'Offen' : o.status === 'Pending' ? 'Ausstehend' : o.status === 'PartiallyShipped' ? 'Teilversendet' : o.status}
                         </span>
                       </td>
                       <td className="px-5 py-3 font-semibold text-gray-900 dark:text-white">{eur(o.amount, o.currency)}</td>

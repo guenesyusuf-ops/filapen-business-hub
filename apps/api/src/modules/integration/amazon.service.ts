@@ -3,17 +3,34 @@ import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const SellingPartner = require('amazon-sp-api');
 
+// All EU marketplace IDs — query all to get worldwide data
+const EU_MARKETPLACE_IDS = [
+  'A1PA6795UKMFR9',  // DE
+  'A13V1IB3VIYZZH',  // FR
+  'APJ6JRA9NG5V4',   // IT
+  'A1RKKUPIHCS9HS',  // ES
+  'A1F83G8C2ARO7P',  // UK
+  'A1805IZSGTT6HS',  // NL
+  'A2NODRKZP88ZB9',  // SE
+  'A1C3SOZRARQ6R3',  // PL
+  'A33AVAJ2PDY3EV',  // TR
+  'ARBP9OOSHTCHU',   // EG
+  'A2Q3Y263D00KWC',  // BE
+];
+
 @Injectable()
 export class AmazonService {
   private readonly logger = new Logger(AmazonService.name);
   private sp: any = null;
-  private readonly marketplaceId: string;
+  private readonly marketplaceIds: string[];
 
   constructor(private config: ConfigService) {
     const refreshToken = this.config.get<string>('AMAZON_SP_REFRESH_TOKEN');
     const clientId = this.config.get<string>('AMAZON_SP_CLIENT_ID');
     const clientSecret = this.config.get<string>('AMAZON_SP_CLIENT_SECRET');
-    this.marketplaceId = this.config.get<string>('AMAZON_SP_MARKETPLACE_ID') || 'A1PA6795UKMFR9';
+    // Use configured marketplace IDs or default to all EU
+    const configuredId = this.config.get<string>('AMAZON_SP_MARKETPLACE_ID');
+    this.marketplaceIds = configuredId ? [configuredId, ...EU_MARKETPLACE_IDS.filter(id => id !== configuredId)] : EU_MARKETPLACE_IDS;
 
     if (refreshToken && clientId && clientSecret) {
       try {
@@ -53,14 +70,14 @@ export class AmazonService {
         operation: 'getOrders',
         endpoint: 'orders',
         query: {
-          MarketplaceIds: [this.marketplaceId],
+          MarketplaceIds: this.marketplaceIds,
           CreatedAfter: after.toISOString(),
         },
       });
 
       return {
         success: true,
-        marketplaceId: this.marketplaceId,
+        marketplaceIds: this.marketplaceIds,
         sellerId: this.config.get<string>('AMAZON_SP_SELLER_ID'),
         rawResponseKeys: res ? Object.keys(res) : [],
         orderCount: res?.Orders?.length ?? 0,
@@ -102,14 +119,14 @@ export class AmazonService {
       const allOrders: any[] = [];
       let nextToken: string | undefined;
 
-      // Paginate through all results (max 10 pages = ~1000 orders)
-      for (let page = 0; page < 10; page++) {
+      // Paginate through all results (max 20 pages = ~2000 orders)
+      for (let page = 0; page < 20; page++) {
         const query: any = nextToken
           ? { NextToken: nextToken }
           : {
-              MarketplaceIds: [this.marketplaceId],
+              MarketplaceIds: this.marketplaceIds,
               CreatedAfter: after.toISOString(),
-              OrderStatuses: ['Shipped', 'Unshipped', 'PartiallyShipped'],
+              OrderStatuses: ['Pending', 'Shipped', 'Unshipped', 'PartiallyShipped'],
             };
 
         const res = await this.sp.callAPI({
@@ -184,7 +201,7 @@ export class AmazonService {
         api_path: '/catalog/2022-04-01/items',
         method: 'GET',
         query: {
-          marketplaceIds: [this.marketplaceId],
+          marketplaceIds: this.marketplaceIds,
           sellerId: this.config.get<string>('AMAZON_SP_SELLER_ID'),
           pageSize: limit,
           includedData: ['summaries', 'images', 'salesRanks'],
@@ -210,8 +227,10 @@ export class AmazonService {
     avgOrderValue: number;
     currency: string;
     orders: any[];
+    marketplaces: Record<string, number>;
   }> {
     const orders = await this.getOrders(daysBack);
+    this.logger.log(`getDashboardSummary: ${orders.length} orders fetched for ${daysBack} days back`);
 
     const today = new Date().toISOString().split('T')[0];
     let totalRevenue = 0;
@@ -229,6 +248,14 @@ export class AmazonService {
       }
     }
 
+    // Count orders per marketplace for debugging
+    const marketplaces: Record<string, number> = {};
+    for (const o of orders) {
+      const mp = o.MarketplaceId ?? 'unknown';
+      marketplaces[mp] = (marketplaces[mp] ?? 0) + 1;
+    }
+    this.logger.log(`Marketplace breakdown: ${JSON.stringify(marketplaces)}`);
+
     return {
       totalOrders: orders.length,
       totalRevenue: Math.round(totalRevenue * 100) / 100,
@@ -236,15 +263,16 @@ export class AmazonService {
       todayRevenue: Math.round(todayRevenue * 100) / 100,
       avgOrderValue: orders.length ? Math.round((totalRevenue / orders.length) * 100) / 100 : 0,
       currency: orders[0]?.OrderTotal?.CurrencyCode ?? 'EUR',
-      orders: orders.slice(0, 20).map((o) => ({
+      orders: orders.slice(0, 50).map((o) => ({
         id: o.AmazonOrderId,
         status: o.OrderStatus,
         amount: parseFloat(o.OrderTotal?.Amount ?? '0'),
         currency: o.OrderTotal?.CurrencyCode ?? 'EUR',
         date: o.PurchaseDate,
-        items: o.NumberOfItemsShipped ?? 0,
+        items: (o.NumberOfItemsShipped ?? 0) + (o.NumberOfItemsUnshipped ?? 0),
         marketplace: o.MarketplaceId,
       })),
+      marketplaces,
     };
   }
 }
