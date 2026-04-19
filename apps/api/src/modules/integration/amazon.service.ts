@@ -27,13 +27,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// EU marketplace IDs where seller is registered (DE, FR, IT, ES)
-const EU_MARKETPLACE_IDS = [
-  'A1PA6795UKMFR9',  // DE
-  'A13V1IB3VIYZZH',  // FR
-  'APJ6JRA9NG5V4',   // IT
-  'A1RKKUPIHCS9HS',  // ES
-];
+// Default marketplace — additional marketplaces can be set via AMAZON_SP_MARKETPLACE_IDS env
+const DEFAULT_MARKETPLACE_ID = 'A1PA6795UKMFR9'; // DE
 
 @Injectable()
 export class AmazonService {
@@ -45,9 +40,12 @@ export class AmazonService {
     const refreshToken = this.config.get<string>('AMAZON_SP_REFRESH_TOKEN');
     const clientId = this.config.get<string>('AMAZON_SP_CLIENT_ID');
     const clientSecret = this.config.get<string>('AMAZON_SP_CLIENT_SECRET');
-    // Use configured marketplace IDs or default to all EU
-    const configuredId = this.config.get<string>('AMAZON_SP_MARKETPLACE_ID');
-    this.marketplaceIds = configuredId ? [configuredId, ...EU_MARKETPLACE_IDS.filter(id => id !== configuredId)] : EU_MARKETPLACE_IDS;
+    // Marketplace IDs — comma-separated env var or just the single configured one
+    const multiIds = this.config.get<string>('AMAZON_SP_MARKETPLACE_IDS');
+    const singleId = this.config.get<string>('AMAZON_SP_MARKETPLACE_ID');
+    this.marketplaceIds = multiIds
+      ? multiIds.split(',').map((s) => s.trim())
+      : [singleId || DEFAULT_MARKETPLACE_ID];
 
     if (refreshToken && clientId && clientSecret) {
       try {
@@ -60,8 +58,7 @@ export class AmazonService {
           },
           options: {
             auto_request_tokens: true,
-            auto_request_throttled: true,
-            only_grantless_operations: false,
+            auto_request_throttled: false,
           },
         });
         this.logger.log('Amazon SP-API client initialized');
@@ -84,19 +81,14 @@ export class AmazonService {
       const after = new Date();
       after.setDate(after.getDate() - 7);
 
-      const res: any = await Promise.race([
-        this.sp.callAPI({
-          operation: 'getOrders',
-          endpoint: 'orders',
-          query: {
-            MarketplaceIds: this.marketplaceIds,
-            CreatedAfter: after.toISOString(),
-          },
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('debug timed out after 15s')), 15_000),
-        ),
-      ]);
+      const res: any = await this.callWithRetry({
+        operation: 'getOrders',
+        endpoint: 'orders',
+        query: {
+          MarketplaceIds: this.marketplaceIds,
+          CreatedAfter: after.toISOString(),
+        },
+      });
 
       return {
         success: true,
@@ -127,11 +119,28 @@ export class AmazonService {
   // ORDERS
   // =========================================================================
 
+  /** Call SP-API with up to `retries` attempts, waiting between throttle errors. */
+  private async callWithRetry(params: any, retries = 3): Promise<any> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        return await this.sp.callAPI(params);
+      } catch (err: any) {
+        const isThrottle = err.statusCode === 429 || err.code === 'QuotaExceeded';
+        if (isThrottle && attempt < retries) {
+          const delay = attempt * 2000; // 2s, 4s
+          this.logger.warn(`SP-API throttled (attempt ${attempt}/${retries}), waiting ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
   async getOrders(daysBack = 30): Promise<any[]> {
     if (!this.sp) return [];
     try {
       const start = Date.now();
-      // Use German midnight so "Heute" matches Seller Central
       const after = germanMidnight(Math.max(daysBack, 0));
 
       this.logger.log(`getOrders: fetching from ${after.toISOString()} (daysBack=${daysBack}), marketplaces: ${this.marketplaceIds.join(', ')}`);
@@ -139,12 +148,9 @@ export class AmazonService {
       const allOrders: any[] = [];
       let nextToken: string | undefined;
 
-      // Paginate — auto_request_throttled handles Amazon rate limits.
-      // Hard limit: 10 pages (~1000 orders) or 55 seconds total.
       for (let page = 0; page < 10; page++) {
-        const elapsed = Date.now() - start;
-        if (elapsed > 55_000) {
-          this.logger.warn(`getOrders: hard timeout at ${elapsed}ms after ${page} pages, returning ${allOrders.length} orders`);
+        if (Date.now() - start > 50_000) {
+          this.logger.warn(`getOrders: timeout after ${page} pages, returning ${allOrders.length} orders`);
           break;
         }
 
@@ -153,33 +159,15 @@ export class AmazonService {
           : {
               MarketplaceIds: this.marketplaceIds,
               CreatedAfter: after.toISOString(),
-              OrderStatuses: ['Pending', 'Shipped', 'Unshipped', 'PartiallyShipped'],
+              OrderStatuses: ['Shipped', 'Unshipped', 'PartiallyShipped', 'Pending'],
             };
 
         let res: any;
         try {
-          // Each page gets up to 20s — auto_request_throttled will retry within this window
-          res = await Promise.race([
-            this.sp.callAPI({ operation: 'getOrders', endpoint: 'orders', query }),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('page timeout')), 20_000),
-            ),
-          ]);
+          res = await this.callWithRetry({ operation: 'getOrders', endpoint: 'orders', query });
         } catch (pageErr: any) {
-          // If a page fails, wait 2s and try once more (throttle recovery)
-          this.logger.warn(`getOrders: page ${page + 1} attempt 1 failed: ${pageErr.message}`);
-          await sleep(2000);
-          try {
-            res = await Promise.race([
-              this.sp.callAPI({ operation: 'getOrders', endpoint: 'orders', query }),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('page retry timeout')), 15_000),
-              ),
-            ]);
-          } catch (retryErr: any) {
-            this.logger.warn(`getOrders: page ${page + 1} retry failed: ${retryErr.message} — returning ${allOrders.length} orders`);
-            break;
-          }
+          this.logger.warn(`getOrders: page ${page + 1} failed after retries: ${pageErr.message} — returning ${allOrders.length} orders`);
+          break;
         }
 
         const orders = res?.Orders ?? [];
@@ -188,6 +176,9 @@ export class AmazonService {
 
         nextToken = res?.NextToken;
         if (!nextToken || orders.length === 0) break;
+
+        // Small delay between pages to avoid hitting rate limits
+        if (nextToken) await sleep(500);
       }
 
       this.logger.log(`getOrders: done — ${allOrders.length} orders in ${Date.now() - start}ms`);
