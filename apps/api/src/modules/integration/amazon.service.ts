@@ -131,14 +131,17 @@ export class AmazonService {
   // =========================================================================
 
   /** Call SP-API with up to `retries` attempts, waiting between throttle errors. */
-  private async callWithRetry(params: any, retries = 3): Promise<any> {
+  private async callWithRetry(params: any, retries = 4): Promise<any> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         return await this.sp.callAPI(params);
       } catch (err: any) {
-        const isThrottle = err.statusCode === 429 || err.code === 'QuotaExceeded';
+        const isThrottle = err.statusCode === 429
+          || err.code === 'QuotaExceeded'
+          || (err.message && err.message.includes('quota'));
         if (isThrottle && attempt < retries) {
-          const delay = attempt * 2000; // 2s, 4s
+          // Exponential backoff: 3s, 6s, 12s
+          const delay = 3000 * Math.pow(2, attempt - 1);
           this.logger.warn(`SP-API throttled (attempt ${attempt}/${retries}), waiting ${delay}ms...`);
           await sleep(delay);
           continue;
@@ -188,8 +191,8 @@ export class AmazonService {
         nextToken = res?.NextToken;
         if (!nextToken || orders.length === 0) break;
 
-        // Small delay between pages to avoid hitting rate limits
-        if (nextToken) await sleep(500);
+        // Delay between pages to respect Amazon rate limit (~1 req/sec for getOrders)
+        if (nextToken) await sleep(2000);
       }
 
       this.logger.log(`getOrders: done — ${allOrders.length} orders in ${Date.now() - start}ms`);
