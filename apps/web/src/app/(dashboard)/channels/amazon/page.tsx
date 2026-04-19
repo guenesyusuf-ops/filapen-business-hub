@@ -79,9 +79,18 @@ function useAmazonDashboard(days: number) {
   return useQuery<AmazonDashboard>({
     queryKey: ['amazon', 'dashboard', days],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${days}`, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Amazon-Daten nicht verfügbar');
-      return res.json();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60_000); // 60s timeout
+      try {
+        const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${days}`, {
+          headers: getAuthHeaders(),
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error('Amazon-Daten nicht verfügbar');
+        return res.json();
+      } finally {
+        clearTimeout(timeout);
+      }
     },
     retry: 1,
     staleTime: 5 * 60_000,
@@ -262,8 +271,9 @@ export default function AmazonDashboardPage() {
       </div>
 
       {isLoading && (
-        <div className="flex justify-center py-16">
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+          <p className="text-xs text-gray-400 dark:text-gray-500">Bestellungen werden geladen (kann bis zu 30s dauern)</p>
         </div>
       )}
 

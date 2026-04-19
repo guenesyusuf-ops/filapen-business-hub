@@ -3,19 +3,13 @@ import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const SellingPartner = require('amazon-sp-api');
 
-// All EU marketplace IDs — query all to get worldwide data
+// EU marketplace IDs where seller is registered (DE, FR, IT, ES)
+// Amazon SP-API handles all in a single request — no separate calls needed
 const EU_MARKETPLACE_IDS = [
   'A1PA6795UKMFR9',  // DE
   'A13V1IB3VIYZZH',  // FR
   'APJ6JRA9NG5V4',   // IT
   'A1RKKUPIHCS9HS',  // ES
-  'A1F83G8C2ARO7P',  // UK
-  'A1805IZSGTT6HS',  // NL
-  'A2NODRKZP88ZB9',  // SE
-  'A1C3SOZRARQ6R3',  // PL
-  'A33AVAJ2PDY3EV',  // TR
-  'ARBP9OOSHTCHU',   // EG
-  'A2Q3Y263D00KWC',  // BE
 ];
 
 @Injectable()
@@ -107,6 +101,7 @@ export class AmazonService {
   async getOrders(daysBack = 30): Promise<any[]> {
     if (!this.sp) return [];
     try {
+      const start = Date.now();
       // For "today": start at midnight local time
       const after = new Date();
       if (daysBack <= 0) {
@@ -116,11 +111,19 @@ export class AmazonService {
         after.setHours(0, 0, 0, 0);
       }
 
+      this.logger.log(`getOrders: fetching from ${after.toISOString()}, marketplaces: ${this.marketplaceIds.join(', ')}`);
+
       const allOrders: any[] = [];
       let nextToken: string | undefined;
 
-      // Paginate through all results (max 20 pages = ~2000 orders)
-      for (let page = 0; page < 20; page++) {
+      // Paginate through all results (max 10 pages, 45s timeout)
+      for (let page = 0; page < 10; page++) {
+        // Safety: abort if taking too long (Amazon throttling can add up)
+        if (Date.now() - start > 45_000) {
+          this.logger.warn(`getOrders: timeout after ${page} pages, returning ${allOrders.length} orders`);
+          break;
+        }
+
         const query: any = nextToken
           ? { NextToken: nextToken }
           : {
@@ -130,18 +133,20 @@ export class AmazonService {
             };
 
         const res = await this.sp.callAPI({
-          operation: nextToken ? 'getOrders' : 'getOrders',
+          operation: 'getOrders',
           endpoint: 'orders',
           query,
         });
 
         const orders = res?.Orders ?? [];
         allOrders.push(...orders);
+        this.logger.log(`getOrders: page ${page + 1} → ${orders.length} orders (total: ${allOrders.length}, ${Date.now() - start}ms)`);
 
         nextToken = res?.NextToken;
         if (!nextToken || orders.length === 0) break;
       }
 
+      this.logger.log(`getOrders: done — ${allOrders.length} orders in ${Date.now() - start}ms`);
       return allOrders;
     } catch (err) {
       this.logger.error('getOrders failed:', err);
