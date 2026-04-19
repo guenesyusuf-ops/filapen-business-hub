@@ -25,12 +25,13 @@ export class AmazonController {
   }
 
   @Get('dashboard')
-  async dashboard() {
+  async dashboard(@Query('days') daysStr?: string) {
     if (!this.amazon.isConfigured) {
       throw new HttpException('Amazon SP-API nicht konfiguriert', HttpStatus.SERVICE_UNAVAILABLE);
     }
+    const days = parseInt(daysStr || '30', 10) || 30;
     try {
-      return await this.amazon.getDashboardSummary();
+      return await this.amazon.getDashboardSummary(days);
     } catch (err) {
       this.logger.error('Amazon dashboard failed:', err);
       throw new HttpException('Amazon-Daten konnten nicht geladen werden', HttpStatus.INTERNAL_SERVER_ERROR);

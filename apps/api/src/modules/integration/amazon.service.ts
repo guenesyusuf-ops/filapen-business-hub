@@ -180,7 +180,7 @@ export class AmazonService {
   // SUMMARY / DASHBOARD
   // =========================================================================
 
-  async getDashboardSummary(): Promise<{
+  async getDashboardSummary(daysBack = 30): Promise<{
     totalOrders: number;
     totalRevenue: number;
     todayOrders: number;
@@ -189,7 +189,7 @@ export class AmazonService {
     currency: string;
     orders: any[];
   }> {
-    const orders = await this.getOrders(30);
+    const orders = await this.getOrders(daysBack);
 
     const today = new Date().toISOString().split('T')[0];
     let totalRevenue = 0;
