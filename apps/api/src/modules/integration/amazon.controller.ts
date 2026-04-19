@@ -35,7 +35,7 @@ export class AmazonController {
       const result = await Promise.race([
         this.amazon.getDashboardSummary(days),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Dashboard request timed out')), 50_000),
+          setTimeout(() => reject(new Error('Dashboard request timed out')), 90_000),
         ),
       ]);
       return result;

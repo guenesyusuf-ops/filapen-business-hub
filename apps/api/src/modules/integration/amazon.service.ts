@@ -270,6 +270,61 @@ export class AmazonService {
   }
 
   // =========================================================================
+  // ORDER ITEMS — needed for accurate revenue (Pending orders have 0 in OrderTotal)
+  // =========================================================================
+
+  /**
+   * Fetch OrderItems for orders that have OrderTotal.Amount = 0 (typically Pending).
+   * This gives us the actual product prices that Seller Central uses.
+   * Rate limit: 1 request per order, so we batch with delays.
+   */
+  private async enrichOrdersWithItemPrices(orders: any[]): Promise<void> {
+    const ordersNeedingItems = orders.filter(
+      (o) => !o.OrderTotal?.Amount || parseFloat(o.OrderTotal.Amount) === 0,
+    );
+
+    if (ordersNeedingItems.length === 0) return;
+
+    this.logger.log(`Enriching ${ordersNeedingItems.length} orders with item prices...`);
+    let enriched = 0;
+
+    for (const order of ordersNeedingItems) {
+      try {
+        const items = await this.callWithRetry({
+          operation: 'getOrderItems',
+          endpoint: 'orders',
+          path: { orderId: order.AmazonOrderId },
+        });
+
+        const orderItems = items?.OrderItems ?? [];
+        let itemTotal = 0;
+        let currency = 'EUR';
+
+        for (const item of orderItems) {
+          // ItemPrice.Amount = product price (what Seller Central calls "Umsatz")
+          const price = parseFloat(item.ItemPrice?.Amount ?? '0');
+          itemTotal += price;
+          if (item.ItemPrice?.CurrencyCode) currency = item.ItemPrice.CurrencyCode;
+        }
+
+        if (itemTotal > 0) {
+          order.OrderTotal = { Amount: String(itemTotal), CurrencyCode: currency };
+          order._enrichedFromItems = true;
+          enriched++;
+        }
+
+        // Respect rate limit for getOrderItems (1 req / 2 sec burst)
+        await sleep(500);
+      } catch (err: any) {
+        this.logger.warn(`Failed to get items for ${order.AmazonOrderId}: ${err.message}`);
+        // Continue with other orders — don't break the loop
+      }
+    }
+
+    this.logger.log(`Enriched ${enriched}/${ordersNeedingItems.length} orders with item prices`);
+  }
+
+  // =========================================================================
   // SUMMARY / DASHBOARD
   // =========================================================================
 
@@ -282,24 +337,41 @@ export class AmazonService {
     currency: string;
     orders: any[];
     marketplaces: Record<string, number>;
+    debug: {
+      statusBreakdown: Record<string, { count: number; revenue: number }>;
+      createdAfter: string;
+      paginationPages: number;
+    };
   }> {
+    const createdAfter = getCreatedAfterISO(Math.max(daysBack, 0));
     const orders = await this.getOrders(daysBack);
     this.logger.log(`getDashboardSummary: ${orders.length} orders fetched for ${daysBack} days back`);
 
-    // Use Berlin date for "today" comparison, not UTC
+    // Enrich Pending orders with actual item prices (like Seller Central does)
+    await this.enrichOrdersWithItemPrices(orders);
+
+    // Use Berlin date for "today" comparison
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Europe/Berlin',
       year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date());
+
     let totalRevenue = 0;
     let todayRevenue = 0;
     let todayOrders = 0;
+    const statusBreakdown: Record<string, { count: number; revenue: number }> = {};
 
     for (const o of orders) {
       const amount = parseFloat(o.OrderTotal?.Amount ?? '0');
       totalRevenue += amount;
 
-      // Convert order date to Berlin timezone for comparison
+      // Track per-status breakdown for debugging
+      const status = o.OrderStatus ?? 'Unknown';
+      if (!statusBreakdown[status]) statusBreakdown[status] = { count: 0, revenue: 0 };
+      statusBreakdown[status].count++;
+      statusBreakdown[status].revenue += amount;
+
+      // Convert order date to Berlin timezone for today comparison
       const orderDate = o.PurchaseDate
         ? new Intl.DateTimeFormat('en-CA', {
             timeZone: 'Europe/Berlin',
@@ -312,12 +384,14 @@ export class AmazonService {
       }
     }
 
-    // Count orders per marketplace for debugging
+    // Count orders per marketplace
     const marketplaces: Record<string, number> = {};
     for (const o of orders) {
       const mp = o.MarketplaceId ?? 'unknown';
       marketplaces[mp] = (marketplaces[mp] ?? 0) + 1;
     }
+
+    this.logger.log(`Status breakdown: ${JSON.stringify(statusBreakdown)}`);
     this.logger.log(`Marketplace breakdown: ${JSON.stringify(marketplaces)}`);
 
     return {
@@ -337,6 +411,11 @@ export class AmazonService {
         marketplace: o.MarketplaceId,
       })),
       marketplaces,
+      debug: {
+        statusBreakdown,
+        createdAfter,
+        paginationPages: Math.ceil(orders.length / 100),
+      },
     };
   }
 }

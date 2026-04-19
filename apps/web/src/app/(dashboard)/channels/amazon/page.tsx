@@ -80,7 +80,7 @@ function useAmazonDashboard(days: number) {
     queryKey: ['amazon', 'dashboard', days],
     queryFn: async () => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60_000); // 60s timeout
+      const timeout = setTimeout(() => controller.abort(), 120_000); // 2min timeout (item enrichment takes time)
       try {
         const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${days}`, {
           headers: getAuthHeaders(),
