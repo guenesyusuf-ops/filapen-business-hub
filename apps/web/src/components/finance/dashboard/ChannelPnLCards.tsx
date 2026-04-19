@@ -1,7 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
+import { useFinanceUI } from '@/stores/finance-ui';
 import { ShoppingBag, TrendingUp, Store, Video, BarChart3, GripVertical } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -174,8 +178,30 @@ interface ChannelPnLCardsProps {
   loading?: boolean;
 }
 
+/** Fetch Amazon Sales API data for the selected date range */
+function useAmazonSalesData() {
+  const { dateRange } = useFinanceUI();
+  const days = Math.max(0, Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / 86_400_000));
+
+  return useQuery({
+    queryKey: ['amazon', 'sales-for-finance', days],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${days}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
 export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
-  if (loading || !pnl) {
+  const amazonQuery = useAmazonSalesData();
+  const amazon = amazonQuery.data;
+
+  if ((loading && !amazon) || !pnl) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
         {[1, 2, 3, 4].map((i) => (
@@ -192,12 +218,22 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
     );
   }
 
-  // Use real VAT from backend (per-product weighted) or fallback to 19% pauschal
+  // ---- Shopify P&L ----
   const grossRevShopify = pnl.netRevenue ?? pnl.grossRevenue;
   const vatShopify = pnl.totalVat ?? (grossRevShopify * 0.19 / 1.19);
-
   const shopifyOrders = pnl.orderCount ?? 0;
   const shopifyAvgOrder = shopifyOrders > 0 ? grossRevShopify / shopifyOrders : 0;
+  const shopifyNetProfit = pnl.netProfit ?? (grossRevShopify - vatShopify - (pnl.adSpend ?? 0) - (pnl.cogs ?? 0) - (pnl.shippingCosts ?? 0) - (pnl.paymentFees ?? 0));
+
+  // ---- Amazon P&L ----
+  const amzRevenue = amazon?.totalRevenue ?? 0;
+  const amzOrders = amazon?.totalOrders ?? 0;
+  // Amazon FBA: ~15% referral fee, ~19% VAT (already included in totalRevenue)
+  const amzVat = amzRevenue * 0.19 / 1.19;                     // MwSt herausrechnen
+  const amzPlatformFees = amzRevenue * 0.15;                    // ~15% Amazon Referral Fee
+  const amzShipping = amzRevenue * 0.08;                        // ~8% FBA fulfillment estimate
+  const amzNetProfit = amzRevenue - amzVat - amzPlatformFees - amzShipping;
+  const amzAvgOrder = amzOrders > 0 ? amzRevenue / amzOrders : 0;
 
   const channels: ChannelPnL[] = [
     {
@@ -210,7 +246,7 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
       cogs: pnl.cogs ?? 0,
       shippingCosts: pnl.shippingCosts ?? 0,
       platformFees: pnl.paymentFees ?? 0,
-      netProfit: pnl.netProfit ?? (grossRevShopify - vatShopify - (pnl.adSpend ?? 0) - (pnl.cogs ?? 0) - (pnl.shippingCosts ?? 0) - (pnl.paymentFees ?? 0)),
+      netProfit: shopifyNetProfit,
       orderCount: shopifyOrders,
       avgOrderValue: shopifyAvgOrder,
     },
@@ -218,15 +254,15 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
       name: 'Amazon',
       icon: <Store className="h-4 w-4" />,
       color: '#FF9900',
-      grossRevenue: 0,
-      vat: 0,
-      adSpend: 0,
-      cogs: 0,
-      shippingCosts: 0,
-      platformFees: 0,
-      netProfit: 0,
-      orderCount: 0,
-      avgOrderValue: 0,
+      grossRevenue: amzRevenue,
+      vat: amzVat,
+      adSpend: 0,            // Amazon Ads API not connected yet
+      cogs: 0,               // Same products — COGS tracked in Shopify for now
+      shippingCosts: amzShipping,
+      platformFees: amzPlatformFees,
+      netProfit: amzNetProfit,
+      orderCount: amzOrders,
+      avgOrderValue: amzAvgOrder,
     },
     {
       name: 'TikTok',

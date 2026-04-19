@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { DateRangePicker } from '@/components/finance/shared/DateRangePicker';
 import { ChannelSelector } from '@/components/finance/shared/ChannelSelector';
 import { KPICardRow } from '@/components/finance/dashboard/KPICardRow';
@@ -18,10 +19,33 @@ import {
   useFinanceAlerts,
 } from '@/hooks/finance/useDashboard';
 import { useFinanceUI } from '@/stores/finance-ui';
+import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 
 // Any of these channel keys activates the Shopify deep-dive view. We match
 // both "shopify" (task spec) and "shopify_dtc" (legacy DB channel key).
 const SHOPIFY_CHANNEL_KEYS = new Set(['shopify', 'shopify_dtc']);
+
+/** Fetch Amazon Sales API data for the finance date range */
+function useAmazonForFinance() {
+  const { dateRange } = useFinanceUI();
+  const days = Math.max(0, Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / 86_400_000));
+
+  return useQuery({
+    queryKey: ['amazon', 'finance-kpi', days],
+    queryFn: async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${days}`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) return null;
+        return res.json();
+      } catch { return null; }
+    },
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
 
 export function FinanceDashboard() {
   const { selectedChannel, setChannel } = useFinanceUI();
@@ -31,6 +55,7 @@ export function FinanceDashboard() {
   const dashboardQuery = useDashboardOverview();
   const channelsQuery = useChannelPerformance();
   const alertsQuery = useFinanceAlerts();
+  const amazonQuery = useAmazonForFinance();
 
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState<Set<string>>(new Set());
 
@@ -54,8 +79,36 @@ export function FinanceDashboard() {
   const waterfall = dashboardQuery.data?.waterfall ?? [];
   const timeSeries = dashboardQuery.data?.timeSeries;
 
-  // Backend now calculates netProfit with per-product VAT deducted.
-  const correctedKpis = kpis;
+  // Merge Amazon data into KPIs (Shopify + Amazon combined)
+  const amazon = amazonQuery.data;
+  const amzRevenue = amazon?.totalRevenue ?? 0;
+  const amzOrders = amazon?.totalOrders ?? 0;
+  const amzVat = amzRevenue * 0.19 / 1.19;
+  const amzFees = amzRevenue * 0.15;
+  const amzShipping = amzRevenue * 0.08;
+  const amzNetProfit = amzRevenue - amzVat - amzFees - amzShipping;
+
+  const correctedKpis = kpis ? {
+    ...kpis,
+    grossRevenue: {
+      ...kpis.grossRevenue,
+      value: (kpis.grossRevenue?.value ?? 0) + amzRevenue,
+    },
+    netProfit: {
+      ...kpis.netProfit,
+      value: (kpis.netProfit?.value ?? 0) + amzNetProfit,
+    },
+    orderCount: {
+      ...kpis.orderCount,
+      value: (kpis.orderCount?.value ?? 0) + amzOrders,
+    },
+    avgOrderValue: {
+      ...kpis.avgOrderValue,
+      value: ((kpis.orderCount?.value ?? 0) + amzOrders) > 0
+        ? ((kpis.grossRevenue?.value ?? 0) + amzRevenue) / ((kpis.orderCount?.value ?? 0) + amzOrders)
+        : 0,
+    },
+  } : kpis;
 
   const hasError = dashboardQuery.isError || channelsQuery.isError || alertsQuery.isError;
 
