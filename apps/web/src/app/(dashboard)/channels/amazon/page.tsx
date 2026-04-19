@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
-import { ShoppingBag, TrendingUp, DollarSign, BarChart3, Target, AlertTriangle, ChevronDown } from 'lucide-react';
+import { ShoppingBag, TrendingUp, DollarSign, BarChart3, Target, AlertTriangle, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
 // Date range presets
 // ---------------------------------------------------------------------------
+
+const STORAGE_KEY = 'amazon-date-preset';
 
 const DATE_PRESETS = [
   { label: 'Heute', days: 0 },
@@ -28,6 +30,22 @@ function getDaysForPreset(preset: typeof DATE_PRESETS[number]): number {
     return Math.ceil((now.getTime() - jan1.getTime()) / 86_400_000);
   }
   return preset.days || 1;
+}
+
+/** Calculate days between two date strings (YYYY-MM-DD). */
+function daysBetween(from: string, to: string): number {
+  const a = new Date(from + 'T00:00:00');
+  const b = new Date(to + 'T00:00:00');
+  return Math.max(0, Math.ceil((b.getTime() - a.getTime()) / 86_400_000));
+}
+
+function getInitialPreset(): { index: number; customFrom?: string; customTo?: string } {
+  if (typeof window === 'undefined') return { index: 3 };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { index: 3 };
 }
 
 // ---------------------------------------------------------------------------
@@ -101,14 +119,72 @@ function formatDate(iso: string): string {
 // ---------------------------------------------------------------------------
 
 export default function AmazonDashboardPage() {
-  const [selectedPreset, setSelectedPreset] = useState(3); // default 30 Tage
-  const days = getDaysForPreset(DATE_PRESETS[selectedPreset]);
+  const initial = useMemo(() => getInitialPreset(), []);
+  const [selectedPreset, setSelectedPreset] = useState(initial.index);
+  const [isCustom, setIsCustom] = useState(initial.index === -1);
+  const [customFrom, setCustomFrom] = useState(initial.customFrom ?? '');
+  const [customTo, setCustomTo] = useState(initial.customTo ?? '');
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Calculate days from selected preset or custom range
+  const days = useMemo(() => {
+    if (isCustom && customFrom && customTo) {
+      return daysBetween(customFrom, customTo);
+    }
+    if (selectedPreset >= 0 && selectedPreset < DATE_PRESETS.length) {
+      return getDaysForPreset(DATE_PRESETS[selectedPreset]);
+    }
+    return 30;
+  }, [isCustom, customFrom, customTo, selectedPreset]);
+
+  // Persist selection to localStorage
+  useEffect(() => {
+    try {
+      if (isCustom) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ index: -1, customFrom, customTo }));
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ index: selectedPreset }));
+      }
+    } catch {}
+  }, [selectedPreset, isCustom, customFrom, customTo]);
+
+  // Close custom picker on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowCustomPicker(false);
+      }
+    }
+    if (showCustomPicker) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showCustomPicker]);
+
+  const handlePresetClick = (i: number) => {
+    setSelectedPreset(i);
+    setIsCustom(false);
+    setShowCustomPicker(false);
+  };
+
+  const handleCustomApply = () => {
+    if (customFrom && customTo) {
+      setIsCustom(true);
+      setSelectedPreset(-1);
+      setShowCustomPicker(false);
+    }
+  };
+
   const { data, isLoading, error } = useAmazonDashboard(days);
 
   // Placeholder values until we have ads data
   const adSpend = 0;
   const roas = adSpend > 0 && data ? (data.totalRevenue / adSpend) : 0;
-  const profit = data ? data.totalRevenue * 0.81 - adSpend : 0; // Rough: revenue - 19% VAT - ads (COGS not tracked on Amazon yet)
+  const profit = data ? data.totalRevenue * 0.81 - adSpend : 0;
+
+  // Label for custom range
+  const customLabel = isCustom && customFrom && customTo
+    ? `${new Date(customFrom).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} – ${new Date(customTo).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`
+    : 'Zeitraum';
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -124,10 +200,10 @@ export default function AmazonDashboardPage() {
           {DATE_PRESETS.map((preset, i) => (
             <button
               key={preset.label}
-              onClick={() => setSelectedPreset(i)}
+              onClick={() => handlePresetClick(i)}
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap',
-                selectedPreset === i
+                !isCustom && selectedPreset === i
                   ? 'bg-white dark:bg-[#1a1d2e] text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
               )}
@@ -135,6 +211,53 @@ export default function AmazonDashboardPage() {
               {preset.label}
             </button>
           ))}
+
+          {/* Custom date range button */}
+          <div className="relative" ref={pickerRef}>
+            <button
+              onClick={() => setShowCustomPicker((v) => !v)}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1',
+                isCustom
+                  ? 'bg-white dark:bg-[#1a1d2e] text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
+              )}
+            >
+              <Calendar className="h-3 w-3" />
+              {customLabel}
+            </button>
+
+            {showCustomPicker && (
+              <div className="absolute right-0 top-full mt-2 z-50 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl p-4 space-y-3 min-w-[260px]">
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">Von</label>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">Bis</label>
+                  <input
+                    type="date"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                  />
+                </div>
+                <button
+                  onClick={handleCustomApply}
+                  disabled={!customFrom || !customTo}
+                  className="w-full rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white text-sm font-medium py-2 transition-colors"
+                >
+                  Anwenden
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
