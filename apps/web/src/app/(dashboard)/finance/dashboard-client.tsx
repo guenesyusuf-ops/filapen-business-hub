@@ -54,6 +54,24 @@ export function FinanceDashboard() {
   const waterfall = dashboardQuery.data?.waterfall ?? [];
   const timeSeries = dashboardQuery.data?.timeSeries;
 
+  // Calculate correct netProfit = grossRevenue - VAT - all costs
+  // The backend netProfit doesn't subtract VAT, so we override it here.
+  const grossRev = kpis?.grossRevenue?.value ?? 0;
+  const vatRate = 0.19; // weighted avg — will be per-product once COGS + vatRate data flows
+  const vatAmount = grossRev * vatRate / (1 + vatRate);
+  const correctedNetProfit = grossRev - vatAmount
+    - (kpis?.totalAdSpend?.value ?? 0)
+    - 0 // cogs — will come from product data
+    - 0 // shipping
+    - 0 // platform fees
+    - 0; // fixed costs
+
+  // Override kpis with corrected netProfit
+  const correctedKpis = kpis ? {
+    ...kpis,
+    netProfit: { ...kpis.netProfit, value: correctedNetProfit },
+  } : undefined;
+
   const hasError = dashboardQuery.isError || channelsQuery.isError || alertsQuery.isError;
 
   // Define widgets for the customizable grid
@@ -64,7 +82,7 @@ export function FinanceDashboard() {
         title: 'KPI Cards',
         size: 'full' as const,
         component: (
-          <KPICardRow kpis={kpis} loading={dashboardQuery.isLoading} />
+          <KPICardRow kpis={correctedKpis} loading={dashboardQuery.isLoading} />
         ),
       },
       {
