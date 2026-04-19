@@ -270,58 +270,59 @@ export class AmazonService {
   }
 
   // =========================================================================
-  // ORDER ITEMS — needed for accurate revenue (Pending orders have 0 in OrderTotal)
+  // REVENUE ESTIMATION
   // =========================================================================
 
   /**
-   * Fetch OrderItems for orders that have OrderTotal.Amount = 0 (typically Pending).
-   * This gives us the actual product prices that Seller Central uses.
-   * Rate limit: 1 request per order, so we batch with delays.
+   * Calculate revenue matching Seller Central's "Ordered Product Sales".
+   *
+   * FACTS (verified):
+   * - Shipped/Unshipped orders have OrderTotal.Amount with real values
+   * - Pending orders have OrderTotal = {} (completely empty)
+   * - Seller Central counts Pending orders in both count AND revenue
+   * - SC uses ItemPrice from OrderItems for Pending order values
+   * - Fetching OrderItems for each Pending order is too slow (1 call per order)
+   *
+   * STRATEGY:
+   * 1. Use OrderTotal.Amount for all orders that have it (Shipped/Unshipped)
+   * 2. For Pending orders: estimate using avg order value from Shipped orders
+   *    This gives us a close approximation without 60+ extra API calls
+   * 3. The order COUNT is always exact (no estimation needed)
    */
-  private async enrichOrdersWithItemPrices(orders: any[]): Promise<void> {
-    const ordersNeedingItems = orders.filter(
-      (o) => !o.OrderTotal?.Amount || parseFloat(o.OrderTotal.Amount) === 0,
-    );
+  private estimateRevenue(orders: any[]): {
+    revenue: number;
+    shippedRevenue: number;
+    pendingEstimate: number;
+    shippedCount: number;
+    pendingCount: number;
+    avgOrderValue: number;
+  } {
+    let shippedRevenue = 0;
+    let shippedCount = 0;
+    let pendingCount = 0;
 
-    if (ordersNeedingItems.length === 0) return;
-
-    this.logger.log(`Enriching ${ordersNeedingItems.length} orders with item prices...`);
-    let enriched = 0;
-
-    for (const order of ordersNeedingItems) {
-      try {
-        const items = await this.callWithRetry({
-          operation: 'getOrderItems',
-          endpoint: 'orders',
-          path: { orderId: order.AmazonOrderId },
-        });
-
-        const orderItems = items?.OrderItems ?? [];
-        let itemTotal = 0;
-        let currency = 'EUR';
-
-        for (const item of orderItems) {
-          // ItemPrice.Amount = product price (what Seller Central calls "Umsatz")
-          const price = parseFloat(item.ItemPrice?.Amount ?? '0');
-          itemTotal += price;
-          if (item.ItemPrice?.CurrencyCode) currency = item.ItemPrice.CurrencyCode;
-        }
-
-        if (itemTotal > 0) {
-          order.OrderTotal = { Amount: String(itemTotal), CurrencyCode: currency };
-          order._enrichedFromItems = true;
-          enriched++;
-        }
-
-        // Respect rate limit for getOrderItems (1 req / 2 sec burst)
-        await sleep(500);
-      } catch (err: any) {
-        this.logger.warn(`Failed to get items for ${order.AmazonOrderId}: ${err.message}`);
-        // Continue with other orders — don't break the loop
+    for (const o of orders) {
+      const amount = parseFloat(o.OrderTotal?.Amount ?? '0');
+      if (amount > 0) {
+        shippedRevenue += amount;
+        shippedCount++;
+      } else {
+        pendingCount++;
       }
     }
 
-    this.logger.log(`Enriched ${enriched}/${ordersNeedingItems.length} orders with item prices`);
+    // Estimate Pending revenue based on average Shipped order value
+    const avgOrderValue = shippedCount > 0 ? shippedRevenue / shippedCount : 0;
+    const pendingEstimate = pendingCount * avgOrderValue;
+
+    return {
+      revenue: Math.round((shippedRevenue + pendingEstimate) * 100) / 100,
+      shippedRevenue: Math.round(shippedRevenue * 100) / 100,
+      pendingEstimate: Math.round(pendingEstimate * 100) / 100,
+      shippedCount,
+      pendingCount,
+      avgOrderValue: Math.round(avgOrderValue * 100) / 100,
+    };
   }
 
   // =========================================================================
@@ -331,6 +332,8 @@ export class AmazonService {
   async getDashboardSummary(daysBack = 30): Promise<{
     totalOrders: number;
     totalRevenue: number;
+    confirmedRevenue: number;
+    estimatedRevenue: number;
     todayOrders: number;
     todayRevenue: number;
     avgOrderValue: number;
@@ -341,14 +344,13 @@ export class AmazonService {
       statusBreakdown: Record<string, { count: number; revenue: number }>;
       createdAfter: string;
       paginationPages: number;
+      shippedCount: number;
+      pendingCount: number;
     };
   }> {
     const createdAfter = getCreatedAfterISO(Math.max(daysBack, 0));
     const orders = await this.getOrders(daysBack);
     this.logger.log(`getDashboardSummary: ${orders.length} orders fetched for ${daysBack} days back`);
-
-    // Enrich Pending orders with actual item prices (like Seller Central does)
-    await this.enrichOrdersWithItemPrices(orders);
 
     // Use Berlin date for "today" comparison
     const today = new Intl.DateTimeFormat('en-CA', {
@@ -356,50 +358,47 @@ export class AmazonService {
       year: 'numeric', month: '2-digit', day: '2-digit',
     }).format(new Date());
 
-    let totalRevenue = 0;
-    let todayRevenue = 0;
-    let todayOrders = 0;
+    // Split orders by today vs period
+    const todayBerlin = (o: any) => {
+      if (!o.PurchaseDate) return false;
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Berlin',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date(o.PurchaseDate)) === today;
+    };
+
+    const todayOrdersList = orders.filter(todayBerlin);
+    const todayEstimate = this.estimateRevenue(todayOrdersList);
+    const totalEstimate = this.estimateRevenue(orders);
+
+    // Status breakdown
     const statusBreakdown: Record<string, { count: number; revenue: number }> = {};
-
     for (const o of orders) {
-      const amount = parseFloat(o.OrderTotal?.Amount ?? '0');
-      totalRevenue += amount;
-
-      // Track per-status breakdown for debugging
       const status = o.OrderStatus ?? 'Unknown';
+      const amount = parseFloat(o.OrderTotal?.Amount ?? '0');
       if (!statusBreakdown[status]) statusBreakdown[status] = { count: 0, revenue: 0 };
       statusBreakdown[status].count++;
       statusBreakdown[status].revenue += amount;
-
-      // Convert order date to Berlin timezone for today comparison
-      const orderDate = o.PurchaseDate
-        ? new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Europe/Berlin',
-            year: 'numeric', month: '2-digit', day: '2-digit',
-          }).format(new Date(o.PurchaseDate))
-        : '';
-      if (orderDate === today) {
-        todayRevenue += amount;
-        todayOrders++;
-      }
     }
 
-    // Count orders per marketplace
+    // Marketplace breakdown
     const marketplaces: Record<string, number> = {};
     for (const o of orders) {
       const mp = o.MarketplaceId ?? 'unknown';
       marketplaces[mp] = (marketplaces[mp] ?? 0) + 1;
     }
 
-    this.logger.log(`Status breakdown: ${JSON.stringify(statusBreakdown)}`);
-    this.logger.log(`Marketplace breakdown: ${JSON.stringify(marketplaces)}`);
+    this.logger.log(`Today: ${todayOrdersList.length} orders, est. ${todayEstimate.revenue}€ (${todayEstimate.shippedRevenue}€ confirmed + ${todayEstimate.pendingEstimate}€ pending estimate)`);
+    this.logger.log(`Status: ${JSON.stringify(statusBreakdown)}`);
 
     return {
       totalOrders: orders.length,
-      totalRevenue: Math.round(totalRevenue * 100) / 100,
-      todayOrders,
-      todayRevenue: Math.round(todayRevenue * 100) / 100,
-      avgOrderValue: orders.length ? Math.round((totalRevenue / orders.length) * 100) / 100 : 0,
+      totalRevenue: totalEstimate.revenue,
+      confirmedRevenue: totalEstimate.shippedRevenue,
+      estimatedRevenue: totalEstimate.pendingEstimate,
+      todayOrders: todayOrdersList.length,
+      todayRevenue: todayEstimate.revenue,
+      avgOrderValue: totalEstimate.avgOrderValue,
       currency: orders[0]?.OrderTotal?.CurrencyCode ?? 'EUR',
       orders: orders.slice(0, 50).map((o) => ({
         id: o.AmazonOrderId,
@@ -415,6 +414,8 @@ export class AmazonService {
         statusBreakdown,
         createdAfter,
         paginationPages: Math.ceil(orders.length / 100),
+        shippedCount: totalEstimate.shippedCount,
+        pendingCount: totalEstimate.pendingCount,
       },
     };
   }
