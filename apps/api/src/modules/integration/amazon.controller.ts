@@ -78,6 +78,20 @@ export class AmazonController {
     }
   }
 
+  @Get('sales-metrics')
+  async salesMetrics(@Query('days') daysStr?: string) {
+    if (!this.amazon.isConfigured) {
+      throw new HttpException('Amazon SP-API nicht konfiguriert', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+    const days = daysStr !== undefined ? parseInt(daysStr, 10) : 0;
+    try {
+      return await this.amazon.getOrderMetrics(days, 'Total');
+    } catch (err: any) {
+      this.logger.error('Amazon sales metrics failed:', err);
+      throw new HttpException('Sales Metrics nicht verfügbar', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Get('products')
   async products() {
     if (!this.amazon.isConfigured) {

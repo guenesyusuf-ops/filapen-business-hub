@@ -270,8 +270,53 @@ export class AmazonService {
   }
 
   // =========================================================================
-  // REVENUE ESTIMATION
+  // SALES API — getOrderMetrics (matches Seller Central exactly)
   // =========================================================================
+
+  /**
+   * Uses the Sales API getOrderMetrics to get aggregated sales data.
+   * This is the SAME data source Seller Central uses for its dashboard.
+   * Single API call, no pagination needed, returns exact revenue figures.
+   */
+  async getOrderMetrics(daysBack = 0, granularity: 'Day' | 'Week' | 'Month' | 'Total' = 'Total'): Promise<any> {
+    if (!this.sp) return null;
+    try {
+      // Build interval in ISO 8601 format: "2026-04-19T00:00:00--2026-04-20T00:00:00"
+      const now = new Date();
+      const berlinDateParts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Berlin',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(now);
+
+      // End date is tomorrow (exclusive upper bound)
+      const endParts = berlinDateParts.split('-').map(Number);
+      const startDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2] - daysBack));
+      const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2] + 1));
+
+      const interval = `${startDate.toISOString().split('T')[0]}T00:00:00-00:00--${endDate.toISOString().split('T')[0]}T00:00:00-00:00`;
+
+      this.logger.log(`getOrderMetrics: interval=${interval}, granularity=${granularity}`);
+
+      const res: any = await this.callWithRetry({
+        operation: 'getOrderMetrics',
+        endpoint: 'sales',
+        query: {
+          marketplaceIds: this.marketplaceIds,
+          interval,
+          granularity,
+        },
+      });
+
+      this.logger.log(`getOrderMetrics result: ${JSON.stringify(res).slice(0, 500)}`);
+      return res;
+    } catch (err: any) {
+      this.logger.error(`getOrderMetrics failed: ${err.message}`);
+      return null;
+    }
+  }
+
+  // =========================================================================
+  // REVENUE ESTIMATION
 
   /**
    * Calculate revenue matching Seller Central's "Ordered Product Sales".
@@ -349,8 +394,14 @@ export class AmazonService {
     };
   }> {
     const createdAfter = getCreatedAfterISO(Math.max(daysBack, 0));
+
+    // 1) Sales API — single call, exact Seller Central data (revenue + orders)
+    const salesMetrics = await this.getOrderMetrics(daysBack, 'Total');
+    const metricsData = salesMetrics?.payload?.[0] ?? salesMetrics?.[0] ?? null;
+
+    // 2) Orders API — for the order list / details table
     const orders = await this.getOrders(daysBack);
-    this.logger.log(`getDashboardSummary: ${orders.length} orders fetched for ${daysBack} days back`);
+    this.logger.log(`getDashboardSummary: ${orders.length} orders from Orders API, sales metrics: ${metricsData ? 'yes' : 'no'}`);
 
     // Use Berlin date for "today" comparison
     const today = new Intl.DateTimeFormat('en-CA', {
@@ -368,8 +419,18 @@ export class AmazonService {
     };
 
     const todayOrdersList = orders.filter(todayBerlin);
-    const todayEstimate = this.estimateRevenue(todayOrdersList);
     const totalEstimate = this.estimateRevenue(orders);
+    const todayEstimate = this.estimateRevenue(todayOrdersList);
+
+    // If Sales API returned data, use it as source of truth for revenue + order count
+    let salesRevenue: number | null = null;
+    let salesOrderCount: number | null = null;
+    if (metricsData) {
+      // getOrderMetrics returns: { unitCount, orderItemCount, orderCount, averageUnitPrice, totalSales }
+      salesRevenue = parseFloat(metricsData.totalSales?.amount ?? '0');
+      salesOrderCount = metricsData.orderCount ?? null;
+      this.logger.log(`Sales API: revenue=${salesRevenue}, orders=${salesOrderCount}`);
+    }
 
     // Status breakdown
     const statusBreakdown: Record<string, { count: number; revenue: number }> = {};
@@ -388,17 +449,21 @@ export class AmazonService {
       marketplaces[mp] = (marketplaces[mp] ?? 0) + 1;
     }
 
-    this.logger.log(`Today: ${todayOrdersList.length} orders, est. ${todayEstimate.revenue}€ (${todayEstimate.shippedRevenue}€ confirmed + ${todayEstimate.pendingEstimate}€ pending estimate)`);
+    // Final values: Sales API > Orders API estimation
+    const finalRevenue = salesRevenue ?? totalEstimate.revenue;
+    const finalOrderCount = salesOrderCount ?? orders.length;
+
+    this.logger.log(`Final: ${finalOrderCount} orders, ${finalRevenue}€ (source: ${salesRevenue != null ? 'Sales API' : 'Orders API estimate'})`);
     this.logger.log(`Status: ${JSON.stringify(statusBreakdown)}`);
 
     return {
-      totalOrders: orders.length,
-      totalRevenue: totalEstimate.revenue,
+      totalOrders: finalOrderCount,
+      totalRevenue: Math.round(finalRevenue * 100) / 100,
       confirmedRevenue: totalEstimate.shippedRevenue,
       estimatedRevenue: totalEstimate.pendingEstimate,
-      todayOrders: todayOrdersList.length,
-      todayRevenue: todayEstimate.revenue,
-      avgOrderValue: totalEstimate.avgOrderValue,
+      todayOrders: salesOrderCount ?? todayOrdersList.length,
+      todayRevenue: salesRevenue != null ? Math.round(salesRevenue * 100) / 100 : todayEstimate.revenue,
+      avgOrderValue: finalOrderCount > 0 ? Math.round((finalRevenue / finalOrderCount) * 100) / 100 : 0,
       currency: orders[0]?.OrderTotal?.CurrencyCode ?? 'EUR',
       orders: orders.slice(0, 50).map((o) => ({
         id: o.AmazonOrderId,
