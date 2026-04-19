@@ -1,10 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import { API_URL } from '@/lib/api';
-import { getAuthHeaders } from '@/stores/auth';
 import { ShoppingBag, TrendingUp, Store, Video, BarChart3, GripVertical } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -175,27 +172,13 @@ function OverviewCard({ kpis, dragHandleProps }: { kpis: OverviewKPIs; dragHandl
 interface ChannelPnLCardsProps {
   pnl?: any; // PnLResult from backend
   loading?: boolean;
-  amazonDays?: number;
+  amazonData?: { totalRevenue: number; totalOrders: number } | null;
 }
 
-export function ChannelPnLCards({ pnl, loading, amazonDays = 30 }: ChannelPnLCardsProps) {
-  const amazonQuery = useQuery({
-    queryKey: ['amazon', 'sales-for-finance', amazonDays],
-    queryFn: async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${amazonDays}`, {
-          headers: getAuthHeaders(),
-        });
-        if (!res.ok) return null;
-        return res.json();
-      } catch { return null; }
-    },
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
-  const amazon = amazonQuery.data;
+export function ChannelPnLCards({ pnl, loading, amazonData }: ChannelPnLCardsProps) {
+  const amazon = amazonData;
 
-  if ((loading && !amazon) || !pnl) {
+  if (loading || !pnl) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
         {[1, 2, 3, 4].map((i) => (

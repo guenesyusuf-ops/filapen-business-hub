@@ -169,7 +169,7 @@ export function FinanceDashboard() {
               newCustomerRate: (dashboardQuery.data.kpis as any)?.newCustomerRate?.value ?? 0,
             } : undefined}
             loading={dashboardQuery.isLoading}
-            amazonDays={financeDays}
+            amazonData={amazon ? { totalRevenue: amzRevenue, totalOrders: amzOrders } : null}
           />
         ),
       },
