@@ -143,3 +143,13 @@
 {"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/integration/shopify/shopify-auth.controller.ts","timestamp":1775778931184,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/integration/integration.module.ts","timestamp":1775846358129,"sessionId":null}
 {"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/finance/dashboard/dashboard.controller.ts","timestamp":1775852023005,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/work-management/[id]/page.tsx","timestamp":1776280309842,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/ai/ai.service.ts","timestamp":1776374435611,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/work-management/wm-approval.service.ts","timestamp":1776376336507,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/hooks/useDocuments.ts","timestamp":1776386647620,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/documents/page.tsx","timestamp":1776386745513,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/layout.tsx","timestamp":1776386754036,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/app/(dashboard)/layout.tsx","timestamp":1776386761505,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/i18n/locales/de.json","timestamp":1776386774791,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/web/src/i18n/locales/en.json","timestamp":1776386781565,"sessionId":null}
+{"type":"edit","file":"/Users/yumaya/filapen/apps/api/src/modules/integration/amazon.service.ts","timestamp":1776613853871,"sessionId":null}

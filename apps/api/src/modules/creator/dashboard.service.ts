@@ -15,15 +15,20 @@ export class DashboardService {
   /**
    * Top KPI numbers for the "Content in Zahlen" panel.
    */
+  /** Exclude soft-deleted (churned) creators from all dashboard queries */
+  private readonly activeFilter = { status: { not: 'churned' as const } };
+
   async getStats(orgId: string) {
     const [creatorCount, productCount, projectCount, uploadCount, creatorsWithUploads] =
       await Promise.all([
-        this.prisma.creator.count({ where: { orgId } }),
+        this.prisma.creator.count({ where: { orgId, ...this.activeFilter } }),
         this.prisma.product.count({ where: { orgId } }),
         this.prisma.creatorProject.count({ where: { orgId } }),
-        this.prisma.creatorUpload.count({ where: { orgId } }),
+        this.prisma.creatorUpload.count({
+          where: { orgId, creator: this.activeFilter },
+        }),
         this.prisma.creatorUpload.findMany({
-          where: { orgId },
+          where: { orgId, creator: this.activeFilter },
           distinct: ['creatorId'],
           select: { creatorId: true },
         }),
@@ -55,7 +60,7 @@ export class DashboardService {
     const uploadedIds = new Set(creatorsWithUploads.map((c) => c.creatorId));
 
     const allCreators = await this.prisma.creator.findMany({
-      where: { orgId },
+      where: { orgId, ...this.activeFilter },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -95,6 +100,7 @@ export class DashboardService {
         orgId,
         NOT: { fileName: { startsWith: '__folder__' } },
         liveStatus: null,
+        creator: this.activeFilter,
       },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -165,7 +171,7 @@ export class DashboardService {
    */
   async listRecentCreators(orgId: string, limit = 5) {
     const creators = await this.prisma.creator.findMany({
-      where: { orgId },
+      where: { orgId, ...this.activeFilter },
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: {

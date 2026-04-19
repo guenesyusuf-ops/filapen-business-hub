@@ -49,7 +49,13 @@ export default function CreatorHubDashboardPage() {
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Main column (2/3) */}
         <div className="space-y-6 lg:col-span-2">
-          <WelcomeSection userName={displayName} />
+          <WelcomeSection
+            userName={displayName}
+            stats={statsQuery.data ? {
+              uploadCount: statsQuery.data.uploadCount,
+              creatorCount: statsQuery.data.creatorCount,
+            } : null}
+          />
 
           <StatCards
             stats={statsQuery.data}
