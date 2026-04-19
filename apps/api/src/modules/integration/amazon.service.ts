@@ -51,6 +51,7 @@ export class AmazonService {
 
       const res = await this.sp.callAPI({
         operation: 'getOrders',
+        endpoint: 'orders',
         query: {
           MarketplaceIds: [this.marketplaceId],
           CreatedAfter: after.toISOString(),
@@ -94,6 +95,7 @@ export class AmazonService {
 
       const res = await this.sp.callAPI({
         operation: 'getOrders',
+        endpoint: 'orders',
         query: {
           MarketplaceIds: [this.marketplaceId],
           CreatedAfter: after.toISOString(),
@@ -113,6 +115,7 @@ export class AmazonService {
     try {
       const res = await this.sp.callAPI({
         operation: 'getOrderItems',
+        endpoint: 'orders',
         path: { orderId },
       });
       return res?.OrderItems ?? [];
@@ -134,6 +137,7 @@ export class AmazonService {
 
       const res = await this.sp.callAPI({
         operation: 'listFinancialEvents',
+        endpoint: 'finances',
         query: {
           PostedAfter: after.toISOString(),
         },
