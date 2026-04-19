@@ -3,6 +3,16 @@ import { ConfigService } from '@nestjs/config';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const SellingPartner = require('amazon-sp-api');
 
+/** Wraps a promise with a timeout — rejects if it takes too long. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 // EU marketplace IDs where seller is registered (DE, FR, IT, ES)
 // Amazon SP-API handles all in a single request — no separate calls needed
 const EU_MARKETPLACE_IDS = [
@@ -37,7 +47,7 @@ export class AmazonService {
           },
           options: {
             auto_request_tokens: true,
-            auto_request_throttled: true,
+            auto_request_throttled: false,
           },
         });
         this.logger.log('Amazon SP-API client initialized');
@@ -60,14 +70,18 @@ export class AmazonService {
       const after = new Date();
       after.setDate(after.getDate() - 7);
 
-      const res = await this.sp.callAPI({
-        operation: 'getOrders',
-        endpoint: 'orders',
-        query: {
-          MarketplaceIds: this.marketplaceIds,
-          CreatedAfter: after.toISOString(),
-        },
-      });
+      const res = await withTimeout(
+        this.sp.callAPI({
+          operation: 'getOrders',
+          endpoint: 'orders',
+          query: {
+            MarketplaceIds: this.marketplaceIds,
+            CreatedAfter: after.toISOString(),
+          },
+        }),
+        15_000,
+        'debugConnection',
+      );
 
       return {
         success: true,
@@ -132,11 +146,17 @@ export class AmazonService {
               OrderStatuses: ['Pending', 'Shipped', 'Unshipped', 'PartiallyShipped'],
             };
 
-        const res = await this.sp.callAPI({
-          operation: 'getOrders',
-          endpoint: 'orders',
-          query,
-        });
+        let res: any;
+        try {
+          res = await withTimeout(
+            this.sp.callAPI({ operation: 'getOrders', endpoint: 'orders', query }),
+            15_000,
+            `getOrders page ${page + 1}`,
+          );
+        } catch (pageErr: any) {
+          this.logger.warn(`getOrders: page ${page + 1} failed: ${pageErr.message} — returning ${allOrders.length} orders so far`);
+          break;
+        }
 
         const orders = res?.Orders ?? [];
         allOrders.push(...orders);

@@ -31,10 +31,22 @@ export class AmazonController {
     }
     const days = parseInt(daysStr || '30', 10) || 30;
     try {
-      return await this.amazon.getDashboardSummary(days);
-    } catch (err) {
-      this.logger.error('Amazon dashboard failed:', err);
-      throw new HttpException('Amazon-Daten konnten nicht geladen werden', HttpStatus.INTERNAL_SERVER_ERROR);
+      // Hard 50s timeout — ensures we always respond
+      const result = await Promise.race([
+        this.amazon.getDashboardSummary(days),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Dashboard request timed out')), 50_000),
+        ),
+      ]);
+      return result;
+    } catch (err: any) {
+      this.logger.error('Amazon dashboard failed:', err?.message ?? err);
+      throw new HttpException(
+        err?.message?.includes('timed out')
+          ? 'Amazon API antwortet zu langsam — bitte erneut versuchen'
+          : 'Amazon-Daten konnten nicht geladen werden',
+        HttpStatus.GATEWAY_TIMEOUT,
+      );
     }
   }
 
