@@ -9,6 +9,7 @@ import { RevenueTimeChart } from '@/components/finance/dashboard/RevenueTimeChar
 import { ChannelTable } from '@/components/finance/dashboard/ChannelTable';
 import { AlertsSidebar } from '@/components/finance/dashboard/AlertsSidebar';
 import { ProductSalesWidget } from '@/components/finance/dashboard/ProductSalesWidget';
+import { ChannelPnLCards } from '@/components/finance/dashboard/ChannelPnLCards';
 import { ShopifyAnalyticsClient } from '@/components/channels/shopify/ShopifyAnalyticsClient';
 import { DashboardGrid, type WidgetDefinition } from '@/components/shared/DashboardGrid';
 import {
@@ -92,34 +93,27 @@ export function FinanceDashboard() {
         ),
       },
       {
-        id: 'channel-table',
-        title: 'Channel Performance',
-        size: 'half' as const,
-        component: (
-          <ChannelTable
-            data={channelsQuery.data ?? []}
-            onChannelClick={handleChannelClick}
-            loading={channelsQuery.isLoading}
-          />
-        ),
-      },
-      {
-        id: 'alerts',
-        title: 'Alerts',
-        size: 'half' as const,
-        component: (
-          <AlertsSidebar
-            alerts={filteredAlerts}
-            onAcknowledge={handleAcknowledge}
-            loading={alertsQuery.isLoading}
-          />
-        ),
-      },
-      {
-        id: 'product-sales',
-        title: 'Verkäufe pro Produkt',
+        id: 'channel-pnl',
+        title: 'Kanäle',
         size: 'full' as const,
-        component: <ProductSalesWidget />,
+        component: (
+          <ChannelPnLCards
+            pnl={dashboardQuery.data ? {
+              ...dashboardQuery.data.kpis,
+              netRevenue: dashboardQuery.data.kpis?.grossRevenue?.value ?? 0,
+              grossRevenue: dashboardQuery.data.kpis?.grossRevenue?.value ?? 0,
+              adSpend: dashboardQuery.data.kpis?.totalAdSpend?.value ?? 0,
+              cogs: 0,
+              shippingCosts: 0,
+              paymentFees: 0,
+              fixedCosts: 0,
+              orderCount: dashboardQuery.data.kpis?.orderCount?.value ?? 0,
+              avgOrderValue: dashboardQuery.data.kpis?.avgOrderValue?.value ?? 0,
+              newCustomerRate: (dashboardQuery.data.kpis as any)?.newCustomerRate?.value ?? 0,
+            } : undefined}
+            loading={dashboardQuery.isLoading}
+          />
+        ),
       },
     ],
     [
