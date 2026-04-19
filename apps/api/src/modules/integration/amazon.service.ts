@@ -42,6 +42,46 @@ export class AmazonService {
     return !!this.sp;
   }
 
+  async debugConnection(): Promise<any> {
+    if (!this.sp) return { error: 'SP client not initialized' };
+    try {
+      // Try a simple API call to verify credentials work
+      const after = new Date();
+      after.setDate(after.getDate() - 7);
+
+      const res = await this.sp.callAPI({
+        operation: 'getOrders',
+        query: {
+          MarketplaceIds: [this.marketplaceId],
+          CreatedAfter: after.toISOString(),
+        },
+      });
+
+      return {
+        success: true,
+        marketplaceId: this.marketplaceId,
+        sellerId: this.config.get<string>('AMAZON_SP_SELLER_ID'),
+        rawResponseKeys: res ? Object.keys(res) : [],
+        orderCount: res?.Orders?.length ?? 0,
+        firstOrder: res?.Orders?.[0] ? {
+          id: res.Orders[0].AmazonOrderId,
+          status: res.Orders[0].OrderStatus,
+          total: res.Orders[0].OrderTotal,
+          date: res.Orders[0].PurchaseDate,
+        } : null,
+        rawResponse: JSON.stringify(res).slice(0, 1000),
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message,
+        code: err.code,
+        statusCode: err.statusCode,
+        details: err.details || err.body || null,
+      };
+    }
+  }
+
   // =========================================================================
   // ORDERS
   // =========================================================================

@@ -12,6 +12,18 @@ export class AmazonController {
     return { configured: this.amazon.isConfigured };
   }
 
+  @Get('debug')
+  async debug() {
+    if (!this.amazon.isConfigured) {
+      return { error: 'Nicht konfiguriert' };
+    }
+    try {
+      return await this.amazon.debugConnection();
+    } catch (err: any) {
+      return { error: err.message, stack: err.stack?.split('\n').slice(0, 5) };
+    }
+  }
+
   @Get('dashboard')
   async dashboard() {
     if (!this.amazon.isConfigured) {
