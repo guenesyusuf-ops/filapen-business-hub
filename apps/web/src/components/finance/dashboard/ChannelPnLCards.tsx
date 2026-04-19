@@ -1,7 +1,8 @@
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { ShoppingBag, TrendingUp, Store, Video, BarChart3 } from 'lucide-react';
+import { ShoppingBag, TrendingUp, Store, Video, BarChart3, GripVertical } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,7 +46,7 @@ function pct(val: number): string {
 // Single Channel Card
 // ---------------------------------------------------------------------------
 
-function ChannelCard({ channel }: { channel: ChannelPnL }) {
+function ChannelCard({ channel, dragHandleProps }: { channel: ChannelPnL; dragHandleProps?: any }) {
   const rows = [
     { label: 'Bruttoumsatz', value: channel.grossRevenue, positive: true },
     { label: 'USt.', value: -channel.vat, negative: true },
@@ -59,6 +60,11 @@ function ChannelCard({ channel }: { channel: ChannelPnL }) {
     <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100 dark:border-white/5">
+        {dragHandleProps && (
+          <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 hover:text-gray-500 flex-shrink-0">
+            <GripVertical className="h-4 w-4" />
+          </div>
+        )}
         <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${channel.color}15` }}>
           <div style={{ color: channel.color }}>{channel.icon}</div>
         </div>
@@ -102,7 +108,7 @@ function ChannelCard({ channel }: { channel: ChannelPnL }) {
 // Overview KPI Card (kumuliert)
 // ---------------------------------------------------------------------------
 
-function OverviewCard({ kpis }: { kpis: OverviewKPIs }) {
+function OverviewCard({ kpis, dragHandleProps }: { kpis: OverviewKPIs; dragHandleProps?: any }) {
   const items = [
     { label: 'Cost per Order', value: eur(kpis.costPerOrder), icon: <ShoppingBag className="h-3.5 w-3.5" />, color: 'text-blue-600' },
     { label: 'CAC', value: eur(kpis.cac), icon: <TrendingUp className="h-3.5 w-3.5" />, color: 'text-violet-600' },
@@ -113,6 +119,11 @@ function OverviewCard({ kpis }: { kpis: OverviewKPIs }) {
   return (
     <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100 dark:border-white/5">
+        {dragHandleProps && (
+          <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 hover:text-gray-500 flex-shrink-0">
+            <GripVertical className="h-4 w-4" />
+          </div>
+        )}
         <div className="h-8 w-8 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
           <BarChart3 className="h-4 w-4 text-primary-600" />
         </div>
@@ -146,7 +157,7 @@ interface ChannelPnLCardsProps {
 export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
   if (loading || !pnl) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] p-6 animate-pulse">
             <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
@@ -230,12 +241,82 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
     avgOrderValue: avgOrderValueAll,
   };
 
+  // Drag-to-reorder with localStorage persistence
+  const STORAGE_KEY = 'filapen-channel-card-order';
+  const allCards = [
+    ...channels.map((ch) => ({ type: 'channel' as const, key: ch.name, channel: ch })),
+    { type: 'overview' as const, key: 'overview', kpis: overviewKPIs },
+  ];
+
+  const [cardOrder, setCardOrder] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return allCards.map((c) => c.key);
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) return JSON.parse(stored);
+    } catch { /* ignore */ }
+    return allCards.map((c) => c.key);
+  });
+
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+
+  // Ensure all keys exist (in case new channels added)
+  const orderedCards = [...cardOrder.filter((k) => allCards.some((c) => c.key === k)), ...allCards.filter((c) => !cardOrder.includes(c.key)).map((c) => c.key)]
+    .map((key) => allCards.find((c) => c.key === key))
+    .filter(Boolean) as typeof allCards;
+
+  function handleDragStart(key: string) {
+    setDraggingKey(key);
+  }
+
+  function handleDragOver(e: React.DragEvent, targetKey: string) {
+    e.preventDefault();
+    if (!draggingKey || draggingKey === targetKey) return;
+    const newOrder = [...orderedCards.map((c) => c.key)];
+    const fromIdx = newOrder.indexOf(draggingKey);
+    const toIdx = newOrder.indexOf(targetKey);
+    if (fromIdx < 0 || toIdx < 0) return;
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, draggingKey);
+    setCardOrder(newOrder);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newOrder));
+  }
+
+  function handleDragEnd() {
+    setDraggingKey(null);
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-      {channels.map((ch) => (
-        <ChannelCard key={ch.name} channel={ch} />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+      {orderedCards.map((card) => (
+        <div
+          key={card.key}
+          draggable
+          onDragStart={() => handleDragStart(card.key)}
+          onDragOver={(e) => handleDragOver(e, card.key)}
+          onDragEnd={handleDragEnd}
+          className={cn(
+            'transition-all',
+            draggingKey === card.key && 'opacity-50 scale-[0.98]',
+            draggingKey && draggingKey !== card.key && 'ring-2 ring-dashed ring-primary-300/50 rounded-xl',
+          )}
+        >
+          {card.type === 'channel' ? (
+            <ChannelCard
+              channel={card.channel!}
+              dragHandleProps={{
+                onMouseDown: (e: any) => e.stopPropagation(),
+              }}
+            />
+          ) : (
+            <OverviewCard
+              kpis={(card as any).kpis}
+              dragHandleProps={{
+                onMouseDown: (e: any) => e.stopPropagation(),
+              }}
+            />
+          )}
+        </div>
       ))}
-      <OverviewCard kpis={overviewKPIs} />
     </div>
   );
 }
