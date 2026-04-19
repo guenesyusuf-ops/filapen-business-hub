@@ -95,7 +95,8 @@ function useAmazonDashboard(days: number) {
       }
     },
     retry: 1,
-    staleTime: 5 * 60_000,
+    staleTime: 3 * 60_000,
+    refetchInterval: 5 * 60_000, // Auto-refresh every 5 minutes
   });
 }
 
