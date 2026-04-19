@@ -114,6 +114,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { labelKey: 'nav.overview', href: '/channels', icon: BarChart3 },
       { labelKey: 'nav.shopify', href: '/channels/shopify', icon: ShoppingBag },
+      { labelKey: 'nav.amazon', href: '/channels/amazon', icon: ShoppingBag },
     ],
   },
   {

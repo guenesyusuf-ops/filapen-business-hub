@@ -8,6 +8,8 @@ import { WebhookProcessor } from './shopify/webhook.processor';
 import { ShopifySyncProcessor } from './shopify/shopify-sync.processor';
 import { ShopifySyncScheduler } from './shopify/shopify-sync.scheduler';
 import { IntegrationController } from './integration.controller';
+import { AmazonController } from './amazon.controller';
+import { AmazonService } from './amazon.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { ProfitCalculationModule } from '../finance/profit/profit.module';
 
@@ -25,13 +27,15 @@ import { ProfitCalculationModule } from '../finance/profit/profit.module';
     ShopifyAuthController,
     ShopifyWebhookController,
     IntegrationController,
+    AmazonController,
   ],
   providers: [
     ShopifyService,
     WebhookProcessor,
     ShopifySyncProcessor,
     ShopifySyncScheduler,
+    AmazonService,
   ],
-  exports: [ShopifyService],
+  exports: [ShopifyService, AmazonService],
 })
 export class IntegrationModule {}

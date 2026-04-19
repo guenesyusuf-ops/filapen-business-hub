@@ -65,6 +65,7 @@
     "creatorPortal": "Creator Portal",
     "channelsHub": "Channels",
     "shopify": "Shopify",
+    "amazon": "Amazon",
     "workManagement": "Aufgabenverwaltung",
     "wmProjects": "Projekte",
     "wmMyTasks": "Meine Aufgaben",
@@ -114,6 +115,7 @@
   "channels": {
     "allChannels": "Alle Kanäle",
     "shopify": "Shopify",
+    "amazon": "Amazon",
     "amazon": "Amazon",
     "tiktok": "TikTok",
     "metaAds": "Meta Ads",
