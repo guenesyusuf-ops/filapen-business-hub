@@ -405,6 +405,9 @@ export class AmazonService {
     totalRevenue: number;
     confirmedRevenue: number;
     estimatedRevenue: number;
+    unitCount: number;
+    cogs: number;
+    avgCogs: number;
     todayOrders: number;
     todayRevenue: number;
     avgOrderValue: number;
