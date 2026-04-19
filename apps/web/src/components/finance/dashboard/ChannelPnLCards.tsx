@@ -18,6 +18,8 @@ interface ChannelPnL {
   shippingCosts: number; // Versandkosten
   platformFees: number;  // Plattformkosten
   netProfit: number;     // Nettogewinn
+  orderCount: number;    // Bestellungen
+  avgOrderValue: number; // Ø Warenkorb (grossRevenue / orderCount)
 }
 
 interface OverviewKPIs {
@@ -57,10 +59,14 @@ function ChannelCard({ channel }: { channel: ChannelPnL }) {
     <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100 dark:border-white/5">
-        <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${channel.color}15` }}>
+        <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${channel.color}15` }}>
           <div style={{ color: channel.color }}>{channel.icon}</div>
         </div>
-        <span className="text-sm font-semibold text-gray-900 dark:text-white">{channel.name}</span>
+        <span className="text-sm font-semibold text-gray-900 dark:text-white flex-1">{channel.name}</span>
+        <div className="text-right flex-shrink-0">
+          <p className="text-sm font-bold text-gray-900 dark:text-white tabular-nums">{eur(channel.avgOrderValue)}</p>
+          <p className="text-[9px] text-gray-400">Ø Warenkorb</p>
+        </div>
       </div>
 
       {/* Rows */}
@@ -160,6 +166,9 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
   const grossRevShopify = pnl.netRevenue ?? (pnl.grossRevenue - (pnl.discounts ?? 0));
   const vatShopify = grossRevShopify * vatRate / (1 + vatRate); // USt aus Brutto rausrechnen
 
+  const shopifyOrders = pnl.orderCount ?? 0;
+  const shopifyAvgOrder = shopifyOrders > 0 ? grossRevShopify / shopifyOrders : 0;
+
   const channels: ChannelPnL[] = [
     {
       name: 'Shopify',
@@ -172,6 +181,8 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
       shippingCosts: pnl.shippingCosts ?? 0,
       platformFees: pnl.paymentFees ?? 0,
       netProfit: grossRevShopify - vatShopify - (pnl.adSpend ?? 0) - (pnl.cogs ?? 0) - (pnl.shippingCosts ?? 0) - (pnl.paymentFees ?? 0) - (pnl.fixedCosts ?? 0),
+      orderCount: shopifyOrders,
+      avgOrderValue: shopifyAvgOrder,
     },
     {
       name: 'Amazon',
@@ -184,6 +195,8 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
       shippingCosts: 0,
       platformFees: 0,
       netProfit: 0,
+      orderCount: 0,
+      avgOrderValue: 0,
     },
     {
       name: 'TikTok',
@@ -196,20 +209,25 @@ export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
       shippingCosts: 0,
       platformFees: 0,
       netProfit: 0,
+      orderCount: 0,
+      avgOrderValue: 0,
     },
   ];
 
-  // Calculate overview KPIs
+  // Calculate overview KPIs — kumuliert über alle Kanäle
   const totalRevenue = channels.reduce((s, c) => s + c.grossRevenue, 0);
   const totalAdSpend = channels.reduce((s, c) => s + c.adSpend, 0);
-  const totalOrders = pnl.orderCount ?? 0;
+  const totalOrders = channels.reduce((s, c) => s + c.orderCount, 0);
   const newCustomerRate = pnl.newCustomerRate ?? 0;
 
+  // Ø Warenkorb = Gesamtumsatz aller Kanäle / Gesamtbestellungen aller Kanäle
+  const avgOrderValueAll = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
   const overviewKPIs: OverviewKPIs = {
-    costPerOrder: totalOrders > 0 ? (totalAdSpend + (pnl.shippingCosts ?? 0) + (pnl.paymentFees ?? 0)) / totalOrders : 0,
+    costPerOrder: totalOrders > 0 ? (totalAdSpend + channels.reduce((s, c) => s + c.shippingCosts, 0) + channels.reduce((s, c) => s + c.platformFees, 0)) / totalOrders : 0,
     cac: totalOrders > 0 ? totalAdSpend / Math.max(1, totalOrders * (newCustomerRate / 100)) : 0,
     returningCustomersPct: 100 - newCustomerRate,
-    avgOrderValue: pnl.avgOrderValue ?? 0,
+    avgOrderValue: avgOrderValueAll,
   };
 
   return (
