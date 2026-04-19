@@ -70,7 +70,7 @@ export class AmazonService {
       const after = new Date();
       after.setDate(after.getDate() - 7);
 
-      const res = await withTimeout(
+      const res: any = await withTimeout(
         this.sp.callAPI({
           operation: 'getOrders',
           endpoint: 'orders',
