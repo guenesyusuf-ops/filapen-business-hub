@@ -26,13 +26,18 @@ import { getAuthHeaders } from '@/stores/auth';
 // both "shopify" (task spec) and "shopify_dtc" (legacy DB channel key).
 const SHOPIFY_CHANNEL_KEYS = new Set(['shopify', 'shopify_dtc']);
 
-/** Fetch Amazon Sales API data for the finance date range */
-function useAmazonForFinance() {
+/** Calculate days from finance date range for Amazon API */
+function useFinanceDays(): number {
   const { dateRange } = useFinanceUI();
-  const start = dateRange?.start instanceof Date ? dateRange.start : new Date(dateRange?.start ?? Date.now());
-  const end = dateRange?.end instanceof Date ? dateRange.end : new Date(dateRange?.end ?? Date.now());
-  const days = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
+  try {
+    const start = new Date(dateRange?.start ?? Date.now());
+    const end = new Date(dateRange?.end ?? Date.now());
+    return Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
+  } catch { return 30; }
+}
 
+/** Fetch Amazon Sales API data for the finance date range */
+function useAmazonForFinance(days: number) {
   return useQuery({
     queryKey: ['amazon', 'finance-kpi', days],
     queryFn: async () => {
@@ -57,7 +62,8 @@ export function FinanceDashboard() {
   const dashboardQuery = useDashboardOverview();
   const channelsQuery = useChannelPerformance();
   const alertsQuery = useFinanceAlerts();
-  const amazonQuery = useAmazonForFinance();
+  const financeDays = useFinanceDays();
+  const amazonQuery = useAmazonForFinance(financeDays);
 
   const [acknowledgedAlerts, setAcknowledgedAlerts] = useState<Set<string>>(new Set());
 
@@ -163,6 +169,7 @@ export function FinanceDashboard() {
               newCustomerRate: (dashboardQuery.data.kpis as any)?.newCustomerRate?.value ?? 0,
             } : undefined}
             loading={dashboardQuery.isLoading}
+            amazonDays={financeDays}
           />
         ),
       },

@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
-import { useFinanceUI } from '@/stores/finance-ui';
 import { ShoppingBag, TrendingUp, Store, Video, BarChart3, GripVertical } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -176,21 +175,15 @@ function OverviewCard({ kpis, dragHandleProps }: { kpis: OverviewKPIs; dragHandl
 interface ChannelPnLCardsProps {
   pnl?: any; // PnLResult from backend
   loading?: boolean;
+  amazonDays?: number;
 }
 
-/** Fetch Amazon Sales API data for the selected date range */
-function useAmazonSalesData() {
-  const { dateRange } = useFinanceUI();
-  // Safely get days — dateRange values may be strings after hydration
-  const start = dateRange?.start instanceof Date ? dateRange.start : new Date(dateRange?.start ?? Date.now());
-  const end = dateRange?.end instanceof Date ? dateRange.end : new Date(dateRange?.end ?? Date.now());
-  const days = Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
-
-  return useQuery({
-    queryKey: ['amazon', 'sales-for-finance', days],
+export function ChannelPnLCards({ pnl, loading, amazonDays = 30 }: ChannelPnLCardsProps) {
+  const amazonQuery = useQuery({
+    queryKey: ['amazon', 'sales-for-finance', amazonDays],
     queryFn: async () => {
       try {
-        const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${days}`, {
+        const res = await fetch(`${API_URL}/api/amazon/dashboard?days=${amazonDays}`, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) return null;
@@ -200,10 +193,6 @@ function useAmazonSalesData() {
     staleTime: 5 * 60_000,
     retry: 1,
   });
-}
-
-export function ChannelPnLCards({ pnl, loading }: ChannelPnLCardsProps) {
-  const amazonQuery = useAmazonSalesData();
   const amazon = amazonQuery.data;
 
   if ((loading && !amazon) || !pnl) {
