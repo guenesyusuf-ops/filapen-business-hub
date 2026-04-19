@@ -398,7 +398,7 @@ export class ProductService {
   async updateVariantCogs(
     orgId: string,
     variantId: string,
-    data: { cogs?: number | null; cogsCurrency?: string | null },
+    data: { cogs?: number | null; cogsCurrency?: string | null; vatRate?: number },
   ) {
     const variant = await this.prisma.productVariant.findFirst({
       where: { id: variantId, orgId },
@@ -415,14 +415,19 @@ export class ProductService {
       affectedDates = await this.updateCogs(orgId, variantId, Number(data.cogs));
     }
 
-    // Update currency (and — if needed — stamp updatedAt) separately.
+    // Update currency and/or vatRate separately.
+    const updateData: Record<string, any> = {};
     if (data.cogsCurrency !== undefined) {
+      updateData.cogsCurrency = data.cogsCurrency;
+      updateData.cogsUpdatedAt = new Date();
+    }
+    if (data.vatRate !== undefined) {
+      updateData.vatRate = data.vatRate;
+    }
+    if (Object.keys(updateData).length > 0) {
       await this.prisma.productVariant.update({
         where: { id: variantId },
-        data: {
-          cogsCurrency: data.cogsCurrency,
-          cogsUpdatedAt: new Date(),
-        },
+        data: updateData,
       });
     }
 

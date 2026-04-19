@@ -93,8 +93,6 @@ const NAV_ITEMS: NavItem[] = [
     permissionKey: 'finance',
     children: [
       { labelKey: 'nav.overview', href: '/finance', icon: BarChart3 },
-      { labelKey: 'nav.revenue', href: '/finance/revenue', icon: TrendingUp },
-      { labelKey: 'nav.channels', href: '/finance/channels', icon: Layers },
       { labelKey: 'nav.products', href: '/finance/products', icon: Package },
       { labelKey: 'nav.costs', href: '/finance/costs', icon: Receipt },
       { labelKey: 'nav.campaigns', href: '/finance/campaigns', icon: Megaphone },

@@ -146,7 +146,9 @@ export class ProfitEngineService {
     const refundCount = Number(row.refund_count);
 
     // 4. Calculate derived metrics
-    const netRevenue = grossRevenue - discounts - refunds;
+    // grossRevenue (Shopify total_price) already has discounts/refunds deducted.
+    // Do NOT subtract discounts/refunds again — they are informational only.
+    const netRevenue = grossRevenue;
     const grossProfit = netRevenue - cogs;
     const contributionMargin = grossProfit - adSpend - shippingCosts - paymentFees;
     const netProfit = contributionMargin - fixedCosts;

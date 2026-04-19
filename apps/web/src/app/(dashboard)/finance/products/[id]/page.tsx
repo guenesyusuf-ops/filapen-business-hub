@@ -179,16 +179,19 @@ function VariantRow({
     variant.cogs != null ? String(toNumber(variant.cogs)) : '',
   );
   const [currency, setCurrency] = useState<string>(variant.cogsCurrency || 'EUR');
+  const [vatRate, setVatRate] = useState<string>(String(variant.vatRate ?? 19));
   const updateVariant = useUpdateVariant(productId);
 
   useEffect(() => {
     setCogs(variant.cogs != null ? String(toNumber(variant.cogs)) : '');
     setCurrency(variant.cogsCurrency || 'EUR');
-  }, [variant.cogs, variant.cogsCurrency]);
+    setVatRate(String(variant.vatRate ?? 19));
+  }, [variant.cogs, variant.cogsCurrency, variant.vatRate]);
 
   const isDirty =
     String(variant.cogs ?? '') !== cogs.trim() ||
-    (variant.cogsCurrency || 'EUR') !== currency;
+    (variant.cogsCurrency || 'EUR') !== currency ||
+    String(variant.vatRate ?? 19) !== vatRate;
 
   const handleSave = () => {
     const parsed = cogs.trim() === '' ? null : Number(cogs.replace(',', '.'));
@@ -197,6 +200,7 @@ function VariantRow({
       variantId: variant.id,
       cogs: parsed,
       cogsCurrency: currency,
+      vatRate: Number(vatRate),
     });
   };
 
@@ -250,6 +254,20 @@ function VariantRow({
               {c}
             </option>
           ))}
+        </select>
+      </td>
+      <td className="px-3 py-3">
+        <select
+          value={vatRate}
+          onChange={(e) => setVatRate(e.target.value)}
+          className={cn(
+            'rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-black/30 px-2 py-1.5',
+            'text-sm text-gray-900 dark:text-white focus:border-gray-400 dark:focus:border-white/30 focus:outline-none',
+          )}
+        >
+          <option value="19">19%</option>
+          <option value="7">7%</option>
+          <option value="0">0%</option>
         </select>
       </td>
       <td className="px-3 py-3 text-right">
@@ -511,6 +529,9 @@ export default function ProductDetailPage() {
                   </th>
                   <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Währung
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    USt.
                   </th>
                   <th className="px-3 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Aktion

@@ -99,6 +99,26 @@ function ChannelCard({ channel, dragHandleProps }: { channel: ChannelPnL; dragHa
             {eur(channel.netProfit)}
           </span>
         </div>
+
+        {/* ROAS + Marge */}
+        <div className="flex items-center gap-3 py-2 border-t border-gray-100 dark:border-white/5">
+          <div className="flex-1 text-center">
+            <p className="text-xs font-bold text-gray-900 dark:text-white tabular-nums">
+              {channel.adSpend > 0 ? (channel.grossRevenue / channel.adSpend).toFixed(2) + 'x' : '–'}
+            </p>
+            <p className="text-[9px] text-gray-400">ROAS</p>
+          </div>
+          <div className="w-px h-6 bg-gray-200 dark:bg-white/10" />
+          <div className="flex-1 text-center">
+            <p className={cn(
+              'text-xs font-bold tabular-nums',
+              channel.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400',
+            )}>
+              {channel.grossRevenue > 0 ? ((channel.netProfit / channel.grossRevenue) * 100).toFixed(1) + '%' : '0%'}
+            </p>
+            <p className="text-[9px] text-gray-400">Marge</p>
+          </div>
+        </div>
       </div>
     </div>
   );

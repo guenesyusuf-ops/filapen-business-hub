@@ -16,6 +16,7 @@ export interface ProductDetailVariant {
   cogs: string | number | null;
   cogsCurrency: string | null;
   cogsUpdatedAt: string | null;
+  vatRate: number;
   inventoryQuantity: number;
   createdAt: string;
   updatedAt: string;
@@ -149,12 +150,13 @@ export function useUpdateVariant(productId: string) {
   return useMutation<
     ProductDetailVariant,
     Error,
-    { variantId: string; cogs?: number | null; cogsCurrency?: string | null }
+    { variantId: string; cogs?: number | null; cogsCurrency?: string | null; vatRate?: number }
   >({
-    mutationFn: ({ variantId, cogs, cogsCurrency }) =>
+    mutationFn: ({ variantId, cogs, cogsCurrency, vatRate }) =>
       patchJson<ProductDetailVariant>(`${API_BASE}/variants/${variantId}`, {
         cogs,
         cogsCurrency,
+        vatRate,
       }),
     onMutate: async ({ variantId, cogs, cogsCurrency }) => {
       await queryClient.cancelQueries({

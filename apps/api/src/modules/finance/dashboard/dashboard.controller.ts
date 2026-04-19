@@ -182,12 +182,13 @@ export class DashboardController {
   @Patch('variants/:id')
   async updateVariantCogs(
     @Param('id') id: string,
-    @Body() body: { cogs?: number | null; cogsCurrency?: string | null },
+    @Body() body: { cogs?: number | null; cogsCurrency?: string | null; vatRate?: number },
   ) {
     try {
       return await this.productService.updateVariantCogs(DEV_ORG_ID, id, {
         cogs: body?.cogs,
         cogsCurrency: body?.cogsCurrency,
+        vatRate: body?.vatRate,
       });
     } catch (error) {
       if (error instanceof HttpException) throw error;
