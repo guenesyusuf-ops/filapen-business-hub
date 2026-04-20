@@ -351,7 +351,9 @@ export class PurchaseController {
   }
 
   @Post('orders/:id/documents')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 25 * 1024 * 1024, files: 1 }, // 25 MB
+  }))
   async uploadDocument(
     @Headers('authorization') authHeader: string,
     @Param('id') id: string,
@@ -360,7 +362,7 @@ export class PurchaseController {
   ) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    if (!file) throw new BadRequestException('Keine Datei');
+    if (!file) throw new BadRequestException('Keine Datei empfangen (Formular-Feld "file" fehlt)');
     const type = (documentType || 'other') as any;
     return this.documents.upload(orgId, userId, file, id, type);
   }

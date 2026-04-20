@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Search, FileText, Paperclip, Filter as FilterIcon, ChevronDown } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Plus, Search, FileText, Paperclip, Filter as FilterIcon, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   purchasesApi, fmtDate, STATUS_LABELS, PAYMENT_STATUS_LABELS,
   type PurchaseOrder,
@@ -13,22 +14,25 @@ const QUICK_FILTERS = [
   { key: '', label: 'Alle' },
   { key: 'unpaid', label: 'Offen' },
   { key: 'partially_paid', label: 'Teilweise bezahlt' },
-  { key: 'overdue', label: 'Überfällig' },
 ] as const;
 
+const PAGE_SIZE = 25;
+
 export default function PurchaseOrdersPage() {
+  const initialParams = useSearchParams();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
 
   const [search, setSearch] = useState('');
-  const [paymentStatus, setPaymentStatus] = useState<string>('');
-  const [status, setStatus] = useState<string>('');
-  const [supplierFilter, setSupplierFilter] = useState<string>('');
-  const [hasDoc, setHasDoc] = useState<string>('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState<string>(initialParams.get('paymentStatus') || '');
+  const [status, setStatus] = useState<string>(initialParams.get('status') || '');
+  const [supplierFilter, setSupplierFilter] = useState<string>(initialParams.get('supplierId') || '');
+  const [hasDoc, setHasDoc] = useState<string>(initialParams.get('hasDocument') || '');
+  const [from, setFrom] = useState(initialParams.get('from') || '');
+  const [to, setTo] = useState(initialParams.get('to') || '');
   const [sort, setSort] = useState<string>('orderDate');
   const [dir, setDir] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
@@ -49,7 +53,12 @@ export default function PurchaseOrdersPage() {
     to: to || undefined,
     sort,
     dir,
-  }), [search, paymentStatus, status, supplierFilter, hasDoc, from, to, sort, dir]);
+    limit: String(PAGE_SIZE),
+    offset: String(offset),
+  }), [search, paymentStatus, status, supplierFilter, hasDoc, from, to, sort, dir, offset]);
+
+  // reset to first page when filters change
+  useEffect(() => { setOffset(0); }, [search, paymentStatus, status, supplierFilter, hasDoc, from, to]);
 
   useEffect(() => {
     setLoading(true);
@@ -239,6 +248,30 @@ export default function PurchaseOrdersPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {total > PAGE_SIZE && !loading && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-white/8 text-xs text-gray-500">
+            <div>
+              Seite {Math.floor(offset / PAGE_SIZE) + 1} von {Math.max(1, Math.ceil(total / PAGE_SIZE))} · {total} Bestellungen
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+                disabled={offset === 0}
+                className={btn('secondary', 'h-8 px-2 py-1 text-xs disabled:opacity-40')}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> Zurück
+              </button>
+              <button
+                onClick={() => setOffset(offset + PAGE_SIZE)}
+                disabled={offset + PAGE_SIZE >= total}
+                className={btn('secondary', 'h-8 px-2 py-1 text-xs disabled:opacity-40')}
+              >
+                Weiter <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         )}
       </div>

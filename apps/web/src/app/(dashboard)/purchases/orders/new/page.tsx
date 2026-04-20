@@ -38,8 +38,16 @@ export default function NewOrderPage() {
   const [items, setItems] = useState<LineItem[]>([]);
   const [productPickerOpen, setProductPickerOpen] = useState(false);
 
+  // Rechnungs-Felder (optional)
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(todayIso());
+  const [invoiceDue, setInvoiceDue] = useState('');
+  const [invoiceAmount, setInvoiceAmount] = useState('');
+  const [useOrderTotalAsInvoice, setUseOrderTotalAsInvoice] = useState(true);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {
     purchasesApi.listSuppliers({ search: supplierSearch || undefined, status: 'active' }).then(setSuppliers);
@@ -91,6 +99,7 @@ export default function NewOrderPage() {
     if (!valid) return;
     setBusy(true);
     setError(null);
+    setWarning(null);
     try {
       const order = await purchasesApi.createOrder({
         supplierId,
@@ -104,6 +113,28 @@ export default function NewOrderPage() {
         internalNotes: internalNotes || null,
         items,
       });
+
+      // Optional: Rechnung direkt miterfassen, falls Nummer angegeben
+      if (invoiceNumber.trim()) {
+        const invAmount = useOrderTotalAsInvoice
+          ? totals.total
+          : (invoiceAmount ? Number(invoiceAmount) : totals.total);
+        try {
+          await purchasesApi.addInvoice(order.id, {
+            invoiceNumber: invoiceNumber.trim(),
+            invoiceDate,
+            dueDate: invoiceDue || null,
+            amount: invAmount,
+            currency,
+          });
+        } catch (invErr: any) {
+          // Bestellung ist schon gespeichert — wir leiten trotzdem weiter, aber mit Warnung
+          setWarning(`Bestellung gespeichert, aber Rechnung konnte nicht erfasst werden: ${invErr.message}`);
+          setTimeout(() => router.push(`/purchases/orders/${order.id}`), 2000);
+          return;
+        }
+      }
+
       router.push(`/purchases/orders/${order.id}`);
     } catch (e: any) {
       setError(e.message || 'Fehler beim Speichern');
@@ -282,6 +313,42 @@ export default function NewOrderPage() {
             )}
           </Card>
 
+          {/* Invoice (optional) */}
+          <Card title="4. Rechnung (optional)" icon={<Package className="h-4 w-4" />}>
+            <p className="text-xs text-gray-500 mb-3">Falls dir die Rechnung schon vorliegt, kannst du sie direkt miterfassen. Du kannst sie auch später hinzufügen.</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="col-span-2">
+                <label className={label()}>Rechnungsnummer</label>
+                <input className={input()} value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="z.B. RE-2026-00123" />
+              </div>
+              <div>
+                <label className={label()}>Rechnungsdatum</label>
+                <input type="date" className={input()} value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+              </div>
+              <div>
+                <label className={label()}>Fälligkeitsdatum</label>
+                <input type="date" className={input()} value={invoiceDue} onChange={(e) => setInvoiceDue(e.target.value)} />
+              </div>
+              <div className="col-span-4 flex items-center gap-3">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <input type="checkbox" checked={useOrderTotalAsInvoice} onChange={(e) => setUseOrderTotalAsInvoice(e.target.checked)} />
+                  Rechnungsbetrag = Bestellsumme ({new Intl.NumberFormat('de-DE', { style: 'currency', currency }).format(totals.total)})
+                </label>
+              </div>
+              {!useOrderTotalAsInvoice && (
+                <div className="col-span-2">
+                  <label className={label()}>Rechnungsbetrag ({currency})</label>
+                  <input type="number" step="0.01" min="0" className={input()} value={invoiceAmount} onChange={(e) => setInvoiceAmount(e.target.value)} />
+                </div>
+              )}
+            </div>
+            {invoiceNumber.trim() && (
+              <div className="mt-3 text-xs text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 p-2 rounded-md">
+                ✓ Rechnung wird zusammen mit der Bestellung gespeichert.
+              </div>
+            )}
+          </Card>
+
           {/* Totals */}
           <Card title="Übersicht">
             <div className="space-y-2 max-w-sm ml-auto text-sm">
@@ -295,6 +362,12 @@ export default function NewOrderPage() {
           </Card>
         </div>
       </div>
+
+      {warning && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-300">
+          {warning}
+        </div>
+      )}
 
       {productPickerOpen && (
         <ProductPicker
