@@ -10,6 +10,7 @@ export const MENU_PERMISSIONS = [
   { key: 'influencers', label: 'Influencer Hub', description: 'Influencer Discovery, Brands, Watchlists' },
   { key: 'content', label: 'Content Hub', description: 'Content Bibliothek, Generator, Templates' },
   { key: 'work-management', label: 'Work Management', description: 'Projekte, Aufgaben, Board, Team-Chat' },
+  { key: 'purchases', label: 'Einkauf', description: 'Lieferanten, Bestellungen, Rechnungen, Zahlungen, CSV/DATEV-Export' },
 ] as const;
 
 export type MenuPermissionKey = (typeof MENU_PERMISSIONS)[number]['key'];
@@ -25,6 +26,7 @@ export function pathToPermission(pathname: string): MenuPermissionKey | null {
   if (pathname.startsWith('/influencers')) return 'influencers';
   if (pathname.startsWith('/content')) return 'content';
   if (pathname.startsWith('/work-management')) return 'work-management';
+  if (pathname.startsWith('/purchases')) return 'purchases';
   return null;
 }
 

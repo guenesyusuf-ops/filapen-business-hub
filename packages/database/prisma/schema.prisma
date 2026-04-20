@@ -302,66 +302,73 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  users               User[]
-  integrations        Integration[]
-  shops               Shop[]
-  products            Product[]
-  productVariants     ProductVariant[]
-  orders              Order[]
-  orderLineItems      OrderLineItem[]
-  refunds             Refund[]
-  transactions        Transaction[]
-  shippingCosts       ShippingCost[]
-  adAccounts          AdAccount[]
-  adCampaigns         AdCampaign[]
-  adMetrics           AdMetric[]
-  fixedCosts          FixedCost[]
+  users                User[]
+  integrations         Integration[]
+  shops                Shop[]
+  products             Product[]
+  productVariants      ProductVariant[]
+  orders               Order[]
+  orderLineItems       OrderLineItem[]
+  refunds              Refund[]
+  transactions         Transaction[]
+  shippingCosts        ShippingCost[]
+  adAccounts           AdAccount[]
+  adCampaigns          AdCampaign[]
+  adMetrics            AdMetric[]
+  fixedCosts           FixedCost[]
   paymentMethodConfigs PaymentMethodConfig[]
-  cogsImports         COGSImport[]
-  dailyAggregates     DailyAggregate[]
-  syncLogs            SyncLog[]
-  alerts              Alert[]
-  auditLogs           AuditLog[]
-  creators            Creator[]
-  deals               Deal[]
-  briefings           Briefing[]
-  creatorUploads      CreatorUpload[]
-  creatorProjects     CreatorProject[]
-  influencerProfiles  InfluencerProfile[]
-  watchlists          Watchlist[]
-  brands              Brand[]
-  docFolders          DocFolder[]
-  docFiles            DocFile[]
-  docActivities       DocActivity[]
-  brandVoices         BrandVoice[]
-  contentTemplates    ContentTemplate[]
-  contentPieces       ContentPiece[]
-  teamInvites         TeamInvite[]
-  invitations         ProjectInvitation[]
+  cogsImports          COGSImport[]
+  dailyAggregates      DailyAggregate[]
+  syncLogs             SyncLog[]
+  alerts               Alert[]
+  auditLogs            AuditLog[]
+  creators             Creator[]
+  deals                Deal[]
+  briefings            Briefing[]
+  creatorUploads       CreatorUpload[]
+  creatorProjects      CreatorProject[]
+  influencerProfiles   InfluencerProfile[]
+  watchlists           Watchlist[]
+  brands               Brand[]
+  docFolders           DocFolder[]
+  docFiles             DocFile[]
+  docActivities        DocActivity[]
+  brandVoices          BrandVoice[]
+  contentTemplates     ContentTemplate[]
+  contentPieces        ContentPiece[]
+  teamInvites          TeamInvite[]
+  invitations          ProjectInvitation[]
+  suppliers            Supplier[]
+  purchaseOrders       PurchaseOrder[]
 
   @@map("organizations")
 }
 
 model User {
-  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId               String     @map("org_id") @db.Uuid
-  clerkUserId         String     @default("") @map("clerk_user_id") @db.VarChar(255)
-  email               String     @db.VarChar(320)
-  name                String?    @db.VarChar(255)
-  firstName           String?    @map("first_name") @db.VarChar(120)
-  lastName            String?    @map("last_name") @db.VarChar(120)
-  phone               String?    @db.VarChar(40)
-  passwordHash        String?    @map("password_hash") @db.Text
-  avatarUrl           String?    @map("avatar_url") @db.Text
-  role                UserRole   @default(member)
-  status              UserStatus @default(active)
-  menuPermissions     String[]   @default([]) @map("menu_permissions")
-  mustChangePassword  Boolean    @default(false) @map("must_change_password")
-  lastActiveAt        DateTime?  @map("last_active_at") @db.Timestamptz
-  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId              String     @map("org_id") @db.Uuid
+  clerkUserId        String     @default("") @map("clerk_user_id") @db.VarChar(255)
+  email              String     @db.VarChar(320)
+  name               String?    @db.VarChar(255)
+  firstName          String?    @map("first_name") @db.VarChar(120)
+  lastName           String?    @map("last_name") @db.VarChar(120)
+  phone              String?    @db.VarChar(40)
+  passwordHash       String?    @map("password_hash") @db.Text
+  avatarUrl          String?    @map("avatar_url") @db.Text
+  role               UserRole   @default(member)
+  status             UserStatus @default(active)
+  menuPermissions    String[]   @default([]) @map("menu_permissions")
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  lastActiveAt       DateTime?  @map("last_active_at") @db.Timestamptz
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  auditLogs    AuditLog[]
+  organization      Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  auditLogs         AuditLog[]
+  suppliersCreated  Supplier[]         @relation("SupplierCreator")
+  purchaseOrders    PurchaseOrder[]    @relation("PurchaseOrderCreator")
+  paymentsCreated   Payment[]          @relation("PaymentCreator")
+  documentsUploaded PurchaseDocument[] @relation("DocUploader")
+  poAuditLogs       PurchaseAuditLog[] @relation("PoAuditUser")
 
   @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
   @@unique([orgId, email], map: "uq_user_org_email")
@@ -390,17 +397,17 @@ model TeamInvite {
 }
 
 model Integration {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId       String            @map("org_id") @db.Uuid
-  type        IntegrationType
-  status      IntegrationStatus @default(disconnected)
-  credentials Json              @default("{}") @db.JsonB
-  scopes      String[]          @default([])
-  lastSyncedAt DateTime?        @map("last_synced_at") @db.Timestamptz
-  syncCursor  Json?             @map("sync_cursor") @db.JsonB
-  errorLog    Json[]            @default([]) @map("error_log")
-  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String            @map("org_id") @db.Uuid
+  type         IntegrationType
+  status       IntegrationStatus @default(disconnected)
+  credentials  Json              @default("{}") @db.JsonB
+  scopes       String[]          @default([])
+  lastSyncedAt DateTime?         @map("last_synced_at") @db.Timestamptz
+  syncCursor   Json?             @map("sync_cursor") @db.JsonB
+  errorLog     Json[]            @default([]) @map("error_log")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   shops        Shop[]
@@ -441,25 +448,25 @@ model Creator {
   createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  inviteCode    String?   @unique @map("invite_code") @db.VarChar(20)
-  age           Int?
-  kids          Boolean   @default(false)
-  kidsAges      String?   @map("kids_ages") @db.VarChar(100)
-  kidsOnVideo   Boolean   @default(false) @map("kids_on_video")
-  compensation  String?   @db.VarChar(50)
-  provision     String?   @db.VarChar(100)
-  fixAmount     Decimal?  @map("fix_amount") @db.Decimal(10, 2)
-  contracts     Json      @default("[]")
-  creatorNotes  String?   @map("creator_notes") @db.Text
-  lastLogin     DateTime? @map("last_login") @db.Timestamptz
-  firstContact  String?   @map("first_contact") @db.VarChar(50)
+  inviteCode   String?   @unique @map("invite_code") @db.VarChar(20)
+  age          Int?
+  kids         Boolean   @default(false)
+  kidsAges     String?   @map("kids_ages") @db.VarChar(100)
+  kidsOnVideo  Boolean   @default(false) @map("kids_on_video")
+  compensation String?   @db.VarChar(50)
+  provision    String?   @db.VarChar(100)
+  fixAmount    Decimal?  @map("fix_amount") @db.Decimal(10, 2)
+  contracts    Json      @default("[]")
+  creatorNotes String?   @map("creator_notes") @db.Text
+  lastLogin    DateTime? @map("last_login") @db.Timestamptz
+  firstContact String?   @map("first_contact") @db.VarChar(50)
 
-  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  deals        Deal[]
-  uploads      CreatorUpload[]
-  chatMessages ChatMessage[]
-  invitations    ProjectInvitation[]
-  notifications  CreatorNotification[]
+  organization  Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deals         Deal[]
+  uploads       CreatorUpload[]
+  chatMessages  ChatMessage[]
+  invitations   ProjectInvitation[]
+  notifications CreatorNotification[]
 
   @@unique([orgId, email], map: "uq_creator_org_email")
   @@index([orgId])
@@ -528,9 +535,9 @@ model Briefing {
   createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  deal         Deal?                  @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  product      Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deal         Deal?                @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  product      Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
   attachments  BriefingAttachment[]
 
   @@index([orgId])
@@ -557,20 +564,20 @@ model BriefingAttachment {
 }
 
 model CreatorUpload {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId       String   @map("org_id") @db.Uuid
-  creatorId   String   @map("creator_id") @db.Uuid
-  fileName    String   @map("file_name") @db.VarChar(500)
-  fileUrl     String   @map("file_url") @db.Text
-  fileType    String   @map("file_type") @db.VarChar(50)
-  mimeType    String?  @map("mime_type") @db.VarChar(100)
-  fileSize    BigInt?  @map("file_size")
-  tab         String   @db.VarChar(50)
-  category    String?  @db.VarChar(100)
-  product     String?  @db.VarChar(255)
-  label       String?  @db.VarChar(255)
-  batch       String?  @db.VarChar(255)
-  storageKey  String?  @map("storage_key") @db.Text
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String    @map("org_id") @db.Uuid
+  creatorId      String    @map("creator_id") @db.Uuid
+  fileName       String    @map("file_name") @db.VarChar(500)
+  fileUrl        String    @map("file_url") @db.Text
+  fileType       String    @map("file_type") @db.VarChar(50)
+  mimeType       String?   @map("mime_type") @db.VarChar(100)
+  fileSize       BigInt?   @map("file_size")
+  tab            String    @db.VarChar(50)
+  category       String?   @db.VarChar(100)
+  product        String?   @db.VarChar(255)
+  label          String?   @db.VarChar(255)
+  batch          String?   @db.VarChar(255)
+  storageKey     String?   @map("storage_key") @db.Text
   seenByAdmin    Boolean   @default(false) @map("seen_by_admin")
   liveStatus     String?   @map("live_status") @db.VarChar(20)
   liveDate       DateTime? @map("live_date") @db.Date
@@ -908,21 +915,21 @@ model Order {
 }
 
 model OrderLineItem {
-  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId            String  @map("org_id") @db.Uuid
-  orderId          String  @map("order_id") @db.Uuid
-  productVariantId String? @map("product_variant_id") @db.Uuid
-  externalId       String  @map("external_id") @db.VarChar(255)
-  title            String  @db.VarChar(500)
-  sku              String? @db.VarChar(255)
-  quantity         Int
-  unitPrice        Decimal @default(0) @map("unit_price") @db.Decimal(12, 2)
-  totalDiscount    Decimal @default(0) @map("total_discount") @db.Decimal(12, 2)
-  lineTotal        Decimal @default(0) @map("line_total") @db.Decimal(12, 2)
-  unitCogs         Decimal? @map("unit_cogs") @db.Decimal(12, 4)
-  lineCogs         Decimal? @map("line_cogs") @db.Decimal(12, 4)
-  fulfillmentStatus String? @map("fulfillment_status") @db.VarChar(50)
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String   @map("org_id") @db.Uuid
+  orderId           String   @map("order_id") @db.Uuid
+  productVariantId  String?  @map("product_variant_id") @db.Uuid
+  externalId        String   @map("external_id") @db.VarChar(255)
+  title             String   @db.VarChar(500)
+  sku               String?  @db.VarChar(255)
+  quantity          Int
+  unitPrice         Decimal  @default(0) @map("unit_price") @db.Decimal(12, 2)
+  totalDiscount     Decimal  @default(0) @map("total_discount") @db.Decimal(12, 2)
+  lineTotal         Decimal  @default(0) @map("line_total") @db.Decimal(12, 2)
+  unitCogs          Decimal? @map("unit_cogs") @db.Decimal(12, 4)
+  lineCogs          Decimal? @map("line_cogs") @db.Decimal(12, 4)
+  fulfillmentStatus String?  @map("fulfillment_status") @db.VarChar(50)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -1050,25 +1057,25 @@ model AdCampaign {
 
 /// TimescaleDB hypertable partitioned on date
 model AdMetric {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId                 String   @map("org_id") @db.Uuid
-  adAccountId           String   @map("ad_account_id") @db.Uuid
-  campaignId            String?  @map("campaign_id") @db.Uuid
-  adsetId               String?  @map("adset_id") @db.VarChar(255)
-  adId                  String?  @map("ad_id") @db.VarChar(255)
-  date                  DateTime @db.Date
-  platform              AdPlatform
-  spend                 Decimal  @default(0) @db.Decimal(12, 2)
-  impressions           Int      @default(0)
-  clicks                Int      @default(0)
-  conversions           Int      @default(0)
-  conversionValue       Decimal  @default(0) @map("conversion_value") @db.Decimal(12, 2)
-  cpc                   Decimal? @db.Decimal(12, 4)
-  cpm                   Decimal? @db.Decimal(12, 4)
-  ctr                   Decimal? @db.Decimal(8, 6)
-  roasPlatformReported  Decimal? @map("roas_platform_reported") @db.Decimal(10, 4)
-  currency              String   @default("USD") @db.VarChar(3)
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                   String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                String     @map("org_id") @db.Uuid
+  adAccountId          String     @map("ad_account_id") @db.Uuid
+  campaignId           String?    @map("campaign_id") @db.Uuid
+  adsetId              String?    @map("adset_id") @db.VarChar(255)
+  adId                 String?    @map("ad_id") @db.VarChar(255)
+  date                 DateTime   @db.Date
+  platform             AdPlatform
+  spend                Decimal    @default(0) @db.Decimal(12, 2)
+  impressions          Int        @default(0)
+  clicks               Int        @default(0)
+  conversions          Int        @default(0)
+  conversionValue      Decimal    @default(0) @map("conversion_value") @db.Decimal(12, 2)
+  cpc                  Decimal?   @db.Decimal(12, 4)
+  cpm                  Decimal?   @db.Decimal(12, 4)
+  ctr                  Decimal?   @db.Decimal(8, 6)
+  roasPlatformReported Decimal?   @map("roas_platform_reported") @db.Decimal(10, 4)
+  currency             String     @default("USD") @db.VarChar(3)
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   adAccount    AdAccount    @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
@@ -1107,15 +1114,15 @@ model FixedCost {
 }
 
 model PaymentMethodConfig {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId           String   @map("org_id") @db.Uuid
-  gatewayName     String   @map("gateway_name") @db.VarChar(100)
-  feePercentage   Decimal  @default(0) @map("fee_percentage") @db.Decimal(6, 4)
-  feeFixedAmount  Decimal  @default(0) @map("fee_fixed_amount") @db.Decimal(8, 4)
-  feeCurrency     String   @default("USD") @map("fee_currency") @db.VarChar(3)
-  isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String   @map("org_id") @db.Uuid
+  gatewayName    String   @map("gateway_name") @db.VarChar(100)
+  feePercentage  Decimal  @default(0) @map("fee_percentage") @db.Decimal(6, 4)
+  feeFixedAmount Decimal  @default(0) @map("fee_fixed_amount") @db.Decimal(8, 4)
+  feeCurrency    String   @default("USD") @map("fee_currency") @db.VarChar(3)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1147,30 +1154,30 @@ model COGSImport {
 /// TimescaleDB hypertable partitioned on date
 /// Composite primary key: (org_id, date, channel)
 model DailyAggregate {
-  orgId                     String   @map("org_id") @db.Uuid
-  date                      DateTime @db.Date
-  channel                   Channel
-  grossRevenue              Decimal  @default(0) @map("gross_revenue") @db.Decimal(14, 2)
-  netRevenue                Decimal  @default(0) @map("net_revenue") @db.Decimal(14, 2)
-  totalCogs                 Decimal  @default(0) @map("total_cogs") @db.Decimal(14, 2)
-  totalAdSpend              Decimal  @default(0) @map("total_ad_spend") @db.Decimal(14, 2)
-  totalShippingCost         Decimal  @default(0) @map("total_shipping_cost") @db.Decimal(14, 2)
-  totalPaymentFees          Decimal  @default(0) @map("total_payment_fees") @db.Decimal(14, 2)
-  totalRefunds              Decimal  @default(0) @map("total_refunds") @db.Decimal(14, 2)
-  totalDiscounts            Decimal  @default(0) @map("total_discounts") @db.Decimal(14, 2)
-  totalFixedCostsAllocated  Decimal  @default(0) @map("total_fixed_costs_allocated") @db.Decimal(14, 2)
-  grossProfit               Decimal  @default(0) @map("gross_profit") @db.Decimal(14, 2)
-  contributionMargin        Decimal  @default(0) @map("contribution_margin") @db.Decimal(14, 2)
-  netProfit                 Decimal  @default(0) @map("net_profit") @db.Decimal(14, 2)
-  orderCount                Int      @default(0) @map("order_count")
-  unitsSold                 Int      @default(0) @map("units_sold")
-  newCustomerCount          Int      @default(0) @map("new_customer_count")
-  returningCustomerCount    Int      @default(0) @map("returning_customer_count")
-  avgOrderValue             Decimal  @default(0) @map("avg_order_value") @db.Decimal(12, 2)
-  refundCount               Int      @default(0) @map("refund_count")
-  refundRate                Decimal  @default(0) @map("refund_rate") @db.Decimal(8, 6)
-  blendedRoas               Decimal? @map("blended_roas") @db.Decimal(10, 4)
-  blendedCac                Decimal? @map("blended_cac") @db.Decimal(12, 2)
+  orgId                    String   @map("org_id") @db.Uuid
+  date                     DateTime @db.Date
+  channel                  Channel
+  grossRevenue             Decimal  @default(0) @map("gross_revenue") @db.Decimal(14, 2)
+  netRevenue               Decimal  @default(0) @map("net_revenue") @db.Decimal(14, 2)
+  totalCogs                Decimal  @default(0) @map("total_cogs") @db.Decimal(14, 2)
+  totalAdSpend             Decimal  @default(0) @map("total_ad_spend") @db.Decimal(14, 2)
+  totalShippingCost        Decimal  @default(0) @map("total_shipping_cost") @db.Decimal(14, 2)
+  totalPaymentFees         Decimal  @default(0) @map("total_payment_fees") @db.Decimal(14, 2)
+  totalRefunds             Decimal  @default(0) @map("total_refunds") @db.Decimal(14, 2)
+  totalDiscounts           Decimal  @default(0) @map("total_discounts") @db.Decimal(14, 2)
+  totalFixedCostsAllocated Decimal  @default(0) @map("total_fixed_costs_allocated") @db.Decimal(14, 2)
+  grossProfit              Decimal  @default(0) @map("gross_profit") @db.Decimal(14, 2)
+  contributionMargin       Decimal  @default(0) @map("contribution_margin") @db.Decimal(14, 2)
+  netProfit                Decimal  @default(0) @map("net_profit") @db.Decimal(14, 2)
+  orderCount               Int      @default(0) @map("order_count")
+  unitsSold                Int      @default(0) @map("units_sold")
+  newCustomerCount         Int      @default(0) @map("new_customer_count")
+  returningCustomerCount   Int      @default(0) @map("returning_customer_count")
+  avgOrderValue            Decimal  @default(0) @map("avg_order_value") @db.Decimal(12, 2)
+  refundCount              Int      @default(0) @map("refund_count")
+  refundRate               Decimal  @default(0) @map("refund_rate") @db.Decimal(8, 6)
+  blendedRoas              Decimal? @map("blended_roas") @db.Decimal(10, 4)
+  blendedCac               Decimal? @map("blended_cac") @db.Decimal(12, 2)
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1260,11 +1267,11 @@ model InfluencerProfile {
   displayName     String   @map("display_name") @db.VarChar(255)
   bio             String?  @db.Text
   avatarUrl       String?  @map("avatar_url") @db.Text
-  followerCount   Int      @map("follower_count") @default(0)
-  followingCount  Int      @map("following_count") @default(0)
-  engagementRate  Decimal  @map("engagement_rate") @db.Decimal(5, 2) @default(0)
-  avgLikes        Int      @map("avg_likes") @default(0)
-  avgComments     Int      @map("avg_comments") @default(0)
+  followerCount   Int      @default(0) @map("follower_count")
+  followingCount  Int      @default(0) @map("following_count")
+  engagementRate  Decimal  @default(0) @map("engagement_rate") @db.Decimal(5, 2)
+  avgLikes        Int      @default(0) @map("avg_likes")
+  avgComments     Int      @default(0) @map("avg_comments")
   avgViews        Int?     @map("avg_views")
   niche           String?  @db.VarChar(100)
   location        String?  @db.VarChar(255)
@@ -1280,16 +1287,16 @@ model InfluencerProfile {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  brandedContentPct    Decimal?  @map("branded_content_pct") @db.Decimal(5, 2)
-  estimatedMediaValue  Decimal?  @map("estimated_media_value") @db.Decimal(12, 2)
-  growthRate           Decimal?  @map("growth_rate") @db.Decimal(5, 2)
-  postingFrequency     String?   @map("posting_frequency") @db.VarChar(50)
-  contentCategories    String[]  @default([]) @map("content_categories")
-  brandFitScore        Int?      @map("brand_fit_score")
+  brandedContentPct   Decimal? @map("branded_content_pct") @db.Decimal(5, 2)
+  estimatedMediaValue Decimal? @map("estimated_media_value") @db.Decimal(12, 2)
+  growthRate          Decimal? @map("growth_rate") @db.Decimal(5, 2)
+  postingFrequency    String?  @map("posting_frequency") @db.VarChar(50)
+  contentCategories   String[] @default([]) @map("content_categories")
+  brandFitScore       Int?     @map("brand_fit_score")
 
-  organization    Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  watchlistItems  WatchlistItem[]
-  mentions        BrandMention[]
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  watchlistItems WatchlistItem[]
+  mentions       BrandMention[]
 
   @@unique([orgId, platform, handle], map: "uq_influencer_org_platform_handle")
   @@index([orgId])
@@ -1308,7 +1315,7 @@ model Watchlist {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   items        WatchlistItem[]
 
   @@index([orgId])
@@ -1422,19 +1429,19 @@ model BrandVoice {
 }
 
 model ContentTemplate {
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId          String?     @map("org_id") @db.Uuid
-  name           String      @db.VarChar(255)
-  type           ContentType
-  promptTemplate String      @map("prompt_template") @db.Text
-  variables      Json?       @default("[]")
-  category       String?     @db.VarChar(100)
-  productName    String?     @map("product_name") @db.VarChar(255)
-  performanceNotes String?   @map("performance_notes") @db.Text
-  isSystem       Boolean     @default(false) @map("is_system")
-  usageCount     Int         @default(0) @map("usage_count")
-  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String?     @map("org_id") @db.Uuid
+  name             String      @db.VarChar(255)
+  type             ContentType
+  promptTemplate   String      @map("prompt_template") @db.Text
+  variables        Json?       @default("[]")
+  category         String?     @db.VarChar(100)
+  productName      String?     @map("product_name") @db.VarChar(255)
+  performanceNotes String?     @map("performance_notes") @db.Text
+  isSystem         Boolean     @default(false) @map("is_system")
+  usageCount       Int         @default(0) @map("usage_count")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1491,16 +1498,16 @@ model WmCategory {
 /// Each step represents one approver in order. When all steps are
 /// approved the task moves to the final "Genehmigt" column.
 model WmApprovalStep {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  taskId     String    @map("task_id") @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  position   Int       @default(0)
-  status     String    @default("pending") @db.VarChar(20)
-  comment    String?   @db.Text
-  deadline   DateTime? @db.Timestamptz
-  decidedAt  DateTime? @map("decided_at") @db.Timestamptz
-  version    Int       @default(1)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId    String    @map("task_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  position  Int       @default(0)
+  status    String    @default("pending") @db.VarChar(20)
+  comment   String?   @db.Text
+  deadline  DateTime? @db.Timestamptz
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz
+  version   Int       @default(1)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   task WmTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
@@ -1522,9 +1529,9 @@ model WmProject {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  columns WmColumn[]
-  tasks   WmTask[]
-  members WmProjectMember[]
+  columns      WmColumn[]
+  tasks        WmTask[]
+  members      WmProjectMember[]
   labels       WmLabel[]
   chatMessages WmProjectChat[]
 
@@ -1583,19 +1590,19 @@ model WmTask {
 
   /// For approval projects: current approval status of this task.
   /// null for normal kanban tasks; "draft" | "in_review" | "approved" | "rejected"
-  approvalStatus  String?  @map("approval_status") @db.VarChar(20)
+  approvalStatus  String? @map("approval_status") @db.VarChar(20)
   /// How many times this task was submitted for approval (increments on each re-submit after rejection)
-  approvalVersion Int      @default(1) @map("approval_version")
+  approvalVersion Int     @default(1) @map("approval_version")
 
-  project        WmProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  column         WmColumn         @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  parentTask     WmTask?          @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
-  subtasks       WmTask[]         @relation("Subtasks")
-  comments       WmComment[]
-  attachments    WmAttachment[]
-  taskLabels     WmTaskLabel[]
-  activities     WmActivity[]
-  approvalSteps  WmApprovalStep[]
+  project       WmProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  column        WmColumn         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  parentTask    WmTask?          @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks      WmTask[]         @relation("Subtasks")
+  comments      WmComment[]
+  attachments   WmAttachment[]
+  taskLabels    WmTaskLabel[]
+  activities    WmActivity[]
+  approvalSteps WmApprovalStep[]
 
   @@index([projectId])
   @@index([columnId])
@@ -1741,23 +1748,23 @@ model DocFolder {
 }
 
 model DocFile {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId       String        @map("org_id") @db.Uuid
-  folderId    String?       @map("folder_id") @db.Uuid
-  fileName    String        @map("file_name") @db.VarChar(500)
-  fileUrl     String        @map("file_url") @db.Text
-  storageKey  String?       @map("storage_key") @db.Text
-  fileSize    BigInt?       @map("file_size")
-  fileType    String?       @map("file_type") @db.VarChar(50)
-  mimeType    String?       @map("mime_type") @db.VarChar(100)
-  dimensions  Json?         @db.JsonB
-  createdBy   String        @map("created_by") @db.Uuid
-  status      String        @default("draft") @db.VarChar(20)
-  tags        String[]      @default([])
-  metadata    Json?
-  trashedAt   DateTime?     @map("trashed_at") @db.Timestamptz
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String    @map("org_id") @db.Uuid
+  folderId   String?   @map("folder_id") @db.Uuid
+  fileName   String    @map("file_name") @db.VarChar(500)
+  fileUrl    String    @map("file_url") @db.Text
+  storageKey String?   @map("storage_key") @db.Text
+  fileSize   BigInt?   @map("file_size")
+  fileType   String?   @map("file_type") @db.VarChar(50)
+  mimeType   String?   @map("mime_type") @db.VarChar(100)
+  dimensions Json?     @db.JsonB
+  createdBy  String    @map("created_by") @db.Uuid
+  status     String    @default("draft") @db.VarChar(20)
+  tags       String[]  @default([])
+  metadata   Json?
+  trashedAt  DateTime? @map("trashed_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   folder       DocFolder?       @relation(fields: [folderId], references: [id], onDelete: Cascade)
@@ -1774,15 +1781,15 @@ model DocFile {
 }
 
 model DocFileVersion {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  fileId        String   @map("file_id") @db.Uuid
-  versionNum    Int      @map("version_num") @default(1)
-  fileName      String   @map("file_name") @db.VarChar(500)
-  fileUrl       String   @map("file_url") @db.Text
-  storageKey    String?  @map("storage_key") @db.Text
-  fileSize      BigInt?  @map("file_size")
-  createdBy     String   @map("created_by") @db.Uuid
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fileId     String   @map("file_id") @db.Uuid
+  versionNum Int      @default(1) @map("version_num")
+  fileName   String   @map("file_name") @db.VarChar(500)
+  fileUrl    String   @map("file_url") @db.Text
+  storageKey String?  @map("storage_key") @db.Text
+  fileSize   BigInt?  @map("file_size")
+  createdBy  String   @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   file DocFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
@@ -1845,4 +1852,249 @@ model DocFavorite {
   @@unique([userId, fileId], map: "uq_doc_favorite_user_file")
   @@index([userId])
   @@map("doc_favorites")
+}
+
+// =============================================================================
+// PURCHASE / PROCUREMENT — Lieferanten, Bestellungen, Rechnungen, Zahlungen
+// =============================================================================
+
+enum PoStatus {
+  draft
+  ordered
+  invoiced
+  received
+  completed
+  cancelled
+
+  @@map("po_status")
+}
+
+enum PoPaymentStatus {
+  unpaid
+  partially_paid
+  paid
+  overpaid
+
+  @@map("po_payment_status")
+}
+
+enum PoPaymentMethod {
+  bank_transfer
+  credit_card
+  paypal
+  sepa_debit
+  cash
+  other
+
+  @@map("po_payment_method")
+}
+
+enum PoDocumentType {
+  invoice
+  proforma
+  delivery_note
+  receipt
+  other
+
+  @@map("po_document_type")
+}
+
+enum SupplierStatus {
+  active
+  inactive
+
+  @@map("supplier_status")
+}
+
+model Supplier {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String         @map("org_id") @db.Uuid
+  supplierNumber  String         @map("supplier_number") @db.VarChar(50)
+  companyName     String         @map("company_name") @db.VarChar(255)
+  contactName     String         @map("contact_name") @db.VarChar(255)
+  email           String         @db.VarChar(320)
+  phone           String         @db.VarChar(50)
+  vatId           String?        @map("vat_id") @db.VarChar(50)
+  taxNumber       String?        @map("tax_number") @db.VarChar(50)
+  street          String?        @db.VarChar(255)
+  zipCode         String?        @map("zip_code") @db.VarChar(20)
+  city            String?        @db.VarChar(120)
+  country         String?        @default("DE") @db.VarChar(2)
+  iban            String?        @db.VarChar(50)
+  bic             String?        @db.VarChar(20)
+  bankName        String?        @map("bank_name") @db.VarChar(255)
+  paymentTermDays Int?           @default(30) @map("payment_term_days")
+  defaultCurrency String         @default("EUR") @map("default_currency") @db.VarChar(3)
+  notes           String?        @db.Text
+  status          SupplierStatus @default(active)
+  createdById     String         @map("created_by_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy      User            @relation("SupplierCreator", fields: [createdById], references: [id])
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([orgId, supplierNumber], map: "uq_supplier_org_number")
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, companyName])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String          @map("org_id") @db.Uuid
+  orderNumber      String          @map("order_number") @db.VarChar(50)
+  supplierId       String          @map("supplier_id") @db.Uuid
+  orderDate        DateTime        @map("order_date") @db.Date
+  expectedDelivery DateTime?       @map("expected_delivery") @db.Date
+  receivedAt       DateTime?       @map("received_at") @db.Timestamptz
+  currency         String          @default("EUR") @db.VarChar(3)
+  exchangeRate     Decimal?        @map("exchange_rate") @db.Decimal(12, 6)
+  subtotal         Decimal         @default(0) @db.Decimal(14, 2)
+  taxTotal         Decimal         @default(0) @map("tax_total") @db.Decimal(14, 2)
+  shippingCost     Decimal?        @map("shipping_cost") @db.Decimal(14, 2)
+  customsCost      Decimal?        @map("customs_cost") @db.Decimal(14, 2)
+  totalAmount      Decimal         @default(0) @map("total_amount") @db.Decimal(14, 2)
+  paidAmount       Decimal         @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  openAmount       Decimal         @default(0) @map("open_amount") @db.Decimal(14, 2)
+  status           PoStatus        @default(draft)
+  paymentStatus    PoPaymentStatus @default(unpaid) @map("payment_status")
+  notes            String?         @db.Text
+  internalNotes    String?         @map("internal_notes") @db.Text
+  createdById      String          @map("created_by_id") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  supplier     Supplier            @relation(fields: [supplierId], references: [id])
+  createdBy    User                @relation("PurchaseOrderCreator", fields: [createdById], references: [id])
+  items        PurchaseOrderItem[]
+  invoices     PurchaseInvoice[]
+  payments     Payment[]
+  documents    PurchaseDocument[]
+  auditLogs    PurchaseAuditLog[]
+
+  @@unique([orgId, orderNumber], map: "uq_po_org_number")
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, supplierId])
+  @@index([orgId, orderDate])
+  @@index([orgId, paymentStatus])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseOrderId  String   @map("purchase_order_id") @db.Uuid
+  productId        String?  @map("product_id") @db.Uuid
+  productVariantId String?  @map("product_variant_id") @db.Uuid
+  productName      String   @map("product_name") @db.VarChar(500)
+  sku              String?  @db.VarChar(255)
+  quantity         Decimal  @db.Decimal(14, 3)
+  unitPrice        Decimal  @map("unit_price") @db.Decimal(14, 4)
+  vatRate          Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  lineSubtotal     Decimal  @map("line_subtotal") @db.Decimal(14, 2)
+  lineTax          Decimal  @map("line_tax") @db.Decimal(14, 2)
+  lineTotal        Decimal  @map("line_total") @db.Decimal(14, 2)
+  position         Int      @default(0)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@map("purchase_order_items")
+}
+
+model PurchaseInvoice {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String    @map("org_id") @db.Uuid
+  purchaseOrderId String?   @map("purchase_order_id") @db.Uuid
+  invoiceNumber   String    @map("invoice_number") @db.VarChar(100)
+  invoiceDate     DateTime  @map("invoice_date") @db.Date
+  dueDate         DateTime? @map("due_date") @db.Date
+  amount          Decimal   @db.Decimal(14, 2)
+  currency        String    @default("EUR") @db.VarChar(3)
+  documentId      String?   @map("document_id") @db.Uuid
+  createdById     String    @map("created_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  purchaseOrder PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  document      PurchaseDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, invoiceNumber], map: "uq_invoice_org_number")
+  @@index([orgId])
+  @@index([orgId, invoiceDate])
+  @@index([orgId, dueDate])
+  @@index([purchaseOrderId])
+  @@map("purchase_invoices")
+}
+
+model Payment {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String          @map("org_id") @db.Uuid
+  purchaseOrderId   String          @map("purchase_order_id") @db.Uuid
+  paymentDate       DateTime        @map("payment_date") @db.Date
+  amount            Decimal         @db.Decimal(14, 2)
+  currency          String          @default("EUR") @db.VarChar(3)
+  method            PoPaymentMethod @default(bank_transfer)
+  reference         String?         @db.VarChar(255)
+  note              String?         @db.Text
+  receiptDocumentId String?         @map("receipt_document_id") @db.Uuid
+  createdById       String          @map("created_by_id") @db.Uuid
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  purchaseOrder   PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  receiptDocument PurchaseDocument? @relation("PaymentReceipt", fields: [receiptDocumentId], references: [id], onDelete: SetNull)
+  createdBy       User              @relation("PaymentCreator", fields: [createdById], references: [id])
+
+  @@index([orgId])
+  @@index([orgId, paymentDate])
+  @@index([purchaseOrderId])
+  @@map("payments")
+}
+
+model PurchaseDocument {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String         @map("org_id") @db.Uuid
+  purchaseOrderId String?        @map("purchase_order_id") @db.Uuid
+  fileName        String         @map("file_name") @db.VarChar(500)
+  fileUrl         String         @map("file_url") @db.Text
+  storageKey      String         @map("storage_key") @db.Text
+  fileSize        BigInt?        @map("file_size")
+  mimeType        String         @map("mime_type") @db.VarChar(100)
+  documentType    PoDocumentType @default(other) @map("document_type")
+  uploadedById    String         @map("uploaded_by_id") @db.Uuid
+  uploadedAt      DateTime       @default(now()) @map("uploaded_at") @db.Timestamptz
+
+  purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  uploadedBy      User              @relation("DocUploader", fields: [uploadedById], references: [id])
+  invoices        PurchaseInvoice[]
+  paymentReceipts Payment[]         @relation("PaymentReceipt")
+
+  @@index([orgId])
+  @@index([orgId, purchaseOrderId])
+  @@map("purchase_documents")
+}
+
+model PurchaseAuditLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String   @map("org_id") @db.Uuid
+  purchaseOrderId String?  @map("purchase_order_id") @db.Uuid
+  entityType      String   @map("entity_type") @db.VarChar(50)
+  entityId        String   @map("entity_id") @db.Uuid
+  action          String   @db.VarChar(50)
+  changes         Json?    @db.JsonB
+  userId          String   @map("user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  user          User           @relation("PoAuditUser", fields: [userId], references: [id])
+
+  @@index([orgId])
+  @@index([orgId, entityType, entityId])
+  @@index([purchaseOrderId])
+  @@map("purchase_audit_logs")
 }

@@ -70,7 +70,12 @@
     "wmProjects": "Projekte",
     "wmMyTasks": "Meine Aufgaben",
     "wmWorkload": "Auslastung",
-    "documents": "Dokumente"
+    "documents": "Dokumente",
+    "purchases": "Einkauf",
+    "purchasesOverview": "Übersicht",
+    "purchaseOrders": "Bestellungen",
+    "suppliers": "Lieferanten",
+    "purchaseExport": "Export"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",

@@ -16,6 +16,7 @@ import { WorkManagementModule } from './modules/work-management/work-management.
 import { HomeModule } from './modules/home/home.module';
 import { AiModule } from './modules/ai/ai.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { PurchaseModule } from './modules/purchase/purchase.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -60,6 +61,7 @@ import { HealthController } from './health.controller';
     HomeModule,
     AiModule,
     DocumentsModule,
+    PurchaseModule,
   ],
   controllers: [HealthController],
   providers: [],

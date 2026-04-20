@@ -50,6 +50,10 @@ import {
   UserCog,
   Home,
   FolderOpen,
+  ShoppingCart,
+  Truck,
+  CreditCard,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -166,6 +170,18 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.purchases',
+    href: '/purchases',
+    icon: ShoppingCart,
+    permissionKey: 'purchases',
+    children: [
+      { labelKey: 'nav.purchasesOverview', href: '/purchases', icon: BarChart3 },
+      { labelKey: 'nav.purchaseOrders', href: '/purchases/orders', icon: ClipboardList },
+      { labelKey: 'nav.suppliers', href: '/purchases/suppliers', icon: Truck },
+      { labelKey: 'nav.purchaseExport', href: '/purchases/export', icon: Download },
+    ],
+  },
+  {
     labelKey: 'nav.documents',
     href: '/documents',
     icon: FolderOpen,
@@ -214,6 +230,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
     }
     if (pathname.startsWith('/work-management')) {
       initial.add('nav.workManagement');
+    }
+    if (pathname.startsWith('/purchases')) {
+      initial.add('nav.purchases');
     }
     if (pathname.startsWith('/settings')) {
       initial.add('nav.settings');
