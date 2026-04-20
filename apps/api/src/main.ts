@@ -13,6 +13,15 @@ const startTime = Date.now();
 console.log(`[Startup] Process starting... PID=${process.pid} PORT=${process.env.PORT} NODE_ENV=${process.env.NODE_ENV}`);
 console.log(`[Startup] DATABASE_URL set: ${!!process.env.DATABASE_URL}`);
 
+// JSON.stringify can't handle BigInt by default — Prisma returns BigInt for
+// fields like `fileSize` in PurchaseDocument/DocFile. Without this patch the
+// response serialization throws "Do not know how to serialize a BigInt" → 500.
+// Safe conversion: Number loses precision above 2^53, but file sizes are far below.
+(BigInt.prototype as any).toJSON = function () {
+  const n = Number(this);
+  return Number.isSafeInteger(n) ? n : this.toString();
+};
+
 // Prevent unhandled rejections from crashing the process
 process.on('unhandledRejection', (reason) => {
   console.error('[Unhandled Rejection]', reason);
