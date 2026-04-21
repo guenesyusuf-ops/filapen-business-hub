@@ -23,7 +23,23 @@ async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
 
 export const shippingApi = {
   dashboard: () => call('/dashboard'),
-  // More endpoints added in S2-S8
+
+  // Orders
+  listOrders: (q: Record<string, string | undefined> = {}) => {
+    const p = new URLSearchParams();
+    Object.entries(q).forEach(([k, v]) => { if (v) p.set(k, v); });
+    return call<{ items: any[]; total: number }>(`/orders${p.toString() ? `?${p.toString()}` : ''}`);
+  },
+  getOrder: (id: string) => call(`/orders/${id}`),
+  orderWeight: (id: string) => call<{ totalG: number; unknownCount: number }>(`/orders/${id}/weight`),
+
+  // Product profiles
+  listProductProfiles: (search?: string) => call(`/product-profiles${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  upsertVariantProfile: (variantId: string, data: any) =>
+    call(`/product-profiles/variant/${variantId}`, { method: 'POST', body: JSON.stringify(data) }),
+  updateProfile: (id: string, data: any) =>
+    call(`/product-profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteProfile: (id: string) => call(`/product-profiles/${id}`, { method: 'DELETE' }),
 };
 
 export const SHIPMENT_STATUS_LABELS: Record<OrderShipmentStatus, { label: string; color: string }> = {

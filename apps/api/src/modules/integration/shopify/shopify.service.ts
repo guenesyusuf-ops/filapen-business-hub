@@ -390,6 +390,10 @@ export class ShopifyService {
           discountCodes,
           countryCode,
           provinceCode,
+          shippingAddress: (shopifyOrder.shipping_address || null) as any,
+          customerName: this.extractRecipientName(shopifyOrder),
+          customerEmail: shopifyOrder.email || shopifyOrder.customer?.email || null,
+          customerPhone: shopifyOrder.shipping_address?.phone || (shopifyOrder.customer as any)?.phone || null,
           placedAt,
           updatedAt: new Date(),
         },
@@ -425,6 +429,10 @@ export class ShopifyService {
           discountCodes,
           countryCode,
           provinceCode,
+          shippingAddress: (shopifyOrder.shipping_address || null) as any,
+          customerName: this.extractRecipientName(shopifyOrder),
+          customerEmail: shopifyOrder.email || shopifyOrder.customer?.email || null,
+          customerPhone: shopifyOrder.shipping_address?.phone || (shopifyOrder.customer as any)?.phone || null,
           placedAt,
         },
       });
@@ -1027,6 +1035,22 @@ export class ShopifyService {
 
       throw error;
     }
+  }
+
+  /**
+   * Derive best-effort recipient name from a Shopify order payload.
+   * Prefers shipping address name; falls back to customer first+last; then billing address.
+   */
+  private extractRecipientName(shopifyOrder: any): string | null {
+    const ship = shopifyOrder.shipping_address;
+    if (ship?.name) return String(ship.name).trim();
+    const first = ship?.first_name || shopifyOrder.customer?.first_name;
+    const last = ship?.last_name || shopifyOrder.customer?.last_name;
+    const joined = [first, last].filter(Boolean).join(' ').trim();
+    if (joined) return joined;
+    const billing = shopifyOrder.billing_address;
+    if (billing?.name) return String(billing.name).trim();
+    return null;
   }
 
   // ---------------------------------------------------------------------------
