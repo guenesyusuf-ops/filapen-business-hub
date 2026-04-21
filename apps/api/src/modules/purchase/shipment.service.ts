@@ -43,19 +43,21 @@ export class ShipmentService {
       where: { id: orderId },
       include: {
         items: { select: { id: true, quantity: true } },
-        invoices: { select: { id: true } },
         shipments: {
           include: { items: { select: { purchaseOrderItemId: true, quantity: true } } },
         },
       },
     });
     if (!order) return;
-    if (order.status === 'cancelled' || order.status === 'draft') return;
+    // Stornierte Bestellungen nie automatisch überschreiben
+    if (order.status === 'cancelled') return;
 
-    const hasInvoice = order.invoices.length > 0;
     const anyShipmentExists = order.shipments.length > 0;
     const anyReceived = order.shipments.some((s) => s.receivedAt != null);
-    const anyShippedButNotReceived = order.shipments.some((s) => s.receivedAt == null);
+    // "Unterwegs" nur bei vorhandener Sendungsnummer
+    const anyShippedWithTracking = order.shipments.some(
+      (s) => s.receivedAt == null && s.trackingNumber != null && s.trackingNumber.trim() !== '',
+    );
 
     // Summe empfangener Mengen pro PO-Item
     const receivedByItem: Record<string, Prisma.Decimal> = {};
@@ -66,8 +68,6 @@ export class ShipmentService {
         receivedByItem[it.purchaseOrderItemId] = prev.add(D(it.quantity));
       }
     }
-
-    // Prüfe ob alle Item-Mengen vollständig empfangen sind
     const allItemsFullyReceived = order.items.every((it) => {
       const recv = receivedByItem[it.id] ?? D(0);
       return recv.gte(D(it.quantity));
@@ -77,18 +77,15 @@ export class ShipmentService {
 
     if (anyShipmentExists) {
       if (allItemsFullyReceived && anyReceived) {
-        // Voll angekommen: received → eventuell completed bei voll bezahlt
-        next = order.paymentStatus === 'paid' ? 'completed' : 'received';
+        next = 'completed'; // "Erledigt" — alle Ware da, unabhängig von Zahlung
       } else if (anyReceived) {
         next = 'partially_received';
-      } else if (anyShippedButNotReceived) {
-        next = 'shipped';
+      } else if (anyShippedWithTracking) {
+        next = 'shipped'; // "Unterwegs"
       }
-    } else {
-      // Keine Sendung: Status entweder invoiced (wenn Rechnung da) oder ordered
-      if (hasInvoice && order.status !== 'invoiced') next = 'invoiced';
-      else if (!hasInvoice && order.status !== 'ordered') next = 'ordered';
+      // wenn Sendung ohne Tracking + nicht empfangen → Status bleibt (draft/ordered)
     }
+    // Ohne Sendungen: Status bleibt wie gesetzt (manuell: draft → ordered)
 
     if (next !== order.status) {
       await this.prisma.purchaseOrder.update({

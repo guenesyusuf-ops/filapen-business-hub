@@ -50,7 +50,7 @@ export default function OrderDetailPage() {
   const openNum = Number(order.openAmount);
   const paidPct = totalNum > 0 ? Math.min(100, (paidNum / totalNum) * 100) : 0;
 
-  const setOrderStatus = async (next: 'ordered' | 'received' | 'cancelled') => {
+  const setOrderStatus = async (next: 'ordered' | 'cancelled') => {
     if (next === 'cancelled' && !confirm('Bestellung wirklich stornieren?')) return;
     try {
       await purchasesApi.setOrderStatus(id, next);
@@ -86,8 +86,8 @@ export default function OrderDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             {order.status === 'draft' && (
-              <button onClick={() => setOrderStatus('ordered')} className={btn('secondary')}>
-                <CheckCircle2 className="h-4 w-4" /> Als bestellt markieren
+              <button onClick={() => setOrderStatus('ordered')} className={btn('primary')}>
+                <CheckCircle2 className="h-4 w-4" /> Bestellung aufgegeben
               </button>
             )}
             {order.status !== 'cancelled' && order.status !== 'completed' && (

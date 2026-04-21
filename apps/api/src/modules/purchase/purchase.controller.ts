@@ -278,7 +278,7 @@ export class PurchaseController {
   async setOrderStatus(
     @Headers('authorization') authHeader: string,
     @Param('id') id: string,
-    @Body() body: { status: 'draft' | 'ordered' | 'received' | 'cancelled' },
+    @Body() body: { status: 'draft' | 'ordered' | 'cancelled' },
   ) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     if (body.status === 'cancelled') assertCanCancel(role);

@@ -221,12 +221,12 @@ export function fmtDateTime(d: string | Date | null | undefined): string {
 
 export const STATUS_LABELS: Record<PoStatus, { label: string; color: string }> = {
   draft: { label: 'Entwurf', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
-  ordered: { label: 'Bestellt', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  ordered: { label: 'Bestellung aufgegeben', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
   shipped: { label: 'Unterwegs', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' },
-  invoiced: { label: 'Rechnung erh.', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  invoiced: { label: 'Bestellung aufgegeben', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
   partially_received: { label: 'Teilweise angekommen', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-  received: { label: 'Angekommen', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
-  completed: { label: 'Abgeschlossen', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  received: { label: 'Erledigt', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  completed: { label: 'Erledigt', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
   cancelled: { label: 'Storniert', color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
 };
 

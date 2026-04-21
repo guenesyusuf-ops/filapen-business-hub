@@ -144,19 +144,14 @@ export class PurchaseOrderService {
     const open = D(order.totalAmount).sub(paid);
     const paymentStatus = this.derivePaymentStatus(D(order.totalAmount), paid);
 
-    // Promote status if needed
-    let nextStatus = order.status;
-    if (paymentStatus === 'paid' && order.status !== 'cancelled' && order.status !== 'completed') {
-      if (order.receivedAt) nextStatus = 'completed';
-    }
-
+    // Keine Bestellstatus-Änderung über Zahlungen — Status wird nur über
+    // Sendungen (shipped/completed) oder User-Aktion (ordered/cancelled) gesteuert.
     await this.prisma.purchaseOrder.update({
       where: { id: orderId },
       data: {
         paidAmount: paid.toDecimalPlaces(2),
         openAmount: open.toDecimalPlaces(2),
         paymentStatus,
-        status: nextStatus,
       },
     });
   }
@@ -394,19 +389,12 @@ export class PurchaseOrderService {
     return updated;
   }
 
-  async setStatus(orgId: string, userId: string, id: string, status: 'draft' | 'ordered' | 'received' | 'cancelled') {
+  async setStatus(orgId: string, userId: string, id: string, status: 'draft' | 'ordered' | 'cancelled') {
     const existing = await this.prisma.purchaseOrder.findFirst({ where: { id, orgId } });
     if (!existing) throw new NotFoundException('Bestellung nicht gefunden');
     if (existing.status === status) return existing;
 
-    const updates: any = { status };
-    if (status === 'received') {
-      updates.receivedAt = new Date();
-      // Auto-promote to completed if fully paid
-      if (existing.paymentStatus === 'paid') updates.status = 'completed';
-    }
-
-    const updated = await this.prisma.purchaseOrder.update({ where: { id }, data: updates });
+    const updated = await this.prisma.purchaseOrder.update({ where: { id }, data: { status } });
     await this.audit.log(orgId, userId, 'order', id, `status:${status}`, { from: existing.status, to: status });
     return updated;
   }
@@ -455,10 +443,8 @@ export class PurchaseOrderService {
       },
     });
 
-    // Promote status: ordered/draft → invoiced
-    if (order.status === 'draft' || order.status === 'ordered') {
-      await this.prisma.purchaseOrder.update({ where: { id: orderId }, data: { status: 'invoiced' } });
-    }
+    // Rechnung ändert Bestellstatus NICHT — Status wird nur über Sendungen
+    // (Unterwegs/Erledigt) oder User-Aktion (Bestellung aufgegeben/Storniert) gesteuert.
 
     await this.audit.log(orgId, userId, 'invoice', invoice.id, 'create', { invoice }, orderId);
     return invoice;
