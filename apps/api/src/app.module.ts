@@ -35,7 +35,22 @@ import { HealthController } from './health.controller';
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL');
         if (!redisUrl) {
-          return { connection: { host: 'localhost', port: 6379 } };
+          // No Redis configured → give BullMQ a connection that never tries to reconnect.
+          // Without this, ioredis spams the log with ECONNREFUSED 127.0.0.1:6379 endlessly.
+          // We don't actually enqueue jobs in this mode (backfill is fire-and-forget), so
+          // workers staying offline is fine.
+          console.log('[Startup] REDIS_URL not set — BullMQ queues run in offline mode (no retry spam)');
+          return {
+            connection: {
+              host: '127.0.0.1',
+              port: 6379,
+              lazyConnect: true,
+              enableOfflineQueue: false,
+              maxRetriesPerRequest: 0,
+              retryStrategy: () => null,
+              reconnectOnError: () => false,
+            },
+          };
         }
         const url = new URL(redisUrl);
         return {
