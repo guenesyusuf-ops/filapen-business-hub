@@ -62,11 +62,28 @@ async function bootstrap() {
     app.use(express.json({ limit: '10mb' }));
     app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-    // CORS
+    // CORS — supports comma-separated origins and wildcard patterns (e.g. "*.vercel.app")
+    // so that preview deployments (branch URLs) don't break every time Vercel creates a new one.
     const corsOrigin = process.env.APP_URL || 'http://localhost:3000';
-    const origins = corsOrigin.split(',').map((o) => o.trim());
+    const origins = corsOrigin.split(',').map((o) => o.trim()).filter(Boolean);
+    const exactOrigins = new Set(origins.filter((o) => !o.includes('*')));
+    const patternOrigins = origins
+      .filter((o) => o.includes('*'))
+      .map((o) => new RegExp('^' + o.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'));
+    // Always accept *.vercel.app so preview deployments work without manual env changes.
+    patternOrigins.push(/^https:\/\/[a-z0-9-]+\.vercel\.app$/);
+    console.log(`[Startup] CORS exact origins: ${[...exactOrigins].join(', ') || '(none)'}`);
+    console.log(`[Startup] CORS pattern origins: ${patternOrigins.map(String).join(', ')}`);
+
     app.enableCors({
-      origin: origins.length === 1 ? origins[0] : origins,
+      origin: (origin, callback) => {
+        // Allow non-browser requests (curl, server-to-server, mobile) with no Origin header.
+        if (!origin) return callback(null, true);
+        if (exactOrigins.has(origin)) return callback(null, true);
+        if (patternOrigins.some((re) => re.test(origin))) return callback(null, true);
+        console.warn(`[CORS] Rejected origin: ${origin}`);
+        return callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
