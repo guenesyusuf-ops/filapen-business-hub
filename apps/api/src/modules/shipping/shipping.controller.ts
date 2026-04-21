@@ -80,14 +80,18 @@ export class ShippingController {
     @Query('from') fromDate?: string,
     @Query('to') toDate?: string,
     @Query('hasShipment') hasShipment?: 'yes' | 'no',
-    @Query('excluded') excluded?: string, // comma-separated variant IDs
+    @Query('excluded') excluded?: string, // comma-separated variant IDs (not in)
+    @Query('included') included?: string, // comma-separated variant IDs (must contain at least one)
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     const excludedIds = excluded ? excluded.split(',').filter(Boolean) : undefined;
+    const includedIds = included ? included.split(',').filter(Boolean) : undefined;
     return this.orders.list(orgId, {
-      search, shopId, fromDate, toDate, hasShipment, excludedProductVariantIds: excludedIds,
+      search, shopId, fromDate, toDate, hasShipment,
+      excludedProductVariantIds: excludedIds,
+      includedProductVariantIds: includedIds,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });

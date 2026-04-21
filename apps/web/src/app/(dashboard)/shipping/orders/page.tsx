@@ -3,11 +3,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw } from 'lucide-react';
+import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw, Filter, X } from 'lucide-react';
 import { shippingApi, fmtDate, fmtDateTime } from '@/lib/shipping';
 import { PageHeader, Empty, btn, input as inputCls, Badge, Money } from '@/components/shipping/ShippingUI';
 
 const PAGE_SIZE = 50;
+
+type ProductFilterMode = 'include' | 'exclude';
+
+interface ProductOption {
+  variantId: string;
+  productTitle: string;
+  variantTitle: string;
+  sku: string | null;
+}
 
 export default function ShippingOrdersPage() {
   const router = useRouter();
@@ -21,14 +30,43 @@ export default function ShippingOrdersPage() {
   const [offset, setOffset] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment]);
+  // Produkt-Filter
+  const [productFilterOpen, setProductFilterOpen] = useState(false);
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [filterMode, setFilterMode] = useState<ProductFilterMode>('include');
+  const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
 
-  const params = useMemo(() => ({
-    search: search || undefined,
-    hasShipment: hasShipment || undefined,
-    limit: String(PAGE_SIZE),
-    offset: String(offset),
-  }), [search, hasShipment, offset]);
+  useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment, filterMode, selectedVariantIds]);
+
+  // Lazy-load product options once (first time user opens filter)
+  useEffect(() => {
+    if (!productFilterOpen || productOptions.length > 0) return;
+    shippingApi.listProductProfiles()
+      .then((d: any[]) => {
+        setProductOptions(
+          d.map((p) => ({
+            variantId: p.variantId,
+            productTitle: p.productTitle || '—',
+            variantTitle: p.variantTitle || '',
+            sku: p.sku,
+          })),
+        );
+      })
+      .catch((e: any) => console.error('Produkt-Liste laden fehlgeschlagen:', e.message));
+  }, [productFilterOpen, productOptions.length]);
+
+  const params = useMemo(() => {
+    const ids = Array.from(selectedVariantIds);
+    return {
+      search: search || undefined,
+      hasShipment: hasShipment || undefined,
+      included: filterMode === 'include' && ids.length ? ids.join(',') : undefined,
+      excluded: filterMode === 'exclude' && ids.length ? ids.join(',') : undefined,
+      limit: String(PAGE_SIZE),
+      offset: String(offset),
+    };
+  }, [search, hasShipment, offset, filterMode, selectedVariantIds]);
 
   useEffect(() => {
     setLoading(true);
@@ -95,7 +133,7 @@ export default function ShippingOrdersPage() {
         }
       />
 
-      <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3">
+      <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3 space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[240px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -106,7 +144,125 @@ export default function ShippingOrdersPage() {
             <option value="yes">Mit Sendung</option>
             <option value="">Alle</option>
           </select>
+          <button
+            onClick={() => setProductFilterOpen((v) => !v)}
+            className={btn(selectedVariantIds.size > 0 ? 'primary' : 'secondary', 'h-10')}
+          >
+            <Filter className="h-4 w-4" />
+            {selectedVariantIds.size > 0
+              ? `${selectedVariantIds.size} Produkt${selectedVariantIds.size === 1 ? '' : 'e'} (${filterMode === 'include' ? 'mit' : 'ohne'})`
+              : 'Produkt-Filter'}
+          </button>
+          {selectedVariantIds.size > 0 && (
+            <button
+              onClick={() => { setSelectedVariantIds(new Set()); setProductFilterOpen(false); }}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+              title="Produkt-Filter zurücksetzen"
+            >
+              <X className="h-3 w-3" /> Reset
+            </button>
+          )}
         </div>
+
+        {productFilterOpen && (
+          <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] p-3 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap text-sm">
+              <span className="text-xs text-gray-500">Bestellungen</span>
+              <div className="inline-flex rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                <button
+                  onClick={() => setFilterMode('include')}
+                  className={`px-3 py-1 text-xs ${filterMode === 'include' ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                >
+                  MIT ausgewählten Produkten
+                </button>
+                <button
+                  onClick={() => setFilterMode('exclude')}
+                  className={`px-3 py-1 text-xs ${filterMode === 'exclude' ? 'bg-primary-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                >
+                  OHNE ausgewählte Produkte
+                </button>
+              </div>
+              <span className="text-xs text-gray-500">anzeigen</span>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <input
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Produkt suchen (Titel oder SKU) …"
+                className={inputCls('pl-8 h-9 text-xs')}
+              />
+            </div>
+
+            <div className="max-h-72 overflow-y-auto border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-white/[0.02]">
+              {productOptions.length === 0 ? (
+                <div className="p-4 text-center text-xs text-gray-500">Lädt Produkte …</div>
+              ) : (() => {
+                const q = productSearch.toLowerCase().trim();
+                const filtered = q
+                  ? productOptions.filter((p) =>
+                      p.productTitle.toLowerCase().includes(q) ||
+                      p.variantTitle.toLowerCase().includes(q) ||
+                      (p.sku || '').toLowerCase().includes(q),
+                    )
+                  : productOptions;
+                if (filtered.length === 0) {
+                  return <div className="p-4 text-center text-xs text-gray-500">Keine Treffer</div>;
+                }
+                return filtered.map((p) => {
+                  const checked = selectedVariantIds.has(p.variantId);
+                  return (
+                    <label
+                      key={p.variantId}
+                      className="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03] border-b border-gray-100 dark:border-white/5 last:border-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          setSelectedVariantIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(p.variantId);
+                            else next.delete(p.variantId);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-gray-900 dark:text-white">{p.productTitle}</span>
+                        {p.variantTitle && p.variantTitle !== 'Default Title' && (
+                          <span className="text-gray-500"> · {p.variantTitle}</span>
+                        )}
+                        {p.sku && <span className="text-gray-400 ml-1">({p.sku})</span>}
+                      </span>
+                    </label>
+                  );
+                });
+              })()}
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>{selectedVariantIds.size} ausgewählt</span>
+              <div className="flex gap-2">
+                {selectedVariantIds.size > 0 && (
+                  <button
+                    onClick={() => setSelectedVariantIds(new Set())}
+                    className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline"
+                  >
+                    Auswahl löschen
+                  </button>
+                )}
+                <button
+                  onClick={() => setProductFilterOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline"
+                >
+                  Schließen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] overflow-hidden">

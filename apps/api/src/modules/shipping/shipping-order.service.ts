@@ -8,6 +8,7 @@ interface ListFilters {
   toDate?: string;
   hasShipment?: 'yes' | 'no';
   excludedProductVariantIds?: string[];
+  includedProductVariantIds?: string[];
   limit?: number;
   offset?: number;
 }
@@ -39,11 +40,26 @@ export class ShippingOrderService {
         { customerEmail: { contains: filters.search, mode: 'insensitive' as const } },
       ];
     }
-    // Product variant exclusion (Produkt X raushalten)
+    // Product variant filters (combinable: nur mit X + nicht mit Y)
+    const lineItemConditions: any[] = [];
+    if (filters.includedProductVariantIds?.length) {
+      lineItemConditions.push({
+        some: { productVariantId: { in: filters.includedProductVariantIds } },
+      });
+    }
     if (filters.excludedProductVariantIds?.length) {
-      where.lineItems = {
+      lineItemConditions.push({
         none: { productVariantId: { in: filters.excludedProductVariantIds } },
-      };
+      });
+    }
+    if (lineItemConditions.length === 1) {
+      where.lineItems = lineItemConditions[0];
+    } else if (lineItemConditions.length > 1) {
+      // Merge multiple relation filters via AND so both apply
+      where.AND = [
+        ...(where.AND || []),
+        ...lineItemConditions.map((c) => ({ lineItems: c })),
+      ];
     }
     // Has-shipment filter
     if (filters.hasShipment === 'yes') where.shipments = { some: {} };
