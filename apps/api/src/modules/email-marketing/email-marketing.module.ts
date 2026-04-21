@@ -11,6 +11,8 @@ import { EmailRenderingService } from './email-rendering.service';
 import { EmailSenderService } from './email-sender.service';
 import { TrackingTokenService } from './tracking-token.service';
 import { SegmentService } from './segment.service';
+import { FlowService } from './flow.service';
+import { CampaignSchedulerService } from './campaign-scheduler.service';
 
 @Module({
   imports: [AuthModule, StorageModule, EmailModule],
@@ -23,6 +25,8 @@ import { SegmentService } from './segment.service';
     EmailSenderService,
     TrackingTokenService,
     SegmentService,
+    FlowService,
+    CampaignSchedulerService,
   ],
   exports: [
     ContactSyncService,
@@ -32,6 +36,7 @@ import { SegmentService } from './segment.service';
     EmailSenderService,
     TrackingTokenService,
     SegmentService,
+    FlowService,
   ],
 })
 export class EmailMarketingModule {}

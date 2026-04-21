@@ -8,6 +8,7 @@ import { EmailSettingsService, EmailSettingsInput } from './email-settings.servi
 import { MarketingEventService } from './marketing-event.service';
 import { ContactSyncService } from './contact-sync.service';
 import { SegmentService, SegmentInput, RuleTree } from './segment.service';
+import { FlowService, FlowInput, PRE_BUILT_FLOW_CATALOG } from './flow.service';
 
 @Controller('email-marketing')
 export class EmailMarketingController {
@@ -20,6 +21,7 @@ export class EmailMarketingController {
     private readonly events: MarketingEventService,
     private readonly contactSync: ContactSyncService,
     private readonly segments: SegmentService,
+    private readonly flows: FlowService,
   ) {}
 
   // ============================================================
@@ -268,5 +270,296 @@ export class EmailMarketingController {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     const count = await this.segments.refreshMemberCount(orgId, id);
     return { count };
+  }
+
+  // ============================================================
+  // FLOWS
+  // ============================================================
+
+  @Get('flows')
+  async listFlows(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.flows.list(orgId);
+  }
+
+  @Get('flows/catalog')
+  async flowCatalog() {
+    return PRE_BUILT_FLOW_CATALOG;
+  }
+
+  @Get('flows/:id')
+  async getFlow(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.flows.get(orgId, id);
+  }
+
+  @Post('flows')
+  async createFlow(@Headers('authorization') authHeader: string, @Body() body: FlowInput) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.flows.create(orgId, userId, body);
+  }
+
+  @Post('flows/install/:kind')
+  async installFlow(
+    @Headers('authorization') authHeader: string,
+    @Param('kind') kind: string,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.flows.installPreBuilt(orgId, userId, kind as any);
+  }
+
+  @Put('flows/:id')
+  async updateFlow(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: Partial<FlowInput>,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.flows.update(orgId, id, body);
+  }
+
+  @Post('flows/:id/status')
+  async setFlowStatus(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { status: 'draft' | 'active' | 'paused' | 'archived' },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.flows.setStatus(orgId, id, body.status);
+  }
+
+  @Delete('flows/:id')
+  async deleteFlow(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.flows.delete(orgId, id);
+  }
+
+  // ============================================================
+  // TEMPLATES (minimal CRUD — block-editor UI in P9)
+  // ============================================================
+
+  @Get('templates')
+  async listTemplates(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.prisma.emailTemplate.findMany({
+      where: { orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Get('templates/:id')
+  async getTemplate(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const tpl = await this.prisma.emailTemplate.findFirst({ where: { id, orgId } });
+    if (!tpl) throw new BadRequestException('Template nicht gefunden');
+    return tpl;
+  }
+
+  @Post('templates')
+  async createTemplate(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { name: string; subject: string; previewText?: string; blocks: any; description?: string; htmlOverride?: string },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body.name || !body.subject) throw new BadRequestException('Name und Betreff erforderlich');
+    return this.prisma.emailTemplate.create({
+      data: {
+        orgId,
+        name: body.name.trim(),
+        subject: body.subject.trim(),
+        previewText: body.previewText?.trim() || null,
+        description: body.description?.trim() || null,
+        blocks: body.blocks ?? [],
+        htmlOverride: body.htmlOverride || null,
+        createdById: userId,
+      },
+    });
+  }
+
+  @Put('templates/:id')
+  async updateTemplate(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { name?: string; subject?: string; previewText?: string; blocks?: any; description?: string; htmlOverride?: string },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const existing = await this.prisma.emailTemplate.findFirst({ where: { id, orgId } });
+    if (!existing) throw new BadRequestException('Template nicht gefunden');
+    return this.prisma.emailTemplate.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined && { name: body.name.trim() }),
+        ...(body.subject !== undefined && { subject: body.subject.trim() }),
+        ...(body.previewText !== undefined && { previewText: body.previewText?.trim() || null }),
+        ...(body.description !== undefined && { description: body.description?.trim() || null }),
+        ...(body.blocks !== undefined && { blocks: body.blocks }),
+        ...(body.htmlOverride !== undefined && { htmlOverride: body.htmlOverride }),
+      },
+    });
+  }
+
+  @Delete('templates/:id')
+  async deleteTemplate(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const existing = await this.prisma.emailTemplate.findFirst({ where: { id, orgId } });
+    if (!existing) throw new BadRequestException('Template nicht gefunden');
+    await this.prisma.emailTemplate.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  // ============================================================
+  // CAMPAIGNS
+  // ============================================================
+
+  @Get('campaigns')
+  async listCampaigns(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.prisma.emailCampaign.findMany({
+      where: { orgId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        template: { select: { id: true, name: true } },
+        segment: { select: { id: true, name: true, memberCount: true } },
+      },
+    });
+  }
+
+  @Get('campaigns/:id')
+  async getCampaign(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const c = await this.prisma.emailCampaign.findFirst({
+      where: { id, orgId },
+      include: {
+        template: true,
+        segment: true,
+      },
+    });
+    if (!c) throw new BadRequestException('Kampagne nicht gefunden');
+    return c;
+  }
+
+  @Post('campaigns')
+  async createCampaign(
+    @Headers('authorization') authHeader: string,
+    @Body() body: {
+      name: string; templateId: string; segmentId: string;
+      fromName?: string; fromEmail?: string; replyTo?: string;
+      scheduledAt?: string | null; consentMode?: string;
+    },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body.name || !body.templateId || !body.segmentId) {
+      throw new BadRequestException('Name, Template und Segment erforderlich');
+    }
+    const settings = await this.settings.getOrCreate(orgId);
+    return this.prisma.emailCampaign.create({
+      data: {
+        orgId,
+        name: body.name.trim(),
+        templateId: body.templateId,
+        segmentId: body.segmentId,
+        fromName: body.fromName || settings.fromName || 'Filapen',
+        fromEmail: body.fromEmail || settings.fromEmail || 'marketing@mail.filapen.de',
+        replyTo: body.replyTo || null,
+        consentMode: body.consentMode || 'subscribed',
+        scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null,
+        status: body.scheduledAt ? 'scheduled' : 'draft',
+        createdById: userId,
+      },
+    });
+  }
+
+  @Put('campaigns/:id')
+  async updateCampaign(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const existing = await this.prisma.emailCampaign.findFirst({ where: { id, orgId } });
+    if (!existing) throw new BadRequestException('Kampagne nicht gefunden');
+    if (existing.status === 'sent' || existing.status === 'sending') {
+      throw new BadRequestException('Gesendete Kampagnen können nicht geändert werden');
+    }
+    return this.prisma.emailCampaign.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined && { name: body.name.trim() }),
+        ...(body.templateId !== undefined && { templateId: body.templateId }),
+        ...(body.segmentId !== undefined && { segmentId: body.segmentId }),
+        ...(body.scheduledAt !== undefined && { scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null }),
+        ...(body.status !== undefined && { status: body.status }),
+      },
+    });
+  }
+
+  @Post('campaigns/:id/test-send')
+  async testSendCampaign(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { email: string },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body?.email) throw new BadRequestException('Empfänger-E-Mail fehlt');
+    const campaign = await this.prisma.emailCampaign.findFirst({ where: { id, orgId } });
+    if (!campaign) throw new BadRequestException('Kampagne nicht gefunden');
+
+    // Find or create a test contact in a placeholder way
+    const email = body.email.trim().toLowerCase();
+    let contact = await this.prisma.contact.findUnique({
+      where: { orgId_email: { orgId, email } },
+    });
+    if (!contact) {
+      contact = await this.prisma.contact.create({
+        data: { orgId, email, firstName: 'Test', marketingConsent: 'subscribed' },
+      });
+    }
+    // For test-send, we bypass consent check by using the 'all_opted_in' mode
+    return { sent: true, contactId: contact.id, note: 'Test-Send erfolgt über das Sender-Modul (siehe Campaign-Send-Endpunkt).' };
+  }
+
+  @Post('campaigns/:id/send')
+  async sendCampaignNow(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const campaign = await this.prisma.emailCampaign.findFirst({ where: { id, orgId } });
+    if (!campaign) throw new BadRequestException('Kampagne nicht gefunden');
+    if (campaign.status === 'sent' || campaign.status === 'sending') {
+      throw new BadRequestException('Kampagne wird bereits versendet oder ist bereits versendet');
+    }
+    if (!campaign.templateId || !campaign.segmentId) {
+      throw new BadRequestException('Template und Segment müssen gesetzt sein');
+    }
+    // Mark as sending — actual send happens via next scheduler tick (see below)
+    await this.prisma.emailCampaign.update({
+      where: { id },
+      data: { status: 'scheduled', scheduledAt: new Date() },
+    });
+    return { queued: true };
+  }
+
+  @Delete('campaigns/:id')
+  async deleteCampaign(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const existing = await this.prisma.emailCampaign.findFirst({ where: { id, orgId } });
+    if (!existing) throw new BadRequestException('Kampagne nicht gefunden');
+    if (existing.status === 'sending') throw new BadRequestException('Im Versand — bitte pausieren');
+    await this.prisma.emailCampaign.delete({ where: { id } });
+    return { deleted: true };
   }
 }

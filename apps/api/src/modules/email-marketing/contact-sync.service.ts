@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, forwardRef, Inject, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { MarketingEventService } from './marketing-event.service';
+import { FlowService } from './flow.service';
 
 /**
  * Shape we expect from a Shopify customer payload (webhook or REST).
@@ -94,6 +95,7 @@ export class ContactSyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: MarketingEventService,
+    @Optional() @Inject(forwardRef(() => FlowService)) private readonly flows?: FlowService,
   ) {}
 
   /**
@@ -182,6 +184,11 @@ export class ContactSyncService {
         occurredAt: payload.created_at ? new Date(payload.created_at) : new Date(),
         payload: { email, shopifyCustomerId: payload.id },
       });
+      // Fire flow trigger
+      this.flows?.triggerFlowsForEvent({
+        orgId, triggerType: 'customer_created', contactId: created.id,
+        context: { shopifyCustomerId: payload.id },
+      }).catch(() => {});
       return { contactId: created.id, created: true };
     } catch (err: any) {
       this.logger.error(
@@ -269,6 +276,12 @@ export class ContactSyncService {
         })),
       },
     });
+    if (contactId) {
+      this.flows?.triggerFlowsForEvent({
+        orgId, triggerType: 'checkout_started', contactId,
+        context: { checkoutId: payload.id, abandonedCheckoutUrl: payload.abandoned_checkout_url },
+      }).catch(() => {});
+    }
   }
 
   /**
@@ -346,6 +359,20 @@ export class ContactSyncService {
         })),
       },
     });
+    if (contactId) {
+      this.flows?.triggerFlowsForEvent({
+        orgId, triggerType: 'order_placed', contactId,
+        context: { orderId: payload.id, totalPrice: payload.total_price },
+      }).catch(() => {});
+      // Exit any active abandoned_cart enrollments for this contact — they bought
+      this.prisma.flowEnrollment.updateMany({
+        where: {
+          orgId, contactId, status: 'active',
+          flow: { triggerType: 'checkout_started' },
+        },
+        data: { status: 'exited', exitedAt: new Date(), exitReason: 'order_placed' },
+      }).catch(() => {});
+    }
   }
 
   /**
