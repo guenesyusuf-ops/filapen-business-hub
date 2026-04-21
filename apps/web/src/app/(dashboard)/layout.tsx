@@ -118,7 +118,6 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.cohorts', href: '/finance/cohorts', icon: UsersRound },
       { labelKey: 'nav.benchmarks', href: '/finance/benchmarks', icon: Gauge },
       { labelKey: 'nav.creativeAnalysis', href: '/finance/creative-analysis', icon: Palette },
-      { labelKey: 'nav.integrations', href: '/finance/integrations', icon: Plug },
       { labelKey: 'nav.reports', href: '/finance/reports', icon: FileText },
     ],
   },
@@ -241,6 +240,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.profile', href: '/settings/profile', icon: UserCog },
       { labelKey: 'nav.team', href: '/settings/team', icon: Users },
       { labelKey: 'nav.approvals', href: '/settings/approvals', icon: ShieldCheck },
+      { labelKey: 'nav.integrations', href: '/finance/integrations', icon: Plug },
     ],
   },
 ];
@@ -259,7 +259,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
   );
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     const initial = new Set<string>();
-    if (pathname.startsWith('/finance')) {
+    if (pathname.startsWith('/finance') && !pathname.startsWith('/finance/integrations')) {
       initial.add('nav.financeHub');
     }
     if (pathname.startsWith('/channels')) {
@@ -286,7 +286,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
     if (pathname.startsWith('/shipping')) {
       initial.add('nav.shipping');
     }
-    if (pathname.startsWith('/settings')) {
+    if (pathname.startsWith('/settings') || pathname.startsWith('/finance/integrations')) {
       initial.add('nav.settings');
     }
     return initial;
