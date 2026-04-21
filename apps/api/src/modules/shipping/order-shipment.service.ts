@@ -4,6 +4,8 @@ import { StorageService } from '../../common/storage/storage.service';
 import { CarrierRegistry } from './carriers/carrier-registry.service';
 import { CarrierAccountService } from './carrier-account.service';
 import { ShippingOrderService } from './shipping-order.service';
+import { ShippingRuleService } from './shipping-rule.service';
+import { ShippingEmailAutomationService } from './shipping-email-automation.service';
 import type { ShipmentCreateInput } from './carriers/carrier-adapter.interface';
 
 export interface CreateShipmentInput {
@@ -37,6 +39,8 @@ export class OrderShipmentService {
     private readonly registry: CarrierRegistry,
     private readonly accounts: CarrierAccountService,
     private readonly orders: ShippingOrderService,
+    private readonly rules: ShippingRuleService,
+    private readonly emailAuto: ShippingEmailAutomationService,
   ) {}
 
   async list(orgId: string, filters: ListFilters = {}) {
@@ -86,13 +90,43 @@ export class OrderShipmentService {
   }
 
   async create(orgId: string, userId: string, data: CreateShipmentInput) {
-    const order = await this.prisma.order.findFirst({ where: { id: data.orderId, orgId } });
+    const order = await this.prisma.order.findFirst({
+      where: { id: data.orderId, orgId },
+      include: { lineItems: { select: { productVariantId: true } } },
+    });
     if (!order) throw new NotFoundException('Bestellung nicht gefunden');
     if (order.status === 'cancelled') {
       throw new BadRequestException('Stornierte Bestellung kann nicht versendet werden');
     }
     if (!order.shippingAddress) {
       throw new BadRequestException('Lieferadresse fehlt — Shopify-Order ohne shipping_address');
+    }
+
+    // ----- Rule evaluation (optional — auto-select carrier/method/package) -----
+    let resolvedCarrier = data.carrier;
+    let resolvedMethod = data.shippingMethod || null;
+    let resolvedPackageId = data.packageId || null;
+    try {
+      const weightEstimate = await this.orders.computeOrderWeight(orgId, data.orderId);
+      const rule = await this.rules.evaluate(orgId, {
+        weightG: weightEstimate.totalG,
+        totalPriceCents: Math.round(Number(order.totalPrice) * 100),
+        countryCode: order.countryCode,
+        productVariantIds: (order.lineItems || []).map((li: any) => li.productVariantId).filter(Boolean),
+        tags: order.tags || [],
+        lineCount: (order.lineItems || []).length,
+      });
+      if (rule) {
+        if (rule.type === 'block_shipment') {
+          throw new BadRequestException(`Versand blockiert (Regel): ${rule.reason || 'keine Begründung'}`);
+        }
+        if (rule.type === 'select_carrier' && rule.carrier) resolvedCarrier = rule.carrier as any;
+        if (rule.type === 'select_method' && rule.method) resolvedMethod = rule.method;
+        if (rule.type === 'select_package' && rule.packageId) resolvedPackageId = rule.packageId;
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.warn(`Rule evaluation skipped: ${err?.message}`);
     }
 
     // Resolve or find default carrier account
@@ -105,7 +139,7 @@ export class OrderShipmentService {
       credentials = loaded.credentialsDecrypted;
       senderData = loaded.senderData;
     } else {
-      const def = await this.accounts.findDefault(orgId, data.carrier);
+      const def = await this.accounts.findDefault(orgId, resolvedCarrier);
       if (def) {
         accountId = def.id;
         const loaded = await this.accounts.loadForUse(orgId, def.id);
@@ -200,6 +234,11 @@ export class OrderShipmentService {
       },
     });
 
+    // Trigger automation email (if configured for label_created)
+    this.emailAuto.triggerForStatus(orgId, shipment.id, 'label_created').catch((e) =>
+      this.logger.warn(`Email-trigger on create failed: ${e?.message}`),
+    );
+
     return this.get(orgId, shipment.id);
   }
 
@@ -219,6 +258,8 @@ export class OrderShipmentService {
   async setStatus(orgId: string, shipmentId: string, status: any, note?: string) {
     const existing = await this.prisma.orderShipment.findFirst({ where: { id: shipmentId, orgId } });
     if (!existing) throw new NotFoundException('Sendung nicht gefunden');
+    if (existing.status === status) return this.get(orgId, shipmentId);
+
     const patch: any = { status };
     if (status === 'handed_to_carrier' && !existing.handedOverAt) patch.handedOverAt = new Date();
     if (status === 'delivered' && !existing.deliveredAt) patch.deliveredAt = new Date();
@@ -232,6 +273,12 @@ export class OrderShipmentService {
         note: note || null,
       },
     });
+
+    // Trigger automation email for the new status
+    this.emailAuto.triggerForStatus(orgId, shipmentId, status).catch((e) =>
+      this.logger.warn(`Email-trigger on setStatus failed: ${e?.message}`),
+    );
+
     return this.get(orgId, shipmentId);
   }
 

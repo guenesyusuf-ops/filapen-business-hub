@@ -25,6 +25,7 @@ export const shippingApi = {
   dashboard: () => call('/dashboard'),
 
   // Orders
+  refreshOrdersFromShopify: () => call('/orders/refresh-from-shopify', { method: 'POST' }),
   listOrders: (q: Record<string, string | undefined> = {}) => {
     const p = new URLSearchParams();
     Object.entries(q).forEach(([k, v]) => { if (v) p.set(k, v); });

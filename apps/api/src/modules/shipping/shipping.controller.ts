@@ -8,7 +8,10 @@ import { ShippingOrderService } from './shipping-order.service';
 import { ShippingProductProfileService, ProfileInput } from './shipping-product-profile.service';
 import { CarrierAccountService, CarrierAccountInput } from './carrier-account.service';
 import { OrderShipmentService, CreateShipmentInput } from './order-shipment.service';
+import { ShippingRuleService, RuleInput } from './shipping-rule.service';
+import { ShippingEmailAutomationService, AutomationInput } from './shipping-email-automation.service';
 import { CarrierRegistry } from './carriers/carrier-registry.service';
+import { ShopifyService } from '../integration/shopify/shopify.service';
 
 @Controller('shipping')
 export class ShippingController {
@@ -21,7 +24,10 @@ export class ShippingController {
     private readonly profiles: ShippingProductProfileService,
     private readonly accounts: CarrierAccountService,
     private readonly shipments: OrderShipmentService,
+    private readonly rules: ShippingRuleService,
+    private readonly emailAuto: ShippingEmailAutomationService,
     private readonly registry: CarrierRegistry,
+    private readonly shopify: ShopifyService,
   ) {}
 
   @Get('dashboard')
@@ -97,6 +103,29 @@ export class ShippingController {
   async orderWeight(@Headers('authorization') authHeader: string, @Param('id') id: string) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     return this.orders.computeOrderWeight(orgId, id);
+  }
+
+  /**
+   * Refresh existing orders from Shopify — repopulates shipping_address,
+   * customer_name/email/phone on orders that were imported before these
+   * fields existed. Fires backfill asynchronously (returns immediately).
+   */
+  @Post('orders/refresh-from-shopify')
+  async refreshOrdersFromShopify(@Headers('authorization') authHeader: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const integration = await this.prisma.integration.findFirst({
+      where: { orgId, type: 'shopify', status: 'connected' },
+    });
+    if (!integration) throw new BadRequestException('Kein aktiver Shopify-Shop verbunden');
+    // Fire-and-forget — backfill takes minutes
+    this.shopify.backfill(integration.id).catch((err) => {
+      this.logger.error(`Backfill failed: ${err?.message}`);
+    });
+    return {
+      started: true,
+      note: 'Backfill läuft im Hintergrund. Aktualisiere die Seite in 3-5 Minuten.',
+    };
   }
 
   // ============================================================
@@ -290,5 +319,72 @@ export class ShippingController {
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     return this.shipments.delete(orgId, id);
+  }
+
+  // ============================================================
+  // SHIPPING RULES
+  // ============================================================
+
+  @Get('rules')
+  async listRules(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.rules.list(orgId);
+  }
+
+  @Get('rules/:id')
+  async getRule(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.rules.get(orgId, id);
+  }
+
+  @Post('rules')
+  async createRule(@Headers('authorization') authHeader: string, @Body() body: RuleInput) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.rules.create(orgId, userId, body);
+  }
+
+  @Put('rules/:id')
+  async updateRule(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: Partial<RuleInput>,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.rules.update(orgId, id, body);
+  }
+
+  @Delete('rules/:id')
+  async deleteRule(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.rules.remove(orgId, id);
+  }
+
+  // ============================================================
+  // EMAIL AUTOMATIONS
+  // ============================================================
+
+  @Get('email-automations')
+  async listAutomations(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.emailAuto.list(orgId);
+  }
+
+  @Post('email-automations')
+  async upsertAutomation(
+    @Headers('authorization') authHeader: string,
+    @Body() body: AutomationInput,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.emailAuto.upsert(orgId, body);
+  }
+
+  @Get('shipments/:id/email-logs')
+  async emailLogs(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.emailAuto.logsForShipment(orgId, id);
   }
 }

@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle } from 'lucide-react';
-import { shippingApi, fmtDate } from '@/lib/shipping';
+import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw } from 'lucide-react';
+import { shippingApi, fmtDate, fmtDateTime } from '@/lib/shipping';
 import { PageHeader, Empty, btn, input as inputCls, Badge, Money } from '@/components/shipping/ShippingUI';
 
 const PAGE_SIZE = 50;
@@ -57,28 +57,41 @@ export default function ShippingOrdersPage() {
         title="Bestellungen"
         subtitle={`${total} offen${total !== 1 ? 'e' : ''} · nur open/unfulfilled · stornierte ausgeschlossen`}
         actions={
-          selectedIds.size > 0 ? (
+          <>
             <button
               onClick={async () => {
-                if (!confirm(`${selectedIds.size} Label(s) mit DHL erstellen?`)) return;
+                if (!confirm('Bestehende Bestellungen frisch aus Shopify laden? Dauert 3-5 Minuten. Dadurch werden fehlende Adressen/Namen nachgeladen.')) return;
                 try {
-                  const res: any = await shippingApi.bulkCreateShipments({
-                    orderIds: Array.from(selectedIds),
-                    carrier: 'dhl',
-                  });
-                  alert(`${res.succeeded} von ${res.total} Labels erstellt.`);
-                  setSelectedIds(new Set());
-                  // Reload
-                  const fresh = await shippingApi.listOrders(params);
-                  setItems(fresh.items);
-                  setTotal(fresh.total);
+                  await shippingApi.refreshOrdersFromShopify();
+                  alert('Refresh läuft im Hintergrund. Lade die Seite in 3-5 Min neu.');
                 } catch (e: any) { alert(e.message); }
               }}
-              className={btn('primary')}
+              className={btn('secondary')}
             >
-              <Package className="h-4 w-4" /> {selectedIds.size} × DHL Label erstellen
+              <RefreshCw className="h-4 w-4" /> Aus Shopify nachladen
             </button>
-          ) : null
+            {selectedIds.size > 0 && (
+              <button
+                onClick={async () => {
+                  if (!confirm(`${selectedIds.size} Label(s) mit DHL erstellen?`)) return;
+                  try {
+                    const res: any = await shippingApi.bulkCreateShipments({
+                      orderIds: Array.from(selectedIds),
+                      carrier: 'dhl',
+                    });
+                    alert(`${res.succeeded} von ${res.total} Labels erstellt.`);
+                    setSelectedIds(new Set());
+                    const fresh = await shippingApi.listOrders(params);
+                    setItems(fresh.items);
+                    setTotal(fresh.total);
+                  } catch (e: any) { alert(e.message); }
+                }}
+                className={btn('primary')}
+              >
+                <Package className="h-4 w-4" /> {selectedIds.size} × DHL Label erstellen
+              </button>
+            )}
+          </>
         }
       />
 
@@ -158,7 +171,7 @@ export default function ShippingOrdersPage() {
                         </td>
                         <td className="px-3 py-3 text-xs text-gray-500 uppercase">{o.countryCode || '—'}</td>
                         <td className="px-3 py-3 text-right whitespace-nowrap"><Money amount={o.totalPrice} currency={o.currency} /></td>
-                        <td className="px-3 py-3 text-xs text-gray-500">{fmtDate(o.placedAt)}</td>
+                        <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDateTime(o.placedAt)}</td>
                         <td className="px-3 py-3">
                           <Badge color="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{o.fulfillmentStatus}</Badge>
                         </td>
