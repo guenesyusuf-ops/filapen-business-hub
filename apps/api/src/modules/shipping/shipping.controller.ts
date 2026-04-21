@@ -6,6 +6,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { extractAuthContext, assertCanWrite } from './auth-context';
 import { ShippingOrderService } from './shipping-order.service';
 import { ShippingProductProfileService, ProfileInput } from './shipping-product-profile.service';
+import { CarrierAccountService, CarrierAccountInput } from './carrier-account.service';
+import { OrderShipmentService, CreateShipmentInput } from './order-shipment.service';
+import { CarrierRegistry } from './carriers/carrier-registry.service';
 
 @Controller('shipping')
 export class ShippingController {
@@ -16,6 +19,9 @@ export class ShippingController {
     private readonly prisma: PrismaService,
     private readonly orders: ShippingOrderService,
     private readonly profiles: ShippingProductProfileService,
+    private readonly accounts: CarrierAccountService,
+    private readonly shipments: OrderShipmentService,
+    private readonly registry: CarrierRegistry,
   ) {}
 
   @Get('dashboard')
@@ -149,5 +155,140 @@ export class ShippingController {
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     return this.profiles.remove(orgId, id);
+  }
+
+  // ============================================================
+  // CARRIERS + CARRIER ACCOUNTS
+  // ============================================================
+
+  @Get('carriers')
+  async listCarriers() {
+    return this.registry.list();
+  }
+
+  @Get('carrier-accounts')
+  async listCarrierAccounts(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.accounts.list(orgId);
+  }
+
+  @Get('carrier-accounts/:id')
+  async getCarrierAccount(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.accounts.get(orgId, id);
+  }
+
+  @Post('carrier-accounts')
+  async createCarrierAccount(
+    @Headers('authorization') authHeader: string,
+    @Body() body: CarrierAccountInput,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.accounts.create(orgId, userId, body);
+  }
+
+  @Put('carrier-accounts/:id')
+  async updateCarrierAccount(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: Partial<CarrierAccountInput>,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.accounts.update(orgId, id, body);
+  }
+
+  @Delete('carrier-accounts/:id')
+  async deleteCarrierAccount(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.accounts.remove(orgId, id);
+  }
+
+  // ============================================================
+  // SHIPMENTS + LABELS
+  // ============================================================
+
+  @Get('shipments')
+  async listShipments(
+    @Headers('authorization') authHeader: string,
+    @Query('status') status?: string,
+    @Query('carrier') carrier?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.shipments.list(orgId, {
+      status, carrier, search,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Get('shipments/:id')
+  async getShipment(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.shipments.get(orgId, id);
+  }
+
+  @Post('shipments')
+  async createShipment(
+    @Headers('authorization') authHeader: string,
+    @Body() body: CreateShipmentInput,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body.orderId || !body.carrier) throw new BadRequestException('orderId und carrier erforderlich');
+    return this.shipments.create(orgId, userId, body);
+  }
+
+  @Post('shipments/bulk')
+  async bulkCreateShipments(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { orderIds: string[]; carrier: 'dhl' | 'custom'; carrierAccountId?: string | null },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body.orderIds?.length || !body.carrier) throw new BadRequestException('orderIds und carrier erforderlich');
+    return this.shipments.createBulk(orgId, userId, body.orderIds, body.carrier, body.carrierAccountId);
+  }
+
+  @Post('shipments/:id/status')
+  async setShipmentStatus(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { status: string; note?: string },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.setStatus(orgId, id, body.status, body.note);
+  }
+
+  @Post('shipments/:id/tracking')
+  async setTracking(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { trackingNumber: string; trackingUrl?: string },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body.trackingNumber) throw new BadRequestException('trackingNumber fehlt');
+    return this.shipments.updateTracking(orgId, id, body.trackingNumber, body.trackingUrl);
+  }
+
+  @Post('shipments/:id/regenerate-label')
+  async regenerateLabel(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.regenerateLabel(orgId, id);
+  }
+
+  @Delete('shipments/:id')
+  async deleteShipment(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.delete(orgId, id);
   }
 }

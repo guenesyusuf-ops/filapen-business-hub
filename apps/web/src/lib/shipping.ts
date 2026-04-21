@@ -40,6 +40,30 @@ export const shippingApi = {
   updateProfile: (id: string, data: any) =>
     call(`/product-profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProfile: (id: string) => call(`/product-profiles/${id}`, { method: 'DELETE' }),
+
+  // Carriers
+  listCarriers: () => call<Array<{ key: string; humanName: string; requiresCredentials: boolean; implemented: boolean }>>('/carriers'),
+  listCarrierAccounts: () => call<any[]>('/carrier-accounts'),
+  getCarrierAccount: (id: string) => call(`/carrier-accounts/${id}`),
+  createCarrierAccount: (data: any) => call('/carrier-accounts', { method: 'POST', body: JSON.stringify(data) }),
+  updateCarrierAccount: (id: string, data: any) => call(`/carrier-accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCarrierAccount: (id: string) => call(`/carrier-accounts/${id}`, { method: 'DELETE' }),
+
+  // Shipments
+  listShipments: (q: Record<string, string | undefined> = {}) => {
+    const p = new URLSearchParams();
+    Object.entries(q).forEach(([k, v]) => { if (v) p.set(k, v); });
+    return call<{ items: any[]; total: number }>(`/shipments${p.toString() ? `?${p.toString()}` : ''}`);
+  },
+  getShipment: (id: string) => call(`/shipments/${id}`),
+  createShipment: (data: any) => call('/shipments', { method: 'POST', body: JSON.stringify(data) }),
+  bulkCreateShipments: (data: any) => call('/shipments/bulk', { method: 'POST', body: JSON.stringify(data) }),
+  setShipmentStatus: (id: string, status: string, note?: string) =>
+    call(`/shipments/${id}/status`, { method: 'POST', body: JSON.stringify({ status, note }) }),
+  setTracking: (id: string, trackingNumber: string, trackingUrl?: string) =>
+    call(`/shipments/${id}/tracking`, { method: 'POST', body: JSON.stringify({ trackingNumber, trackingUrl }) }),
+  regenerateLabel: (id: string) => call(`/shipments/${id}/regenerate-label`, { method: 'POST' }),
+  deleteShipment: (id: string) => call(`/shipments/${id}`, { method: 'DELETE' }),
 };
 
 export const SHIPMENT_STATUS_LABELS: Record<OrderShipmentStatus, { label: string; color: string }> = {

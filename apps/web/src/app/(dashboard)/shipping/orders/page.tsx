@@ -59,10 +59,24 @@ export default function ShippingOrdersPage() {
         actions={
           selectedIds.size > 0 ? (
             <button
-              onClick={() => alert(`${selectedIds.size} Bestellungen ausgewählt. Label-Erstellung kommt in S4.`)}
+              onClick={async () => {
+                if (!confirm(`${selectedIds.size} Label(s) mit DHL erstellen?`)) return;
+                try {
+                  const res: any = await shippingApi.bulkCreateShipments({
+                    orderIds: Array.from(selectedIds),
+                    carrier: 'dhl',
+                  });
+                  alert(`${res.succeeded} von ${res.total} Labels erstellt.`);
+                  setSelectedIds(new Set());
+                  // Reload
+                  const fresh = await shippingApi.listOrders(params);
+                  setItems(fresh.items);
+                  setTotal(fresh.total);
+                } catch (e: any) { alert(e.message); }
+              }}
               className={btn('primary')}
             >
-              <Package className="h-4 w-4" /> {selectedIds.size} für Versand vorbereiten
+              <Package className="h-4 w-4" /> {selectedIds.size} × DHL Label erstellen
             </button>
           ) : null
         }
