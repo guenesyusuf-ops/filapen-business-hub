@@ -12,6 +12,7 @@ import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AggregationService } from '../../finance/profit/aggregation.service';
 import { ShopifyRateLimiter } from './shopify-rate-limiter';
+import { ContactSyncService, ShopifyCustomerPayload } from '../../email-marketing/contact-sync.service';
 import {
   ShopifyOrder,
   ShopifyRefundPayload,
@@ -29,6 +30,7 @@ export class ShopifyService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     @Optional() private readonly aggregationService?: AggregationService,
+    @Optional() private readonly contactSync?: ContactSyncService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -180,6 +182,12 @@ export class ShopifyService {
       'refunds/create',
       'products/update',
       'app/uninstalled',
+      // Email Marketing topics
+      'customers/create',
+      'customers/update',
+      'customers/delete',
+      'checkouts/create',
+      'checkouts/update',
     ];
 
     // Delete all existing webhooks
@@ -829,6 +837,32 @@ export class ShopifyService {
         });
 
         nextOrdersUrl = response.pagination.nextPageUrl;
+      }
+
+      // --- Customers (for Email Marketing contacts) ---
+      if (this.contactSync) {
+        const shop = integration.shops[0];
+        const shopId = shop?.id || null;
+        let nextCustomersUrl: string | null =
+          `/admin/api/2024-01/customers.json?limit=250`;
+        let customerCount = 0;
+        while (nextCustomersUrl) {
+          try {
+            await rateLimiter.waitIfNeeded();
+            const response = await this.shopifyApiGetWithPagination<{
+              customers: ShopifyCustomerPayload[];
+            }>(shopDomain, accessToken, nextCustomersUrl);
+            for (const customer of response.data.customers) {
+              await this.contactSync.upsertFromShopifyCustomer(orgId, shopId, customer);
+              customerCount++;
+            }
+            nextCustomersUrl = response.pagination.nextPageUrl;
+          } catch (err: any) {
+            this.logger.warn(`Customer backfill page failed: ${err?.message} — continuing`);
+            break;
+          }
+        }
+        this.logger.log(`Backfilled ${customerCount} Shopify customers as contacts`);
       }
 
       // Mark sync as completed

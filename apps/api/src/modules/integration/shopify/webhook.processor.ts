@@ -8,6 +8,7 @@ import {
   ShopifyRefundPayload,
   ShopifyProduct,
 } from './shopify.types';
+import { ContactSyncService, ShopifyCustomerPayload, ShopifyCheckoutPayload } from '../../email-marketing/contact-sync.service';
 
 interface WebhookJobData {
   topic: string;
@@ -32,6 +33,7 @@ export class WebhookProcessor extends WorkerHost {
   constructor(
     private readonly shopifyService: ShopifyService,
     private readonly prisma: PrismaService,
+    private readonly contactSync: ContactSyncService,
   ) {
     super();
   }
@@ -72,7 +74,51 @@ export class WebhookProcessor extends WorkerHost {
           this.logger.log(
             `Order ${result.orderId} ${result.action} via ${topic}`,
           );
+          // Only emit marketing event on CREATE (not every update)
+          if (topic === 'orders/create') {
+            await this.contactSync.handleOrderPlaced(
+              orgId,
+              shop.id,
+              payload as any,
+            ).catch((e) => this.logger.warn(`handleOrderPlaced failed: ${e?.message}`));
+          }
           return result;
+        }
+
+        case 'customers/create':
+        case 'customers/update': {
+          const customer = payload as unknown as ShopifyCustomerPayload;
+          const up = await this.contactSync.upsertFromShopifyCustomer(
+            orgId,
+            shop.id,
+            customer,
+          );
+          this.logger.log(
+            `Contact ${up.contactId || 'skipped'} ${up.created ? 'created' : 'updated'} via ${topic}`,
+          );
+          return { contactId: up.contactId, created: up.created };
+        }
+
+        case 'customers/delete': {
+          const customer = payload as unknown as ShopifyCustomerPayload;
+          await this.contactSync.handleShopifyCustomerDeleted(orgId, customer.id);
+          return { processed: true };
+        }
+
+        case 'checkouts/create':
+        case 'checkouts/update': {
+          // Only emit checkout_started event on CREATE to avoid flooding events
+          // for every checkout edit. Abandoned-cart logic watches orderless
+          // checkouts regardless of update frequency.
+          if (topic === 'checkouts/create') {
+            const checkout = payload as unknown as ShopifyCheckoutPayload;
+            await this.contactSync.handleCheckoutStarted(
+              orgId,
+              shop.id,
+              checkout,
+            );
+          }
+          return { processed: true, topic };
         }
 
         case 'orders/cancelled': {

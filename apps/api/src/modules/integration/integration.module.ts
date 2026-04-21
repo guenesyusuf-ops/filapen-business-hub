@@ -12,12 +12,14 @@ import { AmazonController } from './amazon.controller';
 import { AmazonService } from './amazon.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { ProfitCalculationModule } from '../finance/profit/profit.module';
+import { EmailMarketingModule } from '../email-marketing/email-marketing.module';
 
 @Module({
   imports: [
     ConfigModule,
     PrismaModule,
     ProfitCalculationModule,
+    EmailMarketingModule,
     BullModule.registerQueue(
       { name: 'webhook-process' },
       { name: 'shopify-sync' },
