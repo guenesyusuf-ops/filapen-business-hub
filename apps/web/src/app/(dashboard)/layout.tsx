@@ -54,6 +54,13 @@ import {
   Truck,
   CreditCard,
   Download,
+  Mail,
+  Send,
+  Users2,
+  Target,
+  Workflow,
+  LayoutTemplate as TemplateIcon,
+  LineChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -182,6 +189,22 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.emailMarketing',
+    href: '/email-marketing',
+    icon: Mail,
+    permissionKey: 'email-marketing',
+    children: [
+      { labelKey: 'nav.emOverview', href: '/email-marketing', icon: BarChart3 },
+      { labelKey: 'nav.emContacts', href: '/email-marketing/contacts', icon: Users2 },
+      { labelKey: 'nav.emSegments', href: '/email-marketing/segments', icon: Target },
+      { labelKey: 'nav.emCampaigns', href: '/email-marketing/campaigns', icon: Send },
+      { labelKey: 'nav.emFlows', href: '/email-marketing/flows', icon: Workflow },
+      { labelKey: 'nav.emTemplates', href: '/email-marketing/templates', icon: TemplateIcon },
+      { labelKey: 'nav.emAnalytics', href: '/email-marketing/analytics', icon: LineChart },
+      { labelKey: 'nav.emSettings', href: '/email-marketing/settings', icon: Settings },
+    ],
+  },
+  {
     labelKey: 'nav.documents',
     href: '/documents',
     icon: FolderOpen,
@@ -233,6 +256,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
     }
     if (pathname.startsWith('/purchases')) {
       initial.add('nav.purchases');
+    }
+    if (pathname.startsWith('/email-marketing')) {
+      initial.add('nav.emailMarketing');
     }
     if (pathname.startsWith('/settings')) {
       initial.add('nav.settings');

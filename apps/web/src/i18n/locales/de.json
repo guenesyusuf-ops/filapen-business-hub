@@ -75,7 +75,16 @@
     "purchasesOverview": "Übersicht",
     "purchaseOrders": "Bestellungen",
     "suppliers": "Lieferanten",
-    "purchaseExport": "Export"
+    "purchaseExport": "Export",
+    "emailMarketing": "Email Marketing",
+    "emOverview": "Übersicht",
+    "emContacts": "Kontakte",
+    "emSegments": "Segmente",
+    "emCampaigns": "Kampagnen",
+    "emFlows": "Automations",
+    "emTemplates": "Vorlagen",
+    "emAnalytics": "Analytics",
+    "emSettings": "Einstellungen"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",

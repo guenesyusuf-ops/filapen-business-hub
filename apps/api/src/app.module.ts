@@ -17,6 +17,7 @@ import { HomeModule } from './modules/home/home.module';
 import { AiModule } from './modules/ai/ai.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { PurchaseModule } from './modules/purchase/purchase.module';
+import { EmailMarketingModule } from './modules/email-marketing/email-marketing.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -62,6 +63,7 @@ import { HealthController } from './health.controller';
     AiModule,
     DocumentsModule,
     PurchaseModule,
+    EmailMarketingModule,
   ],
   controllers: [HealthController],
   providers: [],

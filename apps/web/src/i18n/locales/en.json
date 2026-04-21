@@ -75,7 +75,16 @@
     "purchasesOverview": "Overview",
     "purchaseOrders": "Orders",
     "suppliers": "Suppliers",
-    "purchaseExport": "Export"
+    "purchaseExport": "Export",
+    "emailMarketing": "Email Marketing",
+    "emOverview": "Overview",
+    "emContacts": "Contacts",
+    "emSegments": "Segments",
+    "emCampaigns": "Campaigns",
+    "emFlows": "Automations",
+    "emTemplates": "Templates",
+    "emAnalytics": "Analytics",
+    "emSettings": "Settings"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",
