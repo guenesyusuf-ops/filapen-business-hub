@@ -65,6 +65,17 @@ export const shippingApi = {
     call(`/shipments/${id}/tracking`, { method: 'POST', body: JSON.stringify({ trackingNumber, trackingUrl }) }),
   regenerateLabel: (id: string) => call(`/shipments/${id}/regenerate-label`, { method: 'POST' }),
   deleteShipment: (id: string) => call(`/shipments/${id}`, { method: 'DELETE' }),
+
+  // Rules
+  listRules: () => call<any[]>('/rules'),
+  createRule: (data: any) => call('/rules', { method: 'POST', body: JSON.stringify(data) }),
+  updateRule: (id: string, data: any) => call(`/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRule: (id: string) => call(`/rules/${id}`, { method: 'DELETE' }),
+
+  // Email automations
+  listAutomations: () => call<any[]>('/email-automations'),
+  upsertAutomation: (data: any) => call('/email-automations', { method: 'POST', body: JSON.stringify(data) }),
+  emailLogs: (shipmentId: string) => call(`/shipments/${shipmentId}/email-logs`),
 };
 
 export const SHIPMENT_STATUS_LABELS: Record<OrderShipmentStatus, { label: string; color: string }> = {
