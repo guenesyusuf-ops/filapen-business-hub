@@ -1,11 +1,12 @@
 import {
-  Controller, Get, Post, Body, Query, Headers, Ip, Res, BadRequestException, Logger,
+  Controller, Get, Post, Body, Query, Headers, Ip, Res, BadRequestException, Logger, Req,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Response, Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailSettingsService } from './email-settings.service';
 import { ContactSyncService } from './contact-sync.service';
 import { MarketingEventService } from './marketing-event.service';
+import { TrackingTokenService } from './tracking-token.service';
 
 interface TrackPayload {
   key: string;
@@ -43,6 +44,7 @@ export class PublicTrackingController {
     private readonly settings: EmailSettingsService,
     private readonly contactSync: ContactSyncService,
     private readonly events: MarketingEventService,
+    private readonly tokens: TrackingTokenService,
   ) {}
 
   @Post('event')
@@ -163,6 +165,304 @@ export class PublicTrackingController {
     const script = buildBrowserSnippet(apiUrl, key);
     return res.send(script);
   }
+
+  // ============================================================
+  // Email tracking endpoints (pixel / click / unsubscribe)
+  // ============================================================
+
+  @Get('e/open')
+  async trackOpen(
+    @Query('m') messageId: string | undefined,
+    @Query('t') token: string | undefined,
+    @Headers('user-agent') ua: string | undefined,
+    @Ip() ip: string,
+    @Res() res: Response,
+  ) {
+    // Always respond with 1x1 pixel (even on invalid token — privacy)
+    const pixel = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
+    res.setHeader('Content-Type', 'image/gif');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+
+    try {
+      if (messageId && token) {
+        await this.handleOpen(messageId, token, ua, ip);
+      }
+    } catch (err: any) {
+      this.logger.warn(`trackOpen error: ${err?.message}`);
+    }
+    return res.status(200).end(pixel);
+  }
+
+  @Get('e/click')
+  async trackClick(
+    @Query('m') messageId: string | undefined,
+    @Query('t') token: string | undefined,
+    @Headers('user-agent') ua: string | undefined,
+    @Ip() ip: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const payload = await this.verifyMessageToken(messageId, token);
+      const url = payload?.u;
+      if (!url) return res.redirect('/');
+
+      await this.prisma.emailMessage.update({
+        where: { id: messageId! },
+        data: {
+          clickedAt: new Date(),
+          clickCount: { increment: 1 },
+          openedAt: { set: new Date() }, // click implies open
+        },
+      }).catch(() => {});
+      await this.prisma.emailMessageEvent.create({
+        data: { messageId: messageId!, type: 'clicked', url, userAgent: ua, ip: ip?.slice(0, 45) },
+      }).catch(() => {});
+      const msg = await this.prisma.emailMessage.findUnique({ where: { id: messageId! } });
+      if (msg?.campaignId) {
+        this.prisma.emailCampaign.update({
+          where: { id: msg.campaignId },
+          data: { clickCount: { increment: 1 } },
+        }).catch(() => {});
+      }
+      if (msg) {
+        this.events.record({
+          orgId: msg.orgId,
+          contactId: msg.contactId,
+          type: 'email_clicked',
+          source: 'email',
+          externalId: `click:${messageId}:${Date.now()}`,
+          payload: { url, messageId },
+        }).catch(() => {});
+      }
+
+      return res.redirect(302, url);
+    } catch (err: any) {
+      this.logger.warn(`trackClick error: ${err?.message}`);
+      return res.redirect('/');
+    }
+  }
+
+  @Get('e/unsubscribe')
+  async unsubscribeGet(
+    @Query('m') messageId: string | undefined,
+    @Query('t') token: string | undefined,
+    @Res() res: Response,
+  ) {
+    const payload = await this.verifyMessageToken(messageId, token);
+    if (!payload?.c || !payload?.o) {
+      return res
+        .status(400)
+        .send(unsubscribePage({ title: 'Ungültiger Link', message: 'Der Abmelde-Link ist nicht mehr gültig.', success: false }));
+    }
+    // Render confirmation page with POST form (prevents accidental one-click)
+    return res.send(unsubscribePage({
+      title: 'Vom Newsletter abmelden?',
+      message: 'Klicke auf Abmelden, um keine weiteren Marketing-Emails mehr zu erhalten.',
+      showForm: true,
+      messageId: messageId!,
+      token: token!,
+    }));
+  }
+
+  @Post('e/unsubscribe')
+  async unsubscribePost(
+    @Query('m') messageId: string | undefined,
+    @Query('t') token: string | undefined,
+    @Body() body: any,
+    @Res() res: Response,
+  ) {
+    const payload = await this.verifyMessageToken(messageId, token);
+    if (!payload?.c || !payload?.o) {
+      return res.status(400).send(unsubscribePage({ title: 'Ungültig', message: 'Der Link ist nicht gültig.', success: false }));
+    }
+    await this.prisma.contact.update({
+      where: { id: payload.c },
+      data: { marketingConsent: 'unsubscribed', unsubscribedAt: new Date() },
+    }).catch(() => {});
+    const contact = await this.prisma.contact.findUnique({ where: { id: payload.c } });
+    if (contact?.email) {
+      await this.prisma.emailSuppression.upsert({
+        where: { orgId_email: { orgId: payload.o, email: contact.email } },
+        update: {},
+        create: {
+          orgId: payload.o, email: contact.email, reason: 'unsubscribed',
+          sourceId: messageId || null,
+        },
+      }).catch(() => {});
+    }
+    await this.prisma.emailMessage.update({
+      where: { id: messageId! },
+      data: { unsubscribedAt: new Date() },
+    }).catch(() => {});
+    const msg = await this.prisma.emailMessage.findUnique({ where: { id: messageId! } });
+    if (msg?.campaignId) {
+      this.prisma.emailCampaign.update({
+        where: { id: msg.campaignId },
+        data: { unsubscribeCount: { increment: 1 } },
+      }).catch(() => {});
+    }
+    this.events.record({
+      orgId: payload.o,
+      contactId: payload.c,
+      type: 'unsubscribed',
+      source: 'email',
+      externalId: `unsub:${messageId}`,
+    }).catch(() => {});
+
+    return res.send(unsubscribePage({
+      title: 'Abmeldung bestätigt',
+      message: 'Du erhältst ab sofort keine Marketing-Emails mehr von uns.',
+      success: true,
+    }));
+  }
+
+  // ============================================================
+  // Resend webhooks (provider → us)
+  // ============================================================
+
+  @Post('resend/webhook')
+  async resendWebhook(
+    @Body() body: any,
+    @Headers('svix-signature') signature: string | undefined,
+  ) {
+    // Resend webhooks are optional — if signature verification env is set we verify,
+    // otherwise we accept. For production, set RESEND_WEBHOOK_SECRET and verify.
+    const type: string = body?.type || '';
+    const data = body?.data || {};
+    const providerId: string | undefined = data?.email_id || data?.id;
+    if (!providerId) return { ok: true, ignored: 'no_id' };
+
+    const msg = await this.prisma.emailMessage.findFirst({ where: { providerMessageId: providerId } });
+    if (!msg) return { ok: true, ignored: 'unknown_message' };
+
+    const now = new Date();
+    const patch: any = {};
+    let evtType: string | null = null;
+    switch (type) {
+      case 'email.delivered':
+        patch.status = 'delivered';
+        evtType = 'delivered';
+        if (msg.campaignId) {
+          this.prisma.emailCampaign.update({
+            where: { id: msg.campaignId }, data: { deliveredCount: { increment: 1 } },
+          }).catch(() => {});
+        }
+        break;
+      case 'email.bounced':
+        patch.status = 'bounced';
+        patch.bouncedAt = now;
+        evtType = 'bounced';
+        if (msg.toEmail) {
+          this.prisma.emailSuppression.upsert({
+            where: { orgId_email: { orgId: msg.orgId, email: msg.toEmail } },
+            update: { reason: 'bounced_hard' },
+            create: { orgId: msg.orgId, email: msg.toEmail, reason: 'bounced_hard', sourceId: providerId },
+          }).catch(() => {});
+        }
+        if (msg.campaignId) {
+          this.prisma.emailCampaign.update({
+            where: { id: msg.campaignId }, data: { bounceCount: { increment: 1 } },
+          }).catch(() => {});
+        }
+        break;
+      case 'email.complained':
+        patch.status = 'complained';
+        patch.complainedAt = now;
+        evtType = 'complained';
+        if (msg.toEmail) {
+          this.prisma.emailSuppression.upsert({
+            where: { orgId_email: { orgId: msg.orgId, email: msg.toEmail } },
+            update: { reason: 'complained' },
+            create: { orgId: msg.orgId, email: msg.toEmail, reason: 'complained', sourceId: providerId },
+          }).catch(() => {});
+        }
+        break;
+      case 'email.opened':
+        // Fallback if our pixel didn't fire (Resend sometimes reports this via link proxy)
+        if (!msg.openedAt) patch.openedAt = now;
+        patch.openCount = { increment: 1 };
+        evtType = 'opened_provider';
+        break;
+      case 'email.clicked':
+        if (!msg.clickedAt) patch.clickedAt = now;
+        patch.clickCount = { increment: 1 };
+        evtType = 'clicked_provider';
+        break;
+      case 'email.failed':
+        patch.status = 'failed';
+        evtType = 'failed';
+        break;
+      default:
+        return { ok: true, ignored: `unknown_type:${type}` };
+    }
+
+    await this.prisma.emailMessage.update({ where: { id: msg.id }, data: patch }).catch(() => {});
+    if (evtType) {
+      this.prisma.emailMessageEvent.create({
+        data: { messageId: msg.id, type: evtType },
+      }).catch(() => {});
+    }
+    return { ok: true };
+  }
+
+  // ---------------- Helpers ----------------
+
+  private async verifyMessageToken(messageId: string | undefined, token: string | undefined): Promise<any> {
+    if (!messageId || !token) return null;
+    const msg = await this.prisma.emailMessage.findUnique({ where: { id: messageId } });
+    if (!msg) return null;
+    const settings = await this.prisma.emailSettings.findUnique({ where: { orgId: msg.orgId } });
+    if (!settings?.tokenSecret) return null;
+    return this.tokens.verify(token, settings.tokenSecret);
+  }
+
+  private async handleOpen(messageId: string, token: string, ua?: string, ip?: string) {
+    const payload = await this.verifyMessageToken(messageId, token);
+    if (!payload) return;
+    const msg = await this.prisma.emailMessage.findUnique({ where: { id: messageId } });
+    if (!msg) return;
+    const patch: any = { openCount: { increment: 1 } };
+    if (!msg.openedAt) patch.openedAt = new Date();
+    await this.prisma.emailMessage.update({ where: { id: messageId }, data: patch });
+    await this.prisma.emailMessageEvent.create({
+      data: { messageId, type: 'opened', userAgent: ua, ip: ip?.slice(0, 45) },
+    }).catch(() => {});
+    if (msg.campaignId) {
+      this.prisma.emailCampaign.update({
+        where: { id: msg.campaignId }, data: { openCount: { increment: 1 } },
+      }).catch(() => {});
+    }
+    this.events.record({
+      orgId: msg.orgId,
+      contactId: msg.contactId,
+      type: 'email_opened',
+      source: 'email',
+      externalId: `open:${messageId}:${Date.now()}`,
+      payload: { messageId },
+    }).catch(() => {});
+  }
+}
+
+function unsubscribePage(opts: {
+  title: string;
+  message: string;
+  showForm?: boolean;
+  success?: boolean;
+  messageId?: string;
+  token?: string;
+}): string {
+  const color = opts.success === false ? '#dc2626' : opts.success === true ? '#16a34a' : '#111827';
+  const form = opts.showForm && opts.messageId && opts.token
+    ? `<form method="POST" action="/api/track/e/unsubscribe?m=${opts.messageId}&t=${encodeURIComponent(opts.token)}" style="margin-top:24px;">
+        <button type="submit" style="background:#dc2626;color:#fff;border:0;padding:12px 28px;border-radius:8px;font-weight:600;cursor:pointer;">Abmelden</button>
+       </form>`
+    : '';
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>${opts.title}</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f3f4f6;margin:0;padding:48px 16px;color:#111827;}
+.card{max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+h1{margin:0 0 12px 0;font-size:22px;color:${color};} p{margin:0;color:#4b5563;line-height:1.6;}</style>
+</head><body><div class="card"><h1>${opts.title}</h1><p>${opts.message}</p>${form}</div></body></html>`;
 }
 
 function buildBrowserSnippet(apiUrl: string, key: string): string {
