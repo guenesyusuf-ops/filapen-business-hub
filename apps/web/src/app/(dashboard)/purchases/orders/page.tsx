@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Search, FileText, Paperclip, Filter as FilterIcon, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, FileText, Paperclip, Filter as FilterIcon, ChevronDown, ChevronLeft, ChevronRight, X, Download, Archive } from 'lucide-react';
 import {
   purchasesApi, fmtDate, STATUS_LABELS, PAYMENT_STATUS_LABELS,
   type PurchaseOrder,
@@ -36,8 +36,13 @@ export default function PurchaseOrdersPage() {
   const [sort, setSort] = useState<string>('orderDate');
   const [dir, setDir] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
+  const [includeCancelled, setIncludeCancelled] = useState(false);
+  const [onlyCancelled, setOnlyCancelled] = useState(false);
+  const [onTheWay, setOnTheWay] = useState(initialParams.get('onTheWay') === '1');
 
   const [suppliers, setSuppliers] = useState<any[]>([]);
+
+  const [previewDoc, setPreviewDoc] = useState<{ fileName: string; fileUrl: string; mimeType: string } | null>(null);
 
   useEffect(() => {
     purchasesApi.listSuppliers().then(setSuppliers).catch(() => {});
@@ -49,16 +54,19 @@ export default function PurchaseOrdersPage() {
     status: status || undefined,
     supplierId: supplierFilter || undefined,
     hasDocument: hasDoc as any || undefined,
+    onTheWay: onTheWay ? '1' : undefined,
+    includeCancelled: includeCancelled ? '1' : undefined,
+    onlyCancelled: onlyCancelled ? '1' : undefined,
     from: from || undefined,
     to: to || undefined,
     sort,
     dir,
     limit: String(PAGE_SIZE),
     offset: String(offset),
-  }), [search, paymentStatus, status, supplierFilter, hasDoc, from, to, sort, dir, offset]);
+  }), [search, paymentStatus, status, supplierFilter, hasDoc, onTheWay, includeCancelled, onlyCancelled, from, to, sort, dir, offset]);
 
   // reset to first page when filters change
-  useEffect(() => { setOffset(0); }, [search, paymentStatus, status, supplierFilter, hasDoc, from, to]);
+  useEffect(() => { setOffset(0); }, [search, paymentStatus, status, supplierFilter, hasDoc, onTheWay, includeCancelled, onlyCancelled, from, to]);
 
   useEffect(() => {
     setLoading(true);
@@ -101,12 +109,34 @@ export default function PurchaseOrdersPage() {
           </button>
         ))}
         <button
+          onClick={() => { setOnTheWay(!onTheWay); }}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            onTheWay ? 'bg-sky-600 text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
+          }`}
+        >
+          Unterwegs
+        </button>
+        <button
           onClick={() => setShowFilters(!showFilters)}
           className="px-3 py-1.5 rounded-full text-xs font-medium bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 inline-flex items-center gap-1.5"
         >
           <FilterIcon className="h-3.5 w-3.5" /> Mehr Filter
           <ChevronDown className={`h-3 w-3 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
         </button>
+        <div className="ml-auto flex items-center gap-2">
+          <label className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+            <input type="checkbox" checked={includeCancelled} onChange={(e) => { setIncludeCancelled(e.target.checked); if (e.target.checked) setOnlyCancelled(false); }} />
+            Stornierte anzeigen
+          </label>
+          <button
+            onClick={() => { setOnlyCancelled(!onlyCancelled); if (!onlyCancelled) setIncludeCancelled(false); }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
+              onlyCancelled ? 'bg-red-600 text-white' : 'bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-500 hover:text-red-600'
+            }`}
+          >
+            <Archive className="h-3.5 w-3.5" /> Nur stornierte
+          </button>
+        </div>
       </div>
 
       {/* Search + advanced filters */}
@@ -240,7 +270,19 @@ export default function PurchaseOrdersPage() {
                       <td className="px-3 py-3"><Badge color={ps.color}>{ps.label}</Badge></td>
                       <td className="px-3 py-3 text-center">
                         {(o._count?.documents ?? 0) > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-500"><Paperclip className="h-3 w-3" />{o._count?.documents}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const docs = o.documents || [];
+                              if (docs.length === 0) return;
+                              const doc = docs.find(d => d.documentType === 'invoice') || docs[0];
+                              setPreviewDoc({ fileName: doc.fileName, fileUrl: doc.fileUrl, mimeType: doc.mimeType });
+                            }}
+                            title="Rechnung / Anhang ansehen"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                          >
+                            <Paperclip className="h-3 w-3" />{o._count?.documents}
+                          </button>
                         ) : <span className="text-xs text-gray-300">—</span>}
                       </td>
                     </tr>
@@ -274,6 +316,43 @@ export default function PurchaseOrdersPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {previewDoc && <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />}
+    </div>
+  );
+}
+
+function DocPreviewModal({ doc, onClose }: { doc: { fileName: string; fileUrl: string; mimeType: string }; onClose: () => void }) {
+  const isPdf = doc.mimeType === 'application/pdf';
+  const isImage = doc.mimeType.startsWith('image/');
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-4xl bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/10">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{doc.fileName}</h3>
+            <p className="text-xs text-gray-400">{doc.mimeType}</p>
+          </div>
+          <div className="flex items-center gap-2 ml-4">
+            <a href={doc.fileUrl} download className={btn('secondary', 'h-8 px-2 py-1 text-xs')}><Download className="h-3.5 w-3.5" /> Download</a>
+            <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto bg-gray-50 dark:bg-black/40">
+          {isPdf ? (
+            <iframe src={doc.fileUrl} className="w-full h-[75vh]" title={doc.fileName} />
+          ) : isImage ? (
+            <div className="flex items-center justify-center h-full p-4">
+              <img src={doc.fileUrl} alt={doc.fileName} className="max-w-full max-h-[75vh] object-contain" />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-500 text-sm gap-3">
+              Vorschau für diesen Dateityp nicht verfügbar
+              <a href={doc.fileUrl} target="_blank" rel="noopener" className={btn('primary')}>In neuem Tab öffnen</a>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

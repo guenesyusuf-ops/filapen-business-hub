@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, Logger } from '@nes
 import { PrismaService } from '../../prisma/prisma.service';
 import { PurchaseOrderService } from './purchase-order.service';
 import { PurchaseAuditService } from './purchase-audit.service';
+import { ShipmentService } from './shipment.service';
 import { Prisma } from '@prisma/client';
 
 export interface PaymentInput {
@@ -35,6 +36,7 @@ export class PaymentService {
     private readonly prisma: PrismaService,
     private readonly orderService: PurchaseOrderService,
     private readonly audit: PurchaseAuditService,
+    private readonly shipments: ShipmentService,
   ) {}
 
   async list(orgId: string, orderId: string) {
@@ -102,8 +104,9 @@ export class PaymentService {
 
       try {
         await this.orderService.recalcPaymentTotals(orderId);
+        await this.shipments.recalcOrderStatus(orderId);
       } catch (recalcErr: any) {
-        this.logger.error(`recalcPaymentTotals failed for order ${orderId}: ${recalcErr?.message}`, recalcErr?.stack);
+        this.logger.error(`recalc failed for order ${orderId}: ${recalcErr?.message}`, recalcErr?.stack);
       }
 
       this.audit.log(orgId, userId, 'payment', payment.id, 'create', {
@@ -157,6 +160,7 @@ export class PaymentService {
 
       const updated = await this.prisma.payment.update({ where: { id: paymentId }, data: updates });
       await this.orderService.recalcPaymentTotals(existing.purchaseOrderId);
+      await this.shipments.recalcOrderStatus(existing.purchaseOrderId);
       this.audit.log(orgId, userId, 'payment', paymentId, 'update', {}, existing.purchaseOrderId).catch(() => {});
       return { ...updated, amount: updated.amount.toString() };
     } catch (err: any) {
@@ -171,6 +175,7 @@ export class PaymentService {
     if (!existing) throw new NotFoundException('Zahlung nicht gefunden');
     await this.prisma.payment.delete({ where: { id: paymentId } });
     await this.orderService.recalcPaymentTotals(existing.purchaseOrderId);
+    await this.shipments.recalcOrderStatus(existing.purchaseOrderId);
     this.audit.log(orgId, userId, 'payment', paymentId, 'delete', {}, existing.purchaseOrderId).catch(() => {});
     return { deleted: true };
   }

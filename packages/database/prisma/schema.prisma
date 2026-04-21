@@ -369,6 +369,7 @@ model User {
   paymentsCreated   Payment[]          @relation("PaymentCreator")
   documentsUploaded PurchaseDocument[] @relation("DocUploader")
   poAuditLogs       PurchaseAuditLog[] @relation("PoAuditUser")
+  shipmentsCreated  Shipment[]         @relation("ShipmentCreator")
 
   @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
   @@unique([orgId, email], map: "uq_user_org_email")
@@ -1861,7 +1862,9 @@ model DocFavorite {
 enum PoStatus {
   draft
   ordered
+  shipped
   invoiced
+  partially_received
   received
   completed
   cancelled
@@ -1975,6 +1978,7 @@ model PurchaseOrder {
   payments     Payment[]
   documents    PurchaseDocument[]
   auditLogs    PurchaseAuditLog[]
+  shipments    Shipment[]
 
   @@unique([orgId, orderNumber], map: "uq_po_org_number")
   @@index([orgId])
@@ -2001,7 +2005,8 @@ model PurchaseOrderItem {
   position         Int      @default(0)
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  shipmentItems ShipmentItem[]
 
   @@index([purchaseOrderId])
   @@index([productId])
@@ -2097,4 +2102,42 @@ model PurchaseAuditLog {
   @@index([orgId, entityType, entityId])
   @@index([purchaseOrderId])
   @@map("purchase_audit_logs")
+}
+
+model Shipment {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String    @map("org_id") @db.Uuid
+  purchaseOrderId String    @map("purchase_order_id") @db.Uuid
+  trackingNumber  String?   @map("tracking_number") @db.VarChar(255)
+  carrier         String?   @db.VarChar(255)
+  shippedAt       DateTime? @map("shipped_at") @db.Date
+  receivedAt      DateTime? @map("received_at") @db.Date
+  notes           String?   @db.Text
+  createdById     String    @map("created_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  createdBy     User           @relation("ShipmentCreator", fields: [createdById], references: [id])
+  items         ShipmentItem[]
+
+  @@index([orgId])
+  @@index([purchaseOrderId])
+  @@index([receivedAt])
+  @@map("shipments")
+}
+
+model ShipmentItem {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shipmentId          String   @map("shipment_id") @db.Uuid
+  purchaseOrderItemId String   @map("purchase_order_item_id") @db.Uuid
+  quantity            Decimal  @db.Decimal(14, 3)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  shipment          Shipment          @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([purchaseOrderItemId])
+  @@map("shipment_items")
 }

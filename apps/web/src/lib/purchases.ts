@@ -3,10 +3,22 @@ import { getAuthHeaders } from '@/stores/auth';
 
 export type Currency = 'EUR' | 'USD';
 
-export type PoStatus = 'draft' | 'ordered' | 'invoiced' | 'received' | 'completed' | 'cancelled';
+export type PoStatus = 'draft' | 'ordered' | 'shipped' | 'invoiced' | 'partially_received' | 'received' | 'completed' | 'cancelled';
 export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overpaid';
 export type PaymentMethod = 'bank_transfer' | 'credit_card' | 'paypal' | 'sepa_debit' | 'cash' | 'other';
 export type DocumentType = 'invoice' | 'proforma' | 'delivery_note' | 'receipt' | 'other';
+
+export interface Shipment {
+  id: string;
+  trackingNumber?: string | null;
+  carrier?: string | null;
+  shippedAt?: string | null;
+  receivedAt?: string | null;
+  notes?: string | null;
+  items: Array<{ id: string; purchaseOrderItemId: string; quantity: string }>;
+  createdBy?: { id: string; name: string | null };
+  createdAt: string;
+}
 
 export interface Supplier {
   id: string;
@@ -75,8 +87,9 @@ export interface PurchaseOrder {
   items?: PoItem[];
   invoices?: Array<{ id: string; invoiceNumber: string; invoiceDate: string; dueDate?: string | null; amount: string }>;
   payments?: Array<{ id: string; paymentDate: string; amount: string; method: PaymentMethod; reference?: string | null; note?: string | null; createdBy?: { name: string | null } }>;
-  documents?: Array<{ id: string; fileName: string; fileUrl: string; mimeType: string; documentType: DocumentType; uploadedAt: string; uploadedBy?: { name: string | null } }>;
-  _count?: { documents: number; payments: number };
+  documents?: Array<{ id: string; fileName: string; fileUrl: string; mimeType: string; documentType: DocumentType; uploadedAt?: string; uploadedBy?: { name: string | null } }>;
+  shipments?: Shipment[];
+  _count?: { documents: number; payments: number; shipments?: number };
 }
 
 const headers = (extra?: Record<string, string>) => ({
@@ -143,6 +156,14 @@ export const purchasesApi = {
   updatePayment: (paymentId: string, data: any) => call(`/payments/${paymentId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePayment: (paymentId: string) => call(`/payments/${paymentId}`, { method: 'DELETE' }),
 
+  // Shipments
+  listShipments: (orderId: string) => call<Shipment[]>(`/orders/${orderId}/shipments`),
+  addShipment: (orderId: string, data: any) => call<Shipment>(`/orders/${orderId}/shipments`, { method: 'POST', body: JSON.stringify(data) }),
+  updateShipment: (shipmentId: string, data: any) => call(`/shipments/${shipmentId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  markShipmentReceived: (shipmentId: string, receivedAt?: string) =>
+    call(`/shipments/${shipmentId}/received`, { method: 'PATCH', body: JSON.stringify({ receivedAt: receivedAt || null }) }),
+  deleteShipment: (shipmentId: string) => call(`/shipments/${shipmentId}`, { method: 'DELETE' }),
+
   // Documents
   listDocuments: (orderId: string) => call(`/orders/${orderId}/documents`),
   uploadDocument: async (orderId: string, file: File, documentType: DocumentType) => {
@@ -201,11 +222,18 @@ export function fmtDateTime(d: string | Date | null | undefined): string {
 export const STATUS_LABELS: Record<PoStatus, { label: string; color: string }> = {
   draft: { label: 'Entwurf', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
   ordered: { label: 'Bestellt', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  shipped: { label: 'Unterwegs', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' },
   invoiced: { label: 'Rechnung erh.', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
-  received: { label: 'Wareneingang', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
+  partially_received: { label: 'Teilweise angekommen', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  received: { label: 'Angekommen', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
   completed: { label: 'Abgeschlossen', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
   cancelled: { label: 'Storniert', color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
 };
+
+export const CARRIERS = [
+  'DHL', 'DPD', 'GLS', 'UPS', 'FedEx', 'Hermes', 'Post/DHL Express',
+  'DB Schenker', 'Kühne+Nagel', 'Dachser', 'Luftfracht', 'Seefracht', 'Sonstiges',
+];
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, { label: string; color: string }> = {
   unpaid: { label: 'Offen', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },

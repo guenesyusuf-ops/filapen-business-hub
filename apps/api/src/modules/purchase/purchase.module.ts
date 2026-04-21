@@ -8,6 +8,7 @@ import { PaymentService } from './payment.service';
 import { PurchaseDocumentService } from './purchase-document.service';
 import { PurchaseExportService } from './purchase-export.service';
 import { PurchaseAuditService } from './purchase-audit.service';
+import { ShipmentService } from './shipment.service';
 
 @Module({
   imports: [StorageModule, AuthModule],
@@ -19,7 +20,8 @@ import { PurchaseAuditService } from './purchase-audit.service';
     PurchaseDocumentService,
     PurchaseExportService,
     PurchaseAuditService,
+    ShipmentService,
   ],
-  exports: [SupplierService, PurchaseOrderService, PaymentService],
+  exports: [SupplierService, PurchaseOrderService, PaymentService, ShipmentService],
 })
 export class PurchaseModule {}

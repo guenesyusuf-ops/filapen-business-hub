@@ -123,6 +123,7 @@ export class PurchaseExportService {
         payments: { orderBy: { paymentDate: 'asc' } },
         documents: { select: { id: true, fileName: true, documentType: true } },
         items: { select: { productName: true, sku: true, quantity: true } },
+        shipments: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -131,6 +132,7 @@ export class PurchaseExportService {
       'Rechnungsnummer', 'Rechnungsdatum', 'Rechnungsdatum_ISO', 'Faelligkeitsdatum', 'Faelligkeitsdatum_ISO',
       'Lieferantennummer', 'Lieferantenname', 'USt-ID_Lieferant', 'Steuernummer_Lieferant',
       'Ansprechpartner', 'EMail_Lieferant', 'Land',
+      'Sendungsnummern', 'Speditionen', 'Erste_Ankunft', 'Letzte_Ankunft', 'Voll_angekommen',
       'Kaeufer', 'Kaeufer_EMail',
       'Nettobetrag', 'Steuerbetrag', 'Bruttobetrag', 'Versandkosten', 'Zollkosten', 'Waehrung', 'Wechselkurs',
       'Bereits_bezahlt', 'Offene_Summe',
@@ -151,12 +153,28 @@ export class PurchaseExportService {
       const paymentMethods = [...new Set(o.payments.map(p => PAYMENT_METHOD_LABEL[p.method] || p.method))].join(', ');
       const invoiceDoc = o.documents.find(d => d.documentType === 'invoice');
 
+      // Sendungs-Daten aggregieren
+      const trackingNums = (o as any).shipments
+        ? (o as any).shipments.map((s: any) => s.trackingNumber).filter(Boolean).join(' / ')
+        : '';
+      const carriers = (o as any).shipments
+        ? [...new Set(((o as any).shipments as any[]).map((s) => s.carrier).filter(Boolean))].join(', ')
+        : '';
+      const receivedDates = ((o as any).shipments || [])
+        .map((s: any) => s.receivedAt)
+        .filter(Boolean)
+        .sort();
+      const firstReceived = receivedDates[0];
+      const lastReceived = receivedDates[receivedDates.length - 1];
+      const fullyReceived = o.status === 'received' || o.status === 'completed';
+
       lines.push(toRow([
         o.orderNumber, fmtDate(o.orderDate), fmtDateIso(o.orderDate),
         inv?.invoiceNumber || '', fmtDate(inv?.invoiceDate), fmtDateIso(inv?.invoiceDate),
         fmtDate(inv?.dueDate), fmtDateIso(inv?.dueDate),
         o.supplier.supplierNumber, o.supplier.companyName, o.supplier.vatId || '', o.supplier.taxNumber || '',
         o.supplier.contactName, o.supplier.email, o.supplier.country || '',
+        trackingNums, carriers, fmtDate(firstReceived), fmtDate(lastReceived), fmtBool(fullyReceived),
         o.createdBy.name || '', o.createdBy.email,
         fmtDecimal(o.subtotal), fmtDecimal(o.taxTotal), fmtDecimal(o.totalAmount),
         fmtDecimal(o.shippingCost), fmtDecimal(o.customsCost),
@@ -362,6 +380,7 @@ export class PurchaseExportService {
         payments: { orderBy: { paymentDate: 'asc' } },
         documents: true,
         items: true,
+        shipments: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -373,6 +392,7 @@ export class PurchaseExportService {
       'Strasse', 'PLZ', 'Ort', 'Land',
       'Ansprechpartner', 'EMail',
       'IBAN', 'BIC', 'Bank',
+      'Sendungsnummern', 'Speditionen', 'Erste_Ankunft_DE', 'Erste_Ankunft_ISO', 'Letzte_Ankunft_DE', 'Letzte_Ankunft_ISO', 'Voll_angekommen',
       'Kaeufer', 'Kaeufer_EMail',
       'Nettobetrag', 'Steuerbetrag', 'Bruttobetrag',
       'Versandkosten', 'Zollkosten',
@@ -408,6 +428,16 @@ export class PurchaseExportService {
         ? Number(o.totalAmount.toString())
         : (exchangeRate > 0 ? Number(o.totalAmount.toString()) * exchangeRate : 0);
 
+      // Sendungs-Daten aggregieren
+      const ships = (o as any).shipments || [];
+      const trackingNums = ships.map((s: any) => s.trackingNumber).filter(Boolean).join(' / ');
+      const carriers = [...new Set(ships.map((s: any) => s.carrier).filter(Boolean))].join(', ');
+      const receivedDates: Date[] = ships.map((s: any) => s.receivedAt).filter(Boolean);
+      receivedDates.sort((a: any, b: any) => a.getTime() - b.getTime());
+      const firstReceived = receivedDates[0];
+      const lastReceived = receivedDates[receivedDates.length - 1];
+      const fullyReceived = o.status === 'received' || o.status === 'completed';
+
       lines.push(toRow([
         o.orderNumber, fmtDate(o.orderDate), fmtDateIso(o.orderDate),
         inv?.invoiceNumber || '', fmtDate(inv?.invoiceDate), fmtDateIso(inv?.invoiceDate),
@@ -416,6 +446,10 @@ export class PurchaseExportService {
         o.supplier.street || '', o.supplier.zipCode || '', o.supplier.city || '', o.supplier.country || '',
         o.supplier.contactName, o.supplier.email,
         o.supplier.iban || '', o.supplier.bic || '', o.supplier.bankName || '',
+        trackingNums, carriers,
+        fmtDate(firstReceived), fmtDateIso(firstReceived),
+        fmtDate(lastReceived), fmtDateIso(lastReceived),
+        fmtBool(fullyReceived),
         o.createdBy.name || '', o.createdBy.email,
         fmtDecimal(o.subtotal), fmtDecimal(o.taxTotal), fmtDecimal(o.totalAmount),
         fmtDecimal(o.shippingCost), fmtDecimal(o.customsCost),

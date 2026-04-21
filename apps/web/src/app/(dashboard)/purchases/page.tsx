@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ShoppingCart, AlertCircle, Wallet, CheckCircle2, Calendar,
-  TrendingUp, FileText, Plus, Truck, Download,
-  ChevronLeft, ChevronRight, Paperclip,
+  TrendingUp, FileText, Plus, Truck, Download, Plane,
+  ChevronLeft, ChevronRight, Paperclip, X,
 } from 'lucide-react';
 import {
   purchasesApi, fmtDate,
@@ -27,6 +27,9 @@ export default function PurchasesDashboardPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loadingOrders, setLoadingOrders] = useState(true);
+
+  // PDF preview modal
+  const [previewDoc, setPreviewDoc] = useState<{ fileName: string; fileUrl: string; mimeType: string } | null>(null);
 
   useEffect(() => {
     purchasesApi.dashboard()
@@ -51,10 +54,11 @@ export default function PurchasesDashboardPage() {
 
   const sumCurrencies = (rows: { currency: string; amount: string }[]) => {
     if (!rows.length) return '0,00 EUR';
-    return rows
+    const formatted = rows
       .filter(r => Number(r.amount) > 0)
       .map(r => new Intl.NumberFormat('de-DE', { style: 'currency', currency: r.currency || 'EUR' }).format(Number(r.amount)))
-      .join(' · ') || '0,00 EUR';
+      .join(' · ');
+    return formatted || '0,00 EUR';
   };
 
   const goToOrders = (q: Record<string, string>) => {
@@ -64,6 +68,14 @@ export default function PurchasesDashboardPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
+
+  const openDocument = (o: PurchaseOrder) => {
+    if (!o.documents || o.documents.length === 0) return;
+    // Prefer invoice, fall back to first
+    const invoice = o.documents.find(d => d.documentType === 'invoice');
+    const doc = invoice || o.documents[0];
+    setPreviewDoc({ fileName: doc.fileName, fileUrl: doc.fileUrl, mimeType: doc.mimeType });
+  };
 
   return (
     <div className="space-y-6">
@@ -84,12 +96,12 @@ export default function PurchasesDashboardPage() {
 
       {kpiError && <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3 text-sm text-red-700 dark:text-red-300">KPIs konnten nicht geladen werden: {kpiError}</div>}
 
-      {/* KPI cards — klickbar, navigiert zur Bestell-Liste mit passendem Filter */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* KPI cards — Reihenfolge wie vom User gewünscht */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <KpiCard
           label="Bestellungen gesamt"
           value={loadingKpi ? '…' : counts.total ?? 0}
-          sublabel={`${counts.thisMonth ?? 0} diesen Monat`}
+          sublabel="ohne stornierte"
           accent="blue"
           icon={<ShoppingCart className="h-5 w-5" />}
           onClick={() => goToOrders({})}
@@ -97,15 +109,23 @@ export default function PurchasesDashboardPage() {
         <KpiCard
           label="Offene Bestellungen"
           value={loadingKpi ? '…' : counts.open ?? 0}
-          sublabel={sumCurrencies(openByCurrency)}
+          sublabel="noch nicht angekommen"
           accent="amber"
           icon={<Wallet className="h-5 w-5" />}
-          onClick={() => goToOrders({ paymentStatus: 'unpaid' })}
+          onClick={() => goToOrders({ status: 'ordered' })}
+        />
+        <KpiCard
+          label="Unterwegs"
+          value={loadingKpi ? '…' : counts.onTheWay ?? 0}
+          sublabel="mit Sendungsnummer"
+          accent="indigo"
+          icon={<Plane className="h-5 w-5" />}
+          onClick={() => goToOrders({ onTheWay: '1' })}
         />
         <KpiCard
           label="Teilweise bezahlt"
           value={loadingKpi ? '…' : counts.partiallyPaid ?? 0}
-          accent="indigo"
+          accent="purple"
           icon={<TrendingUp className="h-5 w-5" />}
           onClick={() => goToOrders({ paymentStatus: 'partially_paid' })}
         />
@@ -119,37 +139,22 @@ export default function PurchasesDashboardPage() {
         <KpiCard
           label="Überfällige Rechnungen"
           value={loadingKpi ? '…' : counts.overdue ?? 0}
-          sublabel={counts.overdue ? 'Aktion erforderlich' : 'Alles im Zeitplan'}
+          sublabel={counts.overdue ? 'Aktion erforderlich' : 'alles im Zeitplan'}
           accent="red"
           icon={<AlertCircle className="h-5 w-5" />}
           onClick={() => goToOrders({ paymentStatus: 'unpaid' })}
         />
         <KpiCard
           label="Bezahlt diesen Monat"
-          value={sumCurrencies(paidThisMonth)}
+          value={loadingKpi ? '…' : sumCurrencies(paidThisMonth)}
+          sublabel={`Σ offen: ${sumCurrencies(openByCurrency)}`}
           accent="green"
           icon={<Calendar className="h-5 w-5" />}
           onClick={() => goToOrders({ paymentStatus: 'paid' })}
         />
-        <KpiCard
-          label="Lieferanten"
-          value={loadingKpi ? '…' : top.length}
-          sublabel="Top-Umsätze"
-          accent="purple"
-          icon={<Truck className="h-5 w-5" />}
-          onClick={() => router.push('/purchases/suppliers')}
-        />
-        <KpiCard
-          label="Diesen Monat"
-          value={loadingKpi ? '…' : counts.thisMonth ?? 0}
-          sublabel="neue Bestellungen"
-          accent="blue"
-          icon={<FileText className="h-5 w-5" />}
-          onClick={() => goToOrders({ from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10) })}
-        />
       </div>
 
-      {/* Recent orders table — 5 pro Seite, blätterbar */}
+      {/* Recent orders table */}
       <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/8">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Bestellungen</h3>
@@ -187,8 +192,11 @@ export default function PurchasesDashboardPage() {
                   {orders.map((o) => {
                     const inv = o.invoices?.[0];
                     const ps = PAYMENT_STATUS_LABELS[o.paymentStatus];
+                    const ss = STATUS_LABELS[o.status];
                     const productPreview = (o.items || []).slice(0, 2).map((i) => i.productName).join(', ');
                     const more = (o.items?.length || 0) - 2;
+                    const hasShipment = (o.shipments || []).some(s => s.trackingNumber && !s.receivedAt);
+                    const docCount = o._count?.documents ?? 0;
                     return (
                       <tr
                         key={o.id}
@@ -223,10 +231,21 @@ export default function PurchasesDashboardPage() {
                             </div>
                           ) : <span className="text-xs text-gray-400">—</span>}
                         </td>
-                        <td className="px-3 py-3"><Badge color={ps.color}>{ps.label}</Badge></td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-1">
+                            <Badge color={ss.color}>{ss.label}</Badge>
+                            {hasShipment && o.status !== 'shipped' && <Badge color="bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">Unterwegs</Badge>}
+                          </div>
+                        </td>
                         <td className="px-3 py-3 text-center">
-                          {(o._count?.documents ?? 0) > 0 ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-gray-500"><Paperclip className="h-3 w-3" />{o._count?.documents}</span>
+                          {docCount > 0 ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openDocument(o); }}
+                              title={docCount === 1 ? 'Rechnung ansehen' : `${docCount} Dokumente – erstes öffnen`}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                            >
+                              <Paperclip className="h-3.5 w-3.5" />{docCount}
+                            </button>
                           ) : <span className="text-xs text-gray-300">—</span>}
                         </td>
                       </tr>
@@ -236,12 +255,9 @@ export default function PurchasesDashboardPage() {
               </table>
             </div>
 
-            {/* Pagination */}
             {total > PAGE_SIZE && (
               <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-white/8 text-xs text-gray-500">
-                <div>
-                  Seite {currentPage} von {totalPages} · {total} Bestellungen gesamt
-                </div>
+                <div>Seite {currentPage} von {totalPages} · {total} Bestellungen gesamt</div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
@@ -264,7 +280,7 @@ export default function PurchasesDashboardPage() {
         )}
       </div>
 
-      {/* Two-column: overdue + top suppliers */}
+      {/* Overdue + Top suppliers */}
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-5">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -330,6 +346,43 @@ export default function PurchasesDashboardPage() {
                   </div>
                 </button>
               ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {previewDoc && <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />}
+    </div>
+  );
+}
+
+function DocPreviewModal({ doc, onClose }: { doc: { fileName: string; fileUrl: string; mimeType: string }; onClose: () => void }) {
+  const isPdf = doc.mimeType === 'application/pdf';
+  const isImage = doc.mimeType.startsWith('image/');
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-4xl bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/10">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{doc.fileName}</h3>
+            <p className="text-xs text-gray-400">{doc.mimeType}</p>
+          </div>
+          <div className="flex items-center gap-2 ml-4">
+            <a href={doc.fileUrl} download className={btn('secondary', 'h-8 px-2 py-1 text-xs')}><Download className="h-3.5 w-3.5" /> Download</a>
+            <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto bg-gray-50 dark:bg-black/40">
+          {isPdf ? (
+            <iframe src={doc.fileUrl} className="w-full h-[75vh]" title={doc.fileName} />
+          ) : isImage ? (
+            <div className="flex items-center justify-center h-full p-4">
+              <img src={doc.fileUrl} alt={doc.fileName} className="max-w-full max-h-[75vh] object-contain" />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-500 text-sm gap-3">
+              Vorschau für diesen Dateityp nicht verfügbar
+              <a href={doc.fileUrl} target="_blank" rel="noopener" className={btn('primary')}>In neuem Tab öffnen</a>
             </div>
           )}
         </div>

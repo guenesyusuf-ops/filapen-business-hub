@@ -14,6 +14,7 @@ import { PaymentService, PaymentInput } from './payment.service';
 import { PurchaseDocumentService } from './purchase-document.service';
 import { PurchaseExportService } from './purchase-export.service';
 import { PurchaseAuditService } from './purchase-audit.service';
+import { ShipmentService, ShipmentInput, MarkReceivedInput } from './shipment.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('purchase')
@@ -28,6 +29,7 @@ export class PurchaseController {
     private readonly documents: PurchaseDocumentService,
     private readonly exports: PurchaseExportService,
     private readonly audit: PurchaseAuditService,
+    private readonly shipments: ShipmentService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -42,40 +44,58 @@ export class PurchaseController {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    // Status-Gruppen
+    const openStatuses = ['draft', 'ordered', 'shipped', 'invoiced', 'partially_received']; // "noch nicht angekommen"
+    const notCancelled = { not: 'cancelled' as const };
+
     const [
       totalOrders, openOrders, partiallyPaidOrders, fullyPaidOrders,
-      thisMonthCount, openSums, paidThisMonth, overdueInvoices,
+      onTheWayOrders, overdueInvoices, openSums, paidThisMonth,
     ] = await Promise.all([
-      this.prisma.purchaseOrder.count({ where: { orgId } }),
-      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'unpaid', status: { not: 'cancelled' } } }),
-      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'partially_paid' } }),
-      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'paid' } }),
-      this.prisma.purchaseOrder.count({ where: { orgId, orderDate: { gte: startOfMonth } } }),
-      this.prisma.purchaseOrder.groupBy({
-        by: ['currency'],
-        where: { orgId, paymentStatus: { in: ['unpaid', 'partially_paid'] }, status: { not: 'cancelled' } },
-        _sum: { openAmount: true },
+      // Bestellungen gesamt (ohne stornierte)
+      this.prisma.purchaseOrder.count({ where: { orgId, status: notCancelled } }),
+      // Offene Bestellungen = noch nicht angekommen (ohne completed/received/cancelled)
+      this.prisma.purchaseOrder.count({ where: { orgId, status: { in: openStatuses as any } } }),
+      // Teilweise bezahlt
+      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'partially_paid', status: notCancelled } }),
+      // Vollständig bezahlt
+      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'paid', status: notCancelled } }),
+      // Unterwegs = mindestens eine Sendung mit trackingNumber, noch nicht angekommen
+      this.prisma.purchaseOrder.count({
+        where: {
+          orgId,
+          status: notCancelled,
+          shipments: { some: { trackingNumber: { not: null }, receivedAt: null } },
+        },
       }),
-      this.prisma.payment.groupBy({
-        by: ['currency'],
-        where: { orgId, paymentDate: { gte: startOfMonth } },
-        _sum: { amount: true },
-      }),
+      // Überfällige Rechnungen
       this.prisma.purchaseInvoice.findMany({
         where: {
           orgId,
           dueDate: { lt: now },
-          purchaseOrder: { paymentStatus: { in: ['unpaid', 'partially_paid'] }, status: { not: 'cancelled' } },
+          purchaseOrder: { paymentStatus: { in: ['unpaid', 'partially_paid'] }, status: notCancelled },
         },
         include: { purchaseOrder: { select: { id: true, orderNumber: true, openAmount: true, currency: true, supplier: { select: { companyName: true } } } } },
         orderBy: { dueDate: 'asc' },
         take: 20,
       }),
+      // Σ offene Beträge
+      this.prisma.purchaseOrder.groupBy({
+        by: ['currency'],
+        where: { orgId, paymentStatus: { in: ['unpaid', 'partially_paid'] }, status: notCancelled },
+        _sum: { openAmount: true },
+      }),
+      // Σ bezahlt diesen Monat
+      this.prisma.payment.groupBy({
+        by: ['currency'],
+        where: { orgId, paymentDate: { gte: startOfMonth } },
+        _sum: { amount: true },
+      }),
     ]);
 
     const topSuppliers = await this.prisma.purchaseOrder.groupBy({
       by: ['supplierId'],
-      where: { orgId, status: { not: 'cancelled' } },
+      where: { orgId, status: notCancelled },
       _sum: { totalAmount: true },
       _count: true,
       orderBy: { _sum: { totalAmount: 'desc' } },
@@ -98,9 +118,9 @@ export class PurchaseController {
       counts: {
         total: totalOrders,
         open: openOrders,
+        onTheWay: onTheWayOrders,
         partiallyPaid: partiallyPaidOrders,
         fullyPaid: fullyPaidOrders,
-        thisMonth: thisMonthCount,
         overdue: overdueInvoices.length,
       },
       openByCurrency: openSums.map(s => ({ currency: s.currency, amount: s._sum.openAmount })),
@@ -209,6 +229,9 @@ export class PurchaseController {
     @Query('createdById') createdById?: string,
     @Query('currency') currency?: string,
     @Query('hasDocument') hasDocument?: 'yes' | 'no',
+    @Query('onTheWay') onTheWay?: '1',
+    @Query('includeCancelled') includeCancelled?: '1',
+    @Query('onlyCancelled') onlyCancelled?: '1',
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('sort') sort?: string,
@@ -219,6 +242,9 @@ export class PurchaseController {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     return this.orders.list(orgId, {
       search, status, paymentStatus, supplierId, createdById, currency, hasDocument, from, to, sort, dir,
+      onTheWay: onTheWay === '1',
+      includeCancelled: includeCancelled === '1',
+      onlyCancelled: onlyCancelled === '1',
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
@@ -271,6 +297,59 @@ export class PurchaseController {
   async orderAudit(@Headers('authorization') authHeader: string, @Param('id') id: string) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     return this.audit.listForOrder(orgId, id);
+  }
+
+  // ============================================================
+  // SHIPMENTS
+  // ============================================================
+
+  @Get('orders/:id/shipments')
+  async listShipments(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.shipments.list(orgId, id);
+  }
+
+  @Post('orders/:id/shipments')
+  async addShipment(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: ShipmentInput,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.create(orgId, userId, id, body);
+  }
+
+  @Put('shipments/:shipmentId')
+  async updateShipment(
+    @Headers('authorization') authHeader: string,
+    @Param('shipmentId') shipmentId: string,
+    @Body() body: Partial<ShipmentInput>,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.update(orgId, userId, shipmentId, body);
+  }
+
+  @Patch('shipments/:shipmentId/received')
+  async markShipmentReceived(
+    @Headers('authorization') authHeader: string,
+    @Param('shipmentId') shipmentId: string,
+    @Body() body: MarkReceivedInput,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.markReceived(orgId, userId, shipmentId, body);
+  }
+
+  @Delete('shipments/:shipmentId')
+  async deleteShipment(
+    @Headers('authorization') authHeader: string,
+    @Param('shipmentId') shipmentId: string,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.remove(orgId, userId, shipmentId);
   }
 
   // ============================================================

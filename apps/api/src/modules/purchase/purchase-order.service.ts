@@ -43,6 +43,9 @@ interface ListFilters {
   createdById?: string;
   currency?: string;
   hasDocument?: 'yes' | 'no';
+  onTheWay?: boolean;
+  includeCancelled?: boolean;
+  onlyCancelled?: boolean;
   from?: string;
   to?: string;
   sort?: string;
@@ -178,10 +181,23 @@ export class PurchaseOrderService {
         { invoices: { some: { invoiceNumber: { contains: filters.search, mode: 'insensitive' } } } },
         { supplier: { companyName: { contains: filters.search, mode: 'insensitive' } } },
         { items: { some: { productName: { contains: filters.search, mode: 'insensitive' } } } },
+        { shipments: { some: { trackingNumber: { contains: filters.search, mode: 'insensitive' } } } },
       ];
     }
     if (filters.hasDocument === 'yes') where.documents = { some: {} };
     if (filters.hasDocument === 'no') where.documents = { none: {} };
+
+    // Cancelled-Handling
+    if (filters.onlyCancelled) {
+      where.status = 'cancelled';
+    } else if (!filters.includeCancelled && !filters.status) {
+      where.status = { not: 'cancelled' };
+    }
+
+    // "Unterwegs": Bestellung hat mindestens eine Sendung mit Tracking, noch nicht angekommen
+    if (filters.onTheWay) {
+      where.shipments = { some: { trackingNumber: { not: null }, receivedAt: null } };
+    }
 
     const sortMap: Record<string, any> = {
       orderDate: { orderDate: filters.dir || 'desc' },
@@ -203,7 +219,9 @@ export class PurchaseOrderService {
           items: { select: { id: true, productName: true, quantity: true } },
           invoices: { select: { id: true, invoiceNumber: true, invoiceDate: true, dueDate: true, amount: true } },
           payments: { select: { id: true, paymentDate: true, amount: true } },
-          _count: { select: { documents: true, payments: true } },
+          shipments: { select: { id: true, trackingNumber: true, carrier: true, shippedAt: true, receivedAt: true } },
+          documents: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, documentType: true } },
+          _count: { select: { documents: true, payments: true, shipments: true } },
         },
       }),
       this.prisma.purchaseOrder.count({ where }),
@@ -231,6 +249,13 @@ export class PurchaseOrderService {
           orderBy: { uploadedAt: 'desc' },
           include: {
             uploadedBy: { select: { id: true, name: true } },
+          },
+        },
+        shipments: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            items: true,
+            createdBy: { select: { id: true, name: true } },
           },
         },
       },
