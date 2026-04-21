@@ -340,6 +340,16 @@ model Organization {
   invitations          ProjectInvitation[]
   suppliers            Supplier[]
   purchaseOrders       PurchaseOrder[]
+  contacts             Contact[]
+  marketingEvents      MarketingEvent[]
+  emailSuppressions    EmailSuppression[]
+  emailTemplates       EmailTemplate[]
+  segments             Segment[]
+  emailCampaigns       EmailCampaign[]
+  flows                Flow[]
+  flowEnrollments      FlowEnrollment[]
+  emailMessages        EmailMessage[]
+  emailSettings        EmailSettings?
 
   @@map("organizations")
 }
@@ -793,6 +803,7 @@ model Shop {
   integration  Integration  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   products     Product[]
   orders       Order[]
+  contacts     Contact[]
 
   @@unique([orgId, domain], map: "uq_shop_org_domain")
   @@index([orgId])
@@ -2140,4 +2151,399 @@ model ShipmentItem {
   @@index([shipmentId])
   @@index([purchaseOrderItemId])
   @@map("shipment_items")
+}
+
+// =============================================================================
+// EMAIL MARKETING MODULE — Contacts, Events, Segments, Flows, Campaigns, Templates
+// =============================================================================
+
+enum MarketingConsent {
+  never_subscribed
+  subscribed
+  confirmed
+  unsubscribed
+
+  @@map("marketing_consent")
+}
+
+enum SuppressionReason {
+  unsubscribed
+  bounced_hard
+  bounced_soft
+  complained
+  manual
+
+  @@map("suppression_reason")
+}
+
+enum MessageStatus {
+  queued
+  sending
+  sent
+  delivered
+  failed
+  bounced
+  complained
+  suppressed
+
+  @@map("email_message_status")
+}
+
+enum EmailCampaignStatus {
+  draft
+  scheduled
+  sending
+  sent
+  paused
+  archived
+
+  @@map("email_campaign_status")
+}
+
+enum FlowStatus {
+  draft
+  active
+  paused
+  archived
+
+  @@map("flow_status")
+}
+
+enum FlowStepType {
+  delay
+  condition
+  send_email
+  end
+
+  @@map("flow_step_type")
+}
+
+enum FlowTriggerType {
+  customer_created
+  order_placed
+  checkout_started
+  viewed_product
+  added_to_cart
+  segment_entered
+  custom_event
+
+  @@map("flow_trigger_type")
+}
+
+model Contact {
+  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                  String           @map("org_id") @db.Uuid
+  shopId                 String?          @map("shop_id") @db.Uuid
+  shopifyCustomerId      String?          @map("shopify_customer_id") @db.VarChar(64)
+  email                  String           @db.VarChar(320)
+  firstName              String?          @map("first_name") @db.VarChar(120)
+  lastName               String?          @map("last_name") @db.VarChar(120)
+  phone                  String?          @db.VarChar(40)
+  locale                 String?          @db.VarChar(10)
+  country                String?          @db.VarChar(2)
+  city                   String?          @db.VarChar(120)
+  province               String?          @db.VarChar(120)
+  zip                    String?          @db.VarChar(20)
+  tags                   String[]         @default([])
+  marketingConsent       MarketingConsent @default(never_subscribed) @map("marketing_consent")
+  consentedAt            DateTime?        @map("consented_at") @db.Timestamptz
+  doubleOptInConfirmedAt DateTime?        @map("doi_confirmed_at") @db.Timestamptz
+  unsubscribedAt         DateTime?        @map("unsubscribed_at") @db.Timestamptz
+  totalSpent             Decimal          @default(0) @map("total_spent") @db.Decimal(14, 2)
+  ordersCount            Int              @default(0) @map("orders_count")
+  firstOrderAt           DateTime?        @map("first_order_at") @db.Timestamptz
+  lastOrderAt            DateTime?        @map("last_order_at") @db.Timestamptz
+  avgOrderValue          Decimal          @default(0) @map("avg_order_value") @db.Decimal(14, 2)
+  lastSeenAt             DateTime?        @map("last_seen_at") @db.Timestamptz
+  anonymousId            String?          @map("anonymous_id") @db.VarChar(64)
+  properties             Json?
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shop         Shop?            @relation(fields: [shopId], references: [id], onDelete: SetNull)
+  events       MarketingEvent[]
+  messages     EmailMessage[]
+  enrollments  FlowEnrollment[]
+
+  @@unique([orgId, email], map: "uq_contact_org_email")
+  @@index([orgId])
+  @@index([orgId, marketingConsent])
+  @@index([shopifyCustomerId])
+  @@index([anonymousId])
+  @@index([orgId, lastOrderAt])
+  @@index([orgId, totalSpent])
+  @@map("marketing_contacts")
+}
+
+model MarketingEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  contactId   String?  @map("contact_id") @db.Uuid
+  anonymousId String?  @map("anonymous_id") @db.VarChar(64)
+  type        String   @db.VarChar(60)
+  source      String   @default("shopify") @db.VarChar(30)
+  payload     Json?
+  externalId  String?  @map("external_id") @db.VarChar(100)
+  occurredAt  DateTime @map("occurred_at") @db.Timestamptz
+  receivedAt  DateTime @default(now()) @map("received_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact      Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, source, externalId], map: "uq_event_source_external")
+  @@index([orgId, contactId, occurredAt])
+  @@index([orgId, type, occurredAt])
+  @@index([orgId, occurredAt])
+  @@map("marketing_events")
+}
+
+model EmailSuppression {
+  id        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String            @map("org_id") @db.Uuid
+  email     String            @db.VarChar(320)
+  reason    SuppressionReason
+  note      String?           @db.Text
+  sourceId  String?           @map("source_id") @db.VarChar(100)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, email], map: "uq_suppress_org_email")
+  @@index([orgId])
+  @@map("email_suppressions")
+}
+
+model EmailTemplate {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  name         String   @db.VarChar(200)
+  description  String?  @db.Text
+  subject      String   @db.VarChar(500)
+  previewText  String?  @map("preview_text") @db.VarChar(500)
+  blocks       Json
+  htmlOverride String?  @map("html_override") @db.Text
+  createdById  String   @map("created_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaigns    EmailCampaign[]
+  flowSteps    FlowStep[]
+
+  @@index([orgId])
+  @@map("email_templates")
+}
+
+model Segment {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String    @map("org_id") @db.Uuid
+  name            String    @db.VarChar(200)
+  description     String?   @db.Text
+  rules           Json
+  memberCount     Int       @default(0) @map("member_count")
+  lastRefreshedAt DateTime? @map("last_refreshed_at") @db.Timestamptz
+  createdById     String    @map("created_by_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaigns    EmailCampaign[]
+  flows        Flow[]
+
+  @@index([orgId])
+  @@map("segments")
+}
+
+model EmailCampaign {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String              @map("org_id") @db.Uuid
+  name              String              @db.VarChar(200)
+  status            EmailCampaignStatus @default(draft)
+  templateId        String?             @map("template_id") @db.Uuid
+  segmentId         String?             @map("segment_id") @db.Uuid
+  fromName          String              @map("from_name") @db.VarChar(200)
+  fromEmail         String              @map("from_email") @db.VarChar(320)
+  replyTo           String?             @map("reply_to") @db.VarChar(320)
+  subjectSnapshot   String?             @map("subject_snapshot") @db.VarChar(500)
+  consentMode       String              @default("subscribed") @map("consent_mode") @db.VarChar(20)
+  scheduledAt       DateTime?           @map("scheduled_at") @db.Timestamptz
+  sentAt            DateTime?           @map("sent_at") @db.Timestamptz
+  recipientsCount   Int                 @default(0) @map("recipients_count")
+  sentCount         Int                 @default(0) @map("sent_count")
+  deliveredCount    Int                 @default(0) @map("delivered_count")
+  openCount         Int                 @default(0) @map("open_count")
+  uniqueOpenCount   Int                 @default(0) @map("unique_open_count")
+  clickCount        Int                 @default(0) @map("click_count")
+  uniqueClickCount  Int                 @default(0) @map("unique_click_count")
+  bounceCount       Int                 @default(0) @map("bounce_count")
+  unsubscribeCount  Int                 @default(0) @map("unsubscribe_count")
+  revenueAttributed Decimal             @default(0) @map("revenue_attributed") @db.Decimal(14, 2)
+  createdById       String              @map("created_by_id") @db.Uuid
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  template     EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  segment      Segment?       @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  messages     EmailMessage[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([scheduledAt])
+  @@map("email_campaigns")
+}
+
+model Flow {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String          @map("org_id") @db.Uuid
+  name              String          @db.VarChar(200)
+  description       String?         @db.Text
+  status            FlowStatus      @default(draft)
+  triggerType       FlowTriggerType @map("trigger_type")
+  triggerConfig     Json?           @map("trigger_config")
+  segmentId         String?         @map("segment_id") @db.Uuid
+  reentryDays       Int             @default(30) @map("reentry_days")
+  consentMode       String          @default("subscribed") @map("consent_mode") @db.VarChar(20)
+  enrolledCount     Int             @default(0) @map("enrolled_count")
+  completedCount    Int             @default(0) @map("completed_count")
+  revenueAttributed Decimal         @default(0) @map("revenue_attributed") @db.Decimal(14, 2)
+  createdById       String          @map("created_by_id") @db.Uuid
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+  activatedAt       DateTime?       @map("activated_at") @db.Timestamptz
+
+  organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  segment      Segment?         @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  steps        FlowStep[]
+  enrollments  FlowEnrollment[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, triggerType])
+  @@map("flows")
+}
+
+model FlowStep {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  flowId        String       @map("flow_id") @db.Uuid
+  type          FlowStepType
+  position      Int
+  delayHours    Int?         @map("delay_hours")
+  condition     Json?
+  templateId    String?      @map("template_id") @db.Uuid
+  nextStepId    String?      @map("next_step_id") @db.Uuid
+  nextIfTrueId  String?      @map("next_if_true_id") @db.Uuid
+  nextIfFalseId String?      @map("next_if_false_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  flow        Flow             @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  template    EmailTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  enrollments FlowEnrollment[] @relation("CurrentStep")
+
+  @@index([flowId, position])
+  @@map("flow_steps")
+}
+
+model FlowEnrollment {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String    @map("org_id") @db.Uuid
+  flowId            String    @map("flow_id") @db.Uuid
+  contactId         String    @map("contact_id") @db.Uuid
+  status            String    @default("active") @db.VarChar(20)
+  currentStepId     String?   @map("current_step_id") @db.Uuid
+  nextRunAt         DateTime? @map("next_run_at") @db.Timestamptz
+  context           Json?
+  revenueAttributed Decimal   @default(0) @map("revenue_attributed") @db.Decimal(14, 2)
+  enrolledAt        DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz
+  exitedAt          DateTime? @map("exited_at") @db.Timestamptz
+  exitReason        String?   @map("exit_reason") @db.VarChar(100)
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  flow         Flow         @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  currentStep  FlowStep?    @relation("CurrentStep", fields: [currentStepId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([flowId])
+  @@index([contactId])
+  @@index([status, nextRunAt])
+  @@index([orgId, flowId, contactId])
+  @@map("flow_enrollments")
+}
+
+model EmailMessage {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String        @map("org_id") @db.Uuid
+  contactId         String        @map("contact_id") @db.Uuid
+  campaignId        String?       @map("campaign_id") @db.Uuid
+  flowId            String?       @map("flow_id") @db.Uuid
+  flowStepId        String?       @map("flow_step_id") @db.Uuid
+  subject           String        @db.VarChar(500)
+  fromEmail         String        @map("from_email") @db.VarChar(320)
+  toEmail           String        @map("to_email") @db.VarChar(320)
+  providerMessageId String?       @map("provider_message_id") @db.VarChar(200)
+  status            MessageStatus @default(queued)
+  openedAt          DateTime?     @map("opened_at") @db.Timestamptz
+  clickedAt         DateTime?     @map("clicked_at") @db.Timestamptz
+  bouncedAt         DateTime?     @map("bounced_at") @db.Timestamptz
+  complainedAt      DateTime?     @map("complained_at") @db.Timestamptz
+  unsubscribedAt    DateTime?     @map("unsubscribed_at") @db.Timestamptz
+  openCount         Int           @default(0) @map("open_count")
+  clickCount        Int           @default(0) @map("click_count")
+  scheduledAt       DateTime?     @map("scheduled_at") @db.Timestamptz
+  sentAt            DateTime?     @map("sent_at") @db.Timestamptz
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact      Contact             @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  campaign     EmailCampaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  events       EmailMessageEvent[]
+
+  @@index([orgId])
+  @@index([orgId, contactId])
+  @@index([campaignId])
+  @@index([providerMessageId])
+  @@index([sentAt])
+  @@map("email_messages")
+}
+
+model EmailMessageEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId  String   @map("message_id") @db.Uuid
+  type       String   @db.VarChar(40)
+  url        String?  @db.Text
+  userAgent  String?  @map("user_agent") @db.Text
+  ip         String?  @db.VarChar(45)
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+
+  message EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, type])
+  @@map("email_message_events")
+}
+
+model EmailSettings {
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                     String   @unique @map("org_id") @db.Uuid
+  fromName                  String?  @map("from_name") @db.VarChar(200)
+  fromEmail                 String?  @map("from_email") @db.VarChar(320)
+  replyTo                   String?  @map("reply_to") @db.VarChar(320)
+  sendingDomain             String?  @map("sending_domain") @db.VarChar(255)
+  domainVerified            Boolean  @default(false) @map("domain_verified")
+  trackingDomain            String?  @map("tracking_domain") @db.VarChar(255)
+  tokenSecret               String?  @map("token_secret") @db.VarChar(100)
+  publicTrackingKey         String?  @unique @map("public_tracking_key") @db.VarChar(64)
+  defaultConsentMode        String   @default("subscribed") @map("default_consent_mode") @db.VarChar(20)
+  doubleOptInEnabled        Boolean  @default(true) @map("doi_enabled")
+  maxEmailsPerContactPerDay Int      @default(3) @map("max_per_day")
+  unsubscribeCopy           String?  @map("unsubscribe_copy") @db.Text
+  footerHtml                String?  @map("footer_html") @db.Text
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("email_settings")
 }
