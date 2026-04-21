@@ -84,7 +84,16 @@
     "emFlows": "Automations",
     "emTemplates": "Templates",
     "emAnalytics": "Analytics",
-    "emSettings": "Settings"
+    "emSettings": "Settings",
+    "shipping": "Shipping",
+    "shipOverview": "Dashboard",
+    "shipOrders": "Orders",
+    "shipLabels": "Labels",
+    "shipShipments": "Shipments",
+    "shipRules": "Shipping Rules",
+    "shipProducts": "Product Data",
+    "shipIntegrations": "Integrations",
+    "shipEmails": "Auto Emails"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",

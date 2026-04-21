@@ -84,7 +84,16 @@
     "emFlows": "Automations",
     "emTemplates": "Vorlagen",
     "emAnalytics": "Analytics",
-    "emSettings": "Einstellungen"
+    "emSettings": "Einstellungen",
+    "shipping": "Versand",
+    "shipOverview": "Dashboard",
+    "shipOrders": "Bestellungen",
+    "shipLabels": "Labels",
+    "shipShipments": "Sendungen",
+    "shipRules": "Versandregeln",
+    "shipProducts": "Produkte & Versanddaten",
+    "shipIntegrations": "Integrationen",
+    "shipEmails": "Automatische Emails"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",

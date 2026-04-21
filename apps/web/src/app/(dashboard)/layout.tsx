@@ -61,6 +61,13 @@ import {
   Workflow,
   LayoutTemplate as TemplateIcon,
   LineChart,
+  Truck as ShippingTruck,
+  PackageCheck,
+  QrCode,
+  Zap,
+  MailPlus,
+  Boxes,
+  Plug as PlugIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -205,6 +212,22 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.shipping',
+    href: '/shipping',
+    icon: ShippingTruck,
+    permissionKey: 'shipping',
+    children: [
+      { labelKey: 'nav.shipOverview', href: '/shipping', icon: BarChart3 },
+      { labelKey: 'nav.shipOrders', href: '/shipping/orders', icon: ClipboardList },
+      { labelKey: 'nav.shipLabels', href: '/shipping/labels', icon: QrCode },
+      { labelKey: 'nav.shipShipments', href: '/shipping/shipments', icon: PackageCheck },
+      { labelKey: 'nav.shipRules', href: '/shipping/rules', icon: Zap },
+      { labelKey: 'nav.shipProducts', href: '/shipping/products', icon: Boxes },
+      { labelKey: 'nav.shipIntegrations', href: '/shipping/integrations', icon: PlugIcon },
+      { labelKey: 'nav.shipEmails', href: '/shipping/emails', icon: MailPlus },
+    ],
+  },
+  {
     labelKey: 'nav.documents',
     href: '/documents',
     icon: FolderOpen,
@@ -259,6 +282,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
     }
     if (pathname.startsWith('/email-marketing')) {
       initial.add('nav.emailMarketing');
+    }
+    if (pathname.startsWith('/shipping')) {
+      initial.add('nav.shipping');
     }
     if (pathname.startsWith('/settings')) {
       initial.add('nav.settings');

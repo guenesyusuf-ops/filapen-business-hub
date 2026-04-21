@@ -302,54 +302,61 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  users                User[]
-  integrations         Integration[]
-  shops                Shop[]
-  products             Product[]
-  productVariants      ProductVariant[]
-  orders               Order[]
-  orderLineItems       OrderLineItem[]
-  refunds              Refund[]
-  transactions         Transaction[]
-  shippingCosts        ShippingCost[]
-  adAccounts           AdAccount[]
-  adCampaigns          AdCampaign[]
-  adMetrics            AdMetric[]
-  fixedCosts           FixedCost[]
-  paymentMethodConfigs PaymentMethodConfig[]
-  cogsImports          COGSImport[]
-  dailyAggregates      DailyAggregate[]
-  syncLogs             SyncLog[]
-  alerts               Alert[]
-  auditLogs            AuditLog[]
-  creators             Creator[]
-  deals                Deal[]
-  briefings            Briefing[]
-  creatorUploads       CreatorUpload[]
-  creatorProjects      CreatorProject[]
-  influencerProfiles   InfluencerProfile[]
-  watchlists           Watchlist[]
-  brands               Brand[]
-  docFolders           DocFolder[]
-  docFiles             DocFile[]
-  docActivities        DocActivity[]
-  brandVoices          BrandVoice[]
-  contentTemplates     ContentTemplate[]
-  contentPieces        ContentPiece[]
-  teamInvites          TeamInvite[]
-  invitations          ProjectInvitation[]
-  suppliers            Supplier[]
-  purchaseOrders       PurchaseOrder[]
-  contacts             Contact[]
-  marketingEvents      MarketingEvent[]
-  emailSuppressions    EmailSuppression[]
-  emailTemplates       EmailTemplate[]
-  segments             Segment[]
-  emailCampaigns       EmailCampaign[]
-  flows                Flow[]
-  flowEnrollments      FlowEnrollment[]
-  emailMessages        EmailMessage[]
-  emailSettings        EmailSettings?
+  users                    User[]
+  integrations             Integration[]
+  shops                    Shop[]
+  products                 Product[]
+  productVariants          ProductVariant[]
+  orders                   Order[]
+  orderLineItems           OrderLineItem[]
+  refunds                  Refund[]
+  transactions             Transaction[]
+  shippingCosts            ShippingCost[]
+  adAccounts               AdAccount[]
+  adCampaigns              AdCampaign[]
+  adMetrics                AdMetric[]
+  fixedCosts               FixedCost[]
+  paymentMethodConfigs     PaymentMethodConfig[]
+  cogsImports              COGSImport[]
+  dailyAggregates          DailyAggregate[]
+  syncLogs                 SyncLog[]
+  alerts                   Alert[]
+  auditLogs                AuditLog[]
+  creators                 Creator[]
+  deals                    Deal[]
+  briefings                Briefing[]
+  creatorUploads           CreatorUpload[]
+  creatorProjects          CreatorProject[]
+  influencerProfiles       InfluencerProfile[]
+  watchlists               Watchlist[]
+  brands                   Brand[]
+  docFolders               DocFolder[]
+  docFiles                 DocFile[]
+  docActivities            DocActivity[]
+  brandVoices              BrandVoice[]
+  contentTemplates         ContentTemplate[]
+  contentPieces            ContentPiece[]
+  teamInvites              TeamInvite[]
+  invitations              ProjectInvitation[]
+  suppliers                Supplier[]
+  purchaseOrders           PurchaseOrder[]
+  contacts                 Contact[]
+  marketingEvents          MarketingEvent[]
+  emailSuppressions        EmailSuppression[]
+  emailTemplates           EmailTemplate[]
+  segments                 Segment[]
+  emailCampaigns           EmailCampaign[]
+  flows                    Flow[]
+  flowEnrollments          FlowEnrollment[]
+  emailMessages            EmailMessage[]
+  emailSettings            EmailSettings?
+  carrierAccounts          CarrierAccount[]
+  shippingPackages         ShippingPackage[]
+  shippingRules            ShippingRule[]
+  shippingProductProfiles  ShippingProductProfile[]
+  orderShipments           OrderShipment[]
+  shippingEmailAutomations ShippingEmailAutomation[]
+  shippingEmailLogs        ShippingEmailLog[]
 
   @@map("organizations")
 }
@@ -862,9 +869,10 @@ model ProductVariant {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  orderLineItems OrderLineItem[]
+  organization    Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product         Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderLineItems  OrderLineItem[]
+  shippingProfile ShippingProductProfile?
 
   @@unique([orgId, externalId], map: "uq_variant_org_external")
   @@index([orgId])
@@ -902,6 +910,10 @@ model Order {
   discountCodes     Json[]            @default([]) @map("discount_codes")
   countryCode       String?           @map("country_code") @db.VarChar(2)
   provinceCode      String?           @map("province_code") @db.VarChar(10)
+  shippingAddress   Json?             @map("shipping_address") @db.JsonB
+  customerName      String?           @map("customer_name") @db.VarChar(255)
+  customerEmail     String?           @map("customer_email") @db.VarChar(320)
+  customerPhone     String?           @map("customer_phone") @db.VarChar(50)
   placedAt          DateTime          @map("placed_at") @db.Timestamptz
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz
@@ -912,6 +924,7 @@ model Order {
   refunds       Refund[]
   transactions  Transaction[]
   shippingCosts ShippingCost[]
+  shipments     OrderShipment[]
 
   @@unique([orgId, externalId], map: "uq_order_org_external")
   @@index([orgId])
@@ -2327,9 +2340,10 @@ model EmailTemplate {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  campaigns    EmailCampaign[]
-  flowSteps    FlowStep[]
+  organization        Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaigns           EmailCampaign[]
+  flowSteps           FlowStep[]
+  shippingAutomations ShippingEmailAutomation[]
 
   @@index([orgId])
   @@map("email_templates")
@@ -2546,4 +2560,281 @@ model EmailSettings {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@map("email_settings")
+}
+
+// =============================================================================
+// SHIPPING / VERSAND MODULE — Carrier-abstrahiert, DHL-first
+// =============================================================================
+
+enum ShippingCarrier {
+  dhl
+  ups
+  dpd
+  hermes
+  gls
+  custom
+
+  @@map("shipping_carrier")
+}
+
+enum CarrierAccountStatus {
+  active
+  inactive
+
+  @@map("carrier_account_status")
+}
+
+enum OrderShipmentStatus {
+  label_created
+  handed_to_carrier
+  in_transit
+  out_for_delivery
+  delivered
+  delivery_failed
+  ready_for_pickup
+  returned
+  exception
+  cancelled
+
+  @@map("order_shipment_status")
+}
+
+enum LabelFormat {
+  pdf_a4
+  pdf_100x150
+  pdf_103x199
+  zpl_100x150
+  zpl_103x199
+
+  @@map("label_format")
+}
+
+enum ShippingRuleAction {
+  select_carrier
+  select_method
+  select_package
+  block_shipment
+
+  @@map("shipping_rule_action")
+}
+
+model CarrierAccount {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String               @map("org_id") @db.Uuid
+  carrier     ShippingCarrier
+  accountName String               @map("account_name") @db.VarChar(200)
+  credentials Json                 @db.JsonB // Encrypted payload
+  isDefault   Boolean              @default(false) @map("is_default")
+  status      CarrierAccountStatus @default(active)
+  senderData  Json?                @map("sender_data") @db.JsonB // from-address snapshot
+  apiReady    Boolean              @default(false) @map("api_ready") // true once credentials are valid
+  notes       String?              @db.Text
+  createdById String               @map("created_by_id") @db.Uuid
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime             @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shipments    OrderShipment[]
+
+  @@index([orgId])
+  @@index([orgId, carrier])
+  @@map("carrier_accounts")
+}
+
+model ShippingPackage {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  name         String   @db.VarChar(200)
+  lengthMm     Int      @map("length_mm")
+  widthMm      Int      @map("width_mm")
+  heightMm     Int      @map("height_mm")
+  emptyWeightG Int      @default(0) @map("empty_weight_g")
+  active       Boolean  @default(true)
+  sortIndex    Int      @default(0) @map("sort_index")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shipments    OrderShipment[]
+
+  @@index([orgId])
+  @@index([orgId, active])
+  @@map("shipping_packages")
+}
+
+model ShippingRule {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String             @map("org_id") @db.Uuid
+  name        String             @db.VarChar(200)
+  description String?            @db.Text
+  priority    Int                @default(100) // lower = higher priority
+  conditions  Json               @db.JsonB // rule tree like segments
+  actionType  ShippingRuleAction @map("action_type")
+  actionValue Json               @map("action_value") @db.JsonB // { carrier, method, packageId }
+  active      Boolean            @default(true)
+  createdById String             @map("created_by_id") @db.Uuid
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, active, priority])
+  @@map("shipping_rules")
+}
+
+model ShippingProductProfile {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId               String   @map("org_id") @db.Uuid
+  productVariantId    String?  @unique @map("product_variant_id") @db.Uuid
+  // Fallback for manual products not linked to ProductVariant
+  sku                 String?  @db.VarChar(255)
+  title               String?  @db.VarChar(500)
+  weightG             Int      @default(0) @map("weight_g")
+  lengthMm            Int?     @map("length_mm")
+  widthMm             Int?     @map("width_mm")
+  heightMm            Int?     @map("height_mm")
+  // Customs / international shipping
+  hsCode              String?  @map("hs_code") @db.VarChar(20)
+  countryOfOrigin     String?  @map("country_of_origin") @db.VarChar(2)
+  customsValueCents   Int?     @map("customs_value_cents")
+  customsCurrency     String?  @default("EUR") @map("customs_currency") @db.VarChar(3)
+  // Options
+  excludeFromShipping Boolean  @default(false) @map("exclude_from_shipping")
+  notes               String?  @db.Text
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([orgId, sku])
+  @@index([productVariantId])
+  @@map("shipping_product_profiles")
+}
+
+model OrderShipment {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String              @map("org_id") @db.Uuid
+  orderId          String              @map("order_id") @db.Uuid
+  carrier          ShippingCarrier
+  carrierAccountId String?             @map("carrier_account_id") @db.Uuid
+  packageId        String?             @map("package_id") @db.Uuid
+  // Snapshot of recipient address at time of shipment
+  recipientName    String              @map("recipient_name") @db.VarChar(255)
+  recipientEmail   String?             @map("recipient_email") @db.VarChar(320)
+  recipientPhone   String?             @map("recipient_phone") @db.VarChar(50)
+  recipientAddress Json                @map("recipient_address") @db.JsonB
+  senderAddress    Json?               @map("sender_address") @db.JsonB
+  // Shipment meta
+  shippingMethod   String?             @map("shipping_method") @db.VarChar(100)
+  trackingNumber   String?             @map("tracking_number") @db.VarChar(100)
+  trackingUrl      String?             @map("tracking_url") @db.Text
+  weightG          Int                 @default(0) @map("weight_g")
+  lengthMm         Int?                @map("length_mm")
+  widthMm          Int?                @map("width_mm")
+  heightMm         Int?                @map("height_mm")
+  cost             Decimal?            @db.Decimal(12, 2)
+  currency         String?             @db.VarChar(3)
+  status           OrderShipmentStatus @default(label_created)
+  // API mode: true if created via carrier API, false if manual (user entered tracking number)
+  apiMode          Boolean             @default(false) @map("api_mode")
+  notes            String?             @db.Text
+  createdById      String              @map("created_by_id") @db.Uuid
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+  handedOverAt     DateTime?           @map("handed_over_at") @db.Timestamptz
+  deliveredAt      DateTime?           @map("delivered_at") @db.Timestamptz
+
+  organization   Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order          Order                      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrierAccount CarrierAccount?            @relation(fields: [carrierAccountId], references: [id], onDelete: SetNull)
+  package        ShippingPackage?           @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  labels         OrderShipmentLabel[]
+  statusEvents   OrderShipmentStatusEvent[]
+  emailLogs      ShippingEmailLog[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+  @@index([orderId])
+  @@index([trackingNumber])
+  @@map("order_shipments")
+}
+
+model OrderShipmentLabel {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shipmentId     String      @map("shipment_id") @db.Uuid
+  sequenceNumber Int         @default(1) @map("sequence_number")
+  trackingNumber String?     @map("tracking_number") @db.VarChar(100)
+  format         LabelFormat @default(pdf_100x150)
+  widthMm        Int?        @map("width_mm")
+  heightMm       Int?        @map("height_mm")
+  storageKey     String      @map("storage_key") @db.Text
+  url            String      @db.Text
+  rawContent     String?     @map("raw_content") @db.Text // ZPL etc. for direct thermal print
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  shipment OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@map("order_shipment_labels")
+}
+
+model OrderShipmentStatusEvent {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shipmentId String              @map("shipment_id") @db.Uuid
+  status     OrderShipmentStatus
+  note       String?             @db.Text
+  rawData    Json?               @map("raw_data") @db.JsonB
+  source     String              @default("api") @db.VarChar(20) // api | manual | polling | webhook
+  occurredAt DateTime            @map("occurred_at") @db.Timestamptz
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  shipment OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, occurredAt])
+  @@index([shipmentId, status])
+  @@map("order_shipment_status_events")
+}
+
+model ShippingEmailAutomation {
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String              @map("org_id") @db.Uuid
+  triggerStatus    OrderShipmentStatus @map("trigger_status")
+  // References an existing EmailTemplate from the Email Marketing module
+  templateId       String?             @map("template_id") @db.Uuid
+  subject          String?             @db.VarChar(500) // optional override
+  enabled          Boolean             @default(false)
+  sendDelayMinutes Int                 @default(0) @map("send_delay_minutes")
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  template     EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, triggerStatus], map: "uq_shipping_email_org_status")
+  @@index([orgId, enabled])
+  @@map("shipping_email_automations")
+}
+
+model ShippingEmailLog {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String              @map("org_id") @db.Uuid
+  shipmentId     String              @map("shipment_id") @db.Uuid
+  automationId   String?             @map("automation_id") @db.Uuid
+  triggerStatus  OrderShipmentStatus @map("trigger_status")
+  recipientEmail String              @map("recipient_email") @db.VarChar(320)
+  subject        String              @db.VarChar(500)
+  messageId      String?             @map("message_id") @db.VarChar(200) // EmailMessage id
+  errorMessage   String?             @map("error_message") @db.Text
+  sentAt         DateTime            @default(now()) @map("sent_at") @db.Timestamptz
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shipment     OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([shipmentId])
+  @@map("shipping_email_logs")
 }
