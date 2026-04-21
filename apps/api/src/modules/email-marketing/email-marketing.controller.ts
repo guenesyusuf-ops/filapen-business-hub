@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EmailSettingsService, EmailSettingsInput } from './email-settings.service';
 import { MarketingEventService } from './marketing-event.service';
 import { ContactSyncService } from './contact-sync.service';
+import { SegmentService, SegmentInput, RuleTree } from './segment.service';
 
 @Controller('email-marketing')
 export class EmailMarketingController {
@@ -18,6 +19,7 @@ export class EmailMarketingController {
     private readonly settings: EmailSettingsService,
     private readonly events: MarketingEventService,
     private readonly contactSync: ContactSyncService,
+    private readonly segments: SegmentService,
   ) {}
 
   // ============================================================
@@ -208,5 +210,63 @@ export class EmailMarketingController {
     if (!existing) throw new BadRequestException('Nicht gefunden');
     await this.prisma.emailSuppression.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  // ============================================================
+  // SEGMENTS
+  // ============================================================
+
+  @Get('segments')
+  async listSegments(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.segments.list(orgId);
+  }
+
+  @Get('segments/:id')
+  async getSegment(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.segments.get(orgId, id);
+  }
+
+  @Post('segments')
+  async createSegment(@Headers('authorization') authHeader: string, @Body() body: SegmentInput) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.segments.create(orgId, userId, body);
+  }
+
+  @Put('segments/:id')
+  async updateSegment(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: Partial<SegmentInput>,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.segments.update(orgId, id, body);
+  }
+
+  @Delete('segments/:id')
+  async deleteSegment(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.segments.delete(orgId, id);
+  }
+
+  @Post('segments/preview')
+  async previewSegment(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { rules: RuleTree },
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    if (!body?.rules) throw new BadRequestException('Regeln fehlen');
+    return this.segments.preview(orgId, body.rules);
+  }
+
+  @Post('segments/:id/refresh')
+  async refreshSegment(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const count = await this.segments.refreshMemberCount(orgId, id);
+    return { count };
   }
 }
