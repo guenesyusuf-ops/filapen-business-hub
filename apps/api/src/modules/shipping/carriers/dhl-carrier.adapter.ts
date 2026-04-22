@@ -241,7 +241,7 @@ export class DhlCarrierAdapter implements CarrierAdapter {
         {
           product,
           billingNumber,
-          refNo: (input.reference || input.orderId).slice(0, 35),
+          refNo: this.buildRefNo(input),
           shipper: {
             name1: (input.sender.name || 'Filapen').slice(0, 50),
             addressStreet: shipperStreet.slice(0, 50),
@@ -275,6 +275,19 @@ export class DhlCarrierAdapter implements CarrierAdapter {
         },
       ],
     };
+  }
+
+  /**
+   * DHL requires refNo to be 8–35 characters. Shopify order numbers are often
+   * only 4–6 digits (e.g. "1001"), so short references get a "FILAPEN-" prefix
+   * to hit the minimum. Longer values are truncated to 35.
+   */
+  private buildRefNo(input: ShipmentCreateInput): string {
+    const raw = (input.reference || input.orderId || '').toString().trim();
+    if (raw.length >= 8 && raw.length <= 35) return raw;
+    if (raw.length > 35) return raw.slice(0, 35);
+    // raw.length < 8 → prefix. "FILAPEN-" alone is 8 chars, plus raw → always ≥ 9.
+    return `FILAPEN-${raw}`.slice(0, 35);
   }
 
   private combineStreet(street: string, houseNumber?: string): string {
