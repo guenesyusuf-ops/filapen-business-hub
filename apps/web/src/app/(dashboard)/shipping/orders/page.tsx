@@ -117,7 +117,18 @@ export default function ShippingOrdersPage() {
                       orderIds: Array.from(selectedIds),
                       carrier: 'dhl',
                     });
-                    alert(`${res.succeeded} von ${res.total} Labels erstellt.`);
+                    // Surface the actual carrier errors instead of only the summary —
+                    // "0 von 1" alone hides the DHL validation message we need to act on.
+                    const failed = (res.results || []).filter((r: any) => r.error);
+                    if (res.succeeded === res.total) {
+                      alert(`${res.succeeded} von ${res.total} Labels erstellt.`);
+                    } else if (failed.length === 1) {
+                      alert(`${res.succeeded} von ${res.total} Labels erstellt.\n\nFehler:\n${failed[0].error}`);
+                    } else {
+                      const preview = failed.slice(0, 5).map((r: any) => `• ${r.error}`).join('\n');
+                      const more = failed.length > 5 ? `\n… und ${failed.length - 5} weitere` : '';
+                      alert(`${res.succeeded} von ${res.total} Labels erstellt.\n\nFehler:\n${preview}${more}`);
+                    }
                     setSelectedIds(new Set());
                     const fresh = await shippingApi.listOrders(params);
                     setItems(fresh.items);
