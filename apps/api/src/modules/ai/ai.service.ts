@@ -2,6 +2,8 @@ import { Injectable, Logger, BadRequestException, ServiceUnavailableException } 
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OrderShipmentService } from '../shipping/order-shipment.service';
+import { StorageService } from '../../common/storage/storage.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -471,6 +473,19 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: { type: 'object' as const, properties: {} },
   },
   {
+    name: 'download_shipping_labels',
+    description:
+      'Erstellt eine zusammengefügte PDF aus mehreren Versand-Labels und gibt einen Download-Link zurück. Nutze wenn User sagt "lade die X Labels herunter", "gib mir die ungedruckten Labels", "download labels".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        filter: { type: 'string', enum: ['unprinted', 'printed', 'all'], description: 'Welche Labels (default unprinted)' },
+        limit: { type: 'number', description: 'Max Labels (default alle passenden)' },
+        markPrinted: { type: 'boolean', description: 'Nach Download als gedruckt markieren (default true)' },
+      },
+    },
+  },
+  {
     name: 'list_users',
     description:
       'Admin-Tool: Listet alle aktiven User im Workspace mit Rolle und Email. Nutze für "welche Mitarbeiter haben wir", "Team-Übersicht".',
@@ -501,6 +516,7 @@ Regeln:
 - Nutze die bereitgestellten Tools, wenn du echte Daten brauchst — niemals Zahlen erfinden.
 - Sag NIE "habe kein Tool dafuer", wenn es zum Thema ein Tool gibt. Frag lieber nach den Filtern, die dir fehlen, und ruf dann das passende Tool auf.
 - Fragen wie "nicht versendete Bestellungen", "welche Labels sind offen", "Versandstatus" → IMMER list_unshipped_orders / list_shipments / shipping_dashboard aufrufen, nicht an Shopify verweisen.
+- Wenn der User Labels downloaden/drucken will ("gib mir die 3 Labels", "download labels") → download_shipping_labels aufrufen und den Response-Link im Markdown einbetten: "[Label-PDF downloaden]({downloadUrl})". NIE an "Versand → Labels" verweisen wenn das Tool die Sache direkt erledigen kann.
 - Wenn mehrere Tools noetig sind, rufe sie nacheinander auf.
 - Formatiere Listen kompakt mit Bullet-Points.
 - Halte Antworten unter 150 Woertern, ausser der User bittet explizit um Details.
@@ -515,6 +531,8 @@ export class AiService {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly shipments: OrderShipmentService,
+    private readonly storage: StorageService,
   ) {
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
     this.client = apiKey ? new Anthropic({ apiKey }) : null;
@@ -554,12 +572,18 @@ export class AiService {
 
     const steps: string[] = [];
 
-    for (let round = 0; round < 5; round++) {
+    // Keyword-Routing: Nur die relevanten Tools an Claude schicken. Weniger Tools
+    // → weniger Reasoning-Aufwand für das Modell, geringere Latenz, weniger Tokens.
+    // Bei zweideutigen Fragen fallen wir auf alle Tools zurück.
+    const routedTools = this.routeToolsForMessage(query);
+    steps.push(`🎯 ${routedTools.length} Tool(s) geroutet aus ${TOOLS.length}`);
+
+    for (let round = 0; round < 4; round++) {
       const response = await this.client.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
+        max_tokens: 800,
         system: SYSTEM_PROMPT,
-        tools: TOOLS,
+        tools: routedTools,
         messages,
       });
 
@@ -593,6 +617,119 @@ export class AiService {
     }
 
     return { answer: 'Anfrage zu komplex — bitte praeziser formulieren.', steps };
+  }
+
+  // -------------------------------------------------------------------------
+  // Keyword-based tool router
+  // -------------------------------------------------------------------------
+
+  /**
+   * Reduziert die Tool-Liste anhand von Keywords in der User-Frage.
+   * Vorteile:
+   *   - Claude muss weniger Tools vergleichen → schneller
+   *   - Weniger Input-Tokens → günstiger
+   *   - Fokus auf den richtigen Bereich → weniger Falschentscheidungen
+   *
+   * Fallback: Wenn kein Keyword matcht ODER die Frage sehr generell ist,
+   * geben wir ALLE Tools zurück (keine Genauigkeit verloren).
+   */
+  private routeToolsForMessage(message: string): Anthropic.Tool[] {
+    const msg = message.toLowerCase();
+
+    // Keyword-Gruppen → Tool-Namen. Eine Nachricht kann mehrere Gruppen aktivieren.
+    const groups: Array<{ patterns: string[]; tools: string[] }> = [
+      {
+        patterns: ['versand', 'versendet', 'versenden', 'versandt', 'liefer', 'paket', 'pakete', 'sendung', 'sendungen', 'tracking', 'dhl', 'ups', 'dpd', 'hermes', 'gls', 'label', 'labels'],
+        tools: ['list_unshipped_orders', 'list_shipments', 'list_labels', 'shipping_dashboard', 'list_carrier_accounts', 'download_shipping_labels'],
+      },
+      {
+        patterns: ['download', 'herunterlad', 'runterlad', 'pdf', 'drucken', 'druck'],
+        tools: ['download_shipping_labels', 'list_labels'],
+      },
+      {
+        patterns: ['bestellung', 'bestellungen', 'bestellt', 'order', 'orders', 'shopify', 'umsatz', 'revenue', 'einnahmen'],
+        tools: ['list_unshipped_orders', 'shopify_today_summary', 'order_revenue_summary', 'list_products'],
+      },
+      {
+        patterns: ['produkt', 'produkte', 'artikel', 'sortiment', 'katalog', 'variante'],
+        tools: ['list_products', 'order_revenue_summary'],
+      },
+      {
+        patterns: ['einkauf', 'einkäufe', 'einkaeufe', 'lieferant', 'supplier', 'po ', 'purchase', 'beschaffung', 'unbezahlt', 'rechnung'],
+        tools: ['list_purchase_orders', 'list_suppliers', 'purchase_dashboard'],
+      },
+      {
+        patterns: ['email', 'mail', 'kampagne', 'kampagnen', 'campaign', 'newsletter', 'subscriber', 'abonnent', 'kontakt', 'flow', 'flows'],
+        tools: ['list_email_campaigns', 'list_email_contacts', 'list_email_flows'],
+      },
+      {
+        patterns: ['aufgabe', 'aufgaben', 'task', 'tasks', 'todo', 'projekt', 'projekte', 'überfällig', 'ueberfaellig', 'fällig', 'faellig', 'erledigt'],
+        tools: ['list_tasks', 'list_projects', 'list_approval_tasks', 'create_task', 'complete_task', 'dashboard_kpis'],
+      },
+      {
+        patterns: ['abnahme', 'approval', 'freigabe', 'genehmig'],
+        tools: ['list_approval_tasks', 'list_tasks'],
+      },
+      {
+        patterns: ['creator', 'creatorin', 'ugc', 'content'],
+        tools: ['list_creators', 'list_creator_uploads', 'list_deals', 'list_briefings'],
+      },
+      {
+        patterns: ['influencer', 'reichweite', 'follower'],
+        tools: ['list_influencers'],
+      },
+      {
+        patterns: ['deal', 'deals', 'kooperation', 'kampagne'],
+        tools: ['list_deals', 'list_creators'],
+      },
+      {
+        patterns: ['briefing', 'brief'],
+        tools: ['list_briefings'],
+      },
+      {
+        patterns: ['dokument', 'dokumente', 'datei', 'dateien', 'ordner', 'file', 'folder', 'pdf'],
+        tools: ['search_documents', 'list_document_folders', 'create_folder', 'move_file', 'lock_folder', 'delete_file'],
+      },
+      {
+        patterns: ['notiz', 'notizen', 'merke', 'notieren'],
+        tools: ['list_personal_notes', 'create_note'],
+      },
+      {
+        patterns: ['kalender', 'termin', 'event', 'erinnerung'],
+        tools: ['list_calendar_events', 'create_calendar_event'],
+      },
+      {
+        patterns: ['team', 'mitarbeiter', 'kollege', 'kollegen', 'user', 'users'],
+        tools: ['list_team_members', 'list_users', 'send_direct_message'],
+      },
+      {
+        patterns: ['nachricht', 'schreib', 'sag ', 'dm '],
+        tools: ['send_direct_message', 'list_team_members'],
+      },
+      {
+        patterns: ['integration', 'integrationen', 'verbind', 'sync', 'synchroni'],
+        tools: ['list_integrations', 'list_carrier_accounts'],
+      },
+      {
+        patterns: ['heute', 'dashboard', 'überblick', 'ueberblick', 'status', 'kpi', 'kennzahlen'],
+        tools: ['shopify_today_summary', 'dashboard_kpis', 'shipping_dashboard', 'purchase_dashboard'],
+      },
+    ];
+
+    const matched = new Set<string>();
+    for (const { patterns, tools } of groups) {
+      if (patterns.some((p) => msg.includes(p))) {
+        tools.forEach((t) => matched.add(t));
+      }
+    }
+
+    // Heuristik: Sehr kurze Fragen (< 15 Zeichen) oder keine Treffer → alle Tools.
+    // Damit verlieren wir bei unklaren Fragen keine Genauigkeit.
+    if (matched.size === 0 || msg.trim().length < 15) return TOOLS;
+
+    const filtered = TOOLS.filter((t) => matched.has(t.name));
+    // Safety-Net: Mindestens 3 Tools, sonst fallback auf alle
+    return filtered.length >= 3 ? filtered : TOOLS;
   }
 
   // -------------------------------------------------------------------------
@@ -649,6 +786,8 @@ export class AiService {
           return this.tool_shippingDashboard();
         case 'list_carrier_accounts':
           return this.tool_listCarrierAccounts();
+        case 'download_shipping_labels':
+          return this.tool_downloadShippingLabels(input);
         // Purchase
         case 'list_purchase_orders':
           return this.tool_listPurchaseOrders(input);
@@ -1556,6 +1695,52 @@ export class AiService {
       inTransit,
       delivered,
       problems: failed,
+    };
+  }
+
+  /**
+   * Ruft den Bulk-Merge aus dem Shipping-Service auf, speichert das
+   * resultierende PDF in R2 (mit "ai/"-Prefix), gibt dem Modell einen
+   * Download-Link zurück, den es dem User in der Antwort einbetten kann.
+   */
+  private async tool_downloadShippingLabels(input: any): Promise<unknown> {
+    const filter = input?.filter || 'unprinted';
+    const limit = Math.min(input?.limit || 50, 100);
+    const markPrinted = input?.markPrinted !== false;
+
+    const where: any = { shipment: { orgId: DEV_ORG_ID } };
+    if (filter === 'printed') where.printedAt = { not: null };
+    else if (filter === 'unprinted') where.printedAt = null;
+
+    const labels = await this.prisma.orderShipmentLabel.findMany({
+      where,
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    if (labels.length === 0) {
+      return { success: false, message: `Keine ${filter}-Labels gefunden.` };
+    }
+
+    const result = await this.shipments.bulkDownloadLabels(
+      DEV_ORG_ID,
+      labels.map((l) => l.id),
+      markPrinted,
+    );
+
+    // PDF in R2 ablegen, damit der User einen Link bekommt
+    const key = `ai/labels-${Date.now()}.pdf`;
+    const url = await this.storage.upload(key, result.buffer, 'application/pdf');
+
+    return {
+      success: true,
+      labelCount: result.labelCount,
+      skippedCount: labels.length - result.labelCount,
+      downloadUrl: url,
+      filter,
+      markedAsPrinted: markPrinted,
+      note: result.errors.length ? result.errors.join(' | ') : undefined,
     };
   }
 
