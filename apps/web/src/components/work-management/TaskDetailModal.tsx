@@ -81,12 +81,20 @@ export function TaskDetailModal({
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Track the last description value we've locally committed (either our own auto-save
+  // or a value we received from the server on a fresh task load). Used to decide whether
+  // an incoming task prop update should overwrite the editor.
+  const lastCommittedDescRef = useRef<string>(task.description ?? '');
+
   // Auto-save description after 1.5s of inactivity
   useEffect(() => {
-    if (editDesc === (task.description ?? '')) return; // no change
+    if (editDesc === lastCommittedDescRef.current) return; // no unsaved change
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
       onUpdate({ id: task.id, description: editDesc } as any);
+      // Mark this value as committed so the next re-sync from the server (same value) doesn't
+      // appear as "external update" and doesn't overwrite anything the user typed since.
+      lastCommittedDescRef.current = editDesc;
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 1500);
     }, 1500);
@@ -107,15 +115,33 @@ export function TaskDetailModal({
     }
   }, [open]);
 
-  // Sync state when task prop changes
+  // Sync non-description fields on every task update (these use explicit "Save" button,
+  // no race against background mutation → safe to overwrite).
   useEffect(() => {
     setEditTitle(task.title);
-    setEditDesc(task.description ?? '');
     setEditPriority(task.priority);
     setEditDueDate(task.dueDate ? task.dueDate.split('T')[0] : '');
     setEditAssigneeIds(task.assigneeIds ?? (task.assigneeId ? [task.assigneeId] : []));
     setEditColumnId(task.columnId);
   }, [task]);
+
+  // Description has auto-save → must NOT be blindly overwritten by background refetches,
+  // otherwise the user's in-progress typing gets clobbered when a stale server response
+  // returns in the middle of a keystroke (see Problem 2 analysis).
+  // Sync rule:
+  //   - Always re-sync when a different task is opened (task.id change)
+  //   - Re-sync if the incoming value differs from the one we last locally committed
+  //     AND the user has no unsaved changes (editDesc === lastCommittedDescRef)
+  //     → this catches external updates (e.g. teammate edited the description)
+  //   - Otherwise keep the user's local edits intact
+  useEffect(() => {
+    const incoming = task.description ?? '';
+    const hasUnsavedLocalEdit = editDesc !== lastCommittedDescRef.current;
+    if (!hasUnsavedLocalEdit) {
+      if (incoming !== editDesc) setEditDesc(incoming);
+      lastCommittedDescRef.current = incoming;
+    }
+  }, [task.id, task.description]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
 

@@ -55,9 +55,26 @@ export const useAuthStore = create<AuthState>()(
 /**
  * Get authorization headers for API calls.
  * Returns an empty object if not authenticated.
+ *
+ * IMPORTANT: zustand/persist hydrates asynchronously on the client. When a user
+ * directly navigates to a route that immediately triggers a fetch (e.g. /shipping/orders),
+ * the store can still be empty even though the token is in localStorage. That used to
+ * cause sporadic "No token" errors that disappeared after switching menus and back.
+ * To avoid that, we read localStorage directly as a fallback.
  */
 export function getAuthHeaders(): Record<string, string> {
-  const token = useAuthStore.getState().token;
+  let token = useAuthStore.getState().token;
+  if (!token && typeof window !== 'undefined') {
+    try {
+      const stored = window.localStorage.getItem('filapen-auth');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        token = parsed?.state?.token ?? null;
+      }
+    } catch {
+      // corrupted storage — fall through
+    }
+  }
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
 }

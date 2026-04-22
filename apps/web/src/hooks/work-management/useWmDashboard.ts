@@ -70,6 +70,36 @@ export function useWmDashboard() {
   });
 }
 
+export type WmBucket = 'open' | 'overdue' | 'today' | 'completed7d';
+
+export interface WmBucketTask {
+  id: string;
+  title: string;
+  description?: string | null;
+  priority: string;
+  dueDate?: string | null;
+  completed: boolean;
+  completedAt?: string | null;
+  projectId: string;
+  project?: { id: string; name: string; color: string };
+  assigneeId?: string | null;
+  assigneeName?: string;
+  assigneeAvatarUrl?: string;
+  createdByName?: string;
+}
+
+/**
+ * Fetch the list of tasks behind one of the dashboard KPI tiles.
+ * `enabled=false` while no bucket is selected so the query stays idle.
+ */
+export function useWmBucketTasks(bucket: WmBucket | null) {
+  return useQuery<WmBucketTask[]>({
+    queryKey: ['wm', 'dashboard', 'bucket', bucket],
+    queryFn: () => wmFetch(`/dashboard/bucket?bucket=${bucket}`),
+    enabled: !!bucket,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Auto-complete trigger hook
 // ---------------------------------------------------------------------------

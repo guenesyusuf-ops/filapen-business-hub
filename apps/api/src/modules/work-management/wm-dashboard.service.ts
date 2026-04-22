@@ -122,6 +122,66 @@ export class WmDashboardService {
   // MY TASKS
   // =========================================================================
 
+  /**
+   * Return tasks for a dashboard KPI bucket (open / overdue / today / completed7d).
+   * Used by the clickable dashboard tiles in the work-management overview.
+   */
+  async getTasksByBucket(bucket: 'open' | 'overdue' | 'today' | 'completed7d') {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+    const sevenDaysAgo = new Date(todayStart);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const where: any = { orgId: DEV_ORG_ID, parentTaskId: null };
+    if (bucket === 'open') {
+      where.completed = false;
+    } else if (bucket === 'overdue') {
+      where.completed = false;
+      where.dueDate = { lt: todayStart };
+    } else if (bucket === 'today') {
+      where.completed = false;
+      where.dueDate = { gte: todayStart, lt: todayEnd };
+    } else if (bucket === 'completed7d') {
+      where.completed = true;
+      where.completedAt = { gte: sevenDaysAgo };
+    }
+
+    const tasks = await this.prisma.wmTask.findMany({
+      where,
+      include: {
+        taskLabels: { include: { label: true } },
+        subtasks: true,
+        project: { select: { id: true, name: true, color: true } },
+      },
+      orderBy: [{ dueDate: 'asc' }, { priority: 'asc' }, { createdAt: 'desc' }],
+      take: 200,
+    });
+
+    const userIds = new Set<string>();
+    for (const t of tasks) {
+      if (t.assigneeId) userIds.add(t.assigneeId);
+      if (t.createdById) userIds.add(t.createdById);
+    }
+    if (userIds.size === 0) return tasks;
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: Array.from(userIds) } },
+      select: { id: true, name: true, email: true, avatarUrl: true },
+    });
+    const userMap = new Map(
+      users.map((u) => [u.id, { name: u.name || u.email.split('@')[0], avatarUrl: u.avatarUrl || undefined }]),
+    );
+
+    return tasks.map((t) => ({
+      ...t,
+      assigneeName: t.assigneeId ? userMap.get(t.assigneeId)?.name : undefined,
+      assigneeAvatarUrl: t.assigneeId ? userMap.get(t.assigneeId)?.avatarUrl : undefined,
+      createdByName: t.createdById ? userMap.get(t.createdById)?.name : undefined,
+    }));
+  }
+
   async getMyTasks(userId?: string) {
     // Multi-assignee: lookup all task ids the user is assigned to via the join table
     let joinTaskIds: string[] = [];

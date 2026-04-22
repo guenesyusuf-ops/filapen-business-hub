@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { API_URL } from '@/lib/api';
@@ -127,6 +127,7 @@ class WmErrorBoundary extends React.Component<{ children: React.ReactNode }, { e
 
 export default function ProjectDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const projectId = params.id as string;
   const queryClient = useQueryClient();
 
@@ -146,6 +147,16 @@ export default function ProjectDetailPage() {
   const [activeTab, setActiveTab] = useState<ViewTab>('board');
   const [selectedTask, setSelectedTask] = useState<WmTask | null>(null);
   const [showAddColumn, setShowAddColumn] = useState(false);
+
+  // Deep-link: open a specific task via ?task=<id> (used by KPI-Kachel-Modal).
+  // Only fires once per ID change, and only when project data is loaded.
+  const initialTaskParam = searchParams?.get('task') ?? null;
+  useEffect(() => {
+    if (!initialTaskParam || !project?.tasks) return;
+    const match = (project.tasks as any[]).find((t) => t.id === initialTaskParam);
+    if (match) setSelectedTask(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTaskParam, project?.id]);
 
   // Comments and activities for selected task
   const { data: comments = [] } = useWmComments(selectedTask?.id ?? '');

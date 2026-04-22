@@ -49,6 +49,20 @@ export class WmDashboardController {
     }
   }
 
+  @Get('dashboard/bucket')
+  async getTasksByBucket(@Query('bucket') bucket?: string) {
+    const allowed = ['open', 'overdue', 'today', 'completed7d'] as const;
+    if (!bucket || !allowed.includes(bucket as any)) {
+      throw new HttpException(`Invalid bucket. Allowed: ${allowed.join(', ')}`, HttpStatus.BAD_REQUEST);
+    }
+    try {
+      return await this.dashboardService.getTasksByBucket(bucket as typeof allowed[number]);
+    } catch (error) {
+      this.logger.error(`getTasksByBucket(${bucket}) failed`, error);
+      throw new HttpException('Failed to load tasks for bucket', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   // =========================================================================
   // MY TASKS
   // =========================================================================

@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Plus, FolderKanban, Users, ListChecks, BarChart3, CheckCircle2, AlertTriangle, CalendarClock, Tag, Bell, X, Trash2, ShieldCheck } from 'lucide-react';
+import { Plus, FolderKanban, Users, ListChecks, BarChart3, CheckCircle2, AlertTriangle, CalendarClock, Tag, Bell, X, Trash2, ShieldCheck, Loader2, Flag, Calendar } from 'lucide-react';
 import { useWmProjects, useCreateWmProject, useDeleteWmProject, useWmMembers } from '@/hooks/work-management/useWm';
-import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory, useWmNotifications, useWmUnreadCount, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/work-management/useWmDashboard';
+import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory, useWmNotifications, useWmUnreadCount, useMarkNotificationRead, useMarkAllNotificationsRead, useWmBucketTasks, type WmBucket } from '@/hooks/work-management/useWmDashboard';
 import { useWmCategories, useCreateWmCategory, useDeleteWmCategory, useCreateApprovalProject } from '@/hooks/work-management/useWmApproval';
 import { CreateProjectModal } from '@/components/work-management/CreateProjectModal';
 import { CreateApprovalProjectModal } from '@/components/work-management/CreateApprovalProjectModal';
@@ -21,16 +21,19 @@ interface KpiCardProps {
   iconColor: string;
   bgColor: string;
   alert?: boolean;
+  onClick?: () => void;
 }
 
-function KpiCard({ label, value, icon: Icon, iconColor, bgColor, alert }: KpiCardProps) {
-  return (
-    <div className={cn(
-      'rounded-xl border p-3 sm:p-4 flex items-center gap-3 sm:gap-4 transition-all',
-      alert && value > 0
-        ? 'border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10'
-        : 'border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)]',
-    )}>
+function KpiCard({ label, value, icon: Icon, iconColor, bgColor, alert, onClick }: KpiCardProps) {
+  const base = cn(
+    'rounded-xl border p-3 sm:p-4 flex items-center gap-3 sm:gap-4 transition-all text-left w-full',
+    alert && value > 0
+      ? 'border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10'
+      : 'border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg,#1a1d2e)]',
+    onClick && 'hover:border-primary-400 dark:hover:border-primary-500/60 hover:shadow-sm cursor-pointer',
+  );
+  const content = (
+    <>
       <div className={cn('flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10 rounded-lg flex-shrink-0', bgColor)}>
         <Icon className={cn('h-4 w-4 sm:h-5 sm:w-5', iconColor)} />
       </div>
@@ -45,8 +48,12 @@ function KpiCard({ label, value, icon: Icon, iconColor, bgColor, alert }: KpiCar
         </p>
         <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">{label}</p>
       </div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return <button type="button" onClick={onClick} className={base}>{content}</button>;
+  }
+  return <div className={base}>{content}</div>;
 }
 
 export default function WorkManagementPage() {
@@ -72,6 +79,7 @@ export default function WorkManagementPage() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCreateApproval, setShowCreateApproval] = useState(false);
   const createApprovalProject = useCreateApprovalProject();
+  const [bucketOpen, setBucketOpen] = useState<WmBucket | null>(null);
 
   const categoryNames = ['Alle', ...categories.map((c) => c.name)];
 
@@ -212,6 +220,7 @@ export default function WorkManagementPage() {
             icon={ListChecks}
             iconColor="text-blue-600 dark:text-blue-400"
             bgColor="bg-blue-100 dark:bg-blue-900/30"
+            onClick={() => setBucketOpen('open')}
           />
           <KpiCard
             label="Erledigt (7 Tage)"
@@ -219,6 +228,7 @@ export default function WorkManagementPage() {
             icon={CheckCircle2}
             iconColor="text-green-600 dark:text-green-400"
             bgColor="bg-green-100 dark:bg-green-900/30"
+            onClick={() => setBucketOpen('completed7d')}
           />
           <KpiCard
             label="Überfällig"
@@ -227,6 +237,7 @@ export default function WorkManagementPage() {
             iconColor="text-red-600 dark:text-red-400"
             bgColor="bg-red-100 dark:bg-red-900/30"
             alert
+            onClick={() => setBucketOpen('overdue')}
           />
           <KpiCard
             label="Fällig heute"
@@ -234,9 +245,14 @@ export default function WorkManagementPage() {
             icon={CalendarClock}
             iconColor="text-orange-600 dark:text-orange-400"
             bgColor="bg-orange-100 dark:bg-orange-900/30"
+            onClick={() => setBucketOpen('today')}
           />
         </div>
       )}
+
+      {/* KPI-Tile Detail Modal */}
+      <BucketTasksModal bucket={bucketOpen} onClose={() => setBucketOpen(null)} />
+
 
       {/* Category Filter */}
       <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
@@ -473,6 +489,118 @@ export default function WorkManagementPage() {
         }}
         loading={createApprovalProject.isPending}
       />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bucket Tasks Modal (opened when a KPI tile is clicked)
+// ---------------------------------------------------------------------------
+
+const BUCKET_LABELS: Record<WmBucket, { title: string; hint: string; empty: string }> = {
+  open: {
+    title: 'Offene Aufgaben',
+    hint: 'Alle noch nicht erledigten Aufgaben im gesamten Workspace.',
+    empty: 'Keine offenen Aufgaben — alles erledigt!',
+  },
+  overdue: {
+    title: 'Überfällige Aufgaben',
+    hint: 'Aufgaben mit Fälligkeitsdatum in der Vergangenheit, die noch offen sind.',
+    empty: 'Keine überfälligen Aufgaben.',
+  },
+  today: {
+    title: 'Heute fällig',
+    hint: 'Offene Aufgaben mit Fälligkeit am heutigen Tag.',
+    empty: 'Heute ist nichts fällig.',
+  },
+  completed7d: {
+    title: 'Erledigt in den letzten 7 Tagen',
+    hint: 'Aufgaben, die in den letzten 7 Tagen abgeschlossen wurden.',
+    empty: 'Keine kürzlich erledigten Aufgaben.',
+  },
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  urgent: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  medium: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  low: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+};
+
+function BucketTasksModal({ bucket, onClose }: { bucket: WmBucket | null; onClose: () => void }) {
+  const { data: tasks, isLoading } = useWmBucketTasks(bucket);
+  if (!bucket) return null;
+  const meta = BUCKET_LABELS[bucket];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start sm:items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-3xl bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 max-h-[90vh] flex flex-col"
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10 flex-shrink-0">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{meta.title}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{meta.hint}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/10 flex-shrink-0">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="p-10 flex items-center justify-center text-gray-500 dark:text-gray-400">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lädt …
+            </div>
+          ) : !tasks || tasks.length === 0 ? (
+            <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
+              {meta.empty}
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-white/5">
+              {tasks.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    href={`/work-management/${t.projectId}?task=${t.id}`}
+                    onClick={onClose}
+                    className="block px-5 py-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-sm text-gray-900 dark:text-white truncate">{t.title}</div>
+                        <div className="mt-1 flex items-center gap-2 flex-wrap text-xs text-gray-500">
+                          {t.project && (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.project.color || '#3B82F6' }} />
+                              {t.project.name}
+                            </span>
+                          )}
+                          {t.dueDate && (
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(t.dueDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                            </span>
+                          )}
+                          {t.assigneeName && <span className="truncate">Zuständig: {t.assigneeName}</span>}
+                        </div>
+                      </div>
+                      <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium flex-shrink-0', PRIORITY_COLORS[t.priority] || PRIORITY_COLORS.medium)}>
+                        <Flag className="h-3 w-3" />
+                        {t.priority}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] text-xs text-gray-500 text-right flex-shrink-0">
+          {tasks ? `${tasks.length} Aufgabe${tasks.length === 1 ? '' : 'n'}` : ''}
+        </div>
+      </div>
     </div>
   );
 }
