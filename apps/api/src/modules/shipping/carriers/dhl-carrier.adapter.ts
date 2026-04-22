@@ -230,10 +230,14 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     const shipperCountry = this.iso2to3(input.sender.address.country);
     const consigneeCountry = this.iso2to3(input.recipient.address.country);
 
-    // Street: DHL expects "addressStreet" (name) + "addressHouse" (number) separately.
-    // If house number not split out, DHL accepts the concatenated street as addressStreet.
-    const shipperStreet = this.combineStreet(input.sender.address.street, input.sender.address.houseNumber);
-    const consigneeStreet = this.combineStreet(input.recipient.address.street, input.recipient.address.houseNumber);
+    // DHL requires street name and house number in SEPARATE fields.
+    // Shopify typically ships "Musterstraße 12" as one line → we must split.
+    const shipper = this.splitStreet(input.sender.address.street, input.sender.address.houseNumber, null);
+    const consignee = this.splitStreet(
+      input.recipient.address.street,
+      input.recipient.address.houseNumber,
+      input.recipient.address.address2 ?? null,
+    );
 
     return {
       profile: 'STANDARD_GRUPPENPROFIL',
@@ -244,7 +248,8 @@ export class DhlCarrierAdapter implements CarrierAdapter {
           refNo: this.buildRefNo(input),
           shipper: {
             name1: (input.sender.name || 'Filapen').slice(0, 50),
-            addressStreet: shipperStreet.slice(0, 50),
+            addressStreet: shipper.street.slice(0, 50),
+            addressHouse: shipper.house || undefined,
             postalCode: input.sender.address.zip,
             city: input.sender.address.city.slice(0, 40),
             country: shipperCountry,
@@ -253,8 +258,8 @@ export class DhlCarrierAdapter implements CarrierAdapter {
           },
           consignee: {
             name1: (input.recipient.name || 'Empfänger').slice(0, 50),
-            addressStreet: consigneeStreet.slice(0, 50),
-            addressHouse: undefined, // merged into addressStreet
+            addressStreet: consignee.street.slice(0, 50),
+            addressHouse: consignee.house || undefined,
             additionalAddressInformation1: input.recipient.address.address2 || undefined,
             postalCode: input.recipient.address.zip,
             city: input.recipient.address.city.slice(0, 40),
@@ -290,10 +295,40 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     return `FILAPEN-${raw}`.slice(0, 35);
   }
 
-  private combineStreet(street: string, houseNumber?: string): string {
+  /**
+   * Split a street line like "Musterstraße 12a" into { street: "Musterstraße", house: "12a" }.
+   * Handles common German formats: "Straße 12", "Straße 12a", "Straße 12/3", "Straße 12-14".
+   * If houseNumber is provided separately (e.g. Shopify-Formularfeld), use that instead.
+   * If nothing parses cleanly, house="" — DHL rejects with a readable validation error.
+   */
+  private splitStreet(
+    street: string,
+    houseNumber: string | undefined,
+    address2: string | null,
+  ): { street: string; house: string } {
     const s = (street || '').trim();
-    const h = (houseNumber || '').trim();
-    return h && !s.includes(h) ? `${s} ${h}` : s;
+    const explicitHouse = (houseNumber || '').trim();
+
+    if (explicitHouse) {
+      // Remove explicit house number if it's already embedded at the end of the street string
+      const escaped = explicitHouse.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const cleaned = s.replace(new RegExp(`\\s+${escaped}$`), '').trim();
+      return { street: cleaned || s, house: explicitHouse };
+    }
+
+    // "Straße 12", "Straße 12a", "Straße 12/3", "Straße 12-14"
+    const match = s.match(/^(.+?)\s+(\d+[a-zA-Z]?(?:\s*[\/-]\s*\d+[a-zA-Z]?)?)$/);
+    if (match) {
+      return { street: match[1].trim(), house: match[2].replace(/\s+/g, '') };
+    }
+
+    // Maybe the house number is alone in address2
+    if (address2) {
+      const m2 = address2.trim().match(/^(\d+[a-zA-Z]?(?:[\/-]\d+[a-zA-Z]?)?)$/);
+      if (m2) return { street: s, house: m2[1] };
+    }
+
+    return { street: s, house: '' };
   }
 
   /**

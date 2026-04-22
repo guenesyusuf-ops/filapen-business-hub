@@ -226,9 +226,16 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
                   </button>
                 </div>
                 {dhlMode === 'sandbox' && (
-                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1.5">
-                    Sandbox = Test-Modus. Labels sind nicht versandfähig. Nutze eine Test-EKP (z.B. <code>33333333330101</code>) aus dem DHL Developer-Portal, nicht deine echte EKP.
-                  </p>
+                  <div className="mt-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2 text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
+                    <p><strong>Sandbox = Test-Modus.</strong> Labels sind nicht versandfähig.</p>
+                    <p><strong>WICHTIG:</strong> Deine echte EKP funktioniert in Sandbox <strong>nicht</strong>. Verwende eine der offiziellen DHL Sandbox-Test-EKPs:</p>
+                    <ul className="list-disc ml-5">
+                      <li><code>33333333330101</code> für <strong>V01PAK</strong> (Paket National)</li>
+                      <li><code>33333333330102</code> für <strong>V53WPAK</strong> (Weltpaket)</li>
+                      <li><code>33333333330103</code> für <strong>V54EPAK</strong> (Europaket)</li>
+                    </ul>
+                    <p>Sandbox-User/Passwort: <code>user-valid</code> / <code>SandboxPasswort2023!</code></p>
+                  </div>
                 )}
                 {dhlMode === 'production' && (
                   <p className="text-[11px] text-green-700 dark:text-green-400 mt-1.5">
