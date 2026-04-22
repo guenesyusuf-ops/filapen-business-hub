@@ -300,41 +300,53 @@ export class AmazonService {
    */
   async getOrderMetrics(daysBack = 0, granularity: 'Day' | 'Week' | 'Month' | 'Total' = 'Total'): Promise<any> {
     if (!this.sp) return null;
-    try {
-      // Build interval in ISO 8601 format: "2026-04-19T00:00:00--2026-04-20T00:00:00"
-      const now = new Date();
-      const berlinDateParts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Europe/Berlin',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-      }).format(now);
+    // Interval im ISO-8601-Format "YYYY-MM-DDT00:00:00-00:00--YYYY-MM-DDT00:00:00-00:00"
+    const now = new Date();
+    const berlinDateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Berlin',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(now);
+    const endParts = berlinDateParts.split('-').map(Number);
+    const startDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2] - daysBack));
+    const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2] + 1));
+    const interval = `${startDate.toISOString().split('T')[0]}T00:00:00-00:00--${endDate.toISOString().split('T')[0]}T00:00:00-00:00`;
 
-      // End date is tomorrow (exclusive upper bound)
-      const endParts = berlinDateParts.split('-').map(Number);
-      const startDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2] - daysBack));
-      const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2] + 1));
+    this.logger.log(`getOrderMetrics: interval=${interval}, granularity=${granularity}, marketplaces=${this.marketplaceIds.length}`);
 
-      const interval = `${startDate.toISOString().split('T')[0]}T00:00:00-00:00--${endDate.toISOString().split('T')[0]}T00:00:00-00:00`;
+    // ⚠️ Workaround für amazon-sp-api Library-Bug:
+    // Bei mehreren marketplaceIds in einem einzigen Call wirft die Library
+    // "Failure decrypting token using tag A" — sie missinterpretiert den
+    // comma-serialisierten Array als verschlüsselten NextToken.
+    // Lösung: Pro Marketplace einzeln abfragen, Ergebnisse serverseitig
+    // zusammenführen. Die Payload-Struktur (payload[]) bleibt kompatibel
+    // zur bestehenden Dashboard-Summierung.
+    const perMarketResults = await Promise.all(
+      this.marketplaceIds.map(async (mid) => {
+        try {
+          const res: any = await this.callWithRetry({
+            operation: 'getOrderMetrics',
+            endpoint: 'sales',
+            query: {
+              marketplaceIds: [mid], // single-element array — Library ist damit happy
+              interval,
+              granularity,
+            },
+          });
+          const payload = Array.isArray(res?.payload) ? res.payload : [];
+          this.logger.log(
+            `[SALES_API ${mid}] payload entries=${payload.length}, sum=${payload.reduce((s: number, e: any) => s + parseFloat(e?.totalSales?.amount ?? '0'), 0).toFixed(2)}, orders=${payload.reduce((s: number, e: any) => s + (e?.orderCount ?? 0), 0)}`,
+          );
+          return payload;
+        } catch (err: any) {
+          this.logger.error(`getOrderMetrics ${mid} failed: ${err.message}`);
+          return [];
+        }
+      }),
+    );
 
-      this.logger.log(`getOrderMetrics: interval=${interval}, granularity=${granularity}`);
-
-      // Kein buyerType-Filter: die API soll alles liefern (Consumer + B2B
-      // werden im payloadArr summiert falls die API sie getrennt liefert).
-      const res: any = await this.callWithRetry({
-        operation: 'getOrderMetrics',
-        endpoint: 'sales',
-        query: {
-          marketplaceIds: this.marketplaceIds,
-          interval,
-          granularity,
-        },
-      });
-
-      this.logger.log(`[SALES_API_RAW] ${JSON.stringify(res).slice(0, 1500)}`);
-      return res;
-    } catch (err: any) {
-      this.logger.error(`getOrderMetrics failed: ${err.message}`);
-      return null;
-    }
+    const allPayloads = perMarketResults.flat();
+    if (allPayloads.length === 0) return null;
+    return { payload: allPayloads };
   }
 
   // =========================================================================
