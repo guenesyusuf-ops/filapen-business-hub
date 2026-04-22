@@ -324,6 +324,10 @@ export class AmazonService {
           marketplaceIds: this.marketplaceIds,
           interval,
           granularity,
+          // Explizit All (B2B + Consumer) damit die API nicht zwei separate
+          // payloads (B2B und C) liefert — das hätte zu Verdopplung im
+          // Fallback-Summieren geführt.
+          buyerType: 'All',
         },
       });
 
@@ -447,7 +451,32 @@ export class AmazonService {
       this.getOrderMetrics(daysBack, 'Total'),
       this.getAverageCogs(),
     ]);
-    const metricsData = salesMetrics?.payload?.[0] ?? salesMetrics?.[0] ?? null;
+    // Die SP-Sales-API kann je nach Marketplace-Kombination MEHRERE
+    // payload-Einträge liefern (einer pro Marketplace oder pro buyerType).
+    // Wir summieren alle Einträge, damit der Gesamtwert stimmt — nicht nur
+    // payload[0] nehmen (sonst DE-only oder wir verpassen FR/IT/ES).
+    const payloadArr: any[] = Array.isArray(salesMetrics?.payload)
+      ? salesMetrics.payload
+      : Array.isArray(salesMetrics)
+        ? salesMetrics
+        : [];
+    const metricsData = payloadArr.length
+      ? payloadArr.reduce(
+          (acc: any, entry: any) => ({
+            totalSales: {
+              amount: String(
+                parseFloat(acc.totalSales?.amount ?? '0') + parseFloat(entry?.totalSales?.amount ?? '0'),
+              ),
+            },
+            orderCount: (acc.orderCount ?? 0) + (entry?.orderCount ?? 0),
+            unitCount: (acc.unitCount ?? 0) + (entry?.unitCount ?? 0),
+          }),
+          { totalSales: { amount: '0' }, orderCount: 0, unitCount: 0 },
+        )
+      : null;
+    if (payloadArr.length > 1) {
+      this.logger.log(`getOrderMetrics lieferte ${payloadArr.length} payload-Einträge — summiert zu ${metricsData?.totalSales?.amount}`);
+    }
 
     // 3) Orders API — for the order list / details table
     const orders = await this.getOrders(daysBack);
@@ -503,8 +532,13 @@ export class AmazonService {
       marketplaces[mp] = (marketplaces[mp] ?? 0) + 1;
     }
 
-    // Final values: Sales API > Orders API estimation
-    const finalRevenue = salesRevenue ?? totalEstimate.revenue;
+    // Final values: Sales API ist Source of Truth (matcht Seller Central exakt).
+    // Fallback (Sales API null): NUR bestätigte Shipped-Revenue nehmen — NICHT
+    // shipped + pendingEstimate, das führte zu ~2× Verdopplung wenn
+    // #Pending ≈ #Shipped (zufällig oft bei Multi-Market "Heute"-Ansicht).
+    // User sieht dann lieber etwas zu wenig (die pending fehlen) statt
+    // stark überzogene Fantasie-Zahlen.
+    const finalRevenue = salesRevenue ?? totalEstimate.shippedRevenue;
     const finalOrderCount = salesOrderCount ?? orders.length;
 
     this.logger.log(`Final: ${finalOrderCount} orders, ${finalRevenue}€ (source: ${salesRevenue != null ? 'Sales API' : 'Orders API estimate'})`);
