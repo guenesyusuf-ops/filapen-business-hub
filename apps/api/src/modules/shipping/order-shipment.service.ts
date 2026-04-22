@@ -415,13 +415,25 @@ export class OrderShipmentService {
     const buffer = Buffer.from(bytes);
 
     if (markPrinted) {
-      await this.prisma.orderShipmentLabel.updateMany({
-        where: { id: { in: targets.map((t) => t.labelId) } },
-        data: {
-          printedAt: new Date(),
-          printCount: { increment: 1 },
-        },
-      });
+      // Print-Tracking darf niemals die Label-Auslieferung blockieren: Wenn die DB
+      // noch nicht migriert ist (fehlende Spalten), die PDF-Datei soll trotzdem
+      // zurück kommen. Fehler landet im Log, User bekommt die Datei.
+      try {
+        await this.prisma.orderShipmentLabel.updateMany({
+          where: { id: { in: targets.map((t) => t.labelId) } },
+          data: {
+            printedAt: new Date(),
+            printCount: { increment: 1 },
+          },
+        });
+      } catch (err: any) {
+        this.logger.error(
+          `Mark-as-printed failed for ${targets.length} labels (wahrscheinlich fehlt Migration add_label_print_tracking.sql): ${err.message}`,
+        );
+        errors.push(
+          `Druck-Tracking konnte nicht gespeichert werden (Migration prüfen): ${err.message}`,
+        );
+      }
     }
 
     return { buffer, labelCount: merged.getPageCount(), errors };

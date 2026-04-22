@@ -301,16 +301,25 @@ export class ShippingController {
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     if (!body.shipmentIds?.length) throw new BadRequestException('shipmentIds erforderlich');
-    const result = await this.shipments.bulkDownloadLabels(
-      orgId,
-      body.shipmentIds,
-      body.markPrinted ?? false,
-    );
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    return new StreamableFile(result.buffer, {
-      type: 'application/pdf',
-      disposition: `attachment; filename="labels-${timestamp}.pdf"`,
-    });
+    try {
+      const result = await this.shipments.bulkDownloadLabels(
+        orgId,
+        body.shipmentIds,
+        body.markPrinted ?? false,
+      );
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      return new StreamableFile(result.buffer, {
+        type: 'application/pdf',
+        disposition: `attachment; filename="labels-${timestamp}.pdf"`,
+      });
+    } catch (err: any) {
+      // Surface the real cause instead of the generic "Internal server error"
+      this.logger.error(`bulkDownloadLabels failed: ${err?.message}`, err?.stack);
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        `Bulk-Download fehlgeschlagen: ${err?.message || 'Unbekannter Fehler'}`,
+      );
+    }
   }
 
   @Post('labels/:labelId/mark-printed')
