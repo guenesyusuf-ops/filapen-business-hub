@@ -516,7 +516,7 @@ Regeln:
 - Nutze die bereitgestellten Tools, wenn du echte Daten brauchst — niemals Zahlen erfinden.
 - Sag NIE "habe kein Tool dafuer", wenn es zum Thema ein Tool gibt. Frag lieber nach den Filtern, die dir fehlen, und ruf dann das passende Tool auf.
 - Fragen wie "nicht versendete Bestellungen", "welche Labels sind offen", "Versandstatus" → IMMER list_unshipped_orders / list_shipments / shipping_dashboard aufrufen, nicht an Shopify verweisen.
-- Wenn der User Labels downloaden/drucken will ("gib mir die 3 Labels", "download labels") → download_shipping_labels aufrufen und den Response-Link im Markdown einbetten: "[Label-PDF downloaden]({downloadUrl})". NIE an "Versand → Labels" verweisen wenn das Tool die Sache direkt erledigen kann.
+- Wenn der User Labels downloaden/drucken will ("gib mir die 3 Labels", "download labels", "downloade die für mich") → download_shipping_labels aufrufen. Das Frontend startet den Download AUTOMATISCH (kein Klick vom User nötig). Sag einfach "Download gestartet — N Labels in der PDF." — NICHT "Klick auf den Link" sagen, NICHT auf "Versand → Labels" verweisen.
 - Wenn mehrere Tools noetig sind, rufe sie nacheinander auf.
 - Formatiere Listen kompakt mit Bullet-Points.
 - Halte Antworten unter 150 Woertern, ausser der User bittet explizit um Details.
@@ -545,7 +545,11 @@ export class AiService {
     userId: string,
     query: string,
     history?: { role: string; content: string }[],
-  ): Promise<{ answer: string; steps?: string[] }> {
+  ): Promise<{
+    answer: string;
+    steps?: string[];
+    downloads?: Array<{ url: string; filename: string; autoTrigger: boolean }>;
+  }> {
     if (!this.client) {
       throw new ServiceUnavailableException(
         'Ask Filapen ist nicht konfiguriert. Bitte setze ANTHROPIC_API_KEY in den Server-Variablen.',
@@ -571,6 +575,8 @@ export class AiService {
     messages.push({ role: 'user', content: query });
 
     const steps: string[] = [];
+    // Side-Channel für Downloads/Actions die das Frontend automatisch auslösen soll
+    const downloads: Array<{ url: string; filename: string; autoTrigger: boolean }> = [];
 
     // Keyword-Routing: Nur die relevanten Tools an Claude schicken. Weniger Tools
     // → weniger Reasoning-Aufwand für das Modell, geringere Latenz, weniger Tokens.
@@ -596,6 +602,19 @@ export class AiService {
         for (const toolUse of toolUseBlocks) {
           steps.push(`🔧 ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 80)})`);
           const result = await this.executeTool(toolUse.name, toolUse.input as any, userId);
+          // Harvest downloads so the frontend can auto-trigger them after rendering.
+          // Any tool that returns { downloadUrl, ... } is eligible; we also auto-name
+          // the file from the URL.
+          const r: any = result;
+          if (r && typeof r === 'object' && typeof r.downloadUrl === 'string') {
+            const filename =
+              r.filename || r.downloadUrl.split('/').pop() || `filapen-${Date.now()}.pdf`;
+            downloads.push({
+              url: r.downloadUrl,
+              filename,
+              autoTrigger: r.autoTrigger !== false,
+            });
+          }
           toolResults.push({
             type: 'tool_result',
             tool_use_id: toolUse.id,
@@ -613,10 +632,18 @@ export class AiService {
         .join('\n')
         .trim();
 
-      return { answer: textBlocks || 'Keine Antwort erzeugt.', steps };
+      return {
+        answer: textBlocks || 'Keine Antwort erzeugt.',
+        steps,
+        ...(downloads.length ? { downloads } : {}),
+      };
     }
 
-    return { answer: 'Anfrage zu komplex — bitte praeziser formulieren.', steps };
+    return {
+      answer: 'Anfrage zu komplex — bitte praeziser formulieren.',
+      steps,
+      ...(downloads.length ? { downloads } : {}),
+    };
   }
 
   // -------------------------------------------------------------------------

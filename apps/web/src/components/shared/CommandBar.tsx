@@ -11,10 +11,41 @@ interface CommandBarProps {
   onClose: () => void;
 }
 
+interface DownloadPayload {
+  url: string;
+  filename: string;
+  autoTrigger: boolean;
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   steps?: string[];
+  downloads?: DownloadPayload[];
+}
+
+/**
+ * Triggert einen Browser-Download automatisch via unsichtbarem <a download>.
+ * Wird direkt nach dem Empfang einer KI-Antwort aufgerufen, die downloads[]
+ * enthält (z.B. Label-PDFs). Der User muss nicht klicken — die Datei landet
+ * im Downloads-Ordner.
+ *
+ * Hinweis: Browser erlauben programmatische Downloads im Kontext eines
+ * fetch-Response-Handlers meistens ohne Popup-Blocker-Probleme, solange das
+ * auslösende Event (der Chat-Submit) ursprünglich vom User stammt.
+ */
+function triggerDownload(d: DownloadPayload) {
+  const a = document.createElement('a');
+  a.href = d.url;
+  a.download = d.filename;
+  a.rel = 'noopener';
+  // Ein target=_blank hilft bei cross-origin Blob-URLs (R2), falls der
+  // Browser den Download nicht direkt startet, sieht der User zumindest
+  // die Datei im neuen Tab.
+  a.target = '_self';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 export function CommandBar({ open, onClose }: CommandBarProps) {
@@ -135,7 +166,17 @@ export function CommandBar({ open, onClose }: CommandBarProps) {
         role: 'assistant',
         content: data.answer || 'Keine Antwort.',
         steps: data.steps,
+        downloads: data.downloads,
       }]);
+      // Auto-Trigger aller Downloads die das Backend im Response markiert hat
+      if (Array.isArray(data.downloads)) {
+        for (const d of data.downloads as DownloadPayload[]) {
+          if (d?.url && d.autoTrigger !== false) {
+            // Kleinen Delay zwischen mehreren Downloads (Browser queueing)
+            setTimeout(() => triggerDownload(d), 100);
+          }
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Anfrage fehlgeschlagen');
     } finally {
