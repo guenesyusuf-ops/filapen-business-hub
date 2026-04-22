@@ -94,7 +94,20 @@ export class OrderShipmentService {
   async create(orgId: string, userId: string, data: CreateShipmentInput) {
     const order = await this.prisma.order.findFirst({
       where: { id: data.orderId, orgId },
-      include: { lineItems: { select: { productVariantId: true } } },
+      include: {
+        // All scalar fields plus the lineItem fields we need downstream:
+        //   productVariantId → rule evaluation + weight lookup
+        //   sku + title       → shipment reference + unknown-weight error message
+        //   quantity          → weight computation
+        lineItems: {
+          select: {
+            productVariantId: true,
+            sku: true,
+            title: true,
+            quantity: true,
+          },
+        },
+      },
     });
     if (!order) throw new NotFoundException('Bestellung nicht gefunden');
     if (order.status === 'cancelled') {

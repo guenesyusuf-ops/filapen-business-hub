@@ -60,8 +60,12 @@ export class ShopifyService {
       expiresIn: '10m',
     });
 
+    // Scopes: read for dashboards/analytics, write_merchant_managed_fulfillment_orders
+    // for the shipping module to hinterlegen Sendungsnummer + Order auf "fulfilled" setzen.
+    // Note: after adding write scopes, the user MUST disconnect+reconnect Shopify so the
+    // new access token is issued with the new permissions (Shopify caches the grant).
     const scopes =
-      'read_orders,read_products,read_inventory,read_reports,read_analytics,read_customers';
+      'read_orders,read_products,read_inventory,read_reports,read_analytics,read_customers,write_merchant_managed_fulfillment_orders';
     const redirectUri = `${apiUrl}/api/auth/shopify/callback`;
 
     const params = new URLSearchParams({
