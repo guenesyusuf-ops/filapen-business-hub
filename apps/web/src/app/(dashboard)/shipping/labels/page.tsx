@@ -100,8 +100,15 @@ export default function ShippingLabelsPage() {
     const labelIds = Array.from(selected);
     setBusy(action);
     try {
-      const blob = await shippingApi.bulkDownloadLabels(labelIds, true);
+      const { blob, labelCount, skippedCount, skippedReasons } = await shippingApi.bulkDownloadLabels(labelIds, true);
       const url = URL.createObjectURL(blob);
+      if (skippedCount > 0) {
+        // Non-blocking notice: PDF is still delivered with the labels that worked
+        const reasons = skippedReasons || 'Format nicht druckbar';
+        alert(
+          `${labelCount} von ${labelIds.length} Label${labelIds.length === 1 ? '' : 's'} in PDF zusammengefügt.\n\n${skippedCount} übersprungen: ${reasons}`,
+        );
+      }
       if (action === 'download') {
         const a = document.createElement('a');
         a.href = url;
@@ -153,11 +160,35 @@ export default function ShippingLabelsPage() {
 
   async function toggleSinglePrinted(row: LabelRow) {
     const makePrinted = !row.printedAt;
+    const nowIso = new Date().toISOString();
+    const originalPrintedAt = row.printedAt;
+    const originalCount = row.printCount;
+    // Optimistic UI update — fühlt sich sofort an, egal wie langsam der Server
+    setRows((prev) =>
+      prev.map((r) =>
+        r.labelId === row.labelId
+          ? {
+              ...r,
+              printedAt: makePrinted ? (r.printedAt ?? nowIso) : null,
+              printCount: makePrinted ? r.printCount + 1 : r.printCount,
+            }
+          : r,
+      ),
+    );
     try {
       await shippingApi.markLabelPrinted(row.labelId, makePrinted);
-      load();
     } catch (e: any) {
-      alert(e.message);
+      // Rollback bei Fehler — und User klar informieren
+      setRows((prev) =>
+        prev.map((r) =>
+          r.labelId === row.labelId
+            ? { ...r, printedAt: originalPrintedAt, printCount: originalCount }
+            : r,
+        ),
+      );
+      alert(
+        `Druck-Markierung fehlgeschlagen: ${e.message}\n\nFalls die DB-Migration noch nicht gelaufen ist, bitte in Supabase ausführen:\n\nALTER TABLE order_shipment_labels\n  ADD COLUMN IF NOT EXISTS printed_at TIMESTAMPTZ,\n  ADD COLUMN IF NOT EXISTS print_count INT NOT NULL DEFAULT 0;`,
+      );
     }
   }
 

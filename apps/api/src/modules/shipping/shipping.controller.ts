@@ -1,7 +1,8 @@
 import {
   Controller, Get, Post, Put, Delete, Param, Body, Query, Headers, Logger, BadRequestException,
-  StreamableFile,
+  StreamableFile, Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { extractAuthContext, assertCanWrite } from './auth-context';
@@ -297,10 +298,10 @@ export class ShippingController {
   async bulkDownloadLabels(
     @Headers('authorization') authHeader: string,
     @Body() body: { labelIds?: string[]; shipmentIds?: string[]; markPrinted?: boolean },
+    @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    // Accept labelIds (primary) or legacy shipmentIds (resolved → all labels of those shipments)
     let labelIds = body.labelIds ?? [];
     if (!labelIds.length && body.shipmentIds?.length) {
       const labels = await this.prisma.orderShipmentLabel.findMany({
@@ -317,12 +318,21 @@ export class ShippingController {
         body.markPrinted ?? false,
       );
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      // Expose merge stats so the frontend can show the user exactly how many
+      // labels landed in the PDF (vs how many were skipped).
+      res.setHeader('X-Requested-Count', String(labelIds.length));
+      res.setHeader('X-Label-Count', String(result.labelCount));
+      res.setHeader('X-Skipped-Count', String(labelIds.length - result.labelCount));
+      if (result.errors.length) {
+        // Header values must be ASCII-safe — encode the reasons.
+        res.setHeader('X-Skipped-Reasons', encodeURIComponent(result.errors.join(' | ')));
+      }
+      res.setHeader('Access-Control-Expose-Headers', 'X-Requested-Count, X-Label-Count, X-Skipped-Count, X-Skipped-Reasons');
       return new StreamableFile(result.buffer, {
         type: 'application/pdf',
         disposition: `attachment; filename="labels-${timestamp}.pdf"`,
       });
     } catch (err: any) {
-      // Surface the real cause instead of the generic "Internal server error"
       this.logger.error(`bulkDownloadLabels failed: ${err?.message}`, err?.stack);
       if (err instanceof BadRequestException) throw err;
       throw new BadRequestException(

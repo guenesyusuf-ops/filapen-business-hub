@@ -380,8 +380,16 @@ export class OrderShipmentService {
     const orderIndex = new Map(labelIds.map((id, i) => [id, i]));
     labels.sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
 
+    // Double-check: both format flag AND URL extension must indicate PDF
+    // (Legacy stub labels haben Format "pdf_100x150" aber URL endet auf .html —
+    // die können pdf-lib nicht laden).
+    const isPdfLabel = (l: { format: string; url: string }) =>
+      l.format.startsWith('pdf_') && /\.pdf(\?|$)/i.test(l.url);
+
+    const errors: string[] = [];
+
     const targets: Array<{ labelId: string; url: string; tracking: string; format: string }> = labels
-      .filter((l) => l.format.startsWith('pdf_'))
+      .filter(isPdfLabel)
       .map((l) => ({
         labelId: l.id,
         url: l.url,
@@ -389,13 +397,19 @@ export class OrderShipmentService {
         format: l.format,
       }));
 
-    if (targets.length === 0) {
-      throw new BadRequestException(
-        'Keine druckbaren PDF-Labels in der Auswahl (HTML-Stub-Labels können nicht zusammengefügt werden)',
+    const skippedStubs = labels.length - targets.length;
+    if (skippedStubs > 0) {
+      errors.push(
+        `${skippedStubs} Label(s) übersprungen — kein echtes PDF (z.B. alte HTML-Stub-Labels aus Test-Modus).`,
       );
     }
 
-    const errors: string[] = [];
+    if (targets.length === 0) {
+      throw new BadRequestException(
+        'Keine druckbaren PDF-Labels in der Auswahl. Nur echte DHL-API-Labels sind druckbar, HTML-Stubs aus dem Test-Modus nicht.',
+      );
+    }
+
     const merged = await PDFDocument.create();
 
     for (const t of targets) {

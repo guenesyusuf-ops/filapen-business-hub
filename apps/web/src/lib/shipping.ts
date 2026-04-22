@@ -67,7 +67,11 @@ export const shippingApi = {
   deleteShipment: (id: string) => call(`/shipments/${id}`, { method: 'DELETE' }),
 
   // Bulk label actions — returns a single merged PDF Blob for the given labels
-  bulkDownloadLabels: async (labelIds: string[], markPrinted = false): Promise<Blob> => {
+  // plus merge metadata (how many labels landed in the PDF, skipped reasons).
+  bulkDownloadLabels: async (
+    labelIds: string[],
+    markPrinted = false,
+  ): Promise<{ blob: Blob; labelCount: number; skippedCount: number; skippedReasons: string }> => {
     const res = await fetch(`${API_URL}/api/shipping/labels/bulk-download`, {
       method: 'POST',
       headers: headers(),
@@ -78,7 +82,11 @@ export const shippingApi = {
       try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
       throw new Error(msg);
     }
-    return res.blob();
+    const labelCount = Number(res.headers.get('X-Label-Count') ?? '0') || 0;
+    const skippedCount = Number(res.headers.get('X-Skipped-Count') ?? '0') || 0;
+    const skippedReasons = decodeURIComponent(res.headers.get('X-Skipped-Reasons') ?? '');
+    const blob = await res.blob();
+    return { blob, labelCount, skippedCount, skippedReasons };
   },
   markLabelPrinted: (labelId: string, printed = true) =>
     call(`/labels/${labelId}/mark-printed`, { method: 'POST', body: JSON.stringify({ printed }) }),
