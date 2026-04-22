@@ -28,7 +28,9 @@ export default function ShippingLabelsPage() {
   const [rows, setRows] = useState<LabelRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('created');
-  const [selected, setSelected] = useState<Set<string>>(new Set()); // shipmentIds
+  // Selection is per label-ID (not shipment-ID) so multiple labels of the same
+  // shipment can be picked individually.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<'print' | 'download' | null>(null);
 
   async function load() {
@@ -85,20 +87,20 @@ export default function ShippingLabelsPage() {
 
   const toggleAll = () => {
     if (selected.size === filtered.length && filtered.length > 0) setSelected(new Set());
-    else setSelected(new Set(filtered.map((r) => r.shipmentId)));
+    else setSelected(new Set(filtered.map((r) => r.labelId)));
   };
-  const toggle = (id: string) => {
+  const toggle = (labelId: string) => {
     const next = new Set(selected);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    if (next.has(labelId)) next.delete(labelId); else next.add(labelId);
     setSelected(next);
   };
 
   async function handleBulkAction(action: 'print' | 'download') {
     if (selected.size === 0) return;
-    const shipmentIds = Array.from(selected);
+    const labelIds = Array.from(selected);
     setBusy(action);
     try {
-      const blob = await shippingApi.bulkDownloadLabels(shipmentIds, true);
+      const blob = await shippingApi.bulkDownloadLabels(labelIds, true);
       const url = URL.createObjectURL(blob);
       if (action === 'download') {
         const a = document.createElement('a');
@@ -107,33 +109,37 @@ export default function ShippingLabelsPage() {
         document.body.appendChild(a);
         a.click();
         a.remove();
-        // Give the browser a moment before revoking
         setTimeout(() => URL.revokeObjectURL(url), 2000);
       } else {
-        // Print: hidden iframe → triggers native print dialog for the merged PDF
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
-        iframe.src = url;
-        iframe.onload = () => {
-          try {
-            iframe.contentWindow?.focus();
-            iframe.contentWindow?.print();
-          } catch (e) {
-            // Cross-origin-ish fallback: open in new tab so user can print via the browser menu
-            window.open(url, '_blank');
-          }
-        };
-        document.body.appendChild(iframe);
-        // Clean up later (after user had time to print)
-        setTimeout(() => {
-          iframe.remove();
-          URL.revokeObjectURL(url);
-        }, 60_000);
+        // Print: Neues Fenster mit dem PDF — Browser zeigt nativen PDF-Viewer,
+        // User kann direkt den Print-Button nutzen (in allen Browsern oben im Viewer
+        // sichtbar). Automatischer print()-Trigger via setTimeout, damit der Viewer
+        // Zeit zum Rendern hat. Fallback: User druckt manuell mit Cmd+P.
+        const w = window.open(url, '_blank');
+        if (!w) {
+          // Popup-Blocker → Direkt-Download als Fallback damit der User zumindest
+          // die Datei hat
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `labels-print-${Date.now()}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          alert('Popup wurde blockiert. Die Label-PDF wurde stattdessen heruntergeladen — bitte manuell drucken.');
+        } else {
+          // Nach 1.5s sollte der PDF-Viewer geladen sein → print() auslösen
+          const tryPrint = () => {
+            try {
+              w.focus();
+              w.print();
+            } catch {
+              // Silently ignore; user can print manually via Cmd+P
+            }
+          };
+          setTimeout(tryPrint, 1500);
+        }
+        // Blob-URL erst nach Sicht-Öffnung freigeben, damit der PDF-Viewer sie laden kann
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
       }
       setSelected(new Set());
       // Refresh so printedAt updates into "Gedruckt" tab
@@ -170,7 +176,7 @@ export default function ShippingLabelsPage() {
       {selected.size > 0 && (
         <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary-200 dark:border-primary-700/40 bg-primary-50 dark:bg-primary-900/20 p-3 shadow-sm">
           <div className="text-sm text-primary-900 dark:text-primary-100">
-            <strong>{selected.size}</strong> Label{selected.size === 1 ? '' : 's'} ausgewählt — werden als <strong>eine PDF-Datei</strong> zusammengeführt.
+            <strong>{selected.size}</strong> Label{selected.size === 1 ? '' : 's'} ausgewählt — wird als <strong>eine PDF-Datei</strong> zusammengeführt.
           </div>
           <div className="flex gap-2">
             <button
@@ -248,7 +254,7 @@ export default function ShippingLabelsPage() {
               {filtered.map((r) => {
                 const st = SHIPMENT_STATUS_LABELS[r.status as keyof typeof SHIPMENT_STATUS_LABELS];
                 const carrierLabel = CARRIER_LABELS[r.carrier as keyof typeof CARRIER_LABELS] || r.carrier;
-                const isSelected = selected.has(r.shipmentId);
+                const isSelected = selected.has(r.labelId);
                 return (
                   <tr
                     key={r.labelId}
@@ -258,7 +264,7 @@ export default function ShippingLabelsPage() {
                     )}
                   >
                     <td className="px-3 py-3">
-                      <input type="checkbox" checked={isSelected} onChange={() => toggle(r.shipmentId)} />
+                      <input type="checkbox" checked={isSelected} onChange={() => toggle(r.labelId)} />
                     </td>
                     <td className="px-3 py-3 font-mono text-xs text-primary-700 dark:text-primary-300">
                       {r.trackingNumber || '—'}

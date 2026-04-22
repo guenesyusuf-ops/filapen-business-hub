@@ -350,40 +350,48 @@ export class OrderShipmentService {
   // ---------------------------------------------------------------------
 
   /**
-   * Merge all PDF labels for the given shipments into a single PDF buffer.
+   * Merge PDF labels for the given label IDs into a single PDF buffer.
    * Fetches each stored PDF (public R2 URL), concatenates pages with pdf-lib,
    * and optionally marks the involved labels as printed.
+   *
+   * Operates on LABEL IDs (nicht Shipment-IDs), damit der User im UI pro
+   * Label-Zeile eine Checkbox hat — auch wenn mehrere Labels zur gleichen
+   * Sendung gehören.
    */
   async bulkDownloadLabels(
     orgId: string,
-    shipmentIds: string[],
+    labelIds: string[],
     markPrinted: boolean,
   ): Promise<{ buffer: Buffer; labelCount: number; errors: string[] }> {
-    if (!shipmentIds.length) {
-      throw new BadRequestException('Keine Sendungen ausgewählt');
+    if (!labelIds.length) {
+      throw new BadRequestException('Keine Labels ausgewählt');
     }
 
-    const shipments = await this.prisma.orderShipment.findMany({
-      where: { id: { in: shipmentIds }, orgId },
-      include: { labels: { orderBy: { sequenceNumber: 'asc' } } },
+    // Load labels scoped to this org (via shipment relation), preserving user-select order.
+    const labels = await this.prisma.orderShipmentLabel.findMany({
+      where: { id: { in: labelIds }, shipment: { orgId } },
+      select: {
+        id: true,
+        url: true,
+        format: true,
+        trackingNumber: true,
+      },
     });
+    const orderIndex = new Map(labelIds.map((id, i) => [id, i]));
+    labels.sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
 
-    // Keep user-selected order for the merged output (sort by index in shipmentIds)
-    const orderIndex = new Map(shipmentIds.map((id, i) => [id, i]));
-    shipments.sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
-
-    const targets: Array<{ labelId: string; url: string; tracking: string; format: string }> = [];
-    for (const s of shipments) {
-      for (const l of s.labels) {
-        if (l.format.startsWith('pdf_')) {
-          targets.push({ labelId: l.id, url: l.url, tracking: l.trackingNumber ?? '', format: l.format });
-        }
-      }
-    }
+    const targets: Array<{ labelId: string; url: string; tracking: string; format: string }> = labels
+      .filter((l) => l.format.startsWith('pdf_'))
+      .map((l) => ({
+        labelId: l.id,
+        url: l.url,
+        tracking: l.trackingNumber ?? '',
+        format: l.format,
+      }));
 
     if (targets.length === 0) {
       throw new BadRequestException(
-        'Keine druckbaren PDF-Labels in der Auswahl (nur HTML-Stub-Labels können nicht zusammengefügt werden)',
+        'Keine druckbaren PDF-Labels in der Auswahl (HTML-Stub-Labels können nicht zusammengefügt werden)',
       );
     }
 

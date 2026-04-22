@@ -296,15 +296,24 @@ export class ShippingController {
   @Post('labels/bulk-download')
   async bulkDownloadLabels(
     @Headers('authorization') authHeader: string,
-    @Body() body: { shipmentIds: string[]; markPrinted?: boolean },
+    @Body() body: { labelIds?: string[]; shipmentIds?: string[]; markPrinted?: boolean },
   ): Promise<StreamableFile> {
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    if (!body.shipmentIds?.length) throw new BadRequestException('shipmentIds erforderlich');
+    // Accept labelIds (primary) or legacy shipmentIds (resolved → all labels of those shipments)
+    let labelIds = body.labelIds ?? [];
+    if (!labelIds.length && body.shipmentIds?.length) {
+      const labels = await this.prisma.orderShipmentLabel.findMany({
+        where: { shipmentId: { in: body.shipmentIds }, shipment: { orgId } },
+        select: { id: true },
+      });
+      labelIds = labels.map((l) => l.id);
+    }
+    if (!labelIds.length) throw new BadRequestException('labelIds erforderlich');
     try {
       const result = await this.shipments.bulkDownloadLabels(
         orgId,
-        body.shipmentIds,
+        labelIds,
         body.markPrinted ?? false,
       );
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
