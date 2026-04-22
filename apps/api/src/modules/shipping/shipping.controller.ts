@@ -1,5 +1,6 @@
 import {
   Controller, Get, Post, Put, Delete, Param, Body, Query, Headers, Logger, BadRequestException,
+  StreamableFile,
 } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -286,6 +287,41 @@ export class ShippingController {
     assertCanWrite(role);
     if (!body.orderIds?.length || !body.carrier) throw new BadRequestException('orderIds und carrier erforderlich');
     return this.shipments.createBulk(orgId, userId, body.orderIds, body.carrier, body.carrierAccountId);
+  }
+
+  // ==========================================================
+  // BULK LABEL ACTIONS
+  // ==========================================================
+
+  @Post('labels/bulk-download')
+  async bulkDownloadLabels(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { shipmentIds: string[]; markPrinted?: boolean },
+  ): Promise<StreamableFile> {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body.shipmentIds?.length) throw new BadRequestException('shipmentIds erforderlich');
+    const result = await this.shipments.bulkDownloadLabels(
+      orgId,
+      body.shipmentIds,
+      body.markPrinted ?? false,
+    );
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    return new StreamableFile(result.buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="labels-${timestamp}.pdf"`,
+    });
+  }
+
+  @Post('labels/:labelId/mark-printed')
+  async markLabelPrinted(
+    @Headers('authorization') authHeader: string,
+    @Param('labelId') labelId: string,
+    @Body() body: { printed?: boolean },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.setLabelPrinted(orgId, labelId, body.printed ?? true);
   }
 
   @Post('shipments/:id/status')

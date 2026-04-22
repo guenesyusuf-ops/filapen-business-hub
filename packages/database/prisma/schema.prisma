@@ -2776,6 +2776,9 @@ model OrderShipmentLabel {
   url            String      @db.Text
   rawContent     String?     @map("raw_content") @db.Text // ZPL etc. for direct thermal print
   createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  // Print-Tracking: printedAt wird beim ersten Druck gesetzt, printCount bei jedem weiteren
+  printedAt      DateTime?   @map("printed_at") @db.Timestamptz
+  printCount     Int         @default(0) @map("print_count")
 
   shipment OrderShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 

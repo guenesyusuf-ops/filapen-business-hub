@@ -66,6 +66,23 @@ export const shippingApi = {
   regenerateLabel: (id: string) => call(`/shipments/${id}/regenerate-label`, { method: 'POST' }),
   deleteShipment: (id: string) => call(`/shipments/${id}`, { method: 'DELETE' }),
 
+  // Bulk label actions — returns a single merged PDF Blob for the given shipments
+  bulkDownloadLabels: async (shipmentIds: string[], markPrinted = false): Promise<Blob> => {
+    const res = await fetch(`${API_URL}/api/shipping/labels/bulk-download`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ shipmentIds, markPrinted }),
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
+      throw new Error(msg);
+    }
+    return res.blob();
+  },
+  markLabelPrinted: (labelId: string, printed = true) =>
+    call(`/labels/${labelId}/mark-printed`, { method: 'POST', body: JSON.stringify({ printed }) }),
+
   // Rules
   listRules: () => call<any[]>('/rules'),
   createRule: (data: any) => call('/rules', { method: 'POST', body: JSON.stringify(data) }),

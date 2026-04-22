@@ -8,6 +8,7 @@ import { ShippingRuleService } from './shipping-rule.service';
 import { ShippingEmailAutomationService } from './shipping-email-automation.service';
 import { ShopifyService } from '../integration/shopify/shopify.service';
 import type { ShipmentCreateInput } from './carriers/carrier-adapter.interface';
+import { PDFDocument } from 'pdf-lib';
 
 export interface CreateShipmentInput {
   orderId: string;
@@ -342,6 +343,104 @@ export class OrderShipmentService {
       }
     }
     return { results, total: orderIds.length, succeeded: results.filter((r) => r.shipmentId).length };
+  }
+
+  // ---------------------------------------------------------------------
+  // Bulk label actions — merge + print-tracking
+  // ---------------------------------------------------------------------
+
+  /**
+   * Merge all PDF labels for the given shipments into a single PDF buffer.
+   * Fetches each stored PDF (public R2 URL), concatenates pages with pdf-lib,
+   * and optionally marks the involved labels as printed.
+   */
+  async bulkDownloadLabels(
+    orgId: string,
+    shipmentIds: string[],
+    markPrinted: boolean,
+  ): Promise<{ buffer: Buffer; labelCount: number; errors: string[] }> {
+    if (!shipmentIds.length) {
+      throw new BadRequestException('Keine Sendungen ausgewählt');
+    }
+
+    const shipments = await this.prisma.orderShipment.findMany({
+      where: { id: { in: shipmentIds }, orgId },
+      include: { labels: { orderBy: { sequenceNumber: 'asc' } } },
+    });
+
+    // Keep user-selected order for the merged output (sort by index in shipmentIds)
+    const orderIndex = new Map(shipmentIds.map((id, i) => [id, i]));
+    shipments.sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
+
+    const targets: Array<{ labelId: string; url: string; tracking: string; format: string }> = [];
+    for (const s of shipments) {
+      for (const l of s.labels) {
+        if (l.format.startsWith('pdf_')) {
+          targets.push({ labelId: l.id, url: l.url, tracking: l.trackingNumber ?? '', format: l.format });
+        }
+      }
+    }
+
+    if (targets.length === 0) {
+      throw new BadRequestException(
+        'Keine druckbaren PDF-Labels in der Auswahl (nur HTML-Stub-Labels können nicht zusammengefügt werden)',
+      );
+    }
+
+    const errors: string[] = [];
+    const merged = await PDFDocument.create();
+
+    for (const t of targets) {
+      try {
+        const res = await fetch(t.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const pdfBytes = Buffer.from(await res.arrayBuffer());
+        const src = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+        const copied = await merged.copyPages(src, src.getPageIndices());
+        copied.forEach((p) => merged.addPage(p));
+      } catch (err: any) {
+        const msg = `${t.tracking || t.labelId}: ${err.message}`;
+        this.logger.warn(`bulkDownloadLabels — skip label: ${msg}`);
+        errors.push(msg);
+      }
+    }
+
+    if (merged.getPageCount() === 0) {
+      throw new BadRequestException(
+        `Kein Label konnte zusammengeführt werden. Fehler: ${errors.join('; ')}`,
+      );
+    }
+
+    const bytes = await merged.save();
+    const buffer = Buffer.from(bytes);
+
+    if (markPrinted) {
+      await this.prisma.orderShipmentLabel.updateMany({
+        where: { id: { in: targets.map((t) => t.labelId) } },
+        data: {
+          printedAt: new Date(),
+          printCount: { increment: 1 },
+        },
+      });
+    }
+
+    return { buffer, labelCount: merged.getPageCount(), errors };
+  }
+
+  /** Mark a single label printed / unprinted. */
+  async setLabelPrinted(orgId: string, labelId: string, printed: boolean) {
+    const label = await this.prisma.orderShipmentLabel.findFirst({
+      where: { id: labelId, shipment: { orgId } },
+      select: { id: true, printedAt: true },
+    });
+    if (!label) throw new NotFoundException('Label nicht gefunden');
+    await this.prisma.orderShipmentLabel.update({
+      where: { id: labelId },
+      data: printed
+        ? { printedAt: label.printedAt ?? new Date(), printCount: { increment: 1 } }
+        : { printedAt: null },
+    });
+    return { ok: true };
   }
 
   async setStatus(orgId: string, shipmentId: string, status: any, note?: string) {
