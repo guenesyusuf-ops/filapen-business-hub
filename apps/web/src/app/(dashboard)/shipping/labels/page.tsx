@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { QrCode, Printer, ExternalLink, Download, Check, Undo2, Loader2 } from 'lucide-react';
+import { QrCode, Printer, ExternalLink, Download, Check, Undo2, Loader2, Trash2 } from 'lucide-react';
 import { shippingApi, SHIPMENT_STATUS_LABELS, CARRIER_LABELS, fmtDateTime } from '@/lib/shipping';
 import { PageHeader, Empty, btn, Badge } from '@/components/shipping/ShippingUI';
 import { cn } from '@/lib/utils';
@@ -84,6 +84,29 @@ export default function ShippingLabelsPage() {
     printed: rows.filter((r) => !!r.printedAt).length,
     all: rows.length,
   }), [rows]);
+
+  // How many labels look like old stubs (HTML or tracking starts with STUB) — used
+  // to conditionally show the cleanup button.
+  const stubCount = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          r.labelUrl?.toLowerCase().endsWith('.html') ||
+          (r.trackingNumber ?? '').startsWith('STUB'),
+      ).length,
+    [rows],
+  );
+
+  async function cleanupStubs() {
+    if (!confirm(`${stubCount} Stub-Label(s) aus der Test-Phase (HTML statt echtes PDF) endgültig löschen?\n\nDie zugehörigen Sendungen werden mit entfernt. Echte DHL-Labels bleiben unberührt.`)) return;
+    try {
+      const res = await shippingApi.cleanupStubLabels();
+      alert(`${res.deletedShipments} Sendung(en) und ${res.deletedLabels} Label(s) gelöscht.`);
+      load();
+    } catch (e: any) {
+      alert(`Aufräumen fehlgeschlagen: ${e.message}`);
+    }
+  }
 
   const toggleAll = () => {
     if (selected.size === filtered.length && filtered.length > 0) setSelected(new Set());
@@ -196,11 +219,23 @@ export default function ShippingLabelsPage() {
     <div className="space-y-4">
       <PageHeader title="Labels" subtitle="Archiv und Druckverwaltung aller Versand-Labels" />
 
-      {/* Tabs */}
-      <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-2 inline-flex gap-1">
-        <TabButton active={tab === 'created'} onClick={() => setTab('created')} label="Erstellt" count={counts.created} />
-        <TabButton active={tab === 'printed'} onClick={() => setTab('printed')} label="Gedruckt" count={counts.printed} />
-        <TabButton active={tab === 'all'} onClick={() => setTab('all')} label="Alle" count={counts.all} />
+      {/* Tabs + Stub-Cleanup */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-2 inline-flex gap-1">
+          <TabButton active={tab === 'created'} onClick={() => setTab('created')} label="Erstellt" count={counts.created} />
+          <TabButton active={tab === 'printed'} onClick={() => setTab('printed')} label="Gedruckt" count={counts.printed} />
+          <TabButton active={tab === 'all'} onClick={() => setTab('all')} label="Alle" count={counts.all} />
+        </div>
+        {stubCount > 0 && (
+          <button
+            onClick={cleanupStubs}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-xs font-medium text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
+            title="Stub-Labels aus der Test-Phase löschen"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {stubCount} Stub-Label{stubCount === 1 ? '' : 's'} aufräumen
+          </button>
+        )}
       </div>
 
       {/* Bulk action bar */}

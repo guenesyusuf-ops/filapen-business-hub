@@ -461,6 +461,46 @@ export class OrderShipmentService {
     return { buffer, labelCount: merged.getPageCount(), errors };
   }
 
+  /**
+   * Aufräumen alter Stub-Sendungen (aus der Zeit bevor die DHL-API funktionierte).
+   * Identifikation:
+   *   - Tracking-Nr beginnt mit "STUB" (so erzeugt der Stub-Adapter Dummy-Nummern)
+   *   - ODER Label-URL endet auf .html (HTML-Stub-Labels statt echter PDFs)
+   * Löscht die zugehörigen Shipments komplett — mit Cascade auch Labels +
+   * Status-Events + E-Mail-Logs (falls Cascade auf dem Modell gesetzt ist).
+   */
+  async cleanupStubShipments(orgId: string): Promise<{ deletedShipments: number; deletedLabels: number }> {
+    const stubShipments = await this.prisma.orderShipment.findMany({
+      where: {
+        orgId,
+        OR: [
+          { trackingNumber: { startsWith: 'STUB' } },
+          { labels: { some: { url: { endsWith: '.html' } } } },
+        ],
+      },
+      select: { id: true, _count: { select: { labels: true } } },
+    });
+
+    if (stubShipments.length === 0) {
+      return { deletedShipments: 0, deletedLabels: 0 };
+    }
+
+    const ids = stubShipments.map((s) => s.id);
+    const deletedLabels = stubShipments.reduce((sum, s) => sum + s._count.labels, 0);
+
+    // Delete in order to avoid FK constraint hiccups when cascade isn't enforced at DB level
+    await this.prisma.orderShipmentLabel.deleteMany({ where: { shipmentId: { in: ids } } });
+    await this.prisma.orderShipmentStatusEvent.deleteMany({ where: { shipmentId: { in: ids } } });
+    // Email logs — best effort, table might not have shipmentId reference in all deployments
+    try {
+      await this.prisma.shippingEmailLog.deleteMany({ where: { shipmentId: { in: ids } } });
+    } catch {}
+    const del = await this.prisma.orderShipment.deleteMany({ where: { id: { in: ids }, orgId } });
+
+    this.logger.log(`cleanupStubShipments: ${del.count} shipments + ${deletedLabels} labels removed for org ${orgId}`);
+    return { deletedShipments: del.count, deletedLabels };
+  }
+
   /** Mark a single label printed / unprinted. */
   async setLabelPrinted(orgId: string, labelId: string, printed: boolean) {
     const label = await this.prisma.orderShipmentLabel.findFirst({

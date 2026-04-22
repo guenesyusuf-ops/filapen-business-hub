@@ -352,6 +352,13 @@ export class ShippingController {
     return this.shipments.setLabelPrinted(orgId, labelId, body.printed ?? true);
   }
 
+  @Post('labels/cleanup-stubs')
+  async cleanupStubLabels(@Headers('authorization') authHeader: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.cleanupStubShipments(orgId);
+  }
+
   @Post('shipments/:id/status')
   async setShipmentStatus(
     @Headers('authorization') authHeader: string,

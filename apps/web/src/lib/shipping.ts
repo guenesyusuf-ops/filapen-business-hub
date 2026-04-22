@@ -90,6 +90,8 @@ export const shippingApi = {
   },
   markLabelPrinted: (labelId: string, printed = true) =>
     call(`/labels/${labelId}/mark-printed`, { method: 'POST', body: JSON.stringify({ printed }) }),
+  cleanupStubLabels: () =>
+    call<{ deletedShipments: number; deletedLabels: number }>(`/labels/cleanup-stubs`, { method: 'POST' }),
 
   // Rules
   listRules: () => call<any[]>('/rules'),
