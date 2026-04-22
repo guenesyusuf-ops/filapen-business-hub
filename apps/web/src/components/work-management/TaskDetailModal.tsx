@@ -318,8 +318,11 @@ export function TaskDetailModal({
           visible ? 'translate-x-0' : 'translate-x-full',
         )}
       >
-        {/* Header with save button */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] flex-shrink-0">
+        {/* Header with save button — tighter padding on mobile for more content room */}
+        <div
+          className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] flex-shrink-0"
+          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+        >
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <button
               onClick={handleClose}

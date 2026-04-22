@@ -124,8 +124,8 @@ function CreateCampaignModal({ onClose, onCreated }: { onClose: () => void; onCr
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10">
+    <div className="fixed inset-0 z-50 bg-black/40 modal-overlay" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 modal-panel">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">Neue Kampagne</h3>
           <button onClick={onClose} className={btn('ghost', 'h-8 px-2 py-1 text-xs')}>Abbrechen</button>

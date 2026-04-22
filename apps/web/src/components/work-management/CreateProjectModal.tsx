@@ -30,12 +30,12 @@ export function CreateProjectModal({ open, onClose, onSubmit, loading }: CreateP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 modal-overlay">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-[#1a1d2e] border border-gray-200 dark:border-white/10 shadow-2xl p-6">
+      {/* Modal — bottom-sheet on mobile, centered on desktop */}
+      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-[#1a1d2e] border border-gray-200 dark:border-white/10 shadow-2xl p-5 sm:p-6 modal-panel">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"

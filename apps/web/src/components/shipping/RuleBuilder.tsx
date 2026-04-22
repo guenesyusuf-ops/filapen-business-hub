@@ -91,8 +91,8 @@ export function RuleBuilder({ initial, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/40 modal-overlay" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 modal-panel">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">{initial?.id ? 'Regel bearbeiten' : 'Neue Versandregel'}</h3>
           <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/10"><X className="h-4 w-4" /></button>
