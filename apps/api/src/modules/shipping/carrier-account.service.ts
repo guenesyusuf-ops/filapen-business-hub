@@ -40,12 +40,27 @@ export class CarrierAccountService {
       where: { orgId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
     });
-    // Never expose raw credentials — indicate presence only
-    return accounts.map((a) => ({
-      ...a,
-      credentials: undefined,
-      credentialsSet: !!(a.credentials && Object.keys(a.credentials as any).length > 0),
-    }));
+    // Never expose raw credentials — but surface non-sensitive flags the UI needs
+    // (e.g. sandbox/production mode) so the edit form can pre-select the right toggle.
+    return accounts.map((a) => {
+      let credentialsMode: 'sandbox' | 'production' | null = null;
+      try {
+        if (a.credentials && Object.keys(a.credentials as any).length > 0) {
+          const decrypted = decryptCredentials(a.credentials, this.secret);
+          if (decrypted?.mode === 'production' || decrypted?.mode === 'sandbox') {
+            credentialsMode = decrypted.mode;
+          }
+        }
+      } catch {
+        // If decryption ever fails (key change) we don't want listing to break
+      }
+      return {
+        ...a,
+        credentials: undefined,
+        credentialsSet: !!(a.credentials && Object.keys(a.credentials as any).length > 0),
+        credentialsMode,
+      };
+    });
   }
 
   async get(orgId: string, id: string, withCredentials = false) {
@@ -118,17 +133,28 @@ export class CarrierAccountService {
     if (data.notes !== undefined) patch.notes = data.notes?.trim() || null;
 
     if (data.credentials !== undefined) {
-      // Validate via adapter
+      // Merge with existing credentials: empty/missing fields in the payload do NOT wipe
+      // previously stored values. This lets the user tweak individual fields (e.g. only
+      // toggle sandbox→production) without re-entering every password.
+      const existingCreds = existing.credentials
+        ? (decryptCredentials(existing.credentials, this.secret) || {})
+        : {};
+      const incoming = data.credentials || {};
+      const merged: any = { ...existingCreds };
+      for (const [k, v] of Object.entries(incoming)) {
+        if (v === '' || v === null || v === undefined) continue;
+        merged[k] = v;
+      }
+      const hasAny = Object.keys(merged).length > 0;
+
       const adapter = this.registry.get(existing.carrier);
-      if (adapter.requiresCredentials && data.credentials && adapter.validateCredentials) {
-        const v = adapter.validateCredentials(data.credentials);
+      if (adapter.requiresCredentials && hasAny && adapter.validateCredentials) {
+        const v = adapter.validateCredentials(merged);
         patch.apiReady = v.ok;
       } else {
         patch.apiReady = !adapter.requiresCredentials;
       }
-      patch.credentials = data.credentials
-        ? encryptCredentials(data.credentials, this.secret)
-        : {};
+      patch.credentials = hasAny ? encryptCredentials(merged, this.secret) : {};
     }
 
     if (patch.isDefault) {

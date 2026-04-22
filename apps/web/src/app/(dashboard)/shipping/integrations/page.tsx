@@ -117,6 +117,10 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
   const [apiKey, setApiKey] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // Sandbox vs Production. Default to sandbox so first-time tests go against DHL's test env.
+  const [dhlMode, setDhlMode] = useState<'sandbox' | 'production'>(
+    account?.credentialsMode === 'production' ? 'production' : 'sandbox',
+  );
 
   // Sender
   const [senderName, setSenderName] = useState(account?.senderData?.name || '');
@@ -135,6 +139,8 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
     try {
       const credentials: any = {};
       if (carrier === 'dhl') {
+        // Mode is always included so a toggle without other changes still lands in the backend.
+        credentials.mode = dhlMode;
         if (billingNumber) credentials.billingNumber = billingNumber.trim();
         if (apiKey) credentials.apiKey = apiKey.trim();
         if (username) credentials.username = username.trim();
@@ -188,16 +194,58 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
           </div>
 
           {carrier === 'dhl' && (
-            <SectionCard title="DHL Business API">
-              <p className="text-xs text-gray-500 mb-3">
-                Sobald du DHL API-Zugang beantragt hast, trage die Daten hier ein. Ohne: das System funktioniert im Stub-Modus.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={labelCls()}>EKP-Nr / Billing-Nr</label><input value={billingNumber} onChange={(e) => setBillingNumber(e.target.value)} className={inputCls()} placeholder="1234567890" /></div>
-                <div><label className={labelCls()}>API-Key</label><input value={apiKey} onChange={(e) => setApiKey(e.target.value)} className={inputCls()} /></div>
-                <div><label className={labelCls()}>Username</label><input value={username} onChange={(e) => setUsername(e.target.value)} className={inputCls()} /></div>
-                <div><label className={labelCls()}>Passwort</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(unverändert lassen = nicht ändern)' : ''} /></div>
+            <SectionCard title="DHL Parcel DE Shipping API">
+              <div className="mb-3 space-y-2 text-xs">
+                <p className="text-gray-500">
+                  Credentials kombinieren <strong>zwei</strong> DHL-Portale:
+                </p>
+                <ul className="list-disc ml-5 text-gray-500 dark:text-gray-400 space-y-0.5">
+                  <li><strong>Developer Portal</strong> (developer.dhl.com): API Key (Client ID)</li>
+                  <li><strong>Geschäftskundenportal</strong> (geschaeftskunden.dhl.de): EKP-Nr, Username, Passwort</li>
+                </ul>
               </div>
+
+              <div className="mb-3">
+                <label className={labelCls()}>Umgebung</label>
+                <div className="inline-flex rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setDhlMode('sandbox')}
+                    className={`px-3 py-1.5 text-xs ${dhlMode === 'sandbox' ? 'bg-amber-500 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                  >
+                    Sandbox (Testing)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDhlMode('production')}
+                    className={`px-3 py-1.5 text-xs ${dhlMode === 'production' ? 'bg-green-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}`}
+                  >
+                    Produktion (Echte Labels)
+                  </button>
+                </div>
+                {dhlMode === 'sandbox' && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1.5">
+                    Sandbox = Test-Modus. Labels sind nicht versandfähig. Nutze eine Test-EKP (z.B. <code>33333333330101</code>) aus dem DHL Developer-Portal, nicht deine echte EKP.
+                  </p>
+                )}
+                {dhlMode === 'production' && (
+                  <p className="text-[11px] text-green-700 dark:text-green-400 mt-1.5">
+                    Produktion = echte Labels, echte Kosten. Deine EKP-Nr und Production-API-Key müssen hinterlegt sein.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls()}>EKP-Nr / Billing-Number</label><input value={billingNumber} onChange={(e) => setBillingNumber(e.target.value)} className={inputCls()} placeholder="10-stellig, z.B. 3333333333" /></div>
+                <div><label className={labelCls()}>API Key (Client ID)</label><input value={apiKey} onChange={(e) => setApiKey(e.target.value)} className={inputCls()} placeholder="vom Developer Portal" /></div>
+                <div><label className={labelCls()}>Username (Geschäftskundenportal)</label><input value={username} onChange={(e) => setUsername(e.target.value)} className={inputCls()} /></div>
+                <div><label className={labelCls()}>Passwort (Geschäftskundenportal)</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(leer = unverändert)' : ''} /></div>
+              </div>
+              {mode === 'edit' && (
+                <p className="text-[11px] text-gray-500 mt-2">
+                  Leere Felder beim Bearbeiten werden nicht überschrieben — bestehende Credentials bleiben erhalten.
+                </p>
+              )}
             </SectionCard>
           )}
 

@@ -4,18 +4,23 @@ import { buildLabelHtml } from './label-html-builder';
 import * as crypto from 'crypto';
 
 /**
- * DHL Carrier Adapter.
+ * DHL Carrier Adapter — Parcel DE Shipping v2 API.
  *
- * Current state: STUB MODE — falls back to HTML-Label generation without
- * real DHL API contact. Once the user has DHL Business Customer Portal
- * API credentials (EKP-Nr, App-ID, App-Token, User, Password), set
- * credentials.apiReady=true on the CarrierAccount and the real
- * calls below are activated.
+ * Supports two modes:
+ *   - "sandbox"    → https://api-sandbox.dhl.com/ (Testing, generates fake labels,
+ *                    use DHL-provided test EKP like 33333333330101)
+ *   - "production" → https://api-eu.dhl.com/ (real labels, real costs)
  *
- * DHL API endpoint (for future wire-up):
- *   POST https://api-eu.dhl.com/parcel/de/shipping/v2/orders
- * Required fields: billingNumber, shipper, consignee, details (weight, dim).
- * See https://developer.dhl.com/api-reference/parcel-germany-post-parcel-api
+ * Credentials are combined from two DHL portals:
+ *   - Developer Portal (developer.dhl.com):
+ *       apiKey     (Client ID, sent as `dhl-api-key` header)
+ *   - Geschäftskundenportal (geschaeftskunden.dhl.de):
+ *       billingNumber (EKP-Nr, in request body)
+ *       username      (portal login, Basic Auth)
+ *       password      (portal login, Basic Auth)
+ *
+ * If credentials are missing/incomplete → STUB mode (HTML fallback label).
+ * API docs: https://developer.dhl.com/api-reference/parcel-germany-post-parcel-api
  */
 @Injectable()
 export class DhlCarrierAdapter implements CarrierAdapter {
@@ -26,86 +31,262 @@ export class DhlCarrierAdapter implements CarrierAdapter {
 
   validateCredentials(credentials: any): { ok: boolean; error?: string } {
     if (!credentials) return { ok: false, error: 'Keine Credentials hinterlegt' };
-    // DHL Business API needs: billingNumber (EKP), username, password
+    if (!credentials.apiKey) return { ok: false, error: 'API Key (Client ID vom Developer Portal) fehlt' };
     if (!credentials.billingNumber) return { ok: false, error: 'EKP-Nr (billingNumber) fehlt' };
     if (!credentials.username || !credentials.password) {
-      return { ok: false, error: 'Username/Password fehlt' };
+      return { ok: false, error: 'Geschäftskundenportal-Username/Password fehlt' };
     }
     return { ok: true };
   }
 
   async createShipment(input: ShipmentCreateInput, credentials: any | null): Promise<CarrierShipmentResult> {
-    // If credentials are missing or flagged as not-ready → STUB mode.
-    // This lets the user test the whole flow (generate labels, print, track
-    // manually) before the DHL API contract is live.
-    const apiReady = credentials && this.validateCredentials(credentials).ok;
+    const validation = credentials ? this.validateCredentials(credentials) : { ok: false };
 
-    if (!apiReady) {
-      this.logger.warn(`DHL in STUB mode — no API credentials. Generating local HTML label.`);
-      const trackingNumber = this.generateStubTrackingNumber();
-      const html = buildLabelHtml(input, {
-        carrier: 'DHL',
-        trackingNumber,
-        format: 'pdf_100x150',
-        note: 'Stub-Label (ohne DHL-API). Tracking manuell bei DHL anlegen.',
-      });
-      return {
-        trackingNumber,
-        trackingUrl: `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${trackingNumber}`,
-        labelFormat: 'pdf_100x150',
-        labelHtml: html,
-        costCents: null,
-        currency: null,
-      };
+    if (!validation.ok) {
+      this.logger.warn(`DHL in STUB mode — credentials incomplete. Generating local HTML label.`);
+      return this.stubLabel(input);
     }
 
-    // TODO: Once DHL API credentials are provided, implement real call:
-    //
-    // const response = await fetch('https://api-eu.dhl.com/parcel/de/shipping/v2/orders', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': 'Basic ' + Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64'),
-    //     'dhl-api-key': credentials.apiKey,
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: JSON.stringify({
-    //     profile: 'STANDARD_GRUPPENPROFIL',
-    //     shipments: [{
-    //       product: input.shippingMethod || 'V01PAK',
-    //       billingNumber: credentials.billingNumber,
-    //       refNo: input.reference || input.orderId,
-    //       shipper: { name1: input.sender.name, addressStreet: input.sender.address.street, postalCode: input.sender.address.zip, city: input.sender.address.city, country: input.sender.address.country },
-    //       consignee: { name1: input.recipient.name, addressStreet: input.recipient.address.street, postalCode: input.recipient.address.zip, city: input.recipient.address.city, country: input.recipient.address.country, email: input.recipient.email, phone: input.recipient.phone },
-    //       details: { weight: { uom: 'kg', value: input.weightG / 1000 }, dim: input.lengthMm && input.widthMm && input.heightMm ? { uom: 'mm', length: input.lengthMm, width: input.widthMm, height: input.heightMm } : undefined },
-    //     }],
-    //   }),
-    // });
-    // const data = await response.json();
-    // return {
-    //   trackingNumber: data.items[0].shipmentNo,
-    //   trackingUrl: data.items[0].url,
-    //   labelFormat: 'pdf_100x150',
-    //   labelPdfBase64: data.items[0].label.b64,
-    //   costCents: Math.round((data.items[0].cost || 0) * 100),
-    //   currency: 'EUR',
-    // };
+    const mode: 'sandbox' | 'production' = credentials.mode === 'production' ? 'production' : 'sandbox';
+    const baseUrl = mode === 'production'
+      ? 'https://api-eu.dhl.com'
+      : 'https://api-sandbox.dhl.com';
+    const endpoint = `${baseUrl}/parcel/de/shipping/v2/orders`;
 
-    throw new Error('DHL API integration TODO — credentials provided but live API not yet implemented');
+    const product = this.pickProduct(input);
+    const body = this.buildRequestBody(input, credentials.billingNumber, product);
+
+    const basicAuth = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
+
+    this.logger.log(`DHL [${mode}] POST ${endpoint} — product=${product}, ref=${input.reference ?? input.orderId}`);
+
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+          'dhl-api-key': credentials.apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err: any) {
+      throw new Error(`DHL API nicht erreichbar: ${err.message}`);
+    }
+
+    const text = await response.text();
+    let data: any;
+    try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+
+    if (!response.ok) {
+      const msg = this.formatDhlError(response.status, data);
+      this.logger.error(`DHL API ${response.status}: ${msg}`);
+      throw new Error(`DHL (${response.status}): ${msg}`);
+    }
+
+    const item = data?.items?.[0];
+    if (!item?.shipmentNo) {
+      throw new Error(`DHL-Antwort ohne shipmentNo — Payload: ${JSON.stringify(data).slice(0, 500)}`);
+    }
+
+    const labelB64: string | undefined = item.label?.b64;
+    const trackingUrl: string | undefined = item.label?.url
+      ?? `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${item.shipmentNo}`;
+
+    const costAmount = typeof item.cost?.amount === 'number' ? item.cost.amount
+      : typeof item.cost === 'number' ? item.cost
+      : null;
+
+    this.logger.log(`DHL [${mode}] OK — shipmentNo=${item.shipmentNo}`);
+
+    return {
+      trackingNumber: item.shipmentNo,
+      trackingUrl,
+      labelFormat: 'pdf_100x150',
+      labelPdfBase64: labelB64,
+      // HTML fallback only if DHL didn't return a PDF (shouldn't happen, but safety net)
+      labelHtml: labelB64 ? undefined : buildLabelHtml(input, {
+        carrier: 'DHL',
+        trackingNumber: item.shipmentNo,
+        format: 'pdf_100x150',
+        note: `DHL ${mode} — Label wurde erzeugt, PDF fehlt in Response.`,
+      }),
+      costCents: costAmount != null ? Math.round(costAmount * 100) : null,
+      currency: item.cost?.currency || 'EUR',
+    };
   }
 
   async getTracking(trackingNumber: string, credentials: any | null): Promise<CarrierTrackingResult | null> {
-    if (!credentials || !this.validateCredentials(credentials).ok) {
-      return null; // Stub mode — tracking updates must be entered manually
+    if (!credentials || !this.validateCredentials(credentials).ok) return null;
+
+    const mode: 'sandbox' | 'production' = credentials.mode === 'production' ? 'production' : 'sandbox';
+    const baseUrl = mode === 'production' ? 'https://api-eu.dhl.com' : 'https://api-sandbox.dhl.com';
+    const url = `${baseUrl}/parcel/de/tracking/v0/shipments/${encodeURIComponent(trackingNumber)}`;
+
+    try {
+      const res = await fetch(url, {
+        headers: { 'dhl-api-key': credentials.apiKey, Accept: 'application/json' },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      // DHL Tracking API response parsing — minimal for now
+      const shipment = data?.shipments?.[0];
+      if (!shipment) return null;
+      const mappedStatus = this.mapDhlStatus(shipment.status?.statusCode || shipment.status?.status);
+      return {
+        status: mappedStatus,
+        events: (shipment.events || []).map((e: any) => ({
+          status: this.mapDhlStatus(e.statusCode || e.status),
+          occurredAt: new Date(e.timestamp),
+          note: e.description || e.status || null,
+          rawData: e,
+        })),
+      };
+    } catch (err: any) {
+      this.logger.warn(`DHL tracking fetch failed for ${trackingNumber}: ${err.message}`);
+      return null;
     }
-    // TODO: Real tracking via DHL API
-    //   GET https://api-eu.dhl.com/parcel/de/tracking/v0/shipments/{trackingNumber}
-    this.logger.debug(`DHL tracking API TODO for ${trackingNumber}`);
-    return null;
   }
 
-  private generateStubTrackingNumber(): string {
-    // DHL format looks like: 00340434161094017299
-    const base = crypto.randomBytes(8).toString('hex').toUpperCase();
-    return `STUB${Date.now().toString().slice(-8)}${base.slice(0, 6)}`;
+  // -----------------------------------------------------------------
+  // Helpers
+  // -----------------------------------------------------------------
+
+  private stubLabel(input: ShipmentCreateInput): CarrierShipmentResult {
+    const trackingNumber = `STUB${Date.now().toString().slice(-8)}${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    return {
+      trackingNumber,
+      trackingUrl: `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${trackingNumber}`,
+      labelFormat: 'pdf_100x150',
+      labelHtml: buildLabelHtml(input, {
+        carrier: 'DHL',
+        trackingNumber,
+        format: 'pdf_100x150',
+        note: 'Stub-Label (keine DHL-Credentials). Tracking manuell bei DHL anlegen.',
+      }),
+      costCents: null,
+      currency: null,
+    };
+  }
+
+  /**
+   * Auto-pick DHL product based on recipient country.
+   * User can override via input.shippingMethod.
+   */
+  private pickProduct(input: ShipmentCreateInput): string {
+    if (input.shippingMethod) return input.shippingMethod;
+    const country = (input.recipient.address.country || 'DE').toUpperCase();
+    if (country === 'DE') return 'V01PAK'; // DHL Paket National
+    const EU_COUNTRIES = ['AT','BE','BG','CY','CZ','DK','EE','ES','FI','FR','GR','HR','HU','IE','IT','LT','LU','LV','MT','NL','PL','PT','RO','SE','SI','SK'];
+    if (EU_COUNTRIES.includes(country)) return 'V54EPAK'; // Europaket
+    return 'V53WPAK'; // Weltpaket
+  }
+
+  private buildRequestBody(input: ShipmentCreateInput, billingNumber: string, product: string) {
+    // DHL expects ISO 3166-1 alpha-3 country codes (DEU, FRA, …)
+    const shipperCountry = this.iso2to3(input.sender.address.country);
+    const consigneeCountry = this.iso2to3(input.recipient.address.country);
+
+    // Street: DHL expects "addressStreet" (name) + "addressHouse" (number) separately.
+    // If house number not split out, DHL accepts the concatenated street as addressStreet.
+    const shipperStreet = this.combineStreet(input.sender.address.street, input.sender.address.houseNumber);
+    const consigneeStreet = this.combineStreet(input.recipient.address.street, input.recipient.address.houseNumber);
+
+    return {
+      profile: 'STANDARD_GRUPPENPROFIL',
+      shipments: [
+        {
+          product,
+          billingNumber,
+          refNo: (input.reference || input.orderId).slice(0, 35),
+          shipper: {
+            name1: (input.sender.name || 'Filapen').slice(0, 50),
+            addressStreet: shipperStreet.slice(0, 50),
+            postalCode: input.sender.address.zip,
+            city: input.sender.address.city.slice(0, 40),
+            country: shipperCountry,
+            email: input.sender.email || undefined,
+            phone: input.sender.phone || undefined,
+          },
+          consignee: {
+            name1: (input.recipient.name || 'Empfänger').slice(0, 50),
+            addressStreet: consigneeStreet.slice(0, 50),
+            addressHouse: undefined, // merged into addressStreet
+            additionalAddressInformation1: input.recipient.address.address2 || undefined,
+            postalCode: input.recipient.address.zip,
+            city: input.recipient.address.city.slice(0, 40),
+            country: consigneeCountry,
+            email: input.recipient.email || undefined,
+            phone: input.recipient.phone || undefined,
+          },
+          details: {
+            weight: {
+              uom: 'kg',
+              // DHL minimum 1g; anything below is suspicious → default to 1kg
+              value: Math.max(0.001, (input.weightG || 1000) / 1000),
+            },
+            ...(input.lengthMm && input.widthMm && input.heightMm
+              ? { dim: { uom: 'mm', length: input.lengthMm, width: input.widthMm, height: input.heightMm } }
+              : {}),
+          },
+        },
+      ],
+    };
+  }
+
+  private combineStreet(street: string, houseNumber?: string): string {
+    const s = (street || '').trim();
+    const h = (houseNumber || '').trim();
+    return h && !s.includes(h) ? `${s} ${h}` : s;
+  }
+
+  /**
+   * Convert ISO 3166-1 alpha-2 → alpha-3 (DHL requires alpha-3).
+   * Subset covers EU + major international destinations; unknown codes pass through.
+   */
+  private iso2to3(code: string | undefined): string {
+    const map: Record<string, string> = {
+      DE: 'DEU', AT: 'AUT', CH: 'CHE', FR: 'FRA', BE: 'BEL', NL: 'NLD', LU: 'LUX',
+      IT: 'ITA', ES: 'ESP', PT: 'PRT', GB: 'GBR', UK: 'GBR', IE: 'IRL', DK: 'DNK',
+      SE: 'SWE', NO: 'NOR', FI: 'FIN', IS: 'ISL', PL: 'POL', CZ: 'CZE', SK: 'SVK',
+      HU: 'HUN', SI: 'SVN', HR: 'HRV', RO: 'ROU', BG: 'BGR', GR: 'GRC', CY: 'CYP',
+      MT: 'MLT', EE: 'EST', LT: 'LTU', LV: 'LVA', US: 'USA', CA: 'CAN', AU: 'AUS',
+      NZ: 'NZL', JP: 'JPN', CN: 'CHN', KR: 'KOR', RU: 'RUS', TR: 'TUR', BR: 'BRA',
+      MX: 'MEX', IN: 'IND', ZA: 'ZAF', LI: 'LIE', MC: 'MCO', SM: 'SMR', VA: 'VAT',
+    };
+    const c = (code || 'DE').toUpperCase();
+    return map[c] || (c.length === 3 ? c : 'DEU');
+  }
+
+  private formatDhlError(status: number, data: any): string {
+    // DHL returns detailed validation errors in items[*].validationMessages
+    if (data?.items?.length) {
+      const msgs: string[] = [];
+      for (const item of data.items) {
+        if (Array.isArray(item.validationMessages)) {
+          for (const v of item.validationMessages) {
+            msgs.push(`${v.property || 'Feld'}: ${v.validationMessage || 'ungültig'}`);
+          }
+        }
+        if (item.message) msgs.push(item.message);
+      }
+      if (msgs.length) return msgs.slice(0, 3).join(' | ');
+    }
+    return data?.detail || data?.title || data?.message || data?.raw || `HTTP ${status}`;
+  }
+
+  private mapDhlStatus(code: string | undefined): CarrierTrackingResult['status'] {
+    // DHL uses German-language codes internally — cover the common ones
+    const s = (code || '').toLowerCase();
+    if (s.includes('deliver') || s.includes('zugestellt')) return 'delivered';
+    if (s.includes('transit') || s.includes('unterwegs')) return 'in_transit';
+    if (s.includes('out_for_delivery') || s.includes('zustellung')) return 'out_for_delivery';
+    if (s.includes('pickup') || s.includes('abhol')) return 'ready_for_pickup';
+    if (s.includes('return') || s.includes('retour')) return 'returned';
+    if (s.includes('fail') || s.includes('nicht zustellbar')) return 'delivery_failed';
+    if (s.includes('exception') || s.includes('fehler')) return 'exception';
+    return 'in_transit';
   }
 }
