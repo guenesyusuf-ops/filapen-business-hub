@@ -1302,6 +1302,103 @@ export class ShopifyService {
   }
 
   /**
+   * Mark a Shopify order as fulfilled with tracking info.
+   * Uses the modern FulfillmentOrder API (2024-01):
+   *   1. GET fulfillment_orders for the order → get fulfillment_order_id
+   *   2. POST fulfillments with tracking_info + line_items_by_fulfillment_order
+   *
+   * Shopify emails the customer automatically (if notify_customer=true) and
+   * marks the order as fulfilled/shipped.
+   *
+   * Fire-and-forget safe: returns { ok, error } — never throws.
+   */
+  async fulfillOrder(
+    orgId: string,
+    internalOrderId: string,
+    params: {
+      trackingNumber: string;
+      trackingUrl?: string | null;
+      carrierName: string; // e.g. "DHL"
+      notifyCustomer?: boolean;
+    },
+  ): Promise<{ ok: boolean; error?: string; fulfillmentId?: number }> {
+    try {
+      const order = await this.prisma.order.findFirst({
+        where: { id: internalOrderId, orgId },
+        select: {
+          externalId: true,
+          shop: { select: { integrationId: true } },
+        },
+      });
+      if (!order) return { ok: false, error: 'Order not found' };
+      if (!order.shop?.integrationId) return { ok: false, error: 'Order has no integration' };
+
+      const integration = await this.prisma.integration.findUnique({
+        where: { id: order.shop.integrationId },
+      });
+      if (!integration || integration.type !== 'shopify') {
+        return { ok: false, error: 'Integration is not Shopify' };
+      }
+      if (integration.status !== 'connected') {
+        return { ok: false, error: `Integration status is '${integration.status}', not 'connected'` };
+      }
+
+      const { accessToken, shopDomain } = this.decryptCredentials(
+        integration.credentials as Record<string, string>,
+      );
+
+      // 1) Find fulfillment orders that are still fulfillable
+      const foResp = await this.shopifyApiGet<{
+        fulfillment_orders: Array<{ id: number; status: string }>;
+      }>(
+        shopDomain,
+        accessToken,
+        `/admin/api/2024-01/orders/${order.externalId}/fulfillment_orders.json`,
+      );
+
+      const openFOs = (foResp.fulfillment_orders || []).filter((fo) =>
+        ['open', 'in_progress', 'scheduled'].includes(fo.status),
+      );
+
+      if (openFOs.length === 0) {
+        return {
+          ok: false,
+          error: `No open fulfillment orders — possibly already fulfilled or closed`,
+        };
+      }
+
+      // 2) Create fulfillment with tracking info — covers ALL open FOs
+      const body = {
+        fulfillment: {
+          message: `Versendet via ${params.carrierName}`,
+          notify_customer: params.notifyCustomer ?? true,
+          tracking_info: {
+            number: params.trackingNumber,
+            ...(params.trackingUrl ? { url: params.trackingUrl } : {}),
+            company: params.carrierName,
+          },
+          line_items_by_fulfillment_order: openFOs.map((fo) => ({
+            fulfillment_order_id: fo.id,
+          })),
+        },
+      };
+
+      const result = await this.shopifyApiPost<{
+        fulfillment?: { id: number };
+      }>(shopDomain, accessToken, '/admin/api/2024-01/fulfillments.json', body);
+
+      this.logger.log(
+        `Shopify fulfillment created for order ${order.externalId}: fulfillment_id=${result.fulfillment?.id}, tracking=${params.trackingNumber}`,
+      );
+      return { ok: true, fulfillmentId: result.fulfillment?.id };
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      this.logger.warn(`fulfillOrder(${internalOrderId}) failed: ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /**
    * Decrypt credentials retrieved from the database.
    */
   decryptCredentials(

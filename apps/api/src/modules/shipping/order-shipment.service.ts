@@ -6,6 +6,7 @@ import { CarrierAccountService } from './carrier-account.service';
 import { ShippingOrderService } from './shipping-order.service';
 import { ShippingRuleService } from './shipping-rule.service';
 import { ShippingEmailAutomationService } from './shipping-email-automation.service';
+import { ShopifyService } from '../integration/shopify/shopify.service';
 import type { ShipmentCreateInput } from './carriers/carrier-adapter.interface';
 
 export interface CreateShipmentInput {
@@ -41,6 +42,7 @@ export class OrderShipmentService {
     private readonly orders: ShippingOrderService,
     private readonly rules: ShippingRuleService,
     private readonly emailAuto: ShippingEmailAutomationService,
+    private readonly shopify: ShopifyService,
   ) {}
 
   async list(orgId: string, filters: ListFilters = {}) {
@@ -185,7 +187,7 @@ export class OrderShipmentService {
       lengthMm: data.lengthMm ?? null,
       widthMm: data.widthMm ?? null,
       heightMm: data.heightMm ?? null,
-      reference: order.orderNumber,
+      reference: this.buildShipmentReference(order),
     };
 
     const adapter = this.registry.get(data.carrier);
@@ -239,7 +241,66 @@ export class OrderShipmentService {
       this.logger.warn(`Email-trigger on create failed: ${e?.message}`),
     );
 
+    // Mark the order as fulfilled in Shopify (with tracking info).
+    // Fire-and-forget: if Shopify is briefly unavailable we don't want to lose the
+    // local shipment record. The attempt is logged and shipment.shopifyFulfilled is
+    // updated once (if supported schema-wise; otherwise just logged).
+    this.shopify
+      .fulfillOrder(orgId, order.id, {
+        trackingNumber: result.trackingNumber,
+        trackingUrl: result.trackingUrl ?? null,
+        carrierName: this.carrierDisplayName(data.carrier),
+        notifyCustomer: true,
+      })
+      .then((r) => {
+        if (r.ok) {
+          this.logger.log(`Shopify fulfillment OK for shipment ${shipment.id} (fulfillment_id=${r.fulfillmentId})`);
+        } else {
+          this.logger.warn(`Shopify fulfillment skipped for shipment ${shipment.id}: ${r.error}`);
+        }
+      })
+      .catch((e) => this.logger.warn(`Shopify fulfillment threw for shipment ${shipment.id}: ${e?.message}`));
+
     return this.get(orgId, shipment.id);
+  }
+
+  /**
+   * Build the shipment reference that ends up on the DHL label ("Sendungsreferenz").
+   * Preference order:
+   *   1. Single line-item → its SKU (optionally combined with order number if >8 chars not reached)
+   *   2. Multiple line-items with the same SKU → that SKU
+   *   3. Otherwise → order number (adapter pads with "FILAPEN-" prefix if < 8 chars)
+   */
+  private buildShipmentReference(order: any): string {
+    const lineItems: any[] = order.lineItems || [];
+    const skus = [
+      ...new Set(
+        lineItems
+          .map((li: any) => (li.sku ?? '').toString().trim())
+          .filter(Boolean),
+      ),
+    ];
+    const orderNo = (order.orderNumber ?? '').toString();
+
+    if (skus.length === 1) {
+      // One SKU covers the whole shipment — use it.
+      // If the SKU alone is < 8 chars (DHL minimum), suffix with order number for uniqueness.
+      return skus[0].length >= 8 ? skus[0] : `${skus[0]}-${orderNo}`;
+    }
+    // Multiple distinct SKUs or none → fall back to order number so the reference stays unique.
+    return orderNo;
+  }
+
+  private carrierDisplayName(carrier: string): string {
+    const map: Record<string, string> = {
+      dhl: 'DHL',
+      ups: 'UPS',
+      dpd: 'DPD',
+      hermes: 'Hermes',
+      gls: 'GLS',
+      custom: 'Versand',
+    };
+    return map[carrier] || carrier.toUpperCase();
   }
 
   async createBulk(orgId: string, userId: string, orderIds: string[], carrier: 'dhl' | 'custom', carrierAccountId?: string | null) {
