@@ -317,6 +317,8 @@ export class AmazonService {
 
       this.logger.log(`getOrderMetrics: interval=${interval}, granularity=${granularity}`);
 
+      // Kein buyerType-Filter: die API soll alles liefern (Consumer + B2B
+      // werden im payloadArr summiert falls die API sie getrennt liefert).
       const res: any = await this.callWithRetry({
         operation: 'getOrderMetrics',
         endpoint: 'sales',
@@ -324,14 +326,10 @@ export class AmazonService {
           marketplaceIds: this.marketplaceIds,
           interval,
           granularity,
-          // Explizit All (B2B + Consumer) damit die API nicht zwei separate
-          // payloads (B2B und C) liefert — das hätte zu Verdopplung im
-          // Fallback-Summieren geführt.
-          buyerType: 'All',
         },
       });
 
-      this.logger.log(`getOrderMetrics result: ${JSON.stringify(res).slice(0, 500)}`);
+      this.logger.log(`[SALES_API_RAW] ${JSON.stringify(res).slice(0, 1500)}`);
       return res;
     } catch (err: any) {
       this.logger.error(`getOrderMetrics failed: ${err.message}`);
@@ -533,13 +531,21 @@ export class AmazonService {
     }
 
     // Final values: Sales API ist Source of Truth (matcht Seller Central exakt).
-    // Fallback (Sales API null): NUR bestätigte Shipped-Revenue nehmen — NICHT
-    // shipped + pendingEstimate, das führte zu ~2× Verdopplung wenn
-    // #Pending ≈ #Shipped (zufällig oft bei Multi-Market "Heute"-Ansicht).
-    // User sieht dann lieber etwas zu wenig (die pending fehlen) statt
-    // stark überzogene Fantasie-Zahlen.
-    const finalRevenue = salesRevenue ?? totalEstimate.shippedRevenue;
+    // Fallback (Sales API null) mit Guard gegen Verdopplung:
+    //   - shippedRevenue immer genommen (bestätigt via OrderTotal.Amount)
+    //   - pendingEstimate nur bis maximal 50% von shippedRevenue
+    //     (Schutz vor Inflate wenn #Pending >= #Shipped, was bei
+    //     Multi-Market "Heute" zufällig zu 2× führen kann)
+    const cappedPendingEstimate = Math.min(
+      totalEstimate.pendingEstimate,
+      totalEstimate.shippedRevenue * 0.5,
+    );
+    const fallbackRevenue = totalEstimate.shippedRevenue + cappedPendingEstimate;
+    const finalRevenue = salesRevenue ?? fallbackRevenue;
     const finalOrderCount = salesOrderCount ?? orders.length;
+    this.logger.log(
+      `[REVENUE_CHOICE] salesRevenue=${salesRevenue} fallback=${fallbackRevenue} (shipped=${totalEstimate.shippedRevenue}, pending=${totalEstimate.pendingEstimate}, cappedPending=${cappedPendingEstimate}) → final=${finalRevenue}`,
+    );
 
     this.logger.log(`Final: ${finalOrderCount} orders, ${finalRevenue}€ (source: ${salesRevenue != null ? 'Sales API' : 'Orders API estimate'})`);
     this.logger.log(`Status: ${JSON.stringify(statusBreakdown)}`);
