@@ -115,6 +115,7 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
   // Credentials (DHL specific + generic)
   const [billingNumber, setBillingNumber] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   // Sandbox vs Production. Default to sandbox so first-time tests go against DHL's test env.
@@ -143,6 +144,7 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
         credentials.mode = dhlMode;
         if (billingNumber) credentials.billingNumber = billingNumber.trim();
         if (apiKey) credentials.apiKey = apiKey.trim();
+        if (apiSecret) credentials.apiSecret = apiSecret.trim();
         if (username) credentials.username = username.trim();
         if (password) credentials.password = password;
       }
@@ -238,8 +240,13 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={labelCls()}>EKP-Nr / Billing-Number</label><input value={billingNumber} onChange={(e) => setBillingNumber(e.target.value)} className={inputCls()} placeholder="10-stellig, z.B. 3333333333" /></div>
                 <div><label className={labelCls()}>API Key (Client ID)</label><input value={apiKey} onChange={(e) => setApiKey(e.target.value)} className={inputCls()} placeholder="vom Developer Portal" /></div>
-                <div><label className={labelCls()}>Username (Geschäftskundenportal)</label><input value={username} onChange={(e) => setUsername(e.target.value)} className={inputCls()} /></div>
-                <div><label className={labelCls()}>Passwort (Geschäftskundenportal)</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(leer = unverändert)' : ''} /></div>
+                <div><label className={labelCls()}>API Secret (Client Secret)</label><input type="password" value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(leer = unverändert)' : 'vom Developer Portal'} /></div>
+                <div></div>
+                <div><label className={labelCls()}>Username (Geschäftskundenportal)</label><input value={username} onChange={(e) => setUsername(e.target.value)} className={inputCls()} placeholder="optional bei API-Key-Auth" /></div>
+                <div><label className={labelCls()}>Passwort (Geschäftskundenportal)</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(leer = unverändert)' : 'optional'} /></div>
+              </div>
+              <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-2 text-[11px] text-blue-800 dark:text-blue-300">
+                <strong>Basic-Auth:</strong> DHL akzeptiert entweder <code>Username:Passwort</code> (Geschäftskundenportal) ODER <code>API-Key:API-Secret</code> (Developer Portal). Das System probiert automatisch beide durch, falls konfiguriert.
               </div>
               {mode === 'edit' && (
                 <p className="text-[11px] text-gray-500 mt-2">

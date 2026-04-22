@@ -33,8 +33,16 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     if (!credentials) return { ok: false, error: 'Keine Credentials hinterlegt' };
     if (!credentials.apiKey) return { ok: false, error: 'API Key (Client ID vom Developer Portal) fehlt' };
     if (!credentials.billingNumber) return { ok: false, error: 'EKP-Nr (billingNumber) fehlt' };
-    if (!credentials.username || !credentials.password) {
-      return { ok: false, error: 'Geschäftskundenportal-Username/Password fehlt' };
+    // Basic-Auth kann entweder über Geschäftskundenportal-User/Pwd ODER über
+    // API-Key/Secret gehen (letzteres für neuere Parcel-DE-Shipping-v2 Setups).
+    // Mind. eines der beiden Paare muss vollständig sein.
+    const hasUserPwd = !!credentials.username && !!credentials.password;
+    const hasApiSecret = !!credentials.apiSecret;
+    if (!hasUserPwd && !hasApiSecret) {
+      return {
+        ok: false,
+        error: 'Entweder Username+Passwort (Geschäftskundenportal) ODER API Secret (Developer Portal) erforderlich',
+      };
     }
     return { ok: true };
   }
@@ -56,34 +64,67 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     const product = this.pickProduct(input);
     const body = this.buildRequestBody(input, credentials.billingNumber, product);
 
-    const basicAuth = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
-
-    this.logger.log(`DHL [${mode}] POST ${endpoint} — product=${product}, ref=${input.reference ?? input.orderId}`);
-
-    let response: Response;
-    try {
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${basicAuth}`,
-          'dhl-api-key': credentials.apiKey,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(body),
+    // Pick Basic-Auth strategy. Prefer user/password (legacy, Geschäftskundenportal).
+    // Fallback: API-Key/Secret (new Parcel DE Shipping v2 style for some setups).
+    // We'll try one, and if 401, retry with the other automatically — logs will make
+    // clear which one finally worked.
+    const authAttempts: Array<{ label: string; basic: string }> = [];
+    if (credentials.username && credentials.password) {
+      authAttempts.push({
+        label: `user="${credentials.username}"`,
+        basic: Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64'),
       });
-    } catch (err: any) {
-      throw new Error(`DHL API nicht erreichbar: ${err.message}`);
+    }
+    if (credentials.apiSecret) {
+      authAttempts.push({
+        label: `apiKey+apiSecret`,
+        basic: Buffer.from(`${credentials.apiKey}:${credentials.apiSecret}`).toString('base64'),
+      });
+    }
+    if (authAttempts.length === 0) {
+      throw new Error('Keine Basic-Auth-Credentials konfiguriert (weder user/pwd noch apiSecret)');
     }
 
-    const text = await response.text();
-    let data: any;
-    try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+    this.logger.log(`DHL [${mode}] POST ${endpoint} — product=${product}, ref=${input.reference ?? input.orderId}, authAttempts=[${authAttempts.map((a) => a.label).join(', ')}]`);
 
-    if (!response.ok) {
-      const msg = this.formatDhlError(response.status, data);
-      this.logger.error(`DHL API ${response.status}: ${msg}`);
-      throw new Error(`DHL (${response.status}): ${msg}`);
+    let response: Response | null = null;
+    let data: any = {};
+    let lastError = '';
+    for (const attempt of authAttempts) {
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${attempt.basic}`,
+            'dhl-api-key': credentials.apiKey,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+      } catch (err: any) {
+        throw new Error(`DHL API nicht erreichbar: ${err.message}`);
+      }
+
+      const text = await response.text();
+      try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+
+      if (response.ok) {
+        this.logger.log(`DHL auth OK via ${attempt.label}`);
+        break;
+      }
+
+      lastError = this.formatDhlError(response.status, data);
+      this.logger.warn(`DHL auth via ${attempt.label} failed: ${response.status} ${lastError}`);
+
+      // Only retry on 401/403 — validation errors are not auth issues.
+      if (response.status !== 401 && response.status !== 403) break;
+    }
+
+    if (!response || !response.ok) {
+      const status = response?.status ?? 0;
+      this.logger.error(`DHL API ${status}: ${lastError}`);
+      throw new Error(`DHL (${status}): ${lastError}`);
     }
 
     const item = data?.items?.[0];
