@@ -342,16 +342,169 @@ const TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+
+  // ==================== SHIPPING TOOLS ====================
+  {
+    name: 'list_unshipped_orders',
+    description:
+      'Lists offene Shopify-Bestellungen, die noch KEIN Versandetikett haben (open + unfulfilled, nicht storniert). Nutze für "welche Bestellungen müssen noch versendet werden", "nicht versendete Bestellungen", "versandfertig".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        search: { type: 'string', description: 'Filter nach Bestellnr. oder Empfänger (partial match)' },
+        country: { type: 'string', description: 'ISO-2 Ländercode (z.B. DE) — nur Bestellungen in dieses Land' },
+        limit: { type: 'number', description: 'Max Ergebnisse (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_shipments',
+    description:
+      'Listet Sendungen (Versand-Records), optional gefiltert nach Status (label_created, handed_to_carrier, in_transit, delivered, delivery_failed, returned, exception) oder Carrier (dhl/ups/dpd/hermes/gls/custom). Nutze für "welche Pakete sind unterwegs", "wurden die zugestellt".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', description: 'Filter by shipment status' },
+        carrier: { type: 'string', description: 'Filter by carrier key' },
+        search: { type: 'string', description: 'Tracking-Nr. oder Empfänger' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_labels',
+    description:
+      'Listet generierte Versand-Labels, optional gefiltert nach Druck-Status (printed=erledigt / unprinted=noch offen). Nutze für "welche Labels wurden noch nicht gedruckt", "Druckstapel heute".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        printed: { type: 'string', enum: ['printed', 'unprinted', 'all'], description: 'Filter by print state' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'shipping_dashboard',
+    description:
+      'Versand-KPIs: offene Bestellungen ohne Label, Sendungen gesamt, in Transit, zugestellt, Fehler. Nutze für "Status Versand heute", "Überblick Versand".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'list_carrier_accounts',
+    description:
+      'Zeigt hinterlegte Carrier-Konten (DHL-API etc.) mit Status (API-ready, Stub, Sandbox/Production).',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+
+  // ==================== PURCHASE (EINKAUF) TOOLS ====================
+  {
+    name: 'list_purchase_orders',
+    description:
+      'Listet Einkaufsbestellungen (POs), optional nach Status (draft/ordered/shipped/invoiced/partially_received/received/completed/cancelled) oder Zahlungsstatus (unpaid/partially_paid/paid/overpaid). Nutze für "offene Einkäufe", "welche Lieferungen stehen aus", "unbezahlte Rechnungen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', description: 'Filter by PO status' },
+        paymentStatus: { type: 'string', description: 'Filter by payment status' },
+        supplierName: { type: 'string', description: 'Filter by supplier name (partial match)' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_suppliers',
+    description:
+      'Listet Lieferanten mit Name, Kategorie, Zahlungsbedingungen. Nutze für "unsere Lieferanten", "welche Suppliers haben wir".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        search: { type: 'string', description: 'Name oder Kategorie (partial match)' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'purchase_dashboard',
+    description:
+      'Einkauf-KPIs: offene POs, unbezahlte Summe, erwartete Lieferungen nächste 30 Tage, Top-Lieferanten.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+
+  // ==================== EMAIL MARKETING TOOLS ====================
+  {
+    name: 'list_email_campaigns',
+    description:
+      'Listet Email-Kampagnen, optional gefiltert nach Status (draft/scheduled/sending/sent/paused/failed). Zeigt Name, Empfängerzahl, Sent/Open/Click-Stats. Nutze für "welche Kampagnen laufen", "Performance letzter Sends".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', description: 'Filter by campaign status' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_email_contacts',
+    description:
+      'Listet Email-Kontakte (Subscriber-Liste), optional nach Consent-Status (subscribed/unsubscribed/bounced) oder Suche. Zeigt Anzahl, Tags, Land.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        consent: { type: 'string', description: 'Marketing consent filter' },
+        search: { type: 'string', description: 'Email/Name partial match' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'list_email_flows',
+    description:
+      'Listet Email-Flows (Automationen, z.B. Welcome-Serie, Abandoned-Cart). Zeigt Trigger, Status, Anzahl Schritte.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+
+  // ==================== INTEGRATIONS & ADMIN TOOLS ====================
+  {
+    name: 'list_integrations',
+    description:
+      'Listet verbundene externe Systeme (Shopify, Amazon, Meta Ads etc.) mit Status und letztem Sync-Zeitpunkt. Nutze für "welche Integrationen sind aktiv", "wann wurde zuletzt synchronisiert".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'list_users',
+    description:
+      'Admin-Tool: Listet alle aktiven User im Workspace mit Rolle und Email. Nutze für "welche Mitarbeiter haben wir", "Team-Übersicht".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', enum: ['active', 'pending', 'rejected', 'all'], description: 'Account status filter (default active)' },
+        search: { type: 'string', description: 'Name/Email partial match' },
+      },
+    },
+  },
 ];
 
-const SYSTEM_PROMPT = `Du bist "Filapen Assistant", der KI-Copilot fuer die Filapen Business Hub Software. Antworte immer auf Deutsch, knapp und handlungsorientiert.
+const SYSTEM_PROMPT = `Du bist "Filapen Assistant", der KI-Copilot fuer die Filapen Business Hub Software. Du hast Admin-Einsicht in alle Module und Daten. Antworte immer auf Deutsch, knapp und handlungsorientiert.
+
+Abgedeckte Module + passende Tools:
+- Finanzen/Shopify: shopify_today_summary, dashboard_kpis, order_revenue_summary, list_products
+- Versand: list_unshipped_orders, list_shipments, list_labels, shipping_dashboard, list_carrier_accounts
+- Einkauf: list_purchase_orders, list_suppliers, purchase_dashboard
+- Email-Marketing: list_email_campaigns, list_email_contacts, list_email_flows
+- Aufgabenverwaltung: list_tasks, list_projects, list_approval_tasks, create_task, complete_task
+- Creators/Influencer/Content: list_creators, list_creator_uploads, list_deals, list_briefings, list_influencers, list_content_pieces
+- Dokumente: search_documents, list_document_folders, create_folder, move_file, lock_folder, delete_file
+- Persoenlich: list_personal_notes, list_calendar_events, create_note, create_calendar_event
+- Team/Admin: list_team_members, list_users, list_integrations, send_direct_message
 
 Regeln:
 - Nutze die bereitgestellten Tools, wenn du echte Daten brauchst — niemals Zahlen erfinden.
+- Sag NIE "habe kein Tool dafuer", wenn es zum Thema ein Tool gibt. Frag lieber nach den Filtern, die dir fehlen, und ruf dann das passende Tool auf.
+- Fragen wie "nicht versendete Bestellungen", "welche Labels sind offen", "Versandstatus" → IMMER list_unshipped_orders / list_shipments / shipping_dashboard aufrufen, nicht an Shopify verweisen.
 - Wenn mehrere Tools noetig sind, rufe sie nacheinander auf.
 - Formatiere Listen kompakt mit Bullet-Points.
-- Wenn der User nach Zahlen/KPIs fragt und kein passendes Tool existiert, sag das ehrlich.
 - Halte Antworten unter 150 Woertern, ausser der User bittet explizit um Details.
+- Destruktive System-Aktionen (User loeschen, Integration loeschen, ganze Tabellen leeren) NICHT ausfuehren, auch nicht wenn gefragt — stattdessen Verantwortliche verweisen.
 - Verwende Icons/Emojis sparsam (max 1-2 pro Antwort).`;
 
 @Injectable()
@@ -485,6 +638,36 @@ export class AiService {
           return this.tool_listCalendarEvents(input, userId);
         case 'list_approval_tasks':
           return this.tool_listApprovalTasks(input, userId);
+        // Shipping
+        case 'list_unshipped_orders':
+          return this.tool_listUnshippedOrders(input);
+        case 'list_shipments':
+          return this.tool_listShipments(input);
+        case 'list_labels':
+          return this.tool_listLabels(input);
+        case 'shipping_dashboard':
+          return this.tool_shippingDashboard();
+        case 'list_carrier_accounts':
+          return this.tool_listCarrierAccounts();
+        // Purchase
+        case 'list_purchase_orders':
+          return this.tool_listPurchaseOrders(input);
+        case 'list_suppliers':
+          return this.tool_listSuppliers(input);
+        case 'purchase_dashboard':
+          return this.tool_purchaseDashboard();
+        // Email Marketing
+        case 'list_email_campaigns':
+          return this.tool_listEmailCampaigns(input);
+        case 'list_email_contacts':
+          return this.tool_listEmailContacts(input);
+        case 'list_email_flows':
+          return this.tool_listEmailFlows();
+        // Integrations & Admin
+        case 'list_integrations':
+          return this.tool_listIntegrations();
+        case 'list_users':
+          return this.tool_listUsers(input);
         // Action tools
         case 'create_task':
           return this.action_createTask(input, userId);
@@ -1258,5 +1441,343 @@ export class AiService {
       take: 20,
     });
     return { count: tasks.length, tasks };
+  }
+
+  // ==========================================================================
+  // SHIPPING TOOLS
+  // ==========================================================================
+
+  private async tool_listUnshippedOrders(input: any): Promise<unknown> {
+    const where: any = {
+      orgId: DEV_ORG_ID,
+      status: { not: 'cancelled' as const },
+      fulfillmentStatus: { in: ['unfulfilled', 'partial'] as const },
+      shipments: { none: {} },
+    };
+    if (input?.country) where.countryCode = input.country.toUpperCase();
+    if (input?.search) {
+      where.OR = [
+        { orderNumber: { contains: input.search, mode: 'insensitive' as const } },
+        { customerName: { contains: input.search, mode: 'insensitive' as const } },
+        { customerEmail: { contains: input.search, mode: 'insensitive' as const } },
+      ];
+    }
+    const orders = await this.prisma.order.findMany({
+      where,
+      select: {
+        id: true,
+        orderNumber: true,
+        customerName: true,
+        customerEmail: true,
+        countryCode: true,
+        totalPrice: true,
+        currency: true,
+        placedAt: true,
+      },
+      orderBy: { placedAt: 'asc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    const total = await this.prisma.order.count({ where });
+    return { total, shown: orders.length, orders };
+  }
+
+  private async tool_listShipments(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.status) where.status = input.status;
+    if (input?.carrier) where.carrier = input.carrier;
+    if (input?.search) {
+      where.OR = [
+        { trackingNumber: { contains: input.search, mode: 'insensitive' as const } },
+        { recipientName: { contains: input.search, mode: 'insensitive' as const } },
+      ];
+    }
+    const shipments = await this.prisma.orderShipment.findMany({
+      where,
+      select: {
+        id: true,
+        trackingNumber: true,
+        carrier: true,
+        status: true,
+        recipientName: true,
+        cost: true,
+        createdAt: true,
+        handedOverAt: true,
+        deliveredAt: true,
+        order: { select: { orderNumber: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return { count: shipments.length, shipments };
+  }
+
+  private async tool_listLabels(input: any): Promise<unknown> {
+    const filter = input?.printed || 'unprinted';
+    const where: any = { shipment: { orgId: DEV_ORG_ID } };
+    if (filter === 'printed') where.printedAt = { not: null };
+    else if (filter === 'unprinted') where.printedAt = null;
+    const labels = await this.prisma.orderShipmentLabel.findMany({
+      where,
+      select: {
+        id: true,
+        trackingNumber: true,
+        format: true,
+        printedAt: true,
+        printCount: true,
+        createdAt: true,
+        shipment: { select: { carrier: true, recipientName: true, order: { select: { orderNumber: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return { count: labels.length, filter, labels };
+  }
+
+  private async tool_shippingDashboard(): Promise<unknown> {
+    const [unshipped, total, labelCreated, inTransit, delivered, failed] = await Promise.all([
+      this.prisma.order.count({
+        where: {
+          orgId: DEV_ORG_ID,
+          status: { not: 'cancelled' as const },
+          fulfillmentStatus: { in: ['unfulfilled', 'partial'] as const },
+          shipments: { none: {} },
+        },
+      }),
+      this.prisma.orderShipment.count({ where: { orgId: DEV_ORG_ID } }),
+      this.prisma.orderShipment.count({ where: { orgId: DEV_ORG_ID, status: 'label_created' } }),
+      this.prisma.orderShipment.count({ where: { orgId: DEV_ORG_ID, status: { in: ['handed_to_carrier', 'in_transit', 'out_for_delivery'] as const } } }),
+      this.prisma.orderShipment.count({ where: { orgId: DEV_ORG_ID, status: 'delivered' } }),
+      this.prisma.orderShipment.count({ where: { orgId: DEV_ORG_ID, status: { in: ['delivery_failed', 'exception', 'returned'] as const } } }),
+    ]);
+    return {
+      openOrdersToShip: unshipped,
+      shipmentsTotal: total,
+      labelCreated,
+      inTransit,
+      delivered,
+      problems: failed,
+    };
+  }
+
+  private async tool_listCarrierAccounts(): Promise<unknown> {
+    const accounts = await this.prisma.carrierAccount.findMany({
+      where: { orgId: DEV_ORG_ID },
+      select: {
+        id: true,
+        carrier: true,
+        accountName: true,
+        isDefault: true,
+        apiReady: true,
+      },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    });
+    return { count: accounts.length, accounts };
+  }
+
+  // ==========================================================================
+  // PURCHASE TOOLS
+  // ==========================================================================
+
+  private async tool_listPurchaseOrders(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.status) where.status = input.status;
+    if (input?.paymentStatus) where.paymentStatus = input.paymentStatus;
+    if (input?.supplierName) {
+      where.supplier = {
+        companyName: { contains: input.supplierName, mode: 'insensitive' as const },
+      };
+    }
+    const orders = await this.prisma.purchaseOrder.findMany({
+      where,
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        paymentStatus: true,
+        orderDate: true,
+        expectedDelivery: true,
+        totalAmount: true,
+        paidAmount: true,
+        openAmount: true,
+        currency: true,
+        supplier: { select: { companyName: true } },
+      },
+      orderBy: { orderDate: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return { count: orders.length, orders };
+  }
+
+  private async tool_listSuppliers(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.search) {
+      where.OR = [
+        { companyName: { contains: input.search, mode: 'insensitive' as const } },
+        { contactName: { contains: input.search, mode: 'insensitive' as const } },
+      ];
+    }
+    const suppliers = await this.prisma.supplier.findMany({
+      where,
+      select: {
+        id: true,
+        supplierNumber: true,
+        companyName: true,
+        contactName: true,
+        country: true,
+        defaultCurrency: true,
+        paymentTermDays: true,
+        status: true,
+      },
+      orderBy: { companyName: 'asc' },
+      take: Math.min(input?.limit || 20, 100),
+    });
+    return { count: suppliers.length, suppliers };
+  }
+
+  private async tool_purchaseDashboard(): Promise<unknown> {
+    const now = new Date();
+    const in30Days = new Date(now);
+    in30Days.setDate(in30Days.getDate() + 30);
+
+    const [open, unpaid, expectedSoon] = await Promise.all([
+      this.prisma.purchaseOrder.count({
+        where: { orgId: DEV_ORG_ID, status: { in: ['ordered', 'shipped', 'invoiced', 'partially_received'] as const } },
+      }),
+      this.prisma.purchaseOrder.aggregate({
+        where: { orgId: DEV_ORG_ID, paymentStatus: { in: ['unpaid', 'partially_paid'] as const } },
+        _sum: { openAmount: true },
+        _count: true,
+      }),
+      this.prisma.purchaseOrder.count({
+        where: {
+          orgId: DEV_ORG_ID,
+          expectedDelivery: { gte: now, lte: in30Days },
+          status: { not: 'received' as const },
+        },
+      }),
+    ]);
+
+    return {
+      openPurchaseOrders: open,
+      unpaidOrderCount: unpaid._count,
+      unpaidOpenAmount: Number(unpaid._sum.openAmount ?? 0),
+      expectedDeliveriesNext30d: expectedSoon,
+    };
+  }
+
+  // ==========================================================================
+  // EMAIL MARKETING TOOLS
+  // ==========================================================================
+
+  private async tool_listEmailCampaigns(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.status) where.status = input.status;
+    const campaigns = await this.prisma.emailCampaign.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        subjectSnapshot: true,
+        scheduledAt: true,
+        sentAt: true,
+        recipientsCount: true,
+        sentCount: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return { count: campaigns.length, campaigns };
+  }
+
+  private async tool_listEmailContacts(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.consent) where.marketingConsent = input.consent;
+    if (input?.search) {
+      where.OR = [
+        { email: { contains: input.search, mode: 'insensitive' as const } },
+        { firstName: { contains: input.search, mode: 'insensitive' as const } },
+        { lastName: { contains: input.search, mode: 'insensitive' as const } },
+      ];
+    }
+    const [contacts, total] = await Promise.all([
+      this.prisma.contact.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          country: true,
+          marketingConsent: true,
+          tags: true,
+        },
+        orderBy: { email: 'asc' },
+        take: Math.min(input?.limit || 20, 50),
+      }),
+      this.prisma.contact.count({ where }),
+    ]);
+    return { total, shown: contacts.length, contacts };
+  }
+
+  private async tool_listEmailFlows(): Promise<unknown> {
+    // Best-effort: EmailFlow model may or may not exist in the schema
+    try {
+      const flows = await (this.prisma as any).emailFlow?.findMany({
+        where: { orgId: DEV_ORG_ID },
+        select: { id: true, name: true, triggerType: true, enabled: true },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }) ?? [];
+      return { count: flows.length, flows };
+    } catch (e: any) {
+      return { count: 0, flows: [], note: 'Flow-Modul nicht verfügbar' };
+    }
+  }
+
+  // ==========================================================================
+  // INTEGRATIONS & ADMIN TOOLS
+  // ==========================================================================
+
+  private async tool_listIntegrations(): Promise<unknown> {
+    const integrations = await this.prisma.integration.findMany({
+      where: { orgId: DEV_ORG_ID },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        lastSyncedAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { count: integrations.length, integrations };
+  }
+
+  private async tool_listUsers(input: any): Promise<unknown> {
+    const status = input?.status && input.status !== 'all' ? input.status : 'active';
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.status !== 'all') where.status = status;
+    if (input?.search) {
+      where.OR = [
+        { name: { contains: input.search, mode: 'insensitive' as const } },
+        { email: { contains: input.search, mode: 'insensitive' as const } },
+      ];
+    }
+    const users = await this.prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        lastActiveAt: true,
+      },
+      orderBy: { name: 'asc' },
+      take: 100,
+    });
+    return { count: users.length, filter: { status }, users };
   }
 }
