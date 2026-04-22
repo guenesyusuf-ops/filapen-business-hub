@@ -71,6 +71,7 @@ interface AmazonDashboard {
     marketplace?: string;
   }[];
   marketplaces?: Record<string, number>;
+  activeMarketplaces?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -303,6 +304,11 @@ export default function AmazonDashboardPage() {
                 <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Umsatz</span>
               </div>
               <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tabular-nums">{eur(data.totalRevenue, data.currency)}</p>
+              {data.activeMarketplaces && data.activeMarketplaces.length > 0 && (
+                <p className="text-[9px] text-gray-400 mt-0.5">
+                  Kumuliert · {data.activeMarketplaces.map((id) => MARKETPLACE_NAMES[id] ?? id.slice(-4)).join(' + ')}
+                </p>
+              )}
               {data.estimatedRevenue != null && data.estimatedRevenue > 0 && (
                 <p className="text-[9px] text-gray-400 mt-0.5">
                   {eur(data.confirmedRevenue ?? 0)} bestätigt + ~{eur(data.estimatedRevenue)} ausstehend

@@ -39,8 +39,18 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Default marketplace — additional marketplaces can be set via AMAZON_SP_MARKETPLACE_IDS env
-const DEFAULT_MARKETPLACE_ID = 'A1PA6795UKMFR9'; // DE
+// Marketplace IDs für die 4 relevanten EU-Märkte. Amazon SP-API
+// getOrderMetrics summiert Umsätze über alle angegebenen MarketplaceIds —
+// so bekommt der User im Dashboard einen kumulierten DE+FR+IT+ES-Umsatz
+// mit einem einzigen API-Call.
+// Kann via AMAZON_SP_MARKETPLACE_IDS env var überschrieben werden (comma-separated).
+const DEFAULT_MARKETPLACE_ID = 'A1PA6795UKMFR9'; // DE (für Legacy single-ID Env)
+const DEFAULT_EU_MARKETPLACES = [
+  'A1PA6795UKMFR9', // Deutschland (amazon.de)
+  'A13V1IB3VIYZZH', // Frankreich (amazon.fr)
+  'APJ6JRA9NG5V4',  // Italien (amazon.it)
+  'A1RKKUPIHCS9HS', // Spanien (amazon.es)
+];
 
 @Injectable()
 export class AmazonService {
@@ -55,12 +65,18 @@ export class AmazonService {
     const refreshToken = this.config.get<string>('AMAZON_SP_REFRESH_TOKEN');
     const clientId = this.config.get<string>('AMAZON_SP_CLIENT_ID');
     const clientSecret = this.config.get<string>('AMAZON_SP_CLIENT_SECRET');
-    // Marketplace IDs — comma-separated env var or just the single configured one
+    // Marketplace IDs — präzise Priorität:
+    //   1. AMAZON_SP_MARKETPLACE_IDS (comma-separated) wenn explizit gesetzt
+    //   2. AMAZON_SP_MARKETPLACE_ID (legacy single-ID)
+    //   3. Fallback: DE+FR+IT+ES (4 Haupt-EU-Märkte des Users)
     const multiIds = this.config.get<string>('AMAZON_SP_MARKETPLACE_IDS');
     const singleId = this.config.get<string>('AMAZON_SP_MARKETPLACE_ID');
     this.marketplaceIds = multiIds
-      ? multiIds.split(',').map((s) => s.trim())
-      : [singleId || DEFAULT_MARKETPLACE_ID];
+      ? multiIds.split(',').map((s) => s.trim()).filter(Boolean)
+      : singleId
+        ? [singleId]
+        : [...DEFAULT_EU_MARKETPLACES];
+    this.logger.log(`Amazon active marketplaces: ${this.marketplaceIds.join(', ')}`);
 
     if (refreshToken && clientId && clientSecret) {
       try {
@@ -414,6 +430,7 @@ export class AmazonService {
     currency: string;
     orders: any[];
     marketplaces: Record<string, number>;
+    activeMarketplaces: string[];
     debug: {
       statusBreakdown: Record<string, { count: number; revenue: number }>;
       createdAfter: string;
@@ -515,6 +532,7 @@ export class AmazonService {
         marketplace: o.MarketplaceId,
       })),
       marketplaces,
+      activeMarketplaces: this.marketplaceIds,
       debug: {
         statusBreakdown,
         createdAfter,
