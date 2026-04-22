@@ -270,8 +270,10 @@ export class DhlCarrierAdapter implements CarrierAdapter {
           details: {
             weight: {
               uom: 'kg',
-              // DHL minimum 1g; anything below is suspicious → default to 1kg
-              value: Math.max(0.001, (input.weightG || 1000) / 1000),
+              // No silent fallback — weight MUST come from the product database
+              // (ShippingProductProfile → ProductVariant). OrderShipmentService
+              // already throws BadRequest before reaching this point if 0.
+              value: Math.max(0.001, input.weightG / 1000),
             },
             ...(input.lengthMm && input.widthMm && input.heightMm
               ? { dim: { uom: 'mm', length: input.lengthMm, width: input.widthMm, height: input.heightMm } }

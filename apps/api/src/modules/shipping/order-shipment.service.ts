@@ -150,14 +150,29 @@ export class OrderShipmentService {
       }
     }
 
-    // Compute weight if not provided
+    // Compute weight strictly from the product database (Shipping-Profile >
+    // ProductVariant.weightG from Shopify sync). No fallback — DHL rejects
+    // shipments with 0 weight anyway, and silently assuming 1 kg makes the
+    // merchant pay for the wrong postage tier.
     let weightG = data.weightG ?? 0;
     if (!weightG) {
       const computed = await this.orders.computeOrderWeight(orgId, data.orderId);
-      weightG = computed.totalG;
       if (computed.unknownCount > 0) {
-        this.logger.warn(`Order ${data.orderId}: ${computed.unknownCount} items lack shipping profile`);
+        const items = computed.unknownItems
+          .map((i) => `${i.title}${i.sku ? ` (SKU ${i.sku})` : ''}`)
+          .slice(0, 5)
+          .join(', ');
+        const more = computed.unknownCount > 5 ? ` … und ${computed.unknownCount - 5} weitere` : '';
+        throw new BadRequestException(
+          `Versandgewicht nicht ermittelbar: bei ${computed.unknownCount} Artikel(n) fehlt das Gewicht — ${items}${more}. Bitte in Shopify oder im Versand-Modul (Produkte) Gewichte pflegen und Bestellung neu laden.`,
+        );
       }
+      weightG = computed.totalG;
+    }
+    if (weightG <= 0) {
+      throw new BadRequestException(
+        'Versandgewicht beträgt 0 — Label-Erstellung abgebrochen. Bitte Produkt-Gewichte in Shopify pflegen.',
+      );
     }
 
     // Build adapter input

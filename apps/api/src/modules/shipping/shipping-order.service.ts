@@ -130,42 +130,85 @@ export class ShippingOrderService {
   }
 
   /**
-   * Compute shipping weight for an order based on ShippingProductProfile
-   * fallbacks: profile.weightG * quantity; unknown items contribute 0 (warned).
+   * Versandgewicht einer Bestellung berechnen. Fallback-Kette pro Position:
+   *   1. ShippingProductProfile.weightG (explizit im Versand-Modul gepflegt)
+   *   2. ProductVariant.weightG (automatisch aus Shopify-Sync)
+   *   3. → zählt als "unknown" (verursacht Hard-Fail beim Label-Create)
+   * Items mit profile.excludeFromShipping werden übersprungen (z.B. digitale Goods).
    */
-  async computeOrderWeight(orgId: string, orderId: string): Promise<{ totalG: number; unknownCount: number }> {
+  async computeOrderWeight(
+    orgId: string,
+    orderId: string,
+  ): Promise<{
+    totalG: number;
+    unknownCount: number;
+    unknownItems: Array<{ title: string; sku: string | null; productVariantId: string | null }>;
+  }> {
     const lineItems = await this.prisma.orderLineItem.findMany({
       where: { orderId, orgId },
-      select: { productVariantId: true, sku: true, quantity: true },
+      select: { productVariantId: true, sku: true, quantity: true, title: true },
     });
-    if (lineItems.length === 0) return { totalG: 0, unknownCount: 0 };
+    if (lineItems.length === 0) return { totalG: 0, unknownCount: 0, unknownItems: [] };
 
     const productVariantIds = lineItems.map((li) => li.productVariantId).filter(Boolean) as string[];
     const skus = lineItems.map((li) => li.sku).filter(Boolean) as string[];
 
-    const profiles = await this.prisma.shippingProductProfile.findMany({
-      where: {
-        orgId,
-        OR: [
-          productVariantIds.length ? { productVariantId: { in: productVariantIds } } : {},
-          skus.length ? { sku: { in: skus } } : {},
-        ].filter((c) => Object.keys(c).length > 0),
-      },
-    });
+    const [profiles, variants] = await Promise.all([
+      this.prisma.shippingProductProfile.findMany({
+        where: {
+          orgId,
+          OR: [
+            productVariantIds.length ? { productVariantId: { in: productVariantIds } } : {},
+            skus.length ? { sku: { in: skus } } : {},
+          ].filter((c) => Object.keys(c).length > 0),
+        },
+      }),
+      productVariantIds.length
+        ? this.prisma.productVariant.findMany({
+            where: { orgId, id: { in: productVariantIds } },
+            select: { id: true, weightG: true },
+          })
+        : Promise.resolve([] as Array<{ id: string; weightG: number }>),
+    ]);
 
-    const byVariant = new Map(profiles.filter((p) => p.productVariantId).map((p) => [p.productVariantId!, p]));
-    const bySku = new Map(profiles.filter((p) => p.sku).map((p) => [p.sku!, p]));
+    const profileByVariant = new Map(profiles.filter((p) => p.productVariantId).map((p) => [p.productVariantId!, p]));
+    const profileBySku = new Map(profiles.filter((p) => p.sku).map((p) => [p.sku!, p]));
+    const variantById = new Map(variants.map((v) => [v.id, v.weightG]));
 
     let totalG = 0;
     let unknownCount = 0;
+    const unknownItems: Array<{ title: string; sku: string | null; productVariantId: string | null }> = [];
+
     for (const li of lineItems) {
-      const profile = (li.productVariantId && byVariant.get(li.productVariantId)) || (li.sku && bySku.get(li.sku));
-      if (!profile || profile.excludeFromShipping) {
+      const profile =
+        (li.productVariantId && profileByVariant.get(li.productVariantId)) ||
+        (li.sku && profileBySku.get(li.sku)) ||
+        null;
+
+      // Explicitly excluded from shipping (e.g. digital goods) → skip without counting as unknown
+      if (profile?.excludeFromShipping) continue;
+
+      let itemWeightG = 0;
+      if (profile && profile.weightG != null && profile.weightG > 0) {
+        itemWeightG = profile.weightG;
+      } else if (li.productVariantId) {
+        const vw = variantById.get(li.productVariantId);
+        if (vw != null && vw > 0) itemWeightG = vw;
+      }
+
+      if (itemWeightG <= 0) {
         unknownCount++;
+        unknownItems.push({
+          title: li.title || 'Unbekanntes Produkt',
+          sku: li.sku,
+          productVariantId: li.productVariantId,
+        });
         continue;
       }
-      totalG += (profile.weightG || 0) * Number(li.quantity);
+
+      totalG += itemWeightG * Number(li.quantity);
     }
-    return { totalG, unknownCount };
+
+    return { totalG, unknownCount, unknownItems };
   }
 }

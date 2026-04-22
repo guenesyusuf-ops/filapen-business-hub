@@ -605,6 +605,24 @@ export class ShopifyService {
    * Upsert a Shopify product and its variants.
    * Preserves existing COGS values that were manually entered.
    */
+  /**
+   * Shopify liefert das Gewicht in zwei Varianten:
+   *   - variant.grams (Integer, immer in Gramm) — bevorzugt wenn vorhanden
+   *   - variant.weight (Float) + variant.weight_unit ("g" | "kg" | "oz" | "lb")
+   * Gibt das Gewicht in Gramm zurück (0 falls nichts gepflegt).
+   */
+  private shopifyVariantWeightGrams(sv: { grams?: number; weight?: number; weight_unit?: string }): number {
+    if (typeof sv.grams === 'number' && sv.grams > 0) return Math.round(sv.grams);
+    if (typeof sv.weight === 'number' && sv.weight > 0) {
+      const unit = (sv.weight_unit || 'g').toLowerCase();
+      if (unit === 'kg') return Math.round(sv.weight * 1000);
+      if (unit === 'oz') return Math.round(sv.weight * 28.3495);
+      if (unit === 'lb') return Math.round(sv.weight * 453.592);
+      return Math.round(sv.weight);
+    }
+    return 0;
+  }
+
   async upsertProduct(
     orgId: string,
     integrationId: string,
@@ -675,6 +693,8 @@ export class ShopifyService {
           select: { cogs: true, cogsCurrency: true, cogsUpdatedAt: true },
         });
 
+        const variantWeightG = this.shopifyVariantWeightGrams(sv);
+
         await tx.productVariant.upsert({
           where: {
             orgId_externalId: { orgId, externalId: externalVariantId },
@@ -688,6 +708,7 @@ export class ShopifyService {
               ? parseFloat(sv.compare_at_price)
               : null,
             inventoryQuantity: sv.inventory_quantity ?? 0,
+            weightG: variantWeightG,
             // Preserve existing COGS - do not overwrite
             updatedAt: new Date(),
           },
@@ -703,6 +724,7 @@ export class ShopifyService {
               ? parseFloat(sv.compare_at_price)
               : null,
             inventoryQuantity: sv.inventory_quantity ?? 0,
+            weightG: variantWeightG,
             // No COGS on initial creation - user must supply manually or via CSV
             cogs: existingVariant?.cogs ?? null,
             cogsCurrency: existingVariant?.cogsCurrency ?? null,

@@ -177,6 +177,7 @@ export interface ShopifyProductVariant {
   inventory_management?: string;
   weight?: number;
   weight_unit?: string;
+  grams?: number;
 }
 
 export interface ShopifyProduct {

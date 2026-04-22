@@ -866,6 +866,7 @@ model ProductVariant {
   cogsUpdatedAt     DateTime? @map("cogs_updated_at") @db.Timestamptz
   vatRate           Decimal   @default(19) @map("vat_rate") @db.Decimal(5, 2)
   inventoryQuantity Int       @default(0) @map("inventory_quantity")
+  weightG           Int       @default(0) @map("weight_g")
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
