@@ -99,12 +99,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: Home,
   },
   {
-    labelKey: 'nav.dashboard',
-    href: '/finance',
-    icon: LayoutDashboard,
-    permissionKey: 'finance',
-  },
-  {
     labelKey: 'nav.financeHub',
     href: '/finance',
     icon: DollarSign,
@@ -119,15 +113,8 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.benchmarks', href: '/finance/benchmarks', icon: Gauge },
       { labelKey: 'nav.creativeAnalysis', href: '/finance/creative-analysis', icon: Palette },
       { labelKey: 'nav.reports', href: '/finance/reports', icon: FileText },
-    ],
-  },
-  {
-    labelKey: 'nav.channelsHub',
-    href: '/channels',
-    icon: Store,
-    permissionKey: 'channels',
-    children: [
-      { labelKey: 'nav.overview', href: '/channels', icon: BarChart3 },
+      // Channels zusammengeführt unter Finanzen (Shopify + Amazon sind Umsatz-Quellen)
+      { labelKey: 'nav.channelsOverview', href: '/channels', icon: Store },
       { labelKey: 'nav.shopify', href: '/channels/shopify', icon: ShoppingBag },
       { labelKey: 'nav.amazon', href: '/channels/amazon', icon: ShoppingBag },
     ],
@@ -263,7 +250,8 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
       initial.add('nav.financeHub');
     }
     if (pathname.startsWith('/channels')) {
-      initial.add('nav.channelsHub');
+      // Channels ist jetzt Unterpunkt von Finanzen
+      initial.add('nav.financeHub');
     }
     if (pathname.startsWith('/creators')) {
       initial.add('nav.creatorHub');
