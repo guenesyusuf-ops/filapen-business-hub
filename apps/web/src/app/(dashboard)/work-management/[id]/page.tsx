@@ -318,10 +318,10 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="flex flex-col h-full -m-3 sm:-m-4 md:-m-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-white/10 bg-white/50 dark:bg-[#0f1117]/50 backdrop-blur-sm">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <Link href="/work-management" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0">
+      {/* Header — auf Mobile: Title-Zeile oben, Tab-Switcher full-width darunter */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-white/10 bg-white/50 dark:bg-[#0f1117]/50 backdrop-blur-sm">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <Link href="/work-management" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0 p-1 -ml-1">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div
@@ -331,43 +331,43 @@ export default function ProjectDetailPage() {
           <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{project.name}</h1>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-white/[0.06] p-0.5 self-start sm:self-auto flex-shrink-0">
+        {/* Tab switcher — full-width auf Mobile, kompakt auf Desktop */}
+        <div className="flex items-center gap-1 rounded-lg bg-gray-100 dark:bg-white/[0.06] p-0.5 w-full sm:w-auto flex-shrink-0">
           <button
             onClick={() => setActiveTab('board')}
             className={cn(
-              'flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+              'flex flex-1 sm:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all',
               activeTab === 'board'
                 ? 'bg-white dark:bg-[#1a1d2e] text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
             )}
           >
             <Columns3 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Board</span>
+            <span className="sm:inline">Board</span>
           </button>
           <button
             onClick={() => setActiveTab('list')}
             className={cn(
-              'flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+              'flex flex-1 sm:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all',
               activeTab === 'list'
                 ? 'bg-white dark:bg-[#1a1d2e] text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
             )}
           >
             <List className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Liste</span>
+            <span className="sm:inline">Liste</span>
           </button>
           <button
             onClick={() => setActiveTab('burndown')}
             className={cn(
-              'flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+              'flex flex-1 sm:flex-none items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all',
               activeTab === 'burndown'
                 ? 'bg-white dark:bg-[#1a1d2e] text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300',
             )}
           >
             <TrendingDown className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Burndown</span>
+            <span className="sm:inline">Burndown</span>
           </button>
         </div>
       </div>

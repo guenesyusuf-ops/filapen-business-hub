@@ -199,7 +199,7 @@ export function FinanceDashboard() {
             Track revenue, profitability, and channel performance
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <ChannelSelector />
           <DateRangePicker />
         </div>
