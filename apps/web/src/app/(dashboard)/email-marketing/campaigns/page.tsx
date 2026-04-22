@@ -46,17 +46,18 @@ export default function CampaignsPage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] overflow-hidden">
+          <div className="table-scroll">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
               <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                 <th className="px-3 py-2.5 text-left">Name</th>
-                <th className="px-3 py-2.5 text-left">Template</th>
-                <th className="px-3 py-2.5 text-left">Segment</th>
+                <th className="px-3 py-2.5 text-left hidden md:table-cell">Template</th>
+                <th className="px-3 py-2.5 text-left hidden lg:table-cell">Segment</th>
                 <th className="px-3 py-2.5">Status</th>
-                <th className="px-3 py-2.5 text-right">Versendet</th>
-                <th className="px-3 py-2.5 text-right">Geöffnet</th>
-                <th className="px-3 py-2.5 text-right">Geklickt</th>
-                <th className="px-3 py-2.5 text-left">Gesendet am</th>
+                <th className="px-3 py-2.5 text-right hidden sm:table-cell">Versendet</th>
+                <th className="px-3 py-2.5 text-right hidden lg:table-cell">Geöffnet</th>
+                <th className="px-3 py-2.5 text-right hidden xl:table-cell">Geklickt</th>
+                <th className="px-3 py-2.5 text-left hidden md:table-cell">Gesendet am</th>
                 <th className="px-3 py-2.5 text-right">Aktionen</th>
               </tr>
             </thead>
@@ -65,14 +66,20 @@ export default function CampaignsPage() {
                 const st = CAMPAIGN_STATUS_LABELS[c.status];
                 return (
                   <tr key={c.id} onClick={() => router.push(`/email-marketing/campaigns/${c.id}`)} className="hover:bg-gray-50/80 dark:hover:bg-white/[0.04] cursor-pointer">
-                    <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">{c.name}</td>
-                    <td className="px-3 py-3 text-xs text-gray-500">{c.template?.name || '—'}</td>
-                    <td className="px-3 py-3 text-xs text-gray-500">{c.segment?.name || '—'} {c.segment?.memberCount ? `(${c.segment.memberCount})` : ''}</td>
+                    <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">
+                      <div className="truncate max-w-[180px] sm:max-w-none">{c.name}</div>
+                      {/* Mobile sub-line: template + sent count + date */}
+                      <div className="md:hidden text-[10px] text-gray-500 mt-0.5 truncate">
+                        {c.template?.name || '—'} · {c.sentCount}x gesendet · {fmtDateTime(c.sentAt || c.scheduledAt)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-gray-500 hidden md:table-cell">{c.template?.name || '—'}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500 hidden lg:table-cell">{c.segment?.name || '—'} {c.segment?.memberCount ? `(${c.segment.memberCount})` : ''}</td>
                     <td className="px-3 py-3"><Badge color={st.color}>{st.label}</Badge></td>
-                    <td className="px-3 py-3 text-right tabular-nums">{c.sentCount}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{c.openCount}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{c.clickCount}</td>
-                    <td className="px-3 py-3 text-xs text-gray-500">{fmtDateTime(c.sentAt || c.scheduledAt)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums hidden sm:table-cell">{c.sentCount}</td>
+                    <td className="px-3 py-3 text-right tabular-nums hidden lg:table-cell">{c.openCount}</td>
+                    <td className="px-3 py-3 text-right tabular-nums hidden xl:table-cell">{c.clickCount}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500 hidden md:table-cell">{fmtDateTime(c.sentAt || c.scheduledAt)}</td>
                     <td className="px-3 py-3 text-right">
                       <button onClick={(e) => { e.stopPropagation(); onDelete(c); }} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                     </td>
@@ -81,6 +88,7 @@ export default function CampaignsPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

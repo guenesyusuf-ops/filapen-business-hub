@@ -312,8 +312,10 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
         // Desktop: normal sidebar behavior
         'md:relative md:translate-x-0',
         collapsed ? 'md:w-16' : 'md:w-64',
-        // Mobile: overlay sidebar, hidden by default
-        'fixed inset-y-0 left-0 z-40 w-64',
+        // Mobile: overlay sidebar, hidden by default — caps at 90vw for 320px devices
+        'fixed inset-y-0 left-0 z-40 w-[min(16rem,90vw)]',
+        // Safe-area padding for notched devices (iPhone in landscape)
+        'pl-[env(safe-area-inset-left)]',
         collapsed ? '-translate-x-full md:translate-x-0' : 'translate-x-0',
       )}
     >
@@ -767,8 +769,16 @@ export default function DashboardLayout({
           onOpenCommand={toggleCommandBar}
         />
 
-        {/* Content */}
-        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 pb-20 md:pb-6">
+        {/* Content — respects safe-area on notched mobile devices */}
+        <main
+          className="flex-1 overflow-auto p-3 sm:p-4 md:p-6"
+          style={{
+            // Bottom: BottomNav height (64px) + safe-area + breathing room on mobile
+            paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))',
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+          }}
+        >
           {children}
         </main>
       </div>

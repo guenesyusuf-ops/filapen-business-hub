@@ -238,17 +238,17 @@ export default function ShippingLabelsPage() {
         )}
       </div>
 
-      {/* Bulk action bar */}
+      {/* Bulk action bar — stacks vertically on mobile so buttons stay reachable */}
       {selected.size > 0 && (
-        <div className="sticky top-2 z-10 flex items-center justify-between gap-3 rounded-xl border border-primary-200 dark:border-primary-700/40 bg-primary-50 dark:bg-primary-900/20 p-3 shadow-sm">
-          <div className="text-sm text-primary-900 dark:text-primary-100">
+        <div className="sticky top-2 z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 rounded-xl border border-primary-200 dark:border-primary-700/40 bg-primary-50 dark:bg-primary-900/20 p-3 shadow-sm">
+          <div className="text-xs sm:text-sm text-primary-900 dark:text-primary-100">
             <strong>{selected.size}</strong> Label{selected.size === 1 ? '' : 's'} ausgewählt — wird als <strong>eine PDF-Datei</strong> zusammengeführt.
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => handleBulkAction('print')}
               disabled={busy !== null}
-              className={btn('primary', 'h-9 px-3 py-1 text-sm')}
+              className={btn('primary', 'flex-1 sm:flex-none text-sm')}
             >
               {busy === 'print' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
               Drucken
@@ -256,14 +256,14 @@ export default function ShippingLabelsPage() {
             <button
               onClick={() => handleBulkAction('download')}
               disabled={busy !== null}
-              className={btn('secondary', 'h-9 px-3 py-1 text-sm')}
+              className={btn('secondary', 'flex-1 sm:flex-none text-sm')}
             >
               {busy === 'download' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Downloaden
             </button>
             <button
               onClick={() => setSelected(new Set())}
-              className={btn('ghost', 'h-9 px-3 py-1 text-sm')}
+              className={btn('ghost', 'text-sm')}
             >
               Abbrechen
             </button>
@@ -296,6 +296,7 @@ export default function ShippingLabelsPage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] overflow-hidden">
+          <div className="table-scroll">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
               <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -307,12 +308,12 @@ export default function ShippingLabelsPage() {
                   />
                 </th>
                 <th className="px-3 py-2.5 text-left">Tracking-Nr</th>
-                <th className="px-3 py-2.5 text-left">Bestellnr.</th>
+                <th className="px-3 py-2.5 text-left hidden md:table-cell">Bestellnr.</th>
                 <th className="px-3 py-2.5 text-left">Empfänger</th>
-                <th className="px-3 py-2.5 text-left">Carrier</th>
-                <th className="px-3 py-2.5 text-left">Format</th>
+                <th className="px-3 py-2.5 text-left hidden lg:table-cell">Carrier</th>
+                <th className="px-3 py-2.5 text-left hidden xl:table-cell">Format</th>
                 <th className="px-3 py-2.5 text-left">Druck</th>
-                <th className="px-3 py-2.5 text-left">Erstellt</th>
+                <th className="px-3 py-2.5 text-left hidden md:table-cell">Erstellt</th>
                 <th className="px-3 py-2.5 text-right">Aktionen</th>
               </tr>
             </thead>
@@ -335,10 +336,16 @@ export default function ShippingLabelsPage() {
                     <td className="px-3 py-3 font-mono text-xs text-primary-700 dark:text-primary-300">
                       {r.trackingNumber || '—'}
                     </td>
-                    <td className="px-3 py-3 font-mono text-xs">#{r.orderNumber}</td>
-                    <td className="px-3 py-3 truncate max-w-[200px]">{r.recipientName}</td>
-                    <td className="px-3 py-3 text-gray-600 dark:text-gray-300">{carrierLabel}</td>
-                    <td className="px-3 py-3 text-xs font-mono text-gray-500">{r.format}</td>
+                    <td className="px-3 py-3 font-mono text-xs hidden md:table-cell">#{r.orderNumber}</td>
+                    <td className="px-3 py-3 truncate max-w-[120px] sm:max-w-[200px]">
+                      {r.recipientName}
+                      {/* Mobile-only: show order# + carrier under name */}
+                      <div className="md:hidden text-[10px] text-gray-500 mt-0.5 truncate">
+                        #{r.orderNumber} · {carrierLabel}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-gray-600 dark:text-gray-300 hidden lg:table-cell">{carrierLabel}</td>
+                    <td className="px-3 py-3 text-xs font-mono text-gray-500 hidden xl:table-cell">{r.format}</td>
                     <td className="px-3 py-3">
                       {r.printedAt ? (
                         <div className="flex flex-col">
@@ -356,7 +363,7 @@ export default function ShippingLabelsPage() {
                         </Badge>
                       )}
                     </td>
-                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDateTime(r.createdAt)}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap hidden md:table-cell">{fmtDateTime(r.createdAt)}</td>
                     <td className="px-3 py-3 text-right">
                       <div className="inline-flex gap-1">
                         <a
@@ -364,18 +371,18 @@ export default function ShippingLabelsPage() {
                           target="_blank"
                           rel="noopener"
                           title="Öffnen"
-                          className={btn('secondary', 'h-7 px-2 py-0 text-xs')}
+                          className={btn('secondary', 'h-8 sm:h-7 px-2 py-0 text-xs min-h-0')}
                         >
                           <ExternalLink className="h-3 w-3" />
                         </a>
                         <button
                           onClick={() => toggleSinglePrinted(r)}
                           title={r.printedAt ? 'Als ungedruckt markieren' : 'Als gedruckt markieren'}
-                          className={btn(r.printedAt ? 'ghost' : 'secondary', 'h-7 px-2 py-0 text-xs')}
+                          className={btn(r.printedAt ? 'ghost' : 'secondary', 'h-8 sm:h-7 px-2 py-0 text-xs min-h-0')}
                         >
                           {r.printedAt ? <Undo2 className="h-3 w-3" /> : <Check className="h-3 w-3" />}
                         </button>
-                        <Link href={`/shipping/shipments/${r.shipmentId}`} className={btn('ghost', 'h-7 px-2 py-0 text-xs')}>
+                        <Link href={`/shipping/shipments/${r.shipmentId}`} className={btn('ghost', 'h-8 sm:h-7 px-2 py-0 text-xs min-h-0 hidden sm:inline-flex')}>
                           Details
                         </Link>
                       </div>
@@ -385,6 +392,7 @@ export default function ShippingLabelsPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

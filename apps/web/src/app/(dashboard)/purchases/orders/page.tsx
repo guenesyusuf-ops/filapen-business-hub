@@ -154,7 +154,7 @@ export default function PurchaseOrdersPage() {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-gray-100 dark:border-white/8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pt-2 border-t border-gray-100 dark:border-white/8">
             <div>
               <label className={label()}>Status</label>
               <select value={status} onChange={(e) => setStatus(e.target.value)} className={input()}>
@@ -210,20 +210,20 @@ export default function PurchaseOrdersPage() {
             action={<Link href="/purchases/orders/new" className={btn('primary')}><Plus className="h-4 w-4" /> Neue Bestellung</Link>}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50/80 dark:bg-white/[0.02] sticky top-0 backdrop-blur">
                 <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   <Th onClick={() => toggleSort('orderNumber')} active={sort === 'orderNumber'} dir={dir}>Bestellnr.</Th>
-                  <Th>Lieferant</Th>
+                  <Th hideOn="sm">Lieferant</Th>
                   <Th>Produkte</Th>
-                  <Th>Käufer</Th>
-                  <Th onClick={() => toggleSort('orderDate')} active={sort === 'orderDate'} dir={dir}>Bestelldatum</Th>
-                  <Th>Rechnung</Th>
+                  <Th hideOn="xl">Käufer</Th>
+                  <Th hideOn="md" onClick={() => toggleSort('orderDate')} active={sort === 'orderDate'} dir={dir}>Datum</Th>
+                  <Th hideOn="xl">Rechnung</Th>
                   <Th onClick={() => toggleSort('total')} active={sort === 'total'} dir={dir} align="right">Betrag</Th>
-                  <Th align="right">Bezahlt</Th>
-                  <Th onClick={() => toggleSort('open')} active={sort === 'open'} dir={dir} align="right">Offen</Th>
-                  <Th>Status</Th>
+                  <Th hideOn="lg" align="right">Bezahlt</Th>
+                  <Th hideOn="lg" onClick={() => toggleSort('open')} active={sort === 'open'} dir={dir} align="right">Offen</Th>
+                  <Th hideOn="sm">Status</Th>
                   <Th align="center">Doc</Th>
                 </tr>
               </thead>
@@ -240,19 +240,23 @@ export default function PurchaseOrdersPage() {
                           {o.orderNumber}
                         </Link>
                       </td>
-                      <td className="px-3 py-3">
-                        <div className="font-medium text-gray-900 dark:text-white truncate max-w-[200px]">{o.supplier?.companyName}</div>
+                      <td className="px-3 py-3 hidden sm:table-cell">
+                        <div className="font-medium text-gray-900 dark:text-white truncate max-w-[160px] md:max-w-[200px]">{o.supplier?.companyName}</div>
                         <div className="text-xs text-gray-400">{o.supplier?.supplierNumber}</div>
                       </td>
-                      <td className="px-3 py-3 max-w-[220px]">
+                      <td className="px-3 py-3 max-w-[140px] sm:max-w-[220px]">
                         <div className="truncate text-gray-700 dark:text-gray-300" title={(o.items || []).map(i => i.productName).join(', ')}>
                           {productPreview || '—'}
                           {more > 0 && <span className="text-xs text-gray-400 ml-1">+{more}</span>}
                         </div>
+                        {/* Mobile-only sub-line: supplier + date + status */}
+                        <div className="sm:hidden text-[10px] text-gray-500 mt-0.5 truncate">
+                          {o.supplier?.companyName} · {fmtDate(o.orderDate)} · <Badge color={ps.color}>{ps.label}</Badge>
+                        </div>
                       </td>
-                      <td className="px-3 py-3 text-gray-600 dark:text-gray-300">{o.createdBy?.name || o.createdBy?.email || '—'}</td>
-                      <td className="px-3 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtDate(o.orderDate)}</td>
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-3 text-gray-600 dark:text-gray-300 hidden xl:table-cell">{o.createdBy?.name || o.createdBy?.email || '—'}</td>
+                      <td className="px-3 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap hidden md:table-cell">{fmtDate(o.orderDate)}</td>
+                      <td className="px-3 py-3 hidden xl:table-cell">
                         {inv ? (
                           <div>
                             <div className="font-mono text-xs text-gray-700 dark:text-gray-300">{inv.invoiceNumber}</div>
@@ -261,13 +265,13 @@ export default function PurchaseOrdersPage() {
                         ) : <span className="text-xs text-gray-400">—</span>}
                       </td>
                       <td className="px-3 py-3 text-right whitespace-nowrap"><Money amount={o.totalAmount} currency={o.currency} /></td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap text-gray-600 dark:text-gray-300"><Money amount={o.paidAmount} currency={o.currency} /></td>
-                      <td className="px-3 py-3 text-right whitespace-nowrap font-medium">
+                      <td className="px-3 py-3 text-right whitespace-nowrap text-gray-600 dark:text-gray-300 hidden lg:table-cell"><Money amount={o.paidAmount} currency={o.currency} /></td>
+                      <td className="px-3 py-3 text-right whitespace-nowrap font-medium hidden lg:table-cell">
                         <span className={Number(o.openAmount) > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-400'}>
                           <Money amount={o.openAmount} currency={o.currency} />
                         </span>
                       </td>
-                      <td className="px-3 py-3"><Badge color={ps.color}>{ps.label}</Badge></td>
+                      <td className="px-3 py-3 hidden sm:table-cell"><Badge color={ps.color}>{ps.label}</Badge></td>
                       <td className="px-3 py-3 text-center">
                         {(o._count?.documents ?? 0) > 0 ? (
                           <button
@@ -358,8 +362,14 @@ function DocPreviewModal({ doc, onClose }: { doc: { fileName: string; fileUrl: s
   );
 }
 
-function Th({ children, onClick, active, dir, align }: { children: any; onClick?: () => void; active?: boolean; dir?: string; align?: 'right' | 'center' }) {
-  const cls = `px-3 py-2.5 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${onClick ? 'cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200' : ''}`;
+function Th({ children, onClick, active, dir, align, hideOn }: { children: any; onClick?: () => void; active?: boolean; dir?: string; align?: 'right' | 'center'; hideOn?: 'sm' | 'md' | 'lg' | 'xl' }) {
+  // hideOn: hide this header below the given breakpoint ("sm" = show from sm: up)
+  const hideClass =
+    hideOn === 'sm' ? 'hidden sm:table-cell' :
+    hideOn === 'md' ? 'hidden md:table-cell' :
+    hideOn === 'lg' ? 'hidden lg:table-cell' :
+    hideOn === 'xl' ? 'hidden xl:table-cell' : '';
+  const cls = `px-3 py-2.5 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'} ${onClick ? 'cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200' : ''} ${hideClass}`;
   return (
     <th onClick={onClick} className={cls}>
       <span className="inline-flex items-center gap-1">

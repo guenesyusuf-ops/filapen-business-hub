@@ -145,34 +145,39 @@ export default function ShippingOrdersPage() {
       />
 
       <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3 space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[240px]">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+          {/* Search takes full row on mobile */}
+          <div className="relative flex-1 sm:min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Bestellnr., Name oder Email …" className={inputCls('pl-9')} />
           </div>
-          <select value={hasShipment} onChange={(e) => setHasShipment(e.target.value as any)} className={inputCls('w-auto')}>
-            <option value="no">Ohne Label/Sendung</option>
-            <option value="yes">Mit Sendung</option>
-            <option value="">Alle</option>
-          </select>
-          <button
-            onClick={() => setProductFilterOpen((v) => !v)}
-            className={btn(selectedVariantIds.size > 0 ? 'primary' : 'secondary', 'h-10')}
-          >
-            <Filter className="h-4 w-4" />
-            {selectedVariantIds.size > 0
-              ? `${selectedVariantIds.size} Produkt${selectedVariantIds.size === 1 ? '' : 'e'} (${filterMode === 'include' ? 'mit' : 'ohne'})`
-              : 'Produkt-Filter'}
-          </button>
-          {selectedVariantIds.size > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={hasShipment} onChange={(e) => setHasShipment(e.target.value as any)} className={inputCls('flex-1 sm:flex-none sm:w-auto')}>
+              <option value="no">Ohne Label/Sendung</option>
+              <option value="yes">Mit Sendung</option>
+              <option value="">Alle</option>
+            </select>
             <button
-              onClick={() => { setSelectedVariantIds(new Set()); setProductFilterOpen(false); }}
-              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-              title="Produkt-Filter zurücksetzen"
+              onClick={() => setProductFilterOpen((v) => !v)}
+              className={btn(selectedVariantIds.size > 0 ? 'primary' : 'secondary', 'flex-1 sm:flex-none')}
             >
-              <X className="h-3 w-3" /> Reset
+              <Filter className="h-4 w-4" />
+              <span className="truncate">
+                {selectedVariantIds.size > 0
+                  ? `${selectedVariantIds.size} Prod. (${filterMode === 'include' ? 'mit' : 'ohne'})`
+                  : 'Produkt-Filter'}
+              </span>
             </button>
-          )}
+            {selectedVariantIds.size > 0 && (
+              <button
+                onClick={() => { setSelectedVariantIds(new Set()); setProductFilterOpen(false); }}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                title="Produkt-Filter zurücksetzen"
+              >
+                <X className="h-3 w-3" /> Reset
+              </button>
+            )}
+          </div>
         </div>
 
         {productFilterOpen && (
@@ -289,7 +294,7 @@ export default function ShippingOrdersPage() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="table-scroll">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
                   <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -298,11 +303,11 @@ export default function ShippingOrdersPage() {
                     </th>
                     <th className="px-3 py-2.5 text-left">Bestellnr.</th>
                     <th className="px-3 py-2.5 text-left">Empfänger</th>
-                    <th className="px-3 py-2.5 text-left">Adresse</th>
-                    <th className="px-3 py-2.5 text-left">Land</th>
+                    <th className="px-3 py-2.5 text-left hidden md:table-cell">Adresse</th>
+                    <th className="px-3 py-2.5 text-left hidden lg:table-cell">Land</th>
                     <th className="px-3 py-2.5 text-right">Betrag</th>
-                    <th className="px-3 py-2.5 text-left">Datum</th>
-                    <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5 text-left hidden md:table-cell">Datum</th>
+                    <th className="px-3 py-2.5 hidden sm:table-cell">Status</th>
                     <th className="px-3 py-2.5">Sendung</th>
                   </tr>
                 </thead>
@@ -321,11 +326,22 @@ export default function ShippingOrdersPage() {
                             #{o.orderNumber}
                           </Link>
                         </td>
-                        <td className="px-3 py-3">
-                          <div className="text-gray-900 dark:text-white">{o.customerName || '—'}</div>
-                          <div className="text-xs text-gray-500">{o.customerEmail || '—'}</div>
+                        <td className="px-3 py-3 max-w-[160px] sm:max-w-none">
+                          <div className="text-gray-900 dark:text-white truncate">{o.customerName || '—'}</div>
+                          <div className="text-xs text-gray-500 truncate">{o.customerEmail || '—'}</div>
+                          {/* Mobile-only: inline address + status below name so user still sees key info */}
+                          <div className="md:hidden text-[11px] text-gray-500 mt-1 truncate">
+                            {!hasAddress ? (
+                              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                                <AlertCircle className="h-3 w-3" /> Adresse fehlt
+                              </span>
+                            ) : (
+                              <>{addr.zip} {addr.city} · {o.countryCode || '—'}</>
+                            )}
+                          </div>
+                          <div className="sm:hidden text-[11px] text-gray-400 mt-0.5">{fmtDateTime(o.placedAt)}</div>
                         </td>
-                        <td className="px-3 py-3 max-w-[280px]">
+                        <td className="px-3 py-3 max-w-[280px] hidden md:table-cell">
                           {hasAddress ? (
                             <div className="text-xs text-gray-600 dark:text-gray-300 truncate" title={`${addr.address1 || ''} ${addr.address2 || ''} ${addr.zip || ''} ${addr.city || ''}`}>
                               {addr.address1 || '—'}{addr.address2 ? `, ${addr.address2}` : ''} · {addr.zip} {addr.city}
@@ -336,15 +352,15 @@ export default function ShippingOrdersPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-xs text-gray-500 uppercase">{o.countryCode || '—'}</td>
+                        <td className="px-3 py-3 text-xs text-gray-500 uppercase hidden lg:table-cell">{o.countryCode || '—'}</td>
                         <td className="px-3 py-3 text-right whitespace-nowrap"><Money amount={o.totalPrice} currency={o.currency} /></td>
-                        <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDateTime(o.placedAt)}</td>
-                        <td className="px-3 py-3">
+                        <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap hidden md:table-cell">{fmtDateTime(o.placedAt)}</td>
+                        <td className="px-3 py-3 hidden sm:table-cell">
                           <Badge color="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{o.fulfillmentStatus}</Badge>
                         </td>
                         <td className="px-3 py-3">
                           {shipments.length > 0 ? (
-                            <Badge color="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{shipments.length} Sendung{shipments.length !== 1 ? 'en' : ''}</Badge>
+                            <Badge color="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{shipments.length}×</Badge>
                           ) : <span className="text-xs text-gray-400">—</span>}
                         </td>
                       </tr>

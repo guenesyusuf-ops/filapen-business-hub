@@ -40,18 +40,21 @@ export function KpiCard({
       type="button"
       onClick={onClick}
       className={cn(
-        'group relative overflow-hidden rounded-2xl bg-white dark:bg-white/[0.03] border border-gray-200/80 dark:border-white/8 px-5 py-4 text-left transition-all duration-200',
-        onClick && 'hover:shadow-lg hover:-translate-y-0.5 cursor-pointer',
+        'group relative overflow-hidden rounded-2xl bg-white dark:bg-white/[0.03] border border-gray-200/80 dark:border-white/8 text-left transition-all duration-200',
+        // Responsive padding — tighter on mobile so 2-col KPI grids don't overflow
+        'px-3 py-3 sm:px-5 sm:py-4',
+        onClick && 'hover:shadow-lg hover:-translate-y-0.5 cursor-pointer active:scale-[0.99]',
       )}
     >
       <div className={cn('absolute top-0 left-0 h-1 w-full bg-gradient-to-r', accentMap[accent || 'gray'])} />
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</div>
-          <div className="mt-1.5 text-2xl font-bold text-gray-900 dark:text-white tabular-nums">{value}</div>
-          {sublabel && <div className="mt-1 text-xs text-gray-400 dark:text-gray-500">{sublabel}</div>}
+          <div className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 truncate">{label}</div>
+          {/* Value fits a 120-190px card width on mobile without wrapping 5-6 digit amounts */}
+          <div className="mt-1 sm:mt-1.5 text-lg sm:text-2xl font-bold text-gray-900 dark:text-white tabular-nums truncate">{value}</div>
+          {sublabel && <div className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 truncate">{sublabel}</div>}
         </div>
-        {icon && <div className="text-gray-300 dark:text-gray-600 flex-shrink-0">{icon}</div>}
+        {icon && <div className="text-gray-300 dark:text-gray-600 flex-shrink-0 hidden sm:block">{icon}</div>}
       </div>
     </button>
   );
@@ -61,12 +64,17 @@ export function PageHeader({
   title, subtitle, actions,
 }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
+    // Stack vertically on mobile, horizontal from sm: up. Actions wrap if multiple.
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="min-w-0">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">{title}</h1>
+        {subtitle && <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
@@ -96,7 +104,8 @@ export function Empty({ icon, title, hint, action }: { icon?: ReactNode; title: 
 }
 
 export function btn(variant: 'primary' | 'secondary' | 'ghost' | 'danger' = 'primary', extra?: string) {
-  const base = 'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed';
+  // Touch-friendly sizing: min 40px height on mobile (thumb target), stays compact on desktop.
+  const base = 'inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 min-h-[40px] sm:min-h-0 text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap';
   const variants: Record<string, string> = {
     primary: 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 shadow-sm',
     secondary: 'bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10',
@@ -107,8 +116,9 @@ export function btn(variant: 'primary' | 'secondary' | 'ghost' | 'danger' = 'pri
 }
 
 export function input(extra?: string) {
+  // 16px font-size on mobile prevents iOS zoom-on-focus. min-height for thumb-friendliness.
   return cn(
-    'w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm',
+    'w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 min-h-[40px] text-base sm:text-sm',
     'text-gray-900 dark:text-white placeholder-gray-400',
     'focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500',
     extra,
