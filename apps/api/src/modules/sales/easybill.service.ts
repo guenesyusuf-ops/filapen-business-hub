@@ -204,7 +204,7 @@ export class EasybillService {
     return match?.id ? String(match.id) : null;
   }
 
-  private orderPayload(order: any, easybillCustomerId: string, type: 'ORDER' | 'INVOICE') {
+  private orderPayload(order: any, easybillCustomerId: string, type: 'OFFER' | 'INVOICE') {
     // EMPIRISCHER FIX: easybill interpretiert `single_price_net` offensichtlich
     // als Cent-Integer und NICHT als EUR-Float (12.06 in → 0.1206 €). Wir
     // multiplizieren daher × 100 und runden auf Integer.
@@ -241,7 +241,7 @@ export class EasybillService {
     const deliveryStr = fmt(order.requiredDeliveryDate);
     const footerText = deliveryStr ? `Geplanter Liefertermin: ${deliveryStr}` : undefined;
 
-    return {
+    const payload: any = {
       type,
       customer_id: Number(easybillCustomerId),
       // Let easybill auto-number the document — we store only our internal ref
@@ -252,6 +252,14 @@ export class EasybillService {
       text_additional: footerText,
       external_id: order.orderNumber,
     };
+    // Für OFFER: status=ACCEPT macht aus dem Angebot eine Auftragsbestätigung
+    // (easybill rendert den Dokument-Header entsprechend um). Swagger:
+    // `status` darf bei DELIVERY/ORDER/CHARGE/OFFER gesetzt werden,
+    // gültige Werte: ACCEPT/DONE/DROPSHIPPING/CANCEL.
+    if (type === 'OFFER') {
+      payload.status = 'ACCEPT';
+    }
+    return payload;
   }
 
   /**
@@ -269,19 +277,17 @@ export class EasybillService {
       throw new BadRequestException('Auftragsbestätigung existiert bereits — Rechnung wäre der nächste Schritt.');
     }
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
-    // ORDER = Auftragsbestätigung (Kundenauftrag) in easybill's data model,
-    // distinct from OFFER (Angebot) and INVOICE (Rechnung). Confirmed via
-    // easybill REST v1 Swagger doc type enum.
-    const body = this.orderPayload(order, easybillCustomerId, 'ORDER');
+    // easybill kennt keinen separaten AB-Typ — AB ist ein OFFER mit status=ACCEPT.
+    // Quelle: Swagger v1, Document.status enum = [ACCEPT, DONE, DROPSHIPPING, CANCEL],
+    // erlaubt nur für OFFER/ORDER/CHARGE/DELIVERY. Beim Rendering wird aus
+    // "Angebot" dann "Auftragsbestätigung" im PDF-Header.
+    const body = this.orderPayload(order, easybillCustomerId, 'OFFER');
     console.error('[easybill] REQUEST AB:', JSON.stringify(body));
     const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
     const docId = String(doc.id);
     console.error('[easybill] RESPONSE AB:', JSON.stringify({
-      id: docId, type: doc.type, number: doc.number, items: doc.items,
+      id: docId, type: doc.type, status: doc.status, number: doc.number,
     }));
-    if (doc.type !== 'ORDER') {
-      console.error(`[easybill] WARN: returned type="${doc.type}" expected ORDER`);
-    }
 
     // Pull PDF
     const pdfBuffer = await this.downloadPdf(orgId, docId);
