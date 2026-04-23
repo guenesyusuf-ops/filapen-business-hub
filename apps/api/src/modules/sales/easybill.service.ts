@@ -241,7 +241,7 @@ export class EasybillService {
     const deliveryStr = fmt(order.requiredDeliveryDate);
     const footerText = deliveryStr ? `Geplanter Liefertermin: ${deliveryStr}` : undefined;
 
-    return {
+    const payload: any = {
       type,
       customer_id: Number(easybillCustomerId),
       // Let easybill auto-number the document — we store only our internal ref
@@ -252,6 +252,19 @@ export class EasybillService {
       text_additional: footerText,
       external_id: order.orderNumber,
     };
+    // Zahlungsbedingungen für Rechnungen — aus paymentTerms-Freitext der
+    // Bestellung extrahieren. Format muss etwa so aussehen (egal ob Komma/Punkt):
+    //   "3% Skonto innerhalb 7 Tagen, 30 Tage netto"
+    //   "2% 7 Tage, 30 Tage"
+    //   "14 Tage netto"   (ohne Skonto)
+    // easybill rendert dann den Footer-Text inkl. Skonto-Hinweis automatisch.
+    if (type === 'INVOICE') {
+      const parsed = parsePaymentTerms(order.paymentTerms);
+      if (parsed.cash_allowance != null) payload.cash_allowance = parsed.cash_allowance;
+      if (parsed.cash_allowance_days != null) payload.cash_allowance_days = parsed.cash_allowance_days;
+      if (parsed.due_in_days != null) payload.due_in_days = parsed.due_in_days;
+    }
+    return payload;
   }
 
   /**
@@ -343,8 +356,22 @@ export class EasybillService {
     }
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
     const body = this.orderPayload(order, easybillCustomerId, 'INVOICE');
+    console.error('[easybill] REQUEST invoice:', JSON.stringify(body));
     const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
     const docId = String(doc.id);
+    console.error('[easybill] invoice created:', JSON.stringify({
+      id: docId, type: doc.type, number: doc.number,
+      cash_allowance: doc.cash_allowance, cash_allowance_days: doc.cash_allowance_days,
+      due_in_days: doc.due_in_days,
+    }));
+
+    // Rechnung aus Entwurfsmodus holen damit sie finalisiert + versendbar ist
+    try {
+      await this.call(orgId, `/documents/${docId}/done`, { method: 'PUT' });
+    } catch (err: any) {
+      // Non-fatal: Rechnung existiert, nur Draft. User kann manuell finalisieren.
+      console.error(`[easybill] /done fehlgeschlagen (non-fatal): ${err.message}`);
+    }
 
     const pdfBuffer = await this.downloadPdf(orgId, docId);
     const attached = await this.documents.attachBuffer(
@@ -392,6 +419,58 @@ export class EasybillService {
     }
     return Buffer.from(await res.arrayBuffer());
   }
+}
+
+/**
+ * Extrahiere Skonto % + Tage + Zahlungsziel aus einem Zahlungsbedingungs-
+ * Freitext. Gibt undefined-Felder zurück wenn nicht gefunden — der Caller
+ * sendet sie dann einfach nicht an easybill (keine Default-Werte).
+ *
+ * Beispiele:
+ *   "3% Skonto innerhalb 7 Tagen, 30 Tage netto"
+ *     → { cash_allowance: 3, cash_allowance_days: 7, due_in_days: 30 }
+ *   "2% 7 Tage, 30 Tage"
+ *     → { cash_allowance: 2, cash_allowance_days: 7, due_in_days: 30 }
+ *   "14 Tage netto"
+ *     → { due_in_days: 14 }
+ *   "Vorkasse" / "sofort"
+ *     → { due_in_days: 0 }
+ */
+function parsePaymentTerms(text: string | null | undefined): {
+  cash_allowance?: number;
+  cash_allowance_days?: number;
+  due_in_days?: number;
+} {
+  if (!text || typeof text !== 'string') return {};
+  const s = text.trim();
+  if (!s) return {};
+  const result: any = {};
+
+  // "3%" oder "3,5%" — Skonto-Prozentsatz
+  const pctMatch = s.match(/(\d+(?:[.,]\d+)?)\s*%/);
+  if (pctMatch) {
+    result.cash_allowance = parseFloat(pctMatch[1].replace(',', '.'));
+  }
+
+  // "Vorkasse" / "sofort" / "sofort fällig" → 0 Tage
+  if (/\b(?:vorkasse|sofort)\b/i.test(s)) {
+    result.due_in_days = 0;
+    return result;
+  }
+
+  // Alle "X Tag(e/en)" Vorkommen
+  const daysMatches = Array.from(s.matchAll(/(\d+)\s*Tag/gi)).map((m) => parseInt(m[1], 10));
+  if (daysMatches.length >= 2) {
+    result.cash_allowance_days = daysMatches[0];
+    result.due_in_days = daysMatches[1];
+  } else if (daysMatches.length === 1) {
+    if (result.cash_allowance != null) {
+      result.cash_allowance_days = daysMatches[0];
+    } else {
+      result.due_in_days = daysMatches[0];
+    }
+  }
+  return result;
 }
 
 /**
