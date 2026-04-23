@@ -62,7 +62,7 @@ export function KpiCard({
 
 export function PageHeader({
   title, subtitle, actions,
-}: { title: string; subtitle?: string; actions?: ReactNode }) {
+}: { title: string; subtitle?: string | ReactNode; actions?: ReactNode }) {
   return (
     // Stack vertically on mobile, horizontal from sm: up. Actions wrap if multiple.
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">

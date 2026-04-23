@@ -214,6 +214,18 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.sales',
+    href: '/sales',
+    icon: Receipt,
+    permissionKey: 'sales',
+    children: [
+      { labelKey: 'nav.salesDashboard', href: '/sales/dashboard', icon: BarChart3 },
+      { labelKey: 'nav.salesOrders', href: '/sales/orders', icon: ClipboardList },
+      { labelKey: 'nav.salesCustomers', href: '/sales/customers', icon: Building2 },
+      { labelKey: 'nav.salesImport', href: '/sales/import', icon: FileText },
+    ],
+  },
+  {
     labelKey: 'nav.documents',
     href: '/documents',
     icon: FolderOpen,

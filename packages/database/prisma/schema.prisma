@@ -357,6 +357,12 @@ model Organization {
   orderShipments           OrderShipment[]
   shippingEmailAutomations ShippingEmailAutomation[]
   shippingEmailLogs        ShippingEmailLog[]
+  salesCustomers           SalesCustomer[]
+  salesOrders              SalesOrder[]
+  salesOrderLineItems      SalesOrderLineItem[]
+  salesOrderDocuments      SalesOrderDocument[]
+  salesOrderEvents         SalesOrderEvent[]
+  salesOrderReminders      SalesOrderReminder[]
 
   @@map("organizations")
 }
@@ -874,6 +880,7 @@ model ProductVariant {
   product         Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
   orderLineItems  OrderLineItem[]
   shippingProfile ShippingProductProfile?
+  salesLineItems  SalesOrderLineItem[]
 
   @@unique([orgId, externalId], map: "uq_variant_org_external")
   @@index([orgId])
@@ -2841,4 +2848,216 @@ model ShippingEmailLog {
   @@index([orgId])
   @@index([shipmentId])
   @@map("shipping_email_logs")
+}
+
+// =============================================================================
+// SALES MODULE — B2B order management with PDF/Mail import + easybill integration.
+// Separate from Shopify `Order` model because B2B orders have different fields
+// (VKE per carton, supplier article numbers, easybill document refs).
+// =============================================================================
+
+enum SalesOrderStatus {
+  draft
+  confirmed
+  shipped
+  invoiced
+  completed
+  cancelled
+
+  @@map("sales_order_status")
+}
+
+enum SalesDocumentKind {
+  original       // uploaded PDF/image of the incoming order
+  confirmation   // Auftragsbestätigung (easybill PDF)
+  invoice        // Rechnung (easybill PDF)
+  other          // anything else the user attaches
+
+  @@map("sales_document_kind")
+}
+
+enum SalesEventType {
+  created
+  imported
+  edited
+  confirmation_sent
+  shipped
+  invoice_sent
+  note
+  status_change
+
+  @@map("sales_event_type")
+}
+
+enum SalesReminderKind {
+  urgent_3d              // <=3 days to required delivery
+  overdue                // past required delivery
+  invoice_after_shipping // shipped but no invoice
+
+  @@map("sales_reminder_kind")
+}
+
+model SalesCustomer {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                  String   @map("org_id") @db.Uuid
+  // Internal customer number, auto-generated sequential ("KD-00001")
+  customerNumber         String   @map("customer_number") @db.VarChar(50)
+  // Customer-assigned number (optional, from their ERP)
+  externalCustomerNumber String?  @map("external_customer_number") @db.VarChar(100)
+  companyName            String   @map("company_name") @db.VarChar(255)
+  contactPerson          String?  @map("contact_person") @db.VarChar(255)
+  email                  String?  @db.VarChar(320)
+  phone                  String?  @db.VarChar(50)
+  shippingAddress        Json?    @map("shipping_address") @db.JsonB
+  billingAddress         Json?    @map("billing_address") @db.JsonB
+  paymentTerms           String?  @map("payment_terms") @db.VarChar(255)
+  notes                  String?  @db.Text
+  // easybill customer ID (nullable until first AB/invoice is created)
+  easybillCustomerId     String?  @map("easybill_customer_id") @db.VarChar(100)
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orders       SalesOrder[]
+
+  @@unique([orgId, customerNumber], map: "uq_sales_customer_org_number")
+  @@index([orgId])
+  @@index([orgId, companyName])
+  @@index([orgId, email])
+  @@map("sales_customers")
+}
+
+model SalesOrder {
+  id                      String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                   String           @map("org_id") @db.Uuid
+  // Internal order number, auto-generated ("VK-2026-00001")
+  orderNumber             String           @map("order_number") @db.VarChar(50)
+  customerId              String           @map("customer_id") @db.Uuid
+  // Customer's own order number (from the incoming PO)
+  externalOrderNumber     String?          @map("external_order_number") @db.VarChar(100)
+  orderDate               DateTime?        @map("order_date") @db.Timestamptz
+  requiredDeliveryDate    DateTime?        @map("required_delivery_date") @db.Timestamptz
+  contactPerson           String?          @map("contact_person") @db.VarChar(255)
+  shippingAddress         Json?            @map("shipping_address") @db.JsonB
+  billingAddress          Json?            @map("billing_address") @db.JsonB
+  paymentTerms            String?          @map("payment_terms") @db.VarChar(255)
+  currency                String           @default("EUR") @db.VarChar(3)
+  totalNet                Decimal          @default(0) @map("total_net") @db.Decimal(12, 2)
+  status                  SalesOrderStatus @default(draft)
+  createdById             String           @map("created_by_id") @db.Uuid
+  assignedToId            String?          @map("assigned_to_id") @db.Uuid
+  // Status flag timestamps — set when the user clicks the toggle-badge
+  confirmationSentAt      DateTime?        @map("confirmation_sent_at") @db.Timestamptz
+  shippedAt               DateTime?        @map("shipped_at") @db.Timestamptz
+  invoiceSentAt           DateTime?        @map("invoice_sent_at") @db.Timestamptz
+  // easybill references
+  easybillConfirmationId  String?          @map("easybill_confirmation_id") @db.VarChar(100)
+  easybillConfirmationPdfUrl String?       @map("easybill_confirmation_pdf_url") @db.Text
+  easybillInvoiceId       String?          @map("easybill_invoice_id") @db.VarChar(100)
+  easybillInvoicePdfUrl   String?          @map("easybill_invoice_pdf_url") @db.Text
+  // Versand-Info (free-form carrier + tracking numbers[])
+  shippingCarrierNote     String?          @map("shipping_carrier_note") @db.VarChar(255)
+  trackingNumbers         String[]         @default([]) @map("tracking_numbers")
+  // Source (nullable → SalesOrderDocument of kind=original)
+  sourceDocumentId        String?          @map("source_document_id") @db.Uuid
+  extractionConfidence    Float?           @map("extraction_confidence")
+  notes                   String?          @db.Text
+  createdAt               DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer     SalesCustomer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  lineItems    SalesOrderLineItem[]
+  documents    SalesOrderDocument[]
+  events       SalesOrderEvent[]
+  reminders    SalesOrderReminder[]
+
+  @@unique([orgId, orderNumber], map: "uq_sales_order_org_number")
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, requiredDeliveryDate])
+  @@index([orgId, customerId])
+  @@index([orgId, createdAt])
+  @@map("sales_orders")
+}
+
+model SalesOrderLineItem {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                  String   @map("org_id") @db.Uuid
+  orderId                String   @map("order_id") @db.Uuid
+  position               Int      @default(1)
+  title                  String   @db.VarChar(500)
+  supplierArticleNumber  String?  @map("supplier_article_number") @db.VarChar(100)
+  ean                    String?  @db.VarChar(50)
+  // VKE (Einheiten pro Karton)
+  unitsPerCarton         Int?     @map("units_per_carton")
+  quantity               Int      @default(1)
+  unitPriceNet           Decimal  @default(0) @map("unit_price_net") @db.Decimal(12, 4)
+  lineNet                Decimal  @default(0) @map("line_net") @db.Decimal(12, 2)
+  // Auto-matched to internal product (nullable)
+  matchedProductVariantId String? @map("matched_product_variant_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization    Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order           SalesOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  matchedVariant  ProductVariant? @relation(fields: [matchedProductVariantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([orgId, ean])
+  @@index([orgId, supplierArticleNumber])
+  @@map("sales_order_line_items")
+}
+
+model SalesOrderDocument {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String            @map("org_id") @db.Uuid
+  orderId      String            @map("order_id") @db.Uuid
+  kind         SalesDocumentKind @default(other)
+  fileName     String            @map("file_name") @db.VarChar(255)
+  r2Key        String            @map("r2_key") @db.Text
+  url          String            @db.Text
+  mimeType     String            @map("mime_type") @db.VarChar(100)
+  sizeBytes    Int               @map("size_bytes")
+  uploadedById String            @map("uploaded_by_id") @db.Uuid
+  uploadedAt   DateTime          @default(now()) @map("uploaded_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order        SalesOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([orgId, kind])
+  @@map("sales_order_documents")
+}
+
+model SalesOrderEvent {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String         @map("org_id") @db.Uuid
+  orderId   String         @map("order_id") @db.Uuid
+  type      SalesEventType
+  actorId   String?        @map("actor_id") @db.Uuid
+  note      String?        @db.Text
+  metadata  Json?          @db.JsonB
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order        SalesOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("sales_order_events")
+}
+
+model SalesOrderReminder {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String            @map("org_id") @db.Uuid
+  orderId        String            @map("order_id") @db.Uuid
+  kind           SalesReminderKind
+  sentAt         DateTime          @default(now()) @map("sent_at") @db.Timestamptz
+  sentToUserIds  String[]          @default([]) @map("sent_to_user_ids")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order        SalesOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, kind], map: "uq_sales_reminder_order_kind")
+  @@index([orderId])
+  @@map("sales_order_reminders")
 }

@@ -19,6 +19,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { PurchaseModule } from './modules/purchase/purchase.module';
 import { EmailMarketingModule } from './modules/email-marketing/email-marketing.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -81,6 +82,7 @@ import { HealthController } from './health.controller';
     PurchaseModule,
     EmailMarketingModule,
     ShippingModule,
+    SalesModule,
   ],
   controllers: [HealthController],
   providers: [],

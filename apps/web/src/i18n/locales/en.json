@@ -94,7 +94,12 @@
     "shipRules": "Shipping Rules",
     "shipProducts": "Product Data",
     "shipIntegrations": "Integrations",
-    "shipEmails": "Auto Emails"
+    "shipEmails": "Auto Emails",
+    "sales": "Sales",
+    "salesDashboard": "Dashboard",
+    "salesOrders": "Orders",
+    "salesCustomers": "B2B Customers",
+    "salesImport": "Import"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",

@@ -94,7 +94,12 @@
     "shipRules": "Versandregeln",
     "shipProducts": "Produkte & Versanddaten",
     "shipIntegrations": "Integrationen",
-    "shipEmails": "Automatische Emails"
+    "shipEmails": "Automatische Emails",
+    "sales": "Verkauf",
+    "salesDashboard": "Dashboard",
+    "salesOrders": "Bestellungen",
+    "salesCustomers": "B2B-Kunden",
+    "salesImport": "Import"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",
