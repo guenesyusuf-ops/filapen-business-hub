@@ -95,6 +95,26 @@ export const shippingApi = {
     const blob = await res.blob();
     return { blob, labelCount, skippedCount, skippedReasons };
   },
+  // Delivery notes — separate PDF with one page per shipment, same order as labels.
+  // Fields per page: Lieferadresse, Bestellnummer, Plattform, SKU-Liste mit Menge.
+  bulkDownloadDeliveryNotes: async (
+    labelIds: string[],
+  ): Promise<{ blob: Blob; pageCount: number }> => {
+    const res = await fetch(`${API_URL}/api/shipping/labels/bulk-delivery-notes`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ labelIds }),
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
+      throw new Error(msg);
+    }
+    const pageCount = Number(res.headers.get('X-Page-Count') ?? '0') || 0;
+    const blob = await res.blob();
+    return { blob, pageCount };
+  },
+
   markLabelPrinted: (labelId: string, printed = true) =>
     call(`/labels/${labelId}/mark-printed`, { method: 'POST', body: JSON.stringify({ printed }) }),
   cleanupStubLabels: () =>

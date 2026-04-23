@@ -375,6 +375,41 @@ export class ShippingController {
     }
   }
 
+  @Post('labels/bulk-delivery-notes')
+  async bulkDeliveryNotes(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { labelIds?: string[]; shipmentIds?: string[] },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    let labelIds = body.labelIds ?? [];
+    if (!labelIds.length && body.shipmentIds?.length) {
+      const labels = await this.prisma.orderShipmentLabel.findMany({
+        where: { shipmentId: { in: body.shipmentIds }, shipment: { orgId } },
+        select: { id: true },
+      });
+      labelIds = labels.map((l) => l.id);
+    }
+    if (!labelIds.length) throw new BadRequestException('labelIds erforderlich');
+    try {
+      const result = await this.shipments.bulkGenerateDeliveryNotes(orgId, labelIds);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      res.setHeader('X-Page-Count', String(result.pageCount));
+      res.setHeader('Access-Control-Expose-Headers', 'X-Page-Count');
+      return new StreamableFile(result.buffer, {
+        type: 'application/pdf',
+        disposition: `attachment; filename="lieferscheine-${timestamp}.pdf"`,
+      });
+    } catch (err: any) {
+      this.logger.error(`bulkDeliveryNotes failed: ${err?.message}`, err?.stack);
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        `Lieferschein-Erstellung fehlgeschlagen: ${err?.message || 'Unbekannter Fehler'}`,
+      );
+    }
+  }
+
   @Post('labels/:labelId/mark-printed')
   async markLabelPrinted(
     @Headers('authorization') authHeader: string,

@@ -8,7 +8,7 @@ import { ShippingRuleService } from './shipping-rule.service';
 import { ShippingEmailAutomationService } from './shipping-email-automation.service';
 import { ShopifyService } from '../integration/shopify/shopify.service';
 import type { ShipmentCreateInput } from './carriers/carrier-adapter.interface';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib';
 
 export interface CreateShipmentInput {
   orderId: string;
@@ -470,6 +470,244 @@ export class OrderShipmentService {
     }
 
     return { buffer, labelCount: merged.getPageCount(), errors };
+  }
+
+  /**
+   * Erzeugt ein PDF mit Lieferscheinen — ein Blatt pro Sendung, in der gleichen
+   * Reihenfolge wie die übergebenen labelIds. Pflichtfelder:
+   *   - Anschrift Kunde
+   *   - Bestellnummer
+   *   - Plattform (Shop-Plattform der Bestellung, z.B. shopify / amazon / manuell)
+   *   - SKU-Liste mit Menge (Format: "ABC-123 ×2")
+   */
+  async bulkGenerateDeliveryNotes(
+    orgId: string,
+    labelIds: string[],
+  ): Promise<{ buffer: Buffer; pageCount: number; errors: string[] }> {
+    if (!labelIds.length) {
+      throw new BadRequestException('Keine Labels ausgewählt');
+    }
+
+    // Load labels with everything needed for the delivery note. Scoped to org via shipment relation.
+    const labels = await this.prisma.orderShipmentLabel.findMany({
+      where: { id: { in: labelIds }, shipment: { orgId } },
+      select: {
+        id: true,
+        shipmentId: true,
+        shipment: {
+          select: {
+            id: true,
+            recipientName: true,
+            recipientAddress: true,
+            order: {
+              select: {
+                orderNumber: true,
+                sourceName: true,
+                shop: { select: { platform: true, name: true } },
+                lineItems: {
+                  select: { sku: true, title: true, quantity: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Preserve the user-selected order (same as bulkDownloadLabels).
+    const orderIndex = new Map(labelIds.map((id, i) => [id, i]));
+    labels.sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
+
+    const errors: string[] = [];
+    const pdf = await PDFDocument.create();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+    for (const l of labels) {
+      try {
+        const s = l.shipment;
+        const o = s.order;
+        const platform = o?.shop?.platform || o?.sourceName || 'manuell';
+        const lineItems = o?.lineItems ?? [];
+        this.renderDeliveryNotePage(pdf, font, bold, {
+          orderNumber: o?.orderNumber ?? '—',
+          platform: String(platform),
+          recipientName: s.recipientName,
+          recipientAddress: s.recipientAddress as any,
+          lineItems,
+        });
+      } catch (err: any) {
+        const msg = `${l.shipmentId}: ${err.message}`;
+        this.logger.warn(`bulkGenerateDeliveryNotes — skip: ${msg}`);
+        errors.push(msg);
+      }
+    }
+
+    if (pdf.getPageCount() === 0) {
+      throw new BadRequestException(
+        `Kein Lieferschein konnte erzeugt werden. Fehler: ${errors.join('; ')}`,
+      );
+    }
+
+    const bytes = await pdf.save();
+    return { buffer: Buffer.from(bytes), pageCount: pdf.getPageCount(), errors };
+  }
+
+  /**
+   * Zeichnet einen einzelnen Lieferschein auf eine neue A4-Seite.
+   * Layout: Header oben, Anschrift + Meta-Block darunter, Artikel-Tabelle am Hauptteil.
+   */
+  private renderDeliveryNotePage(
+    pdf: PDFDocument,
+    font: PDFFont,
+    bold: PDFFont,
+    data: {
+      orderNumber: string;
+      platform: string;
+      recipientName: string;
+      recipientAddress: any;
+      lineItems: Array<{ sku: string | null; title: string; quantity: number }>;
+    },
+  ): void {
+    const page = pdf.addPage([595.28, 841.89]); // A4 portrait in pt
+    const { width, height } = page.getSize();
+    const margin = 50;
+    const black = rgb(0, 0, 0);
+    const gray = rgb(0.4, 0.4, 0.4);
+
+    // Header
+    page.drawText('Lieferschein', {
+      x: margin,
+      y: height - margin - 4,
+      size: 22,
+      font: bold,
+      color: black,
+    });
+    page.drawLine({
+      start: { x: margin, y: height - margin - 14 },
+      end: { x: width - margin, y: height - margin - 14 },
+      thickness: 1,
+      color: gray,
+    });
+
+    // Left: Recipient address block
+    let y = height - margin - 50;
+    page.drawText('Lieferadresse', { x: margin, y, size: 10, font: bold, color: gray });
+    y -= 18;
+    const addrLines = this.formatRecipientLines(data.recipientName, data.recipientAddress);
+    for (const line of addrLines) {
+      page.drawText(this.sanitize(line), { x: margin, y, size: 12, font, color: black });
+      y -= 16;
+    }
+
+    // Right: meta (order number + platform)
+    const metaX = 340;
+    let metaY = height - margin - 50;
+    page.drawText('Bestellnummer', { x: metaX, y: metaY, size: 10, font: bold, color: gray });
+    metaY -= 16;
+    page.drawText(this.sanitize(data.orderNumber), {
+      x: metaX,
+      y: metaY,
+      size: 12,
+      font,
+      color: black,
+    });
+    metaY -= 24;
+    page.drawText('Plattform', { x: metaX, y: metaY, size: 10, font: bold, color: gray });
+    metaY -= 16;
+    page.drawText(this.sanitize(this.platformLabel(data.platform)), {
+      x: metaX,
+      y: metaY,
+      size: 12,
+      font,
+      color: black,
+    });
+
+    // Item table
+    const tableY = Math.min(y, metaY) - 32;
+    page.drawLine({
+      start: { x: margin, y: tableY + 20 },
+      end: { x: width - margin, y: tableY + 20 },
+      thickness: 0.5,
+      color: gray,
+    });
+    page.drawText('Artikel', { x: margin, y: tableY + 4, size: 10, font: bold, color: gray });
+    page.drawText('SKU', { x: margin + 260, y: tableY + 4, size: 10, font: bold, color: gray });
+    page.drawText('Menge', { x: width - margin - 50, y: tableY + 4, size: 10, font: bold, color: gray });
+    page.drawLine({
+      start: { x: margin, y: tableY - 4 },
+      end: { x: width - margin, y: tableY - 4 },
+      thickness: 0.5,
+      color: gray,
+    });
+
+    let rowY = tableY - 22;
+    const lineHeight = 16;
+    for (const item of data.lineItems) {
+      if (rowY < margin + 40) break; // stop if out of space — extremely long orders truncate
+      const sku = item.sku || '—';
+      const title = this.truncate(item.title || '—', 42);
+      const qtyText = `×${item.quantity}`;
+      page.drawText(this.sanitize(title), { x: margin, y: rowY, size: 11, font, color: black });
+      page.drawText(this.sanitize(sku), { x: margin + 260, y: rowY, size: 11, font, color: black });
+      page.drawText(qtyText, { x: width - margin - 50, y: rowY, size: 11, font, color: black });
+      rowY -= lineHeight;
+    }
+
+    // Footer
+    page.drawText(`Gedruckt am ${new Date().toLocaleDateString('de-DE')}`, {
+      x: margin,
+      y: margin - 10,
+      size: 9,
+      font,
+      color: gray,
+    });
+  }
+
+  private formatRecipientLines(name: string, addr: any): string[] {
+    const lines: string[] = [];
+    if (name) lines.push(name);
+    const company = addr?.company;
+    if (company && company !== name) lines.push(String(company));
+    // street1 + house number on same line; street2 below if present
+    const street1 = [addr?.address1, addr?.houseNumber].filter(Boolean).join(' ');
+    if (street1) lines.push(street1);
+    if (addr?.address2) lines.push(String(addr.address2));
+    const cityLine = [addr?.zip, addr?.city].filter(Boolean).join(' ');
+    if (cityLine) lines.push(cityLine);
+    if (addr?.province) lines.push(String(addr.province));
+    if (addr?.country) lines.push(String(addr.country));
+    return lines;
+  }
+
+  private platformLabel(p: string): string {
+    const map: Record<string, string> = {
+      shopify: 'Shopify',
+      amazon: 'Amazon',
+      etsy: 'Etsy',
+      ebay: 'eBay',
+      woocommerce: 'WooCommerce',
+      manuell: 'Manuell',
+    };
+    const key = p.toLowerCase();
+    return map[key] ?? p;
+  }
+
+  /**
+   * pdf-lib's Helvetica (WinAnsi) rejects characters outside its encoding, which
+   * crashes on emoji or CJK. Strip to WinAnsi-safe set so the delivery note
+   * generation never fails over a funky address line.
+   */
+  private sanitize(s: string | null | undefined): string {
+    if (!s) return '';
+    // Keep printable latin-1 range; drop everything else.
+    // eslint-disable-next-line no-control-regex
+    return s.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '').trim();
+  }
+
+  private truncate(s: string, max: number): string {
+    // '...' instead of '…' because our sanitize() strips non-Latin-1 chars.
+    return s.length > max ? s.slice(0, max - 3) + '...' : s;
   }
 
   /**

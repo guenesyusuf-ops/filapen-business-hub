@@ -121,6 +121,13 @@ export default function ShippingLabelsPage() {
   async function handleBulkAction(action: 'print' | 'download') {
     if (selected.size === 0) return;
     const labelIds = Array.from(selected);
+    // Ask up-front whether delivery notes should be included. We do this BEFORE
+    // kicking off requests so the two PDFs (labels + Lieferscheine) land back in
+    // the same user gesture, which most browsers allow to trigger two downloads
+    // or two window.open() calls without popup blocking.
+    const withDeliveryNotes = window.confirm(
+      `Auch Lieferscheine für ${labelIds.length} Sendung${labelIds.length === 1 ? '' : 'en'} ${action === 'print' ? 'drucken' : 'herunterladen'}?\n\nDu bekommst dann zwei getrennte PDFs:\n  1. Labels (wie bisher)\n  2. Lieferscheine (gleiche Reihenfolge, 1 Seite pro Sendung)`,
+    );
     setBusy(action);
     try {
       const { blob, labelCount, skippedCount, skippedReasons } = await shippingApi.bulkDownloadLabels(labelIds, true);
@@ -132,6 +139,22 @@ export default function ShippingLabelsPage() {
           `${labelCount} von ${labelIds.length} Label${labelIds.length === 1 ? '' : 's'} in PDF zusammengefügt.\n\n${skippedCount} übersprungen: ${reasons}`,
         );
       }
+
+      // Fetch delivery notes in parallel to labels-already-downloaded — if the
+      // user confirmed above. We await this AFTER the labels PDF was triggered
+      // so the label download never gets blocked by a delivery-note error.
+      let deliveryBlob: Blob | null = null;
+      if (withDeliveryNotes) {
+        try {
+          const dn = await shippingApi.bulkDownloadDeliveryNotes(labelIds);
+          deliveryBlob = dn.blob;
+        } catch (e: any) {
+          // Non-blocking — user already has the labels. Surface the error but
+          // don't throw; the labels flow below must still run.
+          alert(`Lieferscheine konnten nicht erzeugt werden: ${e.message}`);
+        }
+      }
+
       if (action === 'download') {
         const a = document.createElement('a');
         a.href = url;
@@ -140,6 +163,16 @@ export default function ShippingLabelsPage() {
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 2000);
+        if (deliveryBlob) {
+          const durl = URL.createObjectURL(deliveryBlob);
+          const da = document.createElement('a');
+          da.href = durl;
+          da.download = `lieferscheine-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
+          document.body.appendChild(da);
+          da.click();
+          da.remove();
+          setTimeout(() => URL.revokeObjectURL(durl), 2000);
+        }
       } else {
         // Print: Neues Fenster mit dem PDF — Browser zeigt nativen PDF-Viewer,
         // User kann direkt den Print-Button nutzen (in allen Browsern oben im Viewer
@@ -170,6 +203,28 @@ export default function ShippingLabelsPage() {
         }
         // Blob-URL erst nach Sicht-Öffnung freigeben, damit der PDF-Viewer sie laden kann
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
+
+        // Delivery notes als zweites Druck-Fenster — in derselben User-Gesten-
+        // Kette, daher lässt der Popup-Blocker es in der Regel zu. Fallback auf
+        // Download, falls doch geblockt.
+        if (deliveryBlob) {
+          const durl = URL.createObjectURL(deliveryBlob);
+          const dw = window.open(durl, '_blank');
+          if (!dw) {
+            const da = document.createElement('a');
+            da.href = durl;
+            da.download = `lieferscheine-print-${Date.now()}.pdf`;
+            document.body.appendChild(da);
+            da.click();
+            da.remove();
+            alert('Popup für Lieferscheine wurde blockiert. Die Lieferschein-PDF wurde stattdessen heruntergeladen.');
+          } else {
+            setTimeout(() => {
+              try { dw.focus(); dw.print(); } catch {}
+            }, 1500);
+          }
+          setTimeout(() => URL.revokeObjectURL(durl), 60_000);
+        }
       }
       setSelected(new Set());
       // Refresh so printedAt updates into "Gedruckt" tab
