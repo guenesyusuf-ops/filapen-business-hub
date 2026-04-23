@@ -33,6 +33,13 @@ export const shippingApi = {
   },
   getOrder: (id: string) => call(`/orders/${id}`),
   orderWeight: (id: string) => call<{ totalG: number; unknownCount: number }>(`/orders/${id}/weight`),
+  addressErrorCount: () => call<{ count: number }>('/orders/address-error-count'),
+  updateOrderAddress: (id: string, data: {
+    name?: string | null; firstName?: string | null; lastName?: string | null; company?: string | null;
+    address1: string; address2?: string | null; houseNumber?: string | null;
+    zip: string; city: string; province?: string | null;
+    country: string; phone?: string | null; email?: string | null;
+  }) => call<{ ok: boolean; orderId: string }>(`/orders/${id}/address`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Product profiles
   listProductProfiles: (search?: string) => call(`/product-profiles${search ? `?search=${encodeURIComponent(search)}` : ''}`),

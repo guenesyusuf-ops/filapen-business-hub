@@ -82,8 +82,12 @@ export class ShippingController {
     @Query('from') fromDate?: string,
     @Query('to') toDate?: string,
     @Query('hasShipment') hasShipment?: 'yes' | 'no',
-    @Query('excluded') excluded?: string, // comma-separated variant IDs (not in)
-    @Query('included') included?: string, // comma-separated variant IDs (must contain at least one)
+    @Query('excluded') excluded?: string,
+    @Query('included') included?: string,
+    @Query('exclusiveVariantId') exclusiveVariantId?: string,
+    @Query('exclusiveQuantityOp') exclusiveQuantityOp?: 'eq' | 'gte' | 'lte' | 'gt' | 'lt',
+    @Query('exclusiveQuantity') exclusiveQuantity?: string,
+    @Query('addressStatus') addressStatus?: 'error' | 'ok' | 'all',
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -94,9 +98,39 @@ export class ShippingController {
       search, shopId, fromDate, toDate, hasShipment,
       excludedProductVariantIds: excludedIds,
       includedProductVariantIds: includedIds,
+      exclusiveVariantId: exclusiveVariantId || undefined,
+      exclusiveQuantityOp,
+      exclusiveQuantity: exclusiveQuantity ? parseInt(exclusiveQuantity, 10) : undefined,
+      addressStatus,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+  }
+
+  @Get('orders/address-error-count')
+  async addressErrorCount(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const count = await this.orders.countAddressErrors(orgId);
+    return { count };
+  }
+
+  @Put('orders/:id/address')
+  async updateOrderAddress(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: {
+      name?: string; firstName?: string; lastName?: string; company?: string;
+      address1: string; address2?: string | null; houseNumber?: string | null;
+      zip: string; city: string; province?: string | null;
+      country: string; phone?: string | null; email?: string | null;
+    },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body.address1?.trim() || !body.zip?.trim() || !body.city?.trim() || !body.country?.trim()) {
+      throw new BadRequestException('Straße, PLZ, Stadt und Land sind Pflichtfelder');
+    }
+    return this.orders.updateAddress(orgId, id, body);
   }
 
   @Get('orders/:id')

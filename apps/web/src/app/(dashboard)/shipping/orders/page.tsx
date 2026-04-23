@@ -3,13 +3,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw, Filter, X } from 'lucide-react';
+import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw, Filter, X, MapPin, Save } from 'lucide-react';
 import { shippingApi, fmtDate, fmtDateTime } from '@/lib/shipping';
-import { PageHeader, Empty, btn, input as inputCls, Badge, Money } from '@/components/shipping/ShippingUI';
+import { PageHeader, Empty, btn, input as inputCls, label as labelCls, SectionCard, Badge, Money } from '@/components/shipping/ShippingUI';
 
 const PAGE_SIZE = 50;
 
 type ProductFilterMode = 'include' | 'exclude';
+type OrdersTab = 'pending' | 'address_errors';
+type QuantityOp = 'eq' | 'gte' | 'lte' | 'gt' | 'lt';
+const QUANTITY_OPS: { value: QuantityOp; label: string }[] = [
+  { value: 'eq', label: '=' },
+  { value: 'gte', label: '≥' },
+  { value: 'lte', label: '≤' },
+  { value: 'gt', label: '>' },
+  { value: 'lt', label: '<' },
+];
 
 interface ProductOption {
   variantId: string;
@@ -25,23 +34,43 @@ export default function ShippingOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [tab, setTab] = useState<OrdersTab>('pending');
   const [search, setSearch] = useState('');
   const [hasShipment, setHasShipment] = useState<'' | 'yes' | 'no'>('no');
   const [offset, setOffset] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Produkt-Filter
+  // Produkt-Filter (include/exclude Liste)
   const [productFilterOpen, setProductFilterOpen] = useState(false);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [filterMode, setFilterMode] = useState<ProductFilterMode>('include');
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment, filterMode, selectedVariantIds]);
+  // Exklusiv-Filter (SKU + Menge + Operator)
+  const [exclusiveOpen, setExclusiveOpen] = useState(false);
+  const [exclusiveVariantId, setExclusiveVariantId] = useState<string | null>(null);
+  const [exclusiveOp, setExclusiveOp] = useState<QuantityOp>('eq');
+  const [exclusiveQuantity, setExclusiveQuantity] = useState<number>(2);
 
-  // Lazy-load product options once (first time user opens filter)
+  // Address-Error-Count für Tab-Badge
+  const [addressErrorCount, setAddressErrorCount] = useState<number>(0);
+
+  // Address-Correction-Modal
+  const [correctingOrder, setCorrectingOrder] = useState<any | null>(null);
+
+  useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment, filterMode, selectedVariantIds, exclusiveVariantId, exclusiveOp, exclusiveQuantity, tab]);
+
+  // Address-Error-Count regelmäßig laden (für Badge)
   useEffect(() => {
-    if (!productFilterOpen || productOptions.length > 0) return;
+    shippingApi.addressErrorCount()
+      .then((d) => setAddressErrorCount(d.count))
+      .catch(() => {});
+  }, [items]); // refresh nach jeder Order-Liste-Aktualisierung
+
+  // Lazy-load product options once (first time user opens filter OR exclusive-filter)
+  useEffect(() => {
+    if ((!productFilterOpen && !exclusiveOpen) || productOptions.length > 0) return;
     shippingApi.listProductProfiles()
       .then((d: any[]) => {
         setProductOptions(
@@ -63,10 +92,14 @@ export default function ShippingOrdersPage() {
       hasShipment: hasShipment || undefined,
       included: filterMode === 'include' && ids.length ? ids.join(',') : undefined,
       excluded: filterMode === 'exclude' && ids.length ? ids.join(',') : undefined,
+      exclusiveVariantId: exclusiveVariantId || undefined,
+      exclusiveQuantityOp: exclusiveVariantId ? exclusiveOp : undefined,
+      exclusiveQuantity: exclusiveVariantId ? String(exclusiveQuantity) : undefined,
+      addressStatus: tab === 'address_errors' ? 'error' : undefined,
       limit: String(PAGE_SIZE),
       offset: String(offset),
     };
-  }, [search, hasShipment, offset, filterMode, selectedVariantIds]);
+  }, [search, hasShipment, offset, filterMode, selectedVariantIds, exclusiveVariantId, exclusiveOp, exclusiveQuantity, tab]);
 
   useEffect(() => {
     setLoading(true);
@@ -144,6 +177,41 @@ export default function ShippingOrdersPage() {
         }
       />
 
+      {/* Tabs — Offene Bestellungen vs. Adressfehler */}
+      <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-1.5 inline-flex gap-1">
+        <button
+          type="button"
+          onClick={() => setTab('pending')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+            tab === 'pending'
+              ? 'bg-primary-600 text-white'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'
+          }`}
+        >
+          <ClipboardList className="h-4 w-4" />
+          Bestellungen
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('address_errors')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+            tab === 'address_errors'
+              ? 'bg-red-600 text-white'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'
+          }`}
+        >
+          <AlertCircle className="h-4 w-4" />
+          Adressfehler
+          {addressErrorCount > 0 && (
+            <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-semibold ${
+              tab === 'address_errors' ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+            }`}>
+              {addressErrorCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
           {/* Search takes full row on mobile */}
@@ -177,8 +245,82 @@ export default function ShippingOrdersPage() {
                 <X className="h-3 w-3" /> Reset
               </button>
             )}
+            {/* Exklusiv-Filter: SKU + Operator + Menge */}
+            <button
+              onClick={() => setExclusiveOpen((v) => !v)}
+              className={btn(exclusiveVariantId ? 'primary' : 'secondary', 'flex-1 sm:flex-none')}
+            >
+              <Filter className="h-4 w-4" />
+              <span className="truncate">
+                {exclusiveVariantId
+                  ? `SKU-Filter aktiv (${QUANTITY_OPS.find((o) => o.value === exclusiveOp)?.label} ${exclusiveQuantity})`
+                  : 'SKU = Menge'}
+              </span>
+            </button>
+            {exclusiveVariantId && (
+              <button
+                onClick={() => { setExclusiveVariantId(null); setExclusiveOpen(false); }}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                title="SKU-Filter zurücksetzen"
+              >
+                <X className="h-3 w-3" /> Reset
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Exklusiv-SKU-Filter-Panel */}
+        {exclusiveOpen && (
+          <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] p-3 space-y-3">
+            <p className="text-xs text-gray-500">
+              Zeige nur Bestellungen, die <strong>genau</strong> dieses Produkt in der angegebenen Menge enthalten — und <strong>nichts anderes</strong>.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_80px_100px] gap-2 items-end">
+              <div>
+                <label className={labelCls()}>Produkt / SKU</label>
+                <select
+                  value={exclusiveVariantId ?? ''}
+                  onChange={(e) => setExclusiveVariantId(e.target.value || null)}
+                  className={inputCls()}
+                >
+                  <option value="">— Produkt wählen —</option>
+                  {productOptions.map((p) => (
+                    <option key={p.variantId} value={p.variantId}>
+                      {p.productTitle}{p.variantTitle && p.variantTitle !== 'Default Title' ? ` · ${p.variantTitle}` : ''}{p.sku ? ` (${p.sku})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls()}>Operator</label>
+                <select
+                  value={exclusiveOp}
+                  onChange={(e) => setExclusiveOp(e.target.value as QuantityOp)}
+                  className={inputCls()}
+                >
+                  {QUANTITY_OPS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls()}>Menge</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={exclusiveQuantity}
+                  onChange={(e) => setExclusiveQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  className={inputCls()}
+                />
+              </div>
+            </div>
+            {productOptions.length === 0 && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                Produktliste wird geladen — falls leer, öffne einmal den „Produkt-Filter" oben, dann bleibt sie hier verfügbar.
+              </p>
+            )}
+          </div>
+        )}
 
         {productFilterOpen && (
           <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] p-3 space-y-3">
@@ -363,7 +505,15 @@ export default function ShippingOrdersPage() {
                           <Badge color="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{o.fulfillmentStatus}</Badge>
                         </td>
                         <td className="px-3 py-3">
-                          {shipments.length > 0 ? (
+                          {tab === 'address_errors' ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setCorrectingOrder(o); }}
+                              className={btn('primary', 'h-8 px-2 py-1 text-xs whitespace-nowrap')}
+                              title="Adresse korrigieren"
+                            >
+                              <MapPin className="h-3 w-3" /> Korrigieren
+                            </button>
+                          ) : shipments.length > 0 ? (
                             <Badge color="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">{shipments.length}×</Badge>
                           ) : <span className="text-xs text-gray-400">—</span>}
                         </td>
@@ -388,6 +538,183 @@ export default function ShippingOrdersPage() {
             )}
           </>
         )}
+      </div>
+
+      {/* Address-Correction-Modal */}
+      {correctingOrder && (
+        <AddressCorrectionModal
+          order={correctingOrder}
+          onClose={() => setCorrectingOrder(null)}
+          onSaved={() => {
+            setCorrectingOrder(null);
+            // Reload both current list and error count
+            shippingApi.listOrders(params).then((d) => { setItems(d.items); setTotal(d.total); });
+            shippingApi.addressErrorCount().then((d) => setAddressErrorCount(d.count));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Address-Correction-Modal — shows current (broken) address at the top,
+// editable fields at the bottom. Save overwrites the order's shippingAddress
+// and the order re-appears in the main "Bestellungen" tab.
+// ---------------------------------------------------------------------------
+function AddressCorrectionModal({ order, onClose, onSaved }: { order: any; onClose: () => void; onSaved: () => void }) {
+  const current = (order.shippingAddress || {}) as any;
+  const [name, setName] = useState<string>(current.name || order.customerName || '');
+  const [company, setCompany] = useState<string>(current.company || '');
+  const [address1, setAddress1] = useState<string>(current.address1 || current.street || '');
+  const [address2, setAddress2] = useState<string>(current.address2 || '');
+  const [houseNumber, setHouseNumber] = useState<string>(current.houseNumber || '');
+  const [zip, setZip] = useState<string>(current.zip || current.postalCode || '');
+  const [city, setCity] = useState<string>(current.city || '');
+  const [province, setProvince] = useState<string>(current.province || '');
+  const [country, setCountry] = useState<string>(
+    (current.country_code || current.country || order.countryCode || 'DE').toUpperCase().slice(0, 2),
+  );
+  const [phone, setPhone] = useState<string>(current.phone || order.customerPhone || '');
+  const [email, setEmail] = useState<string>(order.customerEmail || '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    if (!address1.trim() || !zip.trim() || !city.trim() || !country.trim()) {
+      setErr('Straße, PLZ, Stadt und Land sind Pflicht.');
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      await shippingApi.updateOrderAddress(order.id, {
+        name: name.trim() || undefined,
+        company: company.trim() || null,
+        address1: address1.trim(),
+        address2: address2.trim() || null,
+        houseNumber: houseNumber.trim() || null,
+        zip: zip.trim(),
+        city: city.trim(),
+        province: province.trim() || null,
+        country: country.trim().toUpperCase(),
+        phone: phone.trim() || null,
+        email: email.trim() || null,
+      });
+      onSaved();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 modal-overlay" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 modal-panel">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10 flex-shrink-0">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Adresse korrigieren</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Bestellung #{order.orderNumber} · {order.customerName || '—'}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/10 flex-shrink-0">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Current (broken) address — read-only */}
+          <SectionCard title="Ursprüngliche Adresse vom Kunden" description="So wurde sie in Shopify eingetragen">
+            <div className="text-sm text-gray-700 dark:text-gray-300 space-y-0.5">
+              {current.name && <div>{current.name}</div>}
+              {current.company && <div className="text-xs text-gray-500">{current.company}</div>}
+              <div>
+                {current.address1 || current.street ? (
+                  <>{current.address1 || current.street}{current.address2 ? `, ${current.address2}` : ''}</>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">— keine Straße —</span>
+                )}
+              </div>
+              <div>
+                {current.zip || current.postalCode ? (
+                  <>{current.zip || current.postalCode} {current.city || <span className="text-amber-600 dark:text-amber-400">— keine Stadt —</span>}</>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">— keine PLZ/Stadt —</span>
+                )}
+              </div>
+              <div className="uppercase text-xs text-gray-500">{current.country_code || current.country || order.countryCode || '—'}</div>
+              {order.customerEmail && <div className="text-xs text-gray-500 mt-1">{order.customerEmail}</div>}
+              {order.customerPhone && <div className="text-xs text-gray-500">{order.customerPhone}</div>}
+            </div>
+          </SectionCard>
+
+          {/* Editable fields */}
+          <SectionCard title="Korrigierte Adresse" description="Wird beim Label-Druck verwendet">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className={labelCls()}>Name / Empfänger</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls()} placeholder="Max Mustermann" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls()}>Firma (optional)</label>
+                <input value={company} onChange={(e) => setCompany(e.target.value)} className={inputCls()} />
+              </div>
+              <div>
+                <label className={labelCls()}>Straße *</label>
+                <input value={address1} onChange={(e) => setAddress1(e.target.value)} className={inputCls()} placeholder="Musterstraße" />
+              </div>
+              <div>
+                <label className={labelCls()}>Hausnummer *</label>
+                <input value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} className={inputCls()} placeholder="12a" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={labelCls()}>Adress-Zusatz (optional)</label>
+                <input value={address2} onChange={(e) => setAddress2(e.target.value)} className={inputCls()} placeholder="c/o, Hinterhof, Klingel …" />
+              </div>
+              <div>
+                <label className={labelCls()}>PLZ *</label>
+                <input value={zip} onChange={(e) => setZip(e.target.value)} className={inputCls()} />
+              </div>
+              <div>
+                <label className={labelCls()}>Stadt *</label>
+                <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls()} />
+              </div>
+              <div>
+                <label className={labelCls()}>Bundesland / Provinz (optional)</label>
+                <input value={province} onChange={(e) => setProvince(e.target.value)} className={inputCls()} />
+              </div>
+              <div>
+                <label className={labelCls()}>Land (ISO-2) *</label>
+                <input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value.toUpperCase().slice(0, 2))}
+                  className={inputCls('uppercase')}
+                  maxLength={2}
+                  placeholder="DE"
+                />
+              </div>
+              <div>
+                <label className={labelCls()}>Telefon (optional)</label>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls()} />
+              </div>
+              <div>
+                <label className={labelCls()}>E-Mail (optional)</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls()} />
+              </div>
+            </div>
+          </SectionCard>
+
+          {err && <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded">{err}</div>}
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] flex-shrink-0">
+          <button onClick={onClose} className={btn('ghost')} disabled={busy}>Abbrechen</button>
+          <button onClick={save} disabled={busy} className={btn('primary')}>
+            <Save className="h-4 w-4" /> {busy ? 'Speichert …' : 'Speichern'}
+          </button>
+        </div>
       </div>
     </div>
   );

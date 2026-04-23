@@ -9,8 +9,32 @@ interface ListFilters {
   hasShipment?: 'yes' | 'no';
   excludedProductVariantIds?: string[];
   includedProductVariantIds?: string[];
+  /** SKU+Quantity exact filter: nur Bestellungen die GENAU diese Variant mit
+   *  dieser Menge haben UND kein anderes Produkt enthalten. */
+  exclusiveVariantId?: string;
+  exclusiveQuantityOp?: 'eq' | 'gte' | 'lte' | 'gt' | 'lt';
+  exclusiveQuantity?: number;
+  /** Nur Bestellungen mit fehlerhafter / unvollständiger Lieferadresse */
+  addressStatus?: 'error' | 'ok' | 'all';
   limit?: number;
   offset?: number;
+}
+
+// Heuristik: Eine Adresse gilt als "fehlerhaft" wenn eines der Kern-Felder fehlt
+// (Straße, PLZ, Stadt) — alles andere kann der Versanddienstleister noch retten.
+function isAddressValid(addr: any): boolean {
+  if (!addr || typeof addr !== 'object') return false;
+  const street = addr.address1 || addr.street;
+  const zip = addr.zip || addr.postalCode || addr.postcode;
+  const city = addr.city || addr.town;
+  if (!street || !zip || !city) return false;
+  // Hausnummer-Heuristik: muss irgendwo im Street-Feld stehen ODER separat
+  // in addr.houseNumber. DHL braucht das zwingend, sonst kippt der Label-Request.
+  if (!addr.houseNumber) {
+    const hasHouseNo = /\d/.test(street); // mindestens eine Ziffer → vermutlich Hausnummer drin
+    if (!hasHouseNo) return false;
+  }
+  return true;
 }
 
 @Injectable()
@@ -50,6 +74,22 @@ export class ShippingOrderService {
     if (filters.excludedProductVariantIds?.length) {
       lineItemConditions.push({
         none: { productVariantId: { in: filters.excludedProductVariantIds } },
+      });
+    }
+    // Exklusiv-Filter: genau diese Variant mit dieser Menge, sonst nichts
+    if (filters.exclusiveVariantId && filters.exclusiveQuantity != null) {
+      const opMap: Record<string, string> = { eq: 'equals', gte: 'gte', lte: 'lte', gt: 'gt', lt: 'lt' };
+      const prismaOp = opMap[filters.exclusiveQuantityOp ?? 'eq'] ?? 'equals';
+      // 1. Mindestens ein LineItem mit dieser Variant in passender Menge
+      lineItemConditions.push({
+        some: {
+          productVariantId: filters.exclusiveVariantId,
+          quantity: { [prismaOp]: filters.exclusiveQuantity },
+        },
+      });
+      // 2. Jedes LineItem der Order MUSS diese Variant sein (also keine anderen Produkte)
+      lineItemConditions.push({
+        every: { productVariantId: filters.exclusiveVariantId },
       });
     }
     if (lineItemConditions.length === 1) {
@@ -169,6 +209,8 @@ export class ShippingOrderService {
 
     const flattened = items.map((o) => ({
       ...o,
+      // Address-Status-Marker (für Frontend-Badge und Filter)
+      hasAddressError: !isAddressValid(o.shippingAddress),
       lineItems: (o.lineItems || []).map((li: any) => {
         const direct = li.productVariant?.product;
         const fallbackSku = li.sku ? skuMap.get(li.sku) : null;
@@ -183,7 +225,102 @@ export class ShippingOrderService {
         };
       }),
     }));
-    return { items: flattened, total };
+
+    // Post-Filter auf Adress-Status (JSON-Spalte, kann nicht in where gefiltert werden ohne raw SQL)
+    let filtered = flattened;
+    let filteredTotal = total;
+    if (filters.addressStatus === 'error' || filters.addressStatus === 'ok') {
+      const wantError = filters.addressStatus === 'error';
+      filtered = flattened.filter((o: any) => o.hasAddressError === wantError);
+      // Hinweis: total stimmt jetzt nicht mehr — das ist bei Filter-Präsets ok,
+      // der Frontend-Tab-Count kommt über eine separate Zählmethode.
+      filteredTotal = filtered.length;
+    }
+
+    return { items: filtered, total: filteredTotal };
+  }
+
+  /**
+   * Zählt nur-Bestellungen mit Adress-Fehler für Tab-Badge.
+   * Muss separat laufen weil list() eine Prisma-basierte Paginierung hat,
+   * aber der Address-Filter in-memory passiert.
+   */
+  async countAddressErrors(orgId: string): Promise<number> {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        orgId,
+        status: { not: 'cancelled' as const },
+        fulfillmentStatus: { in: ['unfulfilled', 'partial'] as const },
+        shipments: { none: {} },
+      },
+      select: { shippingAddress: true },
+    });
+    return orders.filter((o: any) => !isAddressValid(o.shippingAddress)).length;
+  }
+
+  /**
+   * Update der Lieferadresse einer Bestellung.
+   * Überschreibt shippingAddress-JSON und die denormalized customer*-Felder.
+   * Nach Update erscheint die Bestellung wieder im normalen "Bestellungen"-Tab
+   * (falls isAddressValid erneut true ist).
+   */
+  async updateAddress(
+    orgId: string,
+    orderId: string,
+    newAddress: {
+      name?: string;
+      firstName?: string;
+      lastName?: string;
+      company?: string;
+      address1: string;
+      address2?: string | null;
+      houseNumber?: string | null;
+      zip: string;
+      city: string;
+      province?: string | null;
+      country: string; // ISO-2
+      phone?: string | null;
+      email?: string | null;
+    },
+  ) {
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, orgId } });
+    if (!order) throw new NotFoundException('Bestellung nicht gefunden');
+
+    // Merge: altes JSON behalten für unveränderte Felder, neue Werte überschreiben
+    const currentAddr = (order.shippingAddress as any) || {};
+    const mergedAddress = {
+      ...currentAddr,
+      name: newAddress.name ?? currentAddr.name,
+      firstName: newAddress.firstName ?? currentAddr.firstName,
+      lastName: newAddress.lastName ?? currentAddr.lastName,
+      company: newAddress.company ?? currentAddr.company,
+      address1: newAddress.address1,
+      address2: newAddress.address2 ?? null,
+      houseNumber: newAddress.houseNumber ?? null,
+      zip: newAddress.zip,
+      city: newAddress.city,
+      province: newAddress.province ?? null,
+      country: newAddress.country.toUpperCase(),
+      country_code: newAddress.country.toUpperCase(),
+      phone: newAddress.phone ?? currentAddr.phone,
+    };
+
+    // Denormalized Felder synchronisieren (werden vom Shipment-Service direkt genutzt)
+    const fallbackName = [newAddress.firstName, newAddress.lastName].filter(Boolean).join(' ').trim();
+    const customerName = newAddress.name ?? (fallbackName || order.customerName || null);
+
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        shippingAddress: mergedAddress,
+        countryCode: newAddress.country.toUpperCase().slice(0, 2),
+        customerName: customerName || null,
+        customerEmail: newAddress.email ?? order.customerEmail,
+        customerPhone: newAddress.phone ?? order.customerPhone,
+      },
+    });
+
+    return { ok: true, orderId };
   }
 
   async get(orgId: string, id: string) {
