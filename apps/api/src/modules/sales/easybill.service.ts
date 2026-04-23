@@ -87,17 +87,17 @@ export class EasybillService {
         last_name: c.contactPerson ? c.contactPerson.split(' ').slice(1).join(' ') || null : null,
         emails: c.email ? [c.email] : [],
         phone_1: c.phone || null,
-        // easybill expects billing address top-level; shipping as separate fields
+        // easybill expects billing address top-level + 2-letter ISO country code
         street: [billAddr.address1, billAddr.houseNumber].filter(Boolean).join(' ') || null,
         zip_code: billAddr.zip || null,
         city: billAddr.city || null,
-        country: billAddr.country || 'DE',
+        country: normalizeCountry(billAddr.country),
         shipping_address: shipAddr.address1 ? {
           company_name: shipAddr.company || c.companyName,
           street: [shipAddr.address1, shipAddr.houseNumber].filter(Boolean).join(' '),
           zip_code: shipAddr.zip || '',
           city: shipAddr.city || '',
-          country: shipAddr.country || 'DE',
+          country: normalizeCountry(shipAddr.country),
         } : null,
         note: c.notes || undefined,
         personal: { salutation: 0, title: null },
@@ -247,4 +247,36 @@ export class EasybillService {
     }
     return Buffer.from(await res.arrayBuffer());
   }
+}
+
+/**
+ * easybill erwartet ein 2-stelliges ISO-3166 Country-Code — Claude Vision
+ * liefert aus Deutschen Bestellungen meist "Deutschland" oder gar nichts.
+ * Wir mappen die häufigsten Varianten + fallback auf DE. Unbekannter String
+ * der trotzdem genau 2 Zeichen hat wird uppercase durchgereicht (schadet
+ * nicht und deckt seltene Länder ab).
+ */
+function normalizeCountry(raw: any): string {
+  if (!raw || typeof raw !== 'string') return 'DE';
+  const s = raw.trim().toUpperCase();
+  if (!s) return 'DE';
+  const map: Record<string, string> = {
+    'DEUTSCHLAND': 'DE', 'GERMANY': 'DE', 'DE': 'DE', 'DEU': 'DE',
+    'ÖSTERREICH': 'AT', 'OESTERREICH': 'AT', 'AUSTRIA': 'AT', 'AT': 'AT', 'AUT': 'AT',
+    'SCHWEIZ': 'CH', 'SWITZERLAND': 'CH', 'CH': 'CH', 'CHE': 'CH',
+    'FRANKREICH': 'FR', 'FRANCE': 'FR', 'FR': 'FR', 'FRA': 'FR',
+    'NIEDERLANDE': 'NL', 'NETHERLANDS': 'NL', 'HOLLAND': 'NL', 'NL': 'NL', 'NLD': 'NL',
+    'ITALIEN': 'IT', 'ITALY': 'IT', 'IT': 'IT', 'ITA': 'IT',
+    'SPANIEN': 'ES', 'SPAIN': 'ES', 'ES': 'ES', 'ESP': 'ES',
+    'BELGIEN': 'BE', 'BELGIUM': 'BE', 'BE': 'BE', 'BEL': 'BE',
+    'LUXEMBURG': 'LU', 'LUXEMBOURG': 'LU', 'LU': 'LU', 'LUX': 'LU',
+    'POLEN': 'PL', 'POLAND': 'PL', 'PL': 'PL', 'POL': 'PL',
+    'TSCHECHIEN': 'CZ', 'CZECHIA': 'CZ', 'CZECH REPUBLIC': 'CZ', 'CZ': 'CZ', 'CZE': 'CZ',
+    'DÄNEMARK': 'DK', 'DENMARK': 'DK', 'DK': 'DK', 'DNK': 'DK',
+    'UNITED KINGDOM': 'GB', 'GROSSBRITANNIEN': 'GB', 'GB': 'GB', 'UK': 'GB',
+  };
+  if (map[s]) return map[s];
+  // If someone already sent a 2-letter ISO code we don't know about, pass it through
+  if (/^[A-Z]{2}$/.test(s)) return s;
+  return 'DE';
 }
