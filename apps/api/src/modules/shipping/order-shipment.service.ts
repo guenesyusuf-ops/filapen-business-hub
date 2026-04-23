@@ -68,7 +68,18 @@ export class OrderShipmentService {
         take: limit,
         include: {
           order: { select: { id: true, orderNumber: true, customerEmail: true } },
-          labels: { select: { id: true, url: true, format: true, trackingNumber: true } },
+          // printedAt + printCount zwingend mit ausliefern, sonst sieht das
+          // Frontend "nicht gedruckt" obwohl die DB bereits das Gegenteil weiß.
+          labels: {
+            select: {
+              id: true,
+              url: true,
+              format: true,
+              trackingNumber: true,
+              printedAt: true,
+              printCount: true,
+            },
+          },
           _count: { select: { statusEvents: true } },
         },
       }),
