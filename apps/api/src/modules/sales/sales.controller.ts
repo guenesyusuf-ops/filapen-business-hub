@@ -198,7 +198,7 @@ export class SalesController {
   }
 
   @Post('orders/:id/documents')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
   async uploadDoc(
     @Headers('authorization') authHeader: string,
     @Param('id') id: string,
@@ -226,7 +226,7 @@ export class SalesController {
   // Import (PDF/Bild → Claude Vision → Preview)
   // ==========================================================
   @Post('orders/import')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
   async importOrder(
     @Headers('authorization') authHeader: string,
     @UploadedFile() file: any,
