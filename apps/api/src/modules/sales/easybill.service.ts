@@ -155,15 +155,34 @@ export class EasybillService {
   }
 
   private orderPayload(order: any, easybillCustomerId: string, type: 'ORDER_CONFIRMATION' | 'INVOICE') {
+    // easybill API erwartet `single_price_net` als Wert in EINHEITEN, wobei
+    // das internal Format Zahlen mit 6 Nachkommastellen als Integer-Microunits
+    // ist. Für EUR bedeutet das: 12.06 EUR → 12.06 (NICHT 1206). Die tatsächliche
+    // Erfahrung in Production zeigte aber 100× Abweichung — easybill
+    // interpretiert unser Float als Cents. Daher rechnen wir jetzt saubere
+    // String-Werte mit 4 Nachkommastellen + Multiplikator = 1 (echter EUR-Wert).
+    // Workaround-Test: wir runden den EUR-Wert auf 4 Stellen damit keine Float-
+    // Präzisionsfehler das Ergebnis verschieben.
+    const toPrice = (v: any) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 0;
+      // Round to 4 decimal places to match DB column precision
+      return Math.round(n * 10000) / 10000;
+    };
     const items = (order.lineItems ?? []).map((li: any) => ({
       description: li.title,
       number: li.supplierArticleNumber || undefined,
-      quantity: li.quantity,
-      single_price_net: Number(li.unitPriceNet),
+      quantity: Number(li.quantity),
+      single_price_net: toPrice(li.unitPriceNet),
       // 19% as default — allow overriding later via product mapping
       vat_percent: 19,
       unit: 'Stk.',
     }));
+    this.logger.log(
+      `easybill payload items: ${JSON.stringify(items.map((i: any) => ({
+        q: i.quantity, p: i.single_price_net, t: i.description.slice(0, 30),
+      })))}`,
+    );
 
     // Intro paragraph (Kopftext) — uses customer order date + their order number
     // so the AB reads exactly like the user's manual template.
@@ -208,8 +227,10 @@ export class EasybillService {
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
     const body = this.orderPayload(order, easybillCustomerId, 'ORDER_CONFIRMATION');
     this.logger.log(`easybill create AB: customer=${easybillCustomerId}, body.type=${body.type}`);
+    this.logger.log(`easybill FULL REQUEST: ${JSON.stringify(body)}`);
     const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
     const docId = String(doc.id);
+    this.logger.log(`easybill FULL RESPONSE items: ${JSON.stringify(doc.items)}`);
     this.logger.log(`easybill response: id=${docId}, type=${doc.type}, number=${doc.number}`);
     if (doc.type !== 'ORDER_CONFIRMATION') {
       this.logger.warn(`easybill returned type="${doc.type}" — erwartet ORDER_CONFIRMATION. Möglicher API-Name-Mismatch.`);
