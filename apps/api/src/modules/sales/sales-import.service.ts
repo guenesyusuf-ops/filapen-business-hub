@@ -48,7 +48,14 @@ export interface ImportResult {
 
 const PROMPT = `Du bist ein präziser OCR- und Daten-Extraktor für B2B-Bestellungen (deutschsprachige Geschäftskundenbestellungen, manchmal englisch).
 
-Extrahiere aus dem angehängten Dokument (PDF oder Bild einer Bestellung) ALLE verfügbaren Felder strikt im folgenden JSON-Schema. Fehlende Felder: null. Datumsfelder im Format YYYY-MM-DD. Beträge als reine Zahl (keine Währungszeichen, kein Tausender-Trennzeichen, Dezimal mit Punkt).
+Extrahiere aus dem angehängten Dokument (PDF oder Bild einer Bestellung) ALLE verfügbaren Felder strikt im folgenden JSON-Schema. Fehlende Felder: null. Datumsfelder im Format YYYY-MM-DD.
+
+WICHTIG — Zahlen-Regeln:
+- Beträge als reine Zahl mit Punkt als Dezimalzeichen (keine Währungszeichen, kein Tausender-Trennzeichen).
+- "unitPriceNet" ist der Einzelpreis pro EINER Einheit in EUR. Wenn das PDF "Einzelpreis 12,06" zeigt, gib 12.06 zurück (nicht 0.1206, nicht 1206).
+- "lineNet" ist der GESAMTbetrag für die ganze Zeile (quantity × unitPriceNet). Wenn das PDF nur einen Wert zeigt, prüfe ob es die Einzelpreis- oder die Summen-Spalte ist — der Summenbetrag ist fast immer der größere von beiden und stimmt mit menge × einzelpreis überein.
+- "totalNet" ist der Nettobetrag der GESAMTEN Bestellung.
+- Wenn mehrere Preise in der Zeile stehen (Einzel + Summe), extrahiere BEIDE separat. Konsistenz-Check: quantity × unitPriceNet ≈ lineNet (±1 Cent).
 
 Zusätzlich gib am Ende ein Feld "confidence" zurück (Zahl 0–1), das deine Zuversicht in die Gesamt-Extraktion angibt. Wenn das Dokument verrauscht / handschriftlich / unvollständig ist, nutze einen Wert < 0.7.
 
@@ -230,7 +237,23 @@ export class SalesImportService {
   private normalizeExtracted(raw: any): ExtractedOrder {
     const toNumber = (v: any) => {
       if (v == null || v === '') return null;
-      const n = Number(String(v).replace(',', '.'));
+      if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+      // Strip anything that isn't a digit, separator, or minus
+      let s = String(v).trim().replace(/[^\d.,-]/g, '');
+      if (!s) return null;
+      const lastComma = s.lastIndexOf(',');
+      const lastDot = s.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        // German-style "1.234,56" — remove dots (thousands), comma → decimal
+        s = s.replace(/\./g, '').replace(',', '.');
+      } else if (lastComma >= 0 && lastDot < 0) {
+        // Only comma present — treat as decimal (German "12,06")
+        s = s.replace(',', '.');
+      } else {
+        // US-style "1,234.56" or plain "1234.56" — strip thousands commas
+        s = s.replace(/,/g, '');
+      }
+      const n = Number(s);
       return Number.isFinite(n) ? n : null;
     };
     const toInt = (v: any) => {

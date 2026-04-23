@@ -79,22 +79,29 @@ export class EasybillService {
   private async upsertCustomer(orgId: string, customerId: string): Promise<string> {
     const c = await this.prisma.salesCustomer.findFirst({ where: { id: customerId, orgId } });
     if (!c) throw new BadRequestException('Kunde nicht gefunden');
-    if (c.easybillCustomerId) return c.easybillCustomerId;
 
-    // Path 2 — lookup by user-entered easybill customer number
+    // Path 1 (highest priority) — user-entered easybill number ALWAYS wins.
+    // Overrides any stale easybillCustomerId that got auto-saved during an
+    // earlier attempt where the number wasn't set yet.
     if (c.easybillCustomerNumber) {
       const found = await this.findCustomerByNumber(orgId, c.easybillCustomerNumber);
       if (found) {
-        await this.prisma.salesCustomer.update({
-          where: { id: customerId },
-          data: { easybillCustomerId: found },
-        });
+        if (found !== c.easybillCustomerId) {
+          await this.prisma.salesCustomer.update({
+            where: { id: customerId },
+            data: { easybillCustomerId: found },
+          });
+          this.logger.log(`Relinked customer ${customerId} to easybill ID ${found} (number ${c.easybillCustomerNumber})`);
+        }
         return found;
       }
       throw new BadRequestException(
         `Kein easybill-Kunde mit Nummer ${c.easybillCustomerNumber} gefunden. Prüfe die Nummer oder lass das Feld leer, dann legen wir einen neuen Kunden an.`,
       );
     }
+
+    // Path 2 — no user-entered number, reuse previously created ID if any.
+    if (c.easybillCustomerId) return c.easybillCustomerId;
 
     // Path 3 — create fresh
     const shipAddr = (c.shippingAddress as any) || {};
@@ -200,8 +207,13 @@ export class EasybillService {
     }
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
     const body = this.orderPayload(order, easybillCustomerId, 'ORDER_CONFIRMATION');
+    this.logger.log(`easybill create AB: customer=${easybillCustomerId}, body.type=${body.type}`);
     const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
     const docId = String(doc.id);
+    this.logger.log(`easybill response: id=${docId}, type=${doc.type}, number=${doc.number}`);
+    if (doc.type !== 'ORDER_CONFIRMATION') {
+      this.logger.warn(`easybill returned type="${doc.type}" — erwartet ORDER_CONFIRMATION. Möglicher API-Name-Mismatch.`);
+    }
 
     // Pull PDF
     const pdfBuffer = await this.downloadPdf(orgId, docId);
