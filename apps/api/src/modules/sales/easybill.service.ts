@@ -241,7 +241,7 @@ export class EasybillService {
     const deliveryStr = fmt(order.requiredDeliveryDate);
     const footerText = deliveryStr ? `Geplanter Liefertermin: ${deliveryStr}` : undefined;
 
-    const payload: any = {
+    return {
       type,
       customer_id: Number(easybillCustomerId),
       // Let easybill auto-number the document — we store only our internal ref
@@ -252,14 +252,6 @@ export class EasybillService {
       text_additional: footerText,
       external_id: order.orderNumber,
     };
-    // Für OFFER: status=ACCEPT macht aus dem Angebot eine Auftragsbestätigung
-    // (easybill rendert den Dokument-Header entsprechend um). Swagger:
-    // `status` darf bei DELIVERY/ORDER/CHARGE/OFFER gesetzt werden,
-    // gültige Werte: ACCEPT/DONE/DROPSHIPPING/CANCEL.
-    if (type === 'OFFER') {
-      payload.status = 'ACCEPT';
-    }
-    return payload;
   }
 
   /**
@@ -277,15 +269,25 @@ export class EasybillService {
       throw new BadRequestException('Auftragsbestätigung existiert bereits — Rechnung wäre der nächste Schritt.');
     }
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
-    // easybill kennt keinen separaten AB-Typ — AB ist ein OFFER mit status=ACCEPT.
-    // Quelle: Swagger v1, Document.status enum = [ACCEPT, DONE, DROPSHIPPING, CANCEL],
-    // erlaubt nur für OFFER/ORDER/CHARGE/DELIVERY. Beim Rendering wird aus
-    // "Angebot" dann "Auftragsbestätigung" im PDF-Header.
-    const body = this.orderPayload(order, easybillCustomerId, 'OFFER');
-    console.error('[easybill] REQUEST AB:', JSON.stringify(body));
-    const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
+    // easybill-Flow für Auftragsbestätigung (empirisch ermittelt):
+    //   1. POST /documents  mit type=OFFER   → erzeugt Angebot (offer_id)
+    //   2. POST /documents/{offer_id}/ORDER  → konvertiert zu Auftragsbestätigung
+    // Direkt type=ORDER erzeugt eine "Bestellung" (eingehender Auftrag vom
+    // Kunden), NICHT die Auftragsbestätigung. type=OFFER+status=ACCEPT bleibt
+    // ebenfalls ein Angebot.
+    const offerBody = this.orderPayload(order, easybillCustomerId, 'OFFER');
+    console.error('[easybill] REQUEST offer:', JSON.stringify(offerBody));
+    const offer = await this.call<any>(orgId, '/documents', { method: 'POST', body: offerBody });
+    const offerId = String(offer.id);
+    console.error('[easybill] offer created:', JSON.stringify({
+      id: offerId, type: offer.type, number: offer.number,
+    }));
+
+    // Convert Angebot → Auftragsbestätigung
+    console.error(`[easybill] converting offer ${offerId} to ORDER`);
+    const doc = await this.call<any>(orgId, `/documents/${offerId}/ORDER`, { method: 'POST' });
     const docId = String(doc.id);
-    console.error('[easybill] RESPONSE AB:', JSON.stringify({
+    console.error('[easybill] AB after convert:', JSON.stringify({
       id: docId, type: doc.type, status: doc.status, number: doc.number,
     }));
 
