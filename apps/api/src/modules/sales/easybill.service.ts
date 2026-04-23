@@ -228,18 +228,25 @@ export class EasybillService {
       q: i.quantity, p: i.single_price_net, t: i.description.slice(0, 30),
     }))));
 
-    // Intro paragraph (Kopftext) — uses customer order date + their order number
-    // so the AB reads exactly like the user's manual template.
+    // Intro- und Schlusstext sind AB-spezifisch (Bezug auf Bestellung +
+    // Liefertermin). Bei Rechnungen lassen wir beide Felder leer, dann
+    // übernimmt easybill den Default aus der Dokumentvorlage ("nachfolgend
+    // berechnen wir Ihnen …" + Zahlungsbedingungen).
     const fmt = (d: any) => d ? new Date(d).toLocaleDateString('de-DE') : '';
+    const isConfirmation = type === 'OFFER';
+
     const orderDateStr = fmt(order.orderDate);
     const externalNum = order.externalOrderNumber || '';
-    const introText = externalNum && orderDateStr
-      ? `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung vom ${orderDateStr} mit der Bestellnummer ${externalNum} erbringen wir im einzelnen folgende Leistungen.`
-      : `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung erbringen wir im einzelnen folgende Leistungen.`;
+    const introText = !isConfirmation
+      ? undefined
+      : externalNum && orderDateStr
+        ? `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung vom ${orderDateStr} mit der Bestellnummer ${externalNum} erbringen wir im einzelnen folgende Leistungen.`
+        : `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung erbringen wir im einzelnen folgende Leistungen.`;
 
-    // Footer (Schlusstext) — planned delivery date. User template always has it.
     const deliveryStr = fmt(order.requiredDeliveryDate);
-    const footerText = deliveryStr ? `Geplanter Liefertermin: ${deliveryStr}` : undefined;
+    const footerText = !isConfirmation
+      ? undefined
+      : deliveryStr ? `Geplanter Liefertermin: ${deliveryStr}` : undefined;
 
     const payload: any = {
       type,
@@ -248,10 +255,10 @@ export class EasybillService {
       document_date: new Date().toISOString().slice(0, 10),
       service_date_type: 'NONE',
       items,
-      text: introText,
-      text_additional: footerText,
       external_id: order.orderNumber,
     };
+    if (introText !== undefined) payload.text = introText;
+    if (footerText !== undefined) payload.text_additional = footerText;
     // Zahlungsbedingungen für Rechnungen — aus paymentTerms-Freitext der
     // Bestellung extrahieren. Format muss etwa so aussehen (egal ob Komma/Punkt):
     //   "3% Skonto innerhalb 7 Tagen, 30 Tage netto"
