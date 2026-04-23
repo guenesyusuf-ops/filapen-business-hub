@@ -20,20 +20,18 @@ interface ListFilters {
   offset?: number;
 }
 
-// Heuristik: Eine Adresse gilt als "fehlerhaft" wenn eines der Kern-Felder fehlt
-// (Straße, PLZ, Stadt) — alles andere kann der Versanddienstleister noch retten.
+// Adresse gilt als "fehlerhaft" wenn eines der vier Kern-Felder komplett fehlt:
+// Straße, PLZ, Stadt, Land. Alles andere (Hausnummer-Format, Tippfehler)
+// fängt die DHL-API beim Label-Request ab — dort bekommt der User eine
+// präzise Meldung und kann gezielt korrigieren. Wir wollen hier keine
+// False-Positives durch zu strenge Heuristik erzeugen.
 function isAddressValid(addr: any): boolean {
   if (!addr || typeof addr !== 'object') return false;
-  const street = addr.address1 || addr.street;
-  const zip = addr.zip || addr.postalCode || addr.postcode;
-  const city = addr.city || addr.town;
-  if (!street || !zip || !city) return false;
-  // Hausnummer-Heuristik: muss irgendwo im Street-Feld stehen ODER separat
-  // in addr.houseNumber. DHL braucht das zwingend, sonst kippt der Label-Request.
-  if (!addr.houseNumber) {
-    const hasHouseNo = /\d/.test(street); // mindestens eine Ziffer → vermutlich Hausnummer drin
-    if (!hasHouseNo) return false;
-  }
+  const street = (addr.address1 || addr.street || '').toString().trim();
+  const zip = (addr.zip || addr.postalCode || addr.postcode || '').toString().trim();
+  const city = (addr.city || addr.town || '').toString().trim();
+  const country = (addr.country_code || addr.countryCode || addr.country || '').toString().trim();
+  if (!street || !zip || !city || !country) return false;
   return true;
 }
 
