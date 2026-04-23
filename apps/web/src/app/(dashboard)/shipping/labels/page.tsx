@@ -127,103 +127,84 @@ export default function ShippingLabelsPage() {
     // lesen hier den Stand. Zwei getrennte PDFs, gleiche Reihenfolge.
     const withDeliveryNotes = includeDeliveryNotes;
     setBusy(action);
+    // Helper: trigger a download for a blob with a given filename.
+    const triggerDownload = (b: Blob, filename: string) => {
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = filename;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 5000);
+    };
+    // Helper: open a blob in a new window and try to print it.
+    const triggerPrint = (b: Blob, fallbackName: string, blockedMsg: string) => {
+      const u = URL.createObjectURL(b);
+      const w = window.open(u, '_blank');
+      if (!w) {
+        // Popup blocked → fall back to download so the user still gets the file.
+        const a = document.createElement('a');
+        a.href = u;
+        a.download = fallbackName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        alert(blockedMsg);
+      } else {
+        setTimeout(() => {
+          try { w.focus(); w.print(); } catch {}
+        }, 1500);
+      }
+      setTimeout(() => URL.revokeObjectURL(u), 60_000);
+    };
+    const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     try {
-      const { blob, labelCount, skippedCount, skippedReasons } = await shippingApi.bulkDownloadLabels(labelIds, true);
-      const url = URL.createObjectURL(blob);
+      // 1) LABELS PDF holen und sofort ausliefern — so geht der User-Gesten-
+      //    Download durch, bevor wir das zweite PDF generieren.
+      const { blob: labelsBlob, labelCount, skippedCount, skippedReasons } =
+        await shippingApi.bulkDownloadLabels(labelIds, true);
+      if (action === 'download') {
+        triggerDownload(labelsBlob, `labels-${ts}.pdf`);
+      } else {
+        triggerPrint(
+          labelsBlob,
+          `labels-print-${Date.now()}.pdf`,
+          'Popup wurde blockiert. Die Label-PDF wurde stattdessen heruntergeladen — bitte manuell drucken.',
+        );
+      }
+
+      // 2) Skipped-Hinweis erst nach dem ersten Download zeigen, damit das
+      //    alert nicht zwischen Labels und Lieferscheinen steht.
       if (skippedCount > 0) {
-        // Non-blocking notice: PDF is still delivered with the labels that worked
         const reasons = skippedReasons || 'Format nicht druckbar';
         alert(
           `${labelCount} von ${labelIds.length} Label${labelIds.length === 1 ? '' : 's'} in PDF zusammengefügt.\n\n${skippedCount} übersprungen: ${reasons}`,
         );
       }
 
-      // Fetch delivery notes in parallel to labels-already-downloaded — if the
-      // user confirmed above. We await this AFTER the labels PDF was triggered
-      // so the label download never gets blocked by a delivery-note error.
-      let deliveryBlob: Blob | null = null;
+      // 3) Lieferscheine — separates PDF, nur wenn der User die Checkbox
+      //    aktiviert hat. Wartet kurz damit Chrome "multiple downloads"
+      //    Permission nicht die zweite Datei verschluckt.
       if (withDeliveryNotes) {
+        await new Promise((r) => setTimeout(r, 600));
         try {
-          const dn = await shippingApi.bulkDownloadDeliveryNotes(labelIds);
-          deliveryBlob = dn.blob;
+          const { blob: dnBlob } = await shippingApi.bulkDownloadDeliveryNotes(labelIds);
+          if (action === 'download') {
+            triggerDownload(dnBlob, `lieferscheine-${ts}.pdf`);
+          } else {
+            triggerPrint(
+              dnBlob,
+              `lieferscheine-print-${Date.now()}.pdf`,
+              'Popup für Lieferscheine wurde blockiert. Die Lieferschein-PDF wurde stattdessen heruntergeladen.',
+            );
+          }
         } catch (e: any) {
-          // Non-blocking — user already has the labels. Surface the error but
-          // don't throw; the labels flow below must still run.
           alert(`Lieferscheine konnten nicht erzeugt werden: ${e.message}`);
         }
       }
 
-      if (action === 'download') {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `labels-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
-        if (deliveryBlob) {
-          const durl = URL.createObjectURL(deliveryBlob);
-          const da = document.createElement('a');
-          da.href = durl;
-          da.download = `lieferscheine-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
-          document.body.appendChild(da);
-          da.click();
-          da.remove();
-          setTimeout(() => URL.revokeObjectURL(durl), 2000);
-        }
-      } else {
-        // Print: Neues Fenster mit dem PDF — Browser zeigt nativen PDF-Viewer,
-        // User kann direkt den Print-Button nutzen (in allen Browsern oben im Viewer
-        // sichtbar). Automatischer print()-Trigger via setTimeout, damit der Viewer
-        // Zeit zum Rendern hat. Fallback: User druckt manuell mit Cmd+P.
-        const w = window.open(url, '_blank');
-        if (!w) {
-          // Popup-Blocker → Direkt-Download als Fallback damit der User zumindest
-          // die Datei hat
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `labels-print-${Date.now()}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          alert('Popup wurde blockiert. Die Label-PDF wurde stattdessen heruntergeladen — bitte manuell drucken.');
-        } else {
-          // Nach 1.5s sollte der PDF-Viewer geladen sein → print() auslösen
-          const tryPrint = () => {
-            try {
-              w.focus();
-              w.print();
-            } catch {
-              // Silently ignore; user can print manually via Cmd+P
-            }
-          };
-          setTimeout(tryPrint, 1500);
-        }
-        // Blob-URL erst nach Sicht-Öffnung freigeben, damit der PDF-Viewer sie laden kann
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-
-        // Delivery notes als zweites Druck-Fenster — in derselben User-Gesten-
-        // Kette, daher lässt der Popup-Blocker es in der Regel zu. Fallback auf
-        // Download, falls doch geblockt.
-        if (deliveryBlob) {
-          const durl = URL.createObjectURL(deliveryBlob);
-          const dw = window.open(durl, '_blank');
-          if (!dw) {
-            const da = document.createElement('a');
-            da.href = durl;
-            da.download = `lieferscheine-print-${Date.now()}.pdf`;
-            document.body.appendChild(da);
-            da.click();
-            da.remove();
-            alert('Popup für Lieferscheine wurde blockiert. Die Lieferschein-PDF wurde stattdessen heruntergeladen.');
-          } else {
-            setTimeout(() => {
-              try { dw.focus(); dw.print(); } catch {}
-            }, 1500);
-          }
-          setTimeout(() => URL.revokeObjectURL(durl), 60_000);
-        }
-      }
       setSelected(new Set());
       // Refresh so printedAt updates into "Gedruckt" tab
       load();
