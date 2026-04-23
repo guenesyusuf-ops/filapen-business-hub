@@ -283,6 +283,11 @@ export class EasybillService {
       id: offerId, type: offer.type, number: offer.number,
     }));
 
+    // Entwurfs-Status aufheben — sonst verweigert easybill den Convert mit
+    // "Zu einem Dokument im Entwurfsmodus kann keine Bestellung erstellt werden"
+    console.error(`[easybill] marking offer ${offerId} as done`);
+    await this.call<any>(orgId, `/documents/${offerId}/done`, { method: 'PUT' });
+
     // Convert Angebot → Auftragsbestätigung
     console.error(`[easybill] converting offer ${offerId} to ORDER`);
     const doc = await this.call<any>(orgId, `/documents/${offerId}/ORDER`, { method: 'POST' });
