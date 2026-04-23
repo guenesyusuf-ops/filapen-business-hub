@@ -73,12 +73,49 @@ export class EasybillService {
    * type value. Lets us see what `type` enum strings easybill actually uses
    * in THIS account (so we know which value to send for Auftragsbestätigung).
    */
-  async listDocumentTypes(orgId: string): Promise<{ items: Array<{ id: any; type: any; number: any; title: any }>; typesFound: string[] }> {
-    const res = await this.call<any>(orgId, '/documents?limit=20');
-    const list: any[] = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
-    const items = list.map((d: any) => ({ id: d.id, type: d.type, number: d.number, title: d.title }));
-    const typesFound = Array.from(new Set(items.map((i) => String(i.type)).filter(Boolean)));
-    return { items, typesFound };
+  async listDocumentTypes(orgId: string, numberFilter?: string): Promise<any> {
+    // Try multiple queries: a general recent list AND a specific number lookup
+    // so we can find the user's known AB even if it's older.
+    const recent = await this.call<any>(orgId, '/documents?limit=20');
+    const recentList: any[] = Array.isArray(recent?.items) ? recent.items : Array.isArray(recent) ? recent : [];
+
+    // Try the various possible type values for Auftragsbestätigung — whichever
+    // filter returns items, that's the correct enum for this account.
+    const candidates = ['ORDER_CONFIRMATION', 'CONFIRMATION', 'OFFER', 'CREDIT', 'ADVANCE_INVOICE'];
+    const typeProbes: Record<string, any> = {};
+    for (const t of candidates) {
+      try {
+        const r = await this.call<any>(orgId, `/documents?type=${t}&limit=3`);
+        const list = Array.isArray(r?.items) ? r.items : Array.isArray(r) ? r : [];
+        typeProbes[t] = list.length
+          ? list.map((d: any) => ({ id: d.id, type: d.type, number: d.number, title: d.title }))
+          : 'none';
+      } catch (e: any) {
+        typeProbes[t] = `err: ${e.message}`;
+      }
+    }
+
+    // Specific number lookup
+    let specific: any = null;
+    if (numberFilter) {
+      try {
+        const r = await this.call<any>(orgId, `/documents?number=${encodeURIComponent(numberFilter)}&limit=3`);
+        const list = Array.isArray(r?.items) ? r.items : Array.isArray(r) ? r : [];
+        specific = list.map((d: any) => ({
+          id: d.id, type: d.type, number: d.number, title: d.title,
+          text_prefix: (d.text ?? '').slice(0, 60),
+        }));
+      } catch (e: any) {
+        specific = `err: ${e.message}`;
+      }
+    }
+
+    return {
+      recentItems: recentList.map((d: any) => ({ id: d.id, type: d.type, number: d.number, title: d.title })),
+      typesFound: Array.from(new Set(recentList.map((d: any) => String(d.type)).filter(Boolean))),
+      typeProbes,
+      specificLookup: specific,
+    };
   }
 
   /**

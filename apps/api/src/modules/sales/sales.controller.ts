@@ -351,10 +351,13 @@ export class SalesController {
    * account uses for Auftragsbestätigung vs Invoice vs Offer.
    */
   @Get('easybill/document-types')
-  async easybillDocumentTypes(@Headers('authorization') authHeader: string) {
+  async easybillDocumentTypes(
+    @Headers('authorization') authHeader: string,
+    @Query('number') number?: string,
+  ) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     try {
-      return await this.easybill.listDocumentTypes(orgId);
+      return await this.easybill.listDocumentTypes(orgId, number);
     } catch (err: any) {
       return { error: err.message };
     }
