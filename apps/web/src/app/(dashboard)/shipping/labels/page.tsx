@@ -32,6 +32,8 @@ export default function ShippingLabelsPage() {
   // shipment can be picked individually.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<'print' | 'download' | null>(null);
+  // Persisted toggle — remember user's preference between actions within a session.
+  const [includeDeliveryNotes, setIncludeDeliveryNotes] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -121,13 +123,9 @@ export default function ShippingLabelsPage() {
   async function handleBulkAction(action: 'print' | 'download') {
     if (selected.size === 0) return;
     const labelIds = Array.from(selected);
-    // Ask up-front whether delivery notes should be included. We do this BEFORE
-    // kicking off requests so the two PDFs (labels + Lieferscheine) land back in
-    // the same user gesture, which most browsers allow to trigger two downloads
-    // or two window.open() calls without popup blocking.
-    const withDeliveryNotes = window.confirm(
-      `Auch Lieferscheine für ${labelIds.length} Sendung${labelIds.length === 1 ? '' : 'en'} ${action === 'print' ? 'drucken' : 'herunterladen'}?\n\nDu bekommst dann zwei getrennte PDFs:\n  1. Labels (wie bisher)\n  2. Lieferscheine (gleiche Reihenfolge, 1 Seite pro Sendung)`,
-    );
+    // Delivery notes toggle lives in the action bar — user tickt es dort, wir
+    // lesen hier den Stand. Zwei getrennte PDFs, gleiche Reihenfolge.
+    const withDeliveryNotes = includeDeliveryNotes;
     setBusy(action);
     try {
       const { blob, labelCount, skippedCount, skippedReasons } = await shippingApi.bulkDownloadLabels(labelIds, true);
@@ -296,8 +294,19 @@ export default function ShippingLabelsPage() {
       {/* Bulk action bar — stacks vertically on mobile so buttons stay reachable */}
       {selected.size > 0 && (
         <div className="sticky top-2 z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 rounded-xl border border-primary-200 dark:border-primary-700/40 bg-primary-50 dark:bg-primary-900/20 p-3 shadow-sm">
-          <div className="text-xs sm:text-sm text-primary-900 dark:text-primary-100">
-            <strong>{selected.size}</strong> Label{selected.size === 1 ? '' : 's'} ausgewählt — wird als <strong>eine PDF-Datei</strong> zusammengeführt.
+          <div className="flex flex-col gap-2 text-xs sm:text-sm text-primary-900 dark:text-primary-100">
+            <div>
+              <strong>{selected.size}</strong> Label{selected.size === 1 ? '' : 's'} ausgewählt — wird als <strong>eine PDF-Datei</strong> zusammengeführt.
+            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={includeDeliveryNotes}
+                onChange={(e) => setIncludeDeliveryNotes(e.target.checked)}
+                className="h-4 w-4 rounded border-primary-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span>Lieferscheine zusätzlich als separate PDF (gleiche Reihenfolge, 1 Seite pro Sendung)</span>
+            </label>
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
