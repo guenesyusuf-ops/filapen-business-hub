@@ -302,6 +302,7 @@ export default function ShippingOrdersPage() {
                       <input type="checkbox" checked={selectedIds.size === items.length && items.length > 0} onChange={toggleAll} />
                     </th>
                     <th className="px-3 py-2.5 text-left">Bestellnr.</th>
+                    <th className="px-3 py-2.5 text-left hidden sm:table-cell">Produkte</th>
                     <th className="px-3 py-2.5 text-left">Empfänger</th>
                     <th className="px-3 py-2.5 text-left hidden md:table-cell">Adresse</th>
                     <th className="px-3 py-2.5 text-left hidden lg:table-cell">Land</th>
@@ -325,6 +326,9 @@ export default function ShippingOrdersPage() {
                           <Link href={`/shipping/orders/${o.id}`} className="text-primary-700 dark:text-primary-300 hover:underline">
                             #{o.orderNumber}
                           </Link>
+                        </td>
+                        <td className="px-3 py-3 hidden sm:table-cell">
+                          <ProductThumbnails items={o.lineItems || []} />
                         </td>
                         <td className="px-3 py-3 max-w-[160px] sm:max-w-none">
                           <div className="text-gray-900 dark:text-white truncate">{o.customerName || '—'}</div>
@@ -385,6 +389,70 @@ export default function ShippingOrdersPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Product thumbnails — aggregates line items by product, shows image with
+// quantity badge when >1x bestellt. Max 4 thumbnails, Rest als "+N".
+// ---------------------------------------------------------------------------
+function ProductThumbnails({ items }: { items: any[] }) {
+  if (!items?.length) return <span className="text-xs text-gray-400">—</span>;
+
+  // Aggregate line items by productId (or fallback on sku/title)
+  const byProduct = new Map<string, { key: string; image: string | null; title: string; quantity: number }>();
+  for (const li of items) {
+    const key = li.productId || li.sku || li.title || li.id;
+    if (!key) continue;
+    const qty = Number(li.quantity) || 1;
+    const existing = byProduct.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      byProduct.set(key, {
+        key,
+        image: li.productImageUrl || null,
+        title: li.productTitle || li.title || '',
+        quantity: qty,
+      });
+    }
+  }
+
+  const products = Array.from(byProduct.values());
+  const shown = products.slice(0, 4);
+  const overflow = products.length - shown.length;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {shown.map((p) => (
+        <div key={p.key} className="relative flex-shrink-0" title={`${p.title} × ${p.quantity}`}>
+          {p.image ? (
+            // Next <img> would need configured domains; use plain img for simplicity
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={p.image}
+              alt={p.title}
+              className="h-9 w-9 rounded-lg object-cover bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10"
+              loading="lazy"
+            />
+          ) : (
+            <div className="h-9 w-9 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] text-gray-400">
+              {p.title.slice(0, 2).toUpperCase() || '?'}
+            </div>
+          )}
+          {p.quantity > 1 && (
+            <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold flex items-center justify-center shadow-sm ring-2 ring-white dark:ring-[#0f1117]">
+              {p.quantity}
+            </span>
+          )}
+        </div>
+      ))}
+      {overflow > 0 && (
+        <div className="h-9 px-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center text-xs text-gray-500 font-medium">
+          +{overflow}
+        </div>
+      )}
     </div>
   );
 }

@@ -100,6 +100,15 @@ export class ShippingOrderService {
               quantity: true,
               unitPrice: true,
               lineTotal: true,
+              // Produkt-Image via Variant→Product, damit Versand-Liste Produktbilder
+              // anzeigen kann (inkl. Stückzahl-Badge wenn quantity > 1)
+              productVariant: {
+                select: {
+                  product: {
+                    select: { id: true, imageUrl: true, title: true },
+                  },
+                },
+              },
             },
           },
           shipments: {
@@ -110,7 +119,18 @@ export class ShippingOrderService {
       }),
       this.prisma.order.count({ where }),
     ]);
-    return { items, total };
+    // Flatten productVariant.product.imageUrl onto the lineItem for easier frontend use
+    const flattened = items.map((o) => ({
+      ...o,
+      lineItems: (o.lineItems || []).map((li: any) => ({
+        ...li,
+        productImageUrl: li.productVariant?.product?.imageUrl ?? null,
+        productId: li.productVariant?.product?.id ?? null,
+        productTitle: li.productVariant?.product?.title ?? li.title,
+        productVariant: undefined,
+      })),
+    }));
+    return { items: flattened, total };
   }
 
   async get(orgId: string, id: string) {

@@ -90,13 +90,19 @@ export function TaskDetailModal({
   useEffect(() => {
     if (editDesc === lastCommittedDescRef.current) return; // no unsaved change
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      onUpdate({ id: task.id, description: editDesc } as any);
-      // Mark this value as committed so the next re-sync from the server (same value) doesn't
-      // appear as "external update" and doesn't overwrite anything the user typed since.
-      lastCommittedDescRef.current = editDesc;
-      setSaveState('saved');
-      setTimeout(() => setSaveState('idle'), 1500);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await Promise.resolve(onUpdate({ id: task.id, description: editDesc } as any));
+        // Mark as committed so the next re-sync doesn't overwrite unsaved local edits
+        lastCommittedDescRef.current = editDesc;
+        setSaveState('saved');
+        setTimeout(() => setSaveState('idle'), 1500);
+      } catch (err: any) {
+        setSaveState('error');
+        // Don't alert here (would be annoying during typing), but flip the state so the
+        // explicit "Save" button becomes visible and the user knows to retry manually.
+        setTimeout(() => setSaveState('idle'), 3000);
+      }
     }, 1500);
     return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
   }, [editDesc]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -177,8 +183,12 @@ export function TaskDetailModal({
       await Promise.resolve(onUpdate(updateData));
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 2000);
-    } catch {
+    } catch (err: any) {
       setSaveState('error');
+      // Surface the real error message so the user knows why the save failed
+      // (e.g. 413 Payload Too Large, 504 Timeout, DB-error) — silent failure is the worst UX.
+      const msg = err?.message || 'Unbekannter Fehler beim Speichern';
+      alert(`Speichern fehlgeschlagen: ${msg}`);
       setTimeout(() => setSaveState('idle'), 3000);
     }
   }
