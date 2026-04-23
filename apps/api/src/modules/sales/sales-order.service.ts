@@ -99,7 +99,17 @@ export class SalesOrderService {
         take: limit,
         include: {
           customer: { select: { id: true, companyName: true, customerNumber: true } },
-          lineItems: { select: { id: true, title: true, quantity: true } },
+          // matchedVariant → product → imageUrl damit die Listenansicht kleine
+          // Produkt-Kacheln rendern kann. Nicht alle Line-Items sind gematched
+          // (unbekannte SKUs aus Import), daher nullable Chain.
+          lineItems: {
+            select: {
+              id: true, title: true, quantity: true,
+              matchedVariant: {
+                select: { id: true, sku: true, product: { select: { id: true, title: true, imageUrl: true } } },
+              },
+            },
+          },
           _count: { select: { documents: true } },
         },
       }),

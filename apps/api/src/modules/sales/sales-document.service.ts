@@ -88,6 +88,30 @@ export class SalesDocumentService {
     // Best effort R2 cleanup
     try { await this.storage.delete(doc.r2Key); } catch {}
     await this.prisma.salesOrderDocument.delete({ where: { id: doc.id } });
+
+    // Wenn es eine easybill-generierte AB oder Rechnung war, die Refs am Order
+    // zurücksetzen damit der "Erstellen"-Button in der UI wieder klickbar wird.
+    // Die Zeitstempel (confirmationSentAt/invoiceSentAt) werden auch zurück-
+    // gesetzt, weil "versendet" nach dem Löschen des Dokuments sinnlos ist.
+    if (doc.kind === 'confirmation') {
+      await this.prisma.salesOrder.update({
+        where: { id: orderId },
+        data: {
+          easybillConfirmationId: null,
+          easybillConfirmationPdfUrl: null,
+          confirmationSentAt: null,
+        },
+      });
+    } else if (doc.kind === 'invoice') {
+      await this.prisma.salesOrder.update({
+        where: { id: orderId },
+        data: {
+          easybillInvoiceId: null,
+          easybillInvoicePdfUrl: null,
+          invoiceSentAt: null,
+        },
+      });
+    }
     return { ok: true };
   }
 }

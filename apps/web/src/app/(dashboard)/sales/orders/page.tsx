@@ -115,10 +115,6 @@ export default function SalesOrdersPage() {
             <tbody>
               {items.map((o) => {
                 const urg = urgencyOf(o);
-                const productPreview = (o.lineItems ?? [])
-                  .slice(0, 2)
-                  .map((l: any) => `${l.quantity}× ${l.title}`).join(', ');
-                const more = (o.lineItems?.length ?? 0) > 2 ? ` +${o.lineItems.length - 2}` : '';
                 return (
                   <tr key={o.id} className="border-t border-gray-200/60 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
                     <td className="px-4 py-2 font-mono text-xs">
@@ -133,8 +129,8 @@ export default function SalesOrdersPage() {
                       <div className="text-gray-900 dark:text-gray-100">{o.customer?.companyName ?? '—'}</div>
                       <div className="text-[11px] text-gray-500">{o.customer?.customerNumber ?? ''}</div>
                     </td>
-                    <td className="px-4 py-2 max-w-[320px] truncate text-gray-700 dark:text-gray-300">
-                      {productPreview}{more}
+                    <td className="px-4 py-2">
+                      <ProductTiles items={o.lineItems ?? []} />
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-1.5">
@@ -184,5 +180,86 @@ function StatusDot({ on, label }: { on: boolean; label: string }) {
       <span className={`h-1.5 w-1.5 rounded-full ${on ? 'bg-green-500' : 'bg-gray-400'}`} />
       {label}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Kleine Produkt-Kacheln für die Listenansicht. Bilder kommen aus unserer
+// Produkt-DB via lineItem.matchedVariant.product.imageUrl (nur dann wenn
+// Claude beim Import ein Match per SKU/EAN gefunden hat). Ohne Bild → Initialen-
+// Fallback. Hover → Popover mit Produkt + Menge.
+// ---------------------------------------------------------------------------
+function ProductTiles({ items }: { items: any[] }) {
+  if (!items?.length) return <span className="text-xs text-gray-400">—</span>;
+
+  // Aggregate per product (falls dasselbe Produkt in mehreren Positions-
+  // Zeilen steht) damit nur eine Kachel erscheint mit Summen-Menge.
+  type Tile = { key: string; image: string | null; title: string; quantity: number };
+  const byKey = new Map<string, Tile>();
+  for (const li of items) {
+    const variant = li.matchedVariant;
+    const product = variant?.product;
+    const key = product?.id || variant?.sku || li.id;
+    const qty = Number(li.quantity) || 1;
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      byKey.set(key, {
+        key,
+        image: product?.imageUrl || null,
+        title: product?.title || li.title || '',
+        quantity: qty,
+      });
+    }
+  }
+  const tiles = Array.from(byKey.values());
+  const shown = tiles.slice(0, 5);
+  const overflow = tiles.length - shown.length;
+
+  return (
+    <div className="group relative inline-flex items-center gap-1">
+      {shown.map((t) => (
+        <div key={t.key} className="flex-shrink-0">
+          {t.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={t.image}
+              alt={t.title}
+              className="h-9 w-9 rounded-md object-cover bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10"
+              loading="lazy"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <div className="h-9 w-9 rounded-md bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/5 dark:to-white/10 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+              {t.title.slice(0, 2).toUpperCase() || '?'}
+            </div>
+          )}
+        </div>
+      ))}
+      {overflow > 0 && (
+        <div className="h-9 min-w-[2.25rem] px-1.5 rounded-md bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] font-semibold text-gray-600 dark:text-gray-300">
+          +{overflow}
+        </div>
+      )}
+
+      {/* Hover-Popover mit der vollständigen Liste + Mengen. */}
+      <div
+        className="pointer-events-none absolute left-0 top-full mt-2 z-20 w-max max-w-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900 shadow-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+        role="tooltip"
+      >
+        <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1.5">
+          {tiles.length} Artikel
+        </div>
+        <div className="space-y-1">
+          {tiles.map((t) => (
+            <div key={t.key} className="flex items-center justify-between gap-3 text-xs">
+              <span className="truncate text-gray-800 dark:text-gray-200">{t.title}</span>
+              <span className="flex-shrink-0 font-semibold text-gray-900 dark:text-gray-100">×{t.quantity}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
