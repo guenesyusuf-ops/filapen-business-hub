@@ -345,6 +345,21 @@ export class SalesController {
     }
   }
 
+  /**
+   * Diagnostic endpoint: returns the `type` values of the last 20 documents
+   * in the connected easybill account, so we can see which enum string that
+   * account uses for Auftragsbestätigung vs Invoice vs Offer.
+   */
+  @Get('easybill/document-types')
+  async easybillDocumentTypes(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    try {
+      return await this.easybill.listDocumentTypes(orgId);
+    } catch (err: any) {
+      return { error: err.message };
+    }
+  }
+
   @Post('orders/:id/easybill/create-confirmation')
   async createConfirmation(@Headers('authorization') authHeader: string, @Param('id') id: string) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
