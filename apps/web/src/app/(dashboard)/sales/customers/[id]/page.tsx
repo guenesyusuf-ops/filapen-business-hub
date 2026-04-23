@@ -27,6 +27,7 @@ export default function CustomerDetailPage() {
       setEdits({
         companyName: c.companyName,
         externalCustomerNumber: c.externalCustomerNumber ?? '',
+        easybillCustomerNumber: c.easybillCustomerNumber ?? '',
         contactPerson: c.contactPerson ?? '',
         email: c.email ?? '',
         phone: c.phone ?? '',
@@ -71,6 +72,7 @@ export default function CustomerDetailPage() {
         <div className="grid gap-2 sm:grid-cols-2">
           <L label="Firmenname"><input className={cls} value={edits.companyName} onChange={(e) => setEdits({ ...edits, companyName: e.target.value })} /></L>
           <L label="Externe Kundennummer"><input className={cls} value={edits.externalCustomerNumber} onChange={(e) => setEdits({ ...edits, externalCustomerNumber: e.target.value })} /></L>
+          <L label="easybill-Kundennummer (z.B. 10191)"><input className={cls} value={edits.easybillCustomerNumber} onChange={(e) => setEdits({ ...edits, easybillCustomerNumber: e.target.value })} placeholder="leer lassen für Neuanlage" /></L>
           <L label="Ansprechpartner"><input className={cls} value={edits.contactPerson} onChange={(e) => setEdits({ ...edits, contactPerson: e.target.value })} /></L>
           <L label="E-Mail"><input className={cls} value={edits.email} onChange={(e) => setEdits({ ...edits, email: e.target.value })} /></L>
           <L label="Telefon"><input className={cls} value={edits.phone} onChange={(e) => setEdits({ ...edits, phone: e.target.value })} /></L>

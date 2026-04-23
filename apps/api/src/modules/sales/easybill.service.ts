@@ -69,14 +69,34 @@ export class EasybillService {
   }
 
   /**
-   * Ensure an easybill customer exists for this SalesCustomer. We keep the
-   * easybill ID on the customer so subsequent AB/Invoice creations reuse it.
+   * Ensure an easybill customer exists for this SalesCustomer. Three paths:
+   *   1. We already know the easybill API ID → return it.
+   *   2. The user entered an easybill-Kundennummer (10191 etc.) → look it up
+   *      via GET /customers?number=… and persist the API ID. Never create.
+   *   3. Neither → create a new customer. If easybillCustomerNumber is set
+   *      we pass it as `number` so easybill uses that display number.
    */
   private async upsertCustomer(orgId: string, customerId: string): Promise<string> {
     const c = await this.prisma.salesCustomer.findFirst({ where: { id: customerId, orgId } });
     if (!c) throw new BadRequestException('Kunde nicht gefunden');
     if (c.easybillCustomerId) return c.easybillCustomerId;
 
+    // Path 2 — lookup by user-entered easybill customer number
+    if (c.easybillCustomerNumber) {
+      const found = await this.findCustomerByNumber(orgId, c.easybillCustomerNumber);
+      if (found) {
+        await this.prisma.salesCustomer.update({
+          where: { id: customerId },
+          data: { easybillCustomerId: found },
+        });
+        return found;
+      }
+      throw new BadRequestException(
+        `Kein easybill-Kunde mit Nummer ${c.easybillCustomerNumber} gefunden. Prüfe die Nummer oder lass das Feld leer, dann legen wir einen neuen Kunden an.`,
+      );
+    }
+
+    // Path 3 — create fresh
     const shipAddr = (c.shippingAddress as any) || {};
     const billAddr = (c.billingAddress as any) || shipAddr;
     const created = await this.call<any>(orgId, '/customers', {
@@ -104,14 +124,30 @@ export class EasybillService {
       },
     });
     const easybillId = String(created.id);
+    const easybillNum = created.number ? String(created.number) : c.easybillCustomerNumber;
     await this.prisma.salesCustomer.update({
       where: { id: customerId },
-      data: { easybillCustomerId: easybillId },
+      data: {
+        easybillCustomerId: easybillId,
+        easybillCustomerNumber: easybillNum,
+      },
     });
     return easybillId;
   }
 
-  private orderPayload(order: any, easybillCustomerId: string) {
+  /**
+   * Find an easybill customer by their visible customer number (the one shown
+   * on documents like "Kunde 10191"). Uses the search query parameter. Returns
+   * the internal API ID as string, or null if no match.
+   */
+  private async findCustomerByNumber(orgId: string, number: string): Promise<string | null> {
+    const res = await this.call<any>(orgId, `/customers?number=${encodeURIComponent(number)}&limit=1`);
+    const list = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+    const match = list.find((x: any) => String(x.number) === String(number)) ?? list[0];
+    return match?.id ? String(match.id) : null;
+  }
+
+  private orderPayload(order: any, easybillCustomerId: string, type: 'ORDER_CONFIRMATION' | 'INVOICE') {
     const items = (order.lineItems ?? []).map((li: any) => ({
       description: li.title,
       number: li.supplierArticleNumber || undefined,
@@ -121,13 +157,29 @@ export class EasybillService {
       vat_percent: 19,
       unit: 'Stk.',
     }));
+
+    // Intro paragraph (Kopftext) — uses customer order date + their order number
+    // so the AB reads exactly like the user's manual template.
+    const fmt = (d: any) => d ? new Date(d).toLocaleDateString('de-DE') : '';
+    const orderDateStr = fmt(order.orderDate);
+    const externalNum = order.externalOrderNumber || '';
+    const introText = externalNum && orderDateStr
+      ? `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung vom ${orderDateStr} mit der Bestellnummer ${externalNum} erbringen wir im einzelnen folgende Leistungen.`
+      : `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung erbringen wir im einzelnen folgende Leistungen.`;
+
+    // Footer (Schlusstext) — planned delivery date. User template always has it.
+    const deliveryStr = fmt(order.requiredDeliveryDate);
+    const footerText = deliveryStr ? `Geplanter Liefertermin: ${deliveryStr}` : undefined;
+
     return {
+      type,
       customer_id: Number(easybillCustomerId),
-      title: `Auftragsbestätigung ${order.orderNumber}`,
+      // Let easybill auto-number the document — we store only our internal ref
       document_date: new Date().toISOString().slice(0, 10),
       service_date_type: 'NONE',
       items,
-      text: order.notes || undefined,
+      text: introText,
+      text_additional: footerText,
       external_id: order.orderNumber,
     };
   }
@@ -147,7 +199,7 @@ export class EasybillService {
       throw new BadRequestException('Auftragsbestätigung existiert bereits — Rechnung wäre der nächste Schritt.');
     }
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
-    const body = { ...this.orderPayload(order, easybillCustomerId), type: 'OFFER' };
+    const body = this.orderPayload(order, easybillCustomerId, 'ORDER_CONFIRMATION');
     const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
     const docId = String(doc.id);
 
@@ -197,7 +249,7 @@ export class EasybillService {
       throw new BadRequestException('Rechnung existiert bereits.');
     }
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
-    const body = { ...this.orderPayload(order, easybillCustomerId), type: 'INVOICE', title: `Rechnung ${order.orderNumber}` };
+    const body = this.orderPayload(order, easybillCustomerId, 'INVOICE');
     const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
     const docId = String(doc.id);
 

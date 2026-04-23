@@ -177,6 +177,17 @@ export class SalesController {
     return this.orders.toggleStatus(orgId, userId, id, 'invoice_sent', body.on ?? true);
   }
 
+  @Post('orders/:id/status/paid')
+  async togglePaid(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { on?: boolean },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.orders.toggleStatus(orgId, userId, id, 'paid', body.on ?? true);
+  }
+
   @Put('orders/:id/shipping')
   async updateShipping(
     @Headers('authorization') authHeader: string,

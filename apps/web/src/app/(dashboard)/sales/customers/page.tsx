@@ -87,7 +87,8 @@ export default function SalesCustomersPage() {
 
 function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<any>({
-    companyName: '', externalCustomerNumber: '', contactPerson: '', email: '', phone: '',
+    companyName: '', externalCustomerNumber: '', easybillCustomerNumber: '',
+    contactPerson: '', email: '', phone: '',
     paymentTerms: '', notes: '',
   });
   const [saving, setSaving] = useState(false);
@@ -105,7 +106,8 @@ function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         <h3 className="text-base font-semibold mb-3">Neuer B2B-Kunde</h3>
         <div className="grid gap-2 text-sm">
           <Input label="Firmenname *" value={form.companyName} onChange={(v) => setForm({ ...form, companyName: v })} />
-          <Input label="Externe Kundennummer" value={form.externalCustomerNumber} onChange={(v) => setForm({ ...form, externalCustomerNumber: v })} />
+          <Input label="Externe Kundennummer (wie der Kunde uns kennt)" value={form.externalCustomerNumber} onChange={(v) => setForm({ ...form, externalCustomerNumber: v })} />
+          <Input label="easybill-Kundennummer (z.B. 10191) — optional, verhindert doppelte Anlage" value={form.easybillCustomerNumber} onChange={(v) => setForm({ ...form, easybillCustomerNumber: v })} />
           <Input label="Ansprechpartner" value={form.contactPerson} onChange={(v) => setForm({ ...form, contactPerson: v })} />
           <div className="grid grid-cols-2 gap-2">
             <Input label="E-Mail" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />

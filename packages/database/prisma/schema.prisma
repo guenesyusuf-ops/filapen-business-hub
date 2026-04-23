@@ -2883,6 +2883,7 @@ enum SalesEventType {
   confirmation_sent
   shipped
   invoice_sent
+  paid
   note
   status_change
 
@@ -2912,8 +2913,11 @@ model SalesCustomer {
   billingAddress         Json?    @map("billing_address") @db.JsonB
   paymentTerms           String?  @map("payment_terms") @db.VarChar(255)
   notes                  String?  @db.Text
-  // easybill customer ID (nullable until first AB/invoice is created)
+  // easybill internal API ID (integer as string) — set after first successful upsert
   easybillCustomerId     String?  @map("easybill_customer_id") @db.VarChar(100)
+  // easybill display customer number (e.g. "10191") — user-entered to match an
+  // existing easybill customer so we don't create duplicates
+  easybillCustomerNumber String?  @map("easybill_customer_number") @db.VarChar(50)
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -2950,6 +2954,7 @@ model SalesOrder {
   confirmationSentAt      DateTime?        @map("confirmation_sent_at") @db.Timestamptz
   shippedAt               DateTime?        @map("shipped_at") @db.Timestamptz
   invoiceSentAt           DateTime?        @map("invoice_sent_at") @db.Timestamptz
+  paidAt                  DateTime?        @map("paid_at") @db.Timestamptz
   // easybill references
   easybillConfirmationId  String?          @map("easybill_confirmation_id") @db.VarChar(100)
   easybillConfirmationPdfUrl String?       @map("easybill_confirmation_pdf_url") @db.Text

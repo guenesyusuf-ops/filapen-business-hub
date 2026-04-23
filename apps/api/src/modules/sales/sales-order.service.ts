@@ -255,7 +255,7 @@ export class SalesOrderService {
     orgId: string,
     userId: string,
     id: string,
-    kind: 'confirmation_sent' | 'shipped' | 'invoice_sent',
+    kind: 'confirmation_sent' | 'shipped' | 'invoice_sent' | 'paid',
     on: boolean,
   ) {
     const order = await this.get(orgId, id);
@@ -274,7 +274,14 @@ export class SalesOrderService {
     if (kind === 'invoice_sent') {
       data.invoiceSentAt = on ? (order.invoiceSentAt ?? now) : null;
       if (on && order.status === 'shipped') data.status = 'invoiced';
-      if (on && order.invoiceSentAt && order.shippedAt) data.status = 'completed';
+    }
+    if (kind === 'paid') {
+      data.paidAt = on ? (order.paidAt ?? now) : null;
+      // Paid implies the order is fully closed out — advance to completed when
+      // it was invoiced. Otherwise leave status alone (user might mark paid
+      // early before the invoice flow).
+      if (on && (order.status === 'invoiced' || order.invoiceSentAt)) data.status = 'completed';
+      else if (!on && order.status === 'completed') data.status = 'invoiced';
     }
 
     return this.prisma.salesOrder.update({ where: { id }, data, include: { customer: true } });

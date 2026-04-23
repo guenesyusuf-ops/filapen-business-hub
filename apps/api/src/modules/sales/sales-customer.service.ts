@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 export interface SalesCustomerInput {
   companyName: string;
   externalCustomerNumber?: string | null;
+  easybillCustomerNumber?: string | null;
   contactPerson?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -72,6 +73,7 @@ export class SalesCustomerService {
         customerNumber,
         companyName: data.companyName.trim(),
         externalCustomerNumber: data.externalCustomerNumber || null,
+        easybillCustomerNumber: data.easybillCustomerNumber || null,
         contactPerson: data.contactPerson || null,
         email: data.email || null,
         phone: data.phone || null,
@@ -90,6 +92,7 @@ export class SalesCustomerService {
       data: {
         ...(data.companyName !== undefined ? { companyName: data.companyName } : {}),
         ...(data.externalCustomerNumber !== undefined ? { externalCustomerNumber: data.externalCustomerNumber } : {}),
+        ...(data.easybillCustomerNumber !== undefined ? { easybillCustomerNumber: data.easybillCustomerNumber } : {}),
         ...(data.contactPerson !== undefined ? { contactPerson: data.contactPerson } : {}),
         ...(data.email !== undefined ? { email: data.email } : {}),
         ...(data.phone !== undefined ? { phone: data.phone } : {}),

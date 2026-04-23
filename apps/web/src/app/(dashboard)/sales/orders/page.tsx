@@ -152,6 +152,7 @@ export default function SalesOrdersPage() {
                         <StatusDot on={!!o.confirmationSentAt} label="AB" />
                         <StatusDot on={!!o.shippedAt} label="Versand" />
                         <StatusDot on={!!o.invoiceSentAt} label="Rg." />
+                        <StatusDot on={!!o.paidAt} label="Bez." />
                       </div>
                     </td>
                     <td className="px-4 py-2">

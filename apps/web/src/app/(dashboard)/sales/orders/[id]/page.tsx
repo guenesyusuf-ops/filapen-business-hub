@@ -76,15 +76,17 @@ export default function SalesOrderDetailPage() {
     }
   }
 
-  async function toggleBadge(kind: 'confirmation_sent' | 'shipped' | 'invoice_sent') {
+  async function toggleBadge(kind: 'confirmation_sent' | 'shipped' | 'invoice_sent' | 'paid') {
     const current = kind === 'confirmation_sent' ? !!order.confirmationSentAt
                   : kind === 'shipped' ? !!order.shippedAt
-                  : !!order.invoiceSentAt;
+                  : kind === 'invoice_sent' ? !!order.invoiceSentAt
+                  : !!order.paidAt;
     const next = !current;
     try {
       if (kind === 'confirmation_sent') await salesApi.toggleConfirmation(params.id, next);
       if (kind === 'shipped') await salesApi.toggleShipped(params.id, next);
       if (kind === 'invoice_sent') await salesApi.toggleInvoice(params.id, next);
+      if (kind === 'paid') await salesApi.togglePaid(params.id, next);
       await load();
     } catch (e: any) {
       alert(e.message);
@@ -200,6 +202,12 @@ export default function SalesOrderDetailPage() {
           on={!!order.invoiceSentAt}
           ts={order.invoiceSentAt}
           onClick={() => toggleBadge('invoice_sent')}
+        />
+        <ToggleBadge
+          label="Bezahlt"
+          on={!!order.paidAt}
+          ts={order.paidAt}
+          onClick={() => toggleBadge('paid')}
         />
       </div>
 
