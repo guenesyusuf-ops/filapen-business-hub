@@ -13,7 +13,7 @@ import { SalesDocumentService } from './sales-document.service';
 import { SalesImportService } from './sales-import.service';
 import { EasybillService } from './easybill.service';
 
-@Controller('api/sales')
+@Controller('sales')
 export class SalesController {
   private readonly logger = new Logger(SalesController.name);
   constructor(
