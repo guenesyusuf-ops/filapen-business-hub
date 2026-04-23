@@ -204,7 +204,7 @@ export class EasybillService {
     return match?.id ? String(match.id) : null;
   }
 
-  private orderPayload(order: any, easybillCustomerId: string, type: 'ORDER_CONFIRMATION' | 'INVOICE') {
+  private orderPayload(order: any, easybillCustomerId: string, type: 'ORDER' | 'INVOICE') {
     // EMPIRISCHER FIX: easybill interpretiert `single_price_net` offensichtlich
     // als Cent-Integer und NICHT als EUR-Float (12.06 in → 0.1206 €). Wir
     // multiplizieren daher × 100 und runden auf Integer.
@@ -269,15 +269,18 @@ export class EasybillService {
       throw new BadRequestException('Auftragsbestätigung existiert bereits — Rechnung wäre der nächste Schritt.');
     }
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
-    const body = this.orderPayload(order, easybillCustomerId, 'ORDER_CONFIRMATION');
+    // ORDER = Auftragsbestätigung (Kundenauftrag) in easybill's data model,
+    // distinct from OFFER (Angebot) and INVOICE (Rechnung). Confirmed via
+    // easybill REST v1 Swagger doc type enum.
+    const body = this.orderPayload(order, easybillCustomerId, 'ORDER');
     console.error('[easybill] REQUEST AB:', JSON.stringify(body));
     const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
     const docId = String(doc.id);
     console.error('[easybill] RESPONSE AB:', JSON.stringify({
       id: docId, type: doc.type, number: doc.number, items: doc.items,
     }));
-    if (doc.type !== 'ORDER_CONFIRMATION') {
-      console.error(`[easybill] WARN: returned type="${doc.type}" expected ORDER_CONFIRMATION`);
+    if (doc.type !== 'ORDER') {
+      console.error(`[easybill] WARN: returned type="${doc.type}" expected ORDER`);
     }
 
     // Pull PDF
