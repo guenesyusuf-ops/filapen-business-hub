@@ -32,6 +32,27 @@ process.on('uncaughtException', (error) => {
   // Don't exit — let Railway see the error in logs
 });
 
+// Silence noisy ioredis ECONNREFUSED retries when REDIS_URL isn't set. Without
+// this the BullMQ worker fills Railway's 500 logs/sec limit within seconds
+// and kills real debug output. Only squelch connect-refused to localhost:6379
+// so any genuine Redis-connection problem in production still surfaces.
+if (!process.env.REDIS_URL) {
+  const suppressMatch = (s: string) =>
+    /ECONNREFUSED\s+127\.0\.0\.1:6379/.test(s) || /Connection is closed/.test(s);
+  const origStderr = process.stderr.write.bind(process.stderr);
+  (process.stderr as any).write = (chunk: any, ...rest: any[]) => {
+    const s = typeof chunk === 'string' ? chunk : chunk?.toString?.() ?? '';
+    if (suppressMatch(s)) return true;
+    return origStderr(chunk, ...rest);
+  };
+  const origError = console.error.bind(console);
+  console.error = (...args: any[]) => {
+    const joined = args.map((a) => (typeof a === 'string' ? a : (a?.message ?? ''))).join(' ');
+    if (suppressMatch(joined)) return;
+    origError(...args);
+  };
+}
+
 async function bootstrap() {
   try {
     console.log('[Startup] Creating NestJS application...');
