@@ -119,16 +119,69 @@ export class ShippingOrderService {
       }),
       this.prisma.order.count({ where }),
     ]);
-    // Flatten productVariant.product.imageUrl onto the lineItem for easier frontend use
+    // Flatten productVariant.product.imageUrl onto the lineItem for easier frontend use.
+    // Fallback-Chain für Bild-Matching:
+    //   1. lineItem.productVariantId → ProductVariant.product.imageUrl (direkter Join)
+    //   2. lineItem.sku → ProductVariant.sku → Product.imageUrl
+    //      (rettet alte Orders die vor dem Variant-Matching importiert wurden)
+    //   3. lineItem.title fuzzy match → Product.title (letzte Notlösung)
+    //
+    // Wir sammeln erst alle fehlenden SKUs + Titel in einem Batch-Query statt
+    // pro Order einzeln zu fragen.
+    const missingSkus = new Set<string>();
+    const missingTitles = new Set<string>();
+    for (const o of items) {
+      for (const li of o.lineItems || []) {
+        const hasImage = (li as any).productVariant?.product?.imageUrl;
+        if (!hasImage) {
+          if (li.sku) missingSkus.add(li.sku);
+          else if (li.title) missingTitles.add(li.title);
+        }
+      }
+    }
+
+    // Batch-Lookup via SKU (schneller + präziser als Fuzzy-Match)
+    const skuMatches = missingSkus.size
+      ? await this.prisma.productVariant.findMany({
+          where: { orgId, sku: { in: Array.from(missingSkus) } },
+          select: {
+            sku: true,
+            product: { select: { id: true, imageUrl: true, title: true } },
+          },
+        })
+      : [];
+    const skuMap = new Map(
+      skuMatches
+        .filter((v) => v.sku && v.product?.imageUrl)
+        .map((v) => [v.sku!, v.product]),
+    );
+
+    // Batch-Lookup via Produkt-Titel (nur für Line-Items ohne SKU)
+    const titleMatches = missingTitles.size
+      ? await this.prisma.product.findMany({
+          where: { orgId, title: { in: Array.from(missingTitles) } },
+          select: { id: true, imageUrl: true, title: true },
+        })
+      : [];
+    const titleMap = new Map(
+      titleMatches.filter((p) => p.imageUrl).map((p) => [p.title, p]),
+    );
+
     const flattened = items.map((o) => ({
       ...o,
-      lineItems: (o.lineItems || []).map((li: any) => ({
-        ...li,
-        productImageUrl: li.productVariant?.product?.imageUrl ?? null,
-        productId: li.productVariant?.product?.id ?? null,
-        productTitle: li.productVariant?.product?.title ?? li.title,
-        productVariant: undefined,
-      })),
+      lineItems: (o.lineItems || []).map((li: any) => {
+        const direct = li.productVariant?.product;
+        const fallbackSku = li.sku ? skuMap.get(li.sku) : null;
+        const fallbackTitle = !li.sku ? titleMap.get(li.title) : null;
+        const match = (direct?.imageUrl ? direct : null) || fallbackSku || fallbackTitle;
+        return {
+          ...li,
+          productImageUrl: match?.imageUrl ?? null,
+          productId: match?.id ?? direct?.id ?? null,
+          productTitle: match?.title ?? direct?.title ?? li.title,
+          productVariant: undefined,
+        };
+      }),
     }));
     return { items: flattened, total };
   }

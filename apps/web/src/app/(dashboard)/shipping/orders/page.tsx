@@ -428,28 +428,35 @@ function ProductThumbnails({ items }: { items: any[] }) {
       {shown.map((p) => (
         <div key={p.key} className="relative flex-shrink-0" title={`${p.title} × ${p.quantity}`}>
           {p.image ? (
-            // Next <img> would need configured domains; use plain img for simplicity
+            // Use native <img> — Next/Image would require configured remote patterns in next.config.js
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={p.image}
               alt={p.title}
-              className="h-9 w-9 rounded-lg object-cover bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10"
+              className="h-10 w-10 rounded-lg object-cover bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10"
               loading="lazy"
+              onError={(e) => {
+                // If the Shopify CDN URL 404s, hide the <img> and let the fallback below show
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                const parent = (e.currentTarget as HTMLImageElement).parentElement;
+                if (parent) parent.setAttribute('data-image-failed', '1');
+              }}
             />
-          ) : (
-            <div className="h-9 w-9 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] text-gray-400">
+          ) : null}
+          {!p.image && (
+            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/5 dark:to-white/10 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] font-semibold text-gray-500 dark:text-gray-400">
               {p.title.slice(0, 2).toUpperCase() || '?'}
             </div>
           )}
           {p.quantity > 1 && (
-            <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold flex items-center justify-center shadow-sm ring-2 ring-white dark:ring-[#0f1117]">
+            <span className="absolute -top-1.5 -right-1.5 h-[18px] min-w-[18px] px-1 rounded-full bg-primary-600 text-white text-[10px] font-bold flex items-center justify-center shadow-sm ring-2 ring-white dark:ring-[#0f1117]">
               {p.quantity}
             </span>
           )}
         </div>
       ))}
       {overflow > 0 && (
-        <div className="h-9 px-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center text-xs text-gray-500 font-medium">
+        <div className="h-10 px-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center text-xs text-gray-500 font-medium">
           +{overflow}
         </div>
       )}
