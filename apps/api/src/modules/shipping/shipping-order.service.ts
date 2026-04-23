@@ -103,6 +103,25 @@ export class ShippingOrderService {
     if (filters.hasShipment === 'yes') where.shipments = { some: {} };
     if (filters.hasShipment === 'no') where.shipments = { none: {} };
 
+    // Address-Status ist ein JSON-Feld → Prisma-WHERE kann das nicht direkt
+    // filtern. Wir holen erst die IDs aller Orders die dem where entsprechen,
+    // filtern in-memory nach Adress-Status, und begrenzen dann die eigentliche
+    // Query auf diese IDs mit Pagination. Kostet 1 extra Query, stellt aber
+    // sicher, dass die Pagination korrekt auf die gefilterten Orders wirkt
+    // (statt blind die ersten 50 der Gesamtliste zu holen und danach zu filtern).
+    if (filters.addressStatus === 'error' || filters.addressStatus === 'ok') {
+      const wantError = filters.addressStatus === 'error';
+      const allCandidates = await this.prisma.order.findMany({
+        where,
+        select: { id: true, shippingAddress: true },
+      });
+      const matchingIds = allCandidates
+        .filter((o: any) => isAddressValid(o.shippingAddress) !== wantError)
+        .map((o) => o.id);
+      // Scope the main query to those IDs only
+      where.id = { in: matchingIds };
+    }
+
     const limit = Math.min(filters.limit ?? 50, 200);
     const offset = filters.offset ?? 0;
 
@@ -224,18 +243,9 @@ export class ShippingOrderService {
       }),
     }));
 
-    // Post-Filter auf Adress-Status (JSON-Spalte, kann nicht in where gefiltert werden ohne raw SQL)
-    let filtered = flattened;
-    let filteredTotal = total;
-    if (filters.addressStatus === 'error' || filters.addressStatus === 'ok') {
-      const wantError = filters.addressStatus === 'error';
-      filtered = flattened.filter((o: any) => o.hasAddressError === wantError);
-      // Hinweis: total stimmt jetzt nicht mehr — das ist bei Filter-Präsets ok,
-      // der Frontend-Tab-Count kommt über eine separate Zählmethode.
-      filteredTotal = filtered.length;
-    }
-
-    return { items: filtered, total: filteredTotal };
+    // Post-Filter entfällt — Adress-Status-Filter wurde schon VOR der
+    // Pagination via where.id angewendet (siehe oben).
+    return { items: flattened, total };
   }
 
   /**
