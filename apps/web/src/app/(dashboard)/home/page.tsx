@@ -94,31 +94,37 @@ function GreetingCard() {
   const message = messageForToday();
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-primary-500 via-primary-600 to-primary-700 text-white p-6 shadow-lg">
-      <div className="flex items-center gap-5">
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-500 via-primary-600 to-accent-creator text-white p-7 shadow-card-primary">
+      {/* Dekorative Mesh-Overlay-Schicht für subtile Tiefe */}
+      <div className="absolute inset-0 bg-mesh opacity-60 pointer-events-none" />
+      {/* Floating Blur-Kreise für Premium-Look */}
+      <div className="absolute -top-20 -right-10 w-64 h-64 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-accent-creator/30 blur-3xl pointer-events-none" />
+
+      <div className="relative flex items-center gap-5">
         {user?.avatarUrl ? (
           <img
             src={user.avatarUrl}
             alt={firstName}
-            className="h-16 w-16 rounded-full object-cover border-2 border-white/30 shadow-md"
+            className="h-16 w-16 rounded-2xl object-cover border-2 border-white/40 shadow-glow-soft"
           />
         ) : (
-          <div className="h-16 w-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30 shadow-md">
+          <div className="h-16 w-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border-2 border-white/40 shadow-glow-soft">
             <span className="text-xl font-bold text-white">{initial}</span>
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold leading-tight">
-            {greeting}, {firstName}!
+          <h1 className="font-display-serif text-3xl sm:text-4xl font-medium leading-tight tracking-tight">
+            {greeting}, <span className="italic">{firstName}</span>
           </h1>
-          <p className="text-sm text-white/80 mt-1">{message}</p>
+          <p className="text-sm text-white/85 mt-2">{message}</p>
         </div>
         <div className="hidden md:block text-right">
-          <p className="text-xs uppercase tracking-wider text-white/60 font-semibold">Heute</p>
-          <p className="text-lg font-bold mt-0.5">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold">Heute</p>
+          <p className="font-display-serif text-xl font-medium mt-1">
             {new Date().toLocaleDateString('de-DE', { weekday: 'long' })}
           </p>
-          <p className="text-xs text-white/70">
+          <p className="text-xs text-white/70 mt-0.5">
             {new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })}
           </p>
         </div>

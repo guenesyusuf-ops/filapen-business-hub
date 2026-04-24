@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Google Fonts — Inter als Sans, Fraunces als Serif-Akzent für WOW-Headlines.
+   Display-Variante von Inter ist optisch für große Größen optimiert. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&display=swap');
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
@@ -74,70 +78,76 @@ html {
 
 @layer base {
   :root {
-    /* Primary palette */
-    --color-primary: 37 99 235;
+    /* Primary: Vibrant Indigo-Violet (#6548FF) */
+    --color-primary: 101 72 255;
     --color-primary-foreground: 255 255 255;
 
-    /* Surface colors */
-    --color-surface-primary: 255 255 255;
-    --color-surface-secondary: 249 250 251;
-    --color-surface-tertiary: 243 244 246;
+    /* Surfaces — Light Mode: warm off-white (Notion + Misso mix) */
+    --color-surface-primary: 254 253 251;    /* body: warm vanilla */
+    --color-surface-secondary: 255 255 255;  /* cards: pure white */
+    --color-surface-tertiary: 247 245 239;   /* subtle tinted areas */
 
-    /* Border colors */
-    --color-border: 229 231 235;
-    --color-border-strong: 209 213 219;
+    /* Borders — warm beige-gray */
+    --color-border: 234 231 223;
+    --color-border-strong: 215 210 197;
 
-    /* Text colors */
-    --color-text-primary: 17 24 39;
-    --color-text-secondary: 107 114 128;
-    --color-text-tertiary: 156 163 175;
+    /* Text — warm near-black */
+    --color-text-primary: 26 25 21;
+    --color-text-secondary: 109 106 99;
+    --color-text-tertiary: 158 155 147;
 
-    /* Semantic colors */
-    --color-success: 5 150 105;
-    --color-warning: 217 119 6;
-    --color-error: 220 38 38;
-    --color-info: 37 99 235;
+    /* Semantic */
+    --color-success: 16 185 129;
+    --color-warning: 245 158 11;
+    --color-error: 239 68 68;
+    --color-info: 101 72 255;
 
-    /* Finance accent */
-    --color-accent-finance: 5 150 105;
-    --color-accent-creator: 124 58 237;
-    --color-accent-influencer: 219 39 119;
-    --color-accent-content: 217 119 6;
+    /* Module-Akzente */
+    --color-accent-sales: 255 122 89;
+    --color-accent-shipping: 6 182 212;
+    --color-accent-finance: 16 185 129;
+    --color-accent-creator: 236 72 153;
+    --color-accent-work: 245 158 11;
+    --color-accent-content: 139 92 246;
+    --color-accent-email: 244 63 94;
+    --color-accent-influencer: 217 70 239;
+    --color-accent-purchase: 59 130 246;
+    --color-accent-documents: 99 102 241;
 
     /* Layout */
     --sidebar-width: 260px;
     --header-height: 64px;
-    --radius: 0.375rem;
+    --radius: 0.75rem;
 
-    /* Dark-mode-aware variables */
-    --bg-primary: #ffffff;
-    --bg-secondary: #f9fafb;
-    --bg-tertiary: #f3f4f6;
-    --text-primary: #111827;
-    --text-secondary: #6b7280;
-    --border-color: #e5e7eb;
-    --card-bg: #ffffff;
-    --card-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    --bg-primary: #FEFDFB;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #F7F5EF;
+    --text-primary: #1A1915;
+    --text-secondary: #6D6A63;
+    --border-color: #EAE7DF;
+    --card-bg: #FFFFFF;
+    --card-shadow: 0 2px 4px rgba(17, 12, 44, 0.04), 0 12px 40px -8px rgba(17, 12, 44, 0.08);
   }
 
   .dark {
-    --color-surface-primary: 15 17 23;
-    --color-surface-secondary: 26 29 46;
-    --color-surface-tertiary: 35 38 64;
+    /* Dark Mode: Traflo-inspired Deep Indigo-Violet */
+    --color-surface-primary: 13 11 31;      /* body: very deep indigo-black */
+    --color-surface-secondary: 24 21 46;    /* cards: elevated */
+    --color-surface-tertiary: 37 34 68;     /* subtle tinted areas */
     --color-border: 255 255 255 / 0.08;
-    --color-border-strong: 255 255 255 / 0.12;
-    --color-text-primary: 240 242 255;
-    --color-text-secondary: 156 163 175;
-    --color-text-tertiary: 107 114 128;
+    --color-border-strong: 255 255 255 / 0.15;
+    --color-text-primary: 240 237 255;
+    --color-text-secondary: 180 174 218;
+    --color-text-tertiary: 125 118 147;
 
-    --bg-primary: #0f1117;
-    --bg-secondary: #1a1d2e;
-    --bg-tertiary: #232640;
-    --text-primary: #f0f2ff;
-    --text-secondary: #9ca3af;
+    --bg-primary: #0D0B1F;
+    --bg-secondary: #18152E;
+    --bg-tertiary: #252244;
+    --text-primary: #F0EDFF;
+    --text-secondary: #B4AEDA;
     --border-color: rgba(255,255,255,0.08);
-    --card-bg: #1a1d2e;
-    --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --card-bg: #18152E;
+    --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 12px 40px -8px rgba(101, 72, 255, 0.12);
   }
 
   * {
@@ -146,12 +156,59 @@ html {
 
   body {
     color: rgb(var(--color-text-primary));
-    background: rgb(var(--color-surface-secondary));
+    background: rgb(var(--color-surface-primary));
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
 @layer utilities {
+  /* Display-Serif für WOW-Headlines — Fraunces mit optischer Größe */
+  .font-display-serif {
+    font-family: 'Fraunces', Georgia, serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
+  }
+
+  /* Mesh-Gradient Hintergrund für Hero-Bereiche */
+  .bg-mesh {
+    background-image:
+      radial-gradient(at 15% 20%, rgba(101, 72, 255, 0.18) 0px, transparent 50%),
+      radial-gradient(at 85% 10%, rgba(236, 72, 153, 0.15) 0px, transparent 50%),
+      radial-gradient(at 50% 90%, rgba(6, 182, 212, 0.12) 0px, transparent 50%);
+  }
+  .dark .bg-mesh {
+    background-image:
+      radial-gradient(at 15% 20%, rgba(101, 72, 255, 0.3) 0px, transparent 50%),
+      radial-gradient(at 85% 10%, rgba(168, 85, 247, 0.22) 0px, transparent 50%),
+      radial-gradient(at 50% 90%, rgba(6, 182, 212, 0.15) 0px, transparent 50%);
+  }
+
+  /* Animated gradient border — für Premium-Akzente */
+  .gradient-border {
+    position: relative;
+    background: rgb(var(--color-surface-secondary));
+    background-clip: padding-box;
+    border: 1px solid transparent;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    margin: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, #6548FF, #EC4899, #F59E0B);
+    background-size: 300% 300%;
+    animation: gradient 8s ease infinite;
+  }
+
+  /* Glow-Effekte — pro Modul-Farbe */
+  .glow-primary { box-shadow: 0 0 32px rgba(101, 72, 255, 0.35); }
+  .glow-sales { box-shadow: 0 0 32px rgba(255, 122, 89, 0.35); }
+  .glow-shipping { box-shadow: 0 0 32px rgba(6, 182, 212, 0.35); }
+  .glow-finance { box-shadow: 0 0 32px rgba(16, 185, 129, 0.35); }
+  .glow-creator { box-shadow: 0 0 32px rgba(236, 72, 153, 0.35); }
+
   .text-balance {
     text-wrap: balance;
   }

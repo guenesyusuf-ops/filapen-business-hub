@@ -90,6 +90,11 @@ interface NavItem {
   icon: React.ElementType;
   permissionKey?: MenuPermissionKey | null;
   children?: NavItem[];
+  /**
+   * Tailwind-Klasse für Icon-Farbe im Modul-Akzent. Nur auf Top-Level-Items
+   * — Sub-Nav-Einträge erben die Farbe automatisch für Konsistenz.
+   */
+  accent?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -97,12 +102,14 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: 'nav.home',
     href: '/home',
     icon: Home,
+    accent: 'text-primary-500',
   },
   {
     labelKey: 'nav.financeHub',
     href: '/finance',
     icon: DollarSign,
     permissionKey: 'finance',
+    accent: 'text-accent-finance',
     children: [
       { labelKey: 'nav.overview', href: '/finance', icon: BarChart3 },
       { labelKey: 'nav.products', href: '/finance/products', icon: Package },
@@ -124,6 +131,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/creators',
     icon: Users,
     permissionKey: 'creators',
+    accent: 'text-accent-creator',
     children: [
       { labelKey: 'nav.overview', href: '/creators', icon: BarChart3 },
       { labelKey: 'nav.creators', href: '/creators/list', icon: UserCircle },
@@ -138,6 +146,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/influencers',
     icon: Heart,
     permissionKey: 'influencers',
+    accent: 'text-accent-influencer',
     children: [
       { labelKey: 'nav.overview', href: '/influencers', icon: BarChart3 },
       { labelKey: 'nav.discovery', href: '/influencers/discovery', icon: Search },
@@ -150,6 +159,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/content',
     icon: Wand2,
     permissionKey: 'content',
+    accent: 'text-accent-content',
     children: [
       { labelKey: 'nav.overview', href: '/content', icon: BarChart3 },
       { labelKey: 'nav.library', href: '/content/library', icon: BookOpen },
@@ -163,6 +173,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/work-management',
     icon: ListTodo,
     permissionKey: 'work-management',
+    accent: 'text-accent-work',
     children: [
       { labelKey: 'nav.wmProjects', href: '/work-management', icon: ListTodo },
       { labelKey: 'nav.wmMyTasks', href: '/work-management/my-tasks', icon: ClipboardList },
@@ -174,6 +185,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/purchases',
     icon: ShoppingCart,
     permissionKey: 'purchases',
+    accent: 'text-accent-purchase',
     children: [
       { labelKey: 'nav.purchasesOverview', href: '/purchases', icon: BarChart3 },
       { labelKey: 'nav.purchaseOrders', href: '/purchases/orders', icon: ClipboardList },
@@ -186,6 +198,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/email-marketing',
     icon: Mail,
     permissionKey: 'email-marketing',
+    accent: 'text-accent-email',
     children: [
       { labelKey: 'nav.emOverview', href: '/email-marketing', icon: BarChart3 },
       { labelKey: 'nav.emContacts', href: '/email-marketing/contacts', icon: Users2 },
@@ -202,6 +215,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/shipping',
     icon: ShippingTruck,
     permissionKey: 'shipping',
+    accent: 'text-accent-shipping',
     children: [
       { labelKey: 'nav.shipOverview', href: '/shipping', icon: BarChart3 },
       { labelKey: 'nav.shipOrders', href: '/shipping/orders', icon: ClipboardList },
@@ -218,6 +232,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/sales',
     icon: Receipt,
     permissionKey: 'sales',
+    accent: 'text-accent-sales',
     children: [
       { labelKey: 'nav.salesDashboard', href: '/sales/dashboard', icon: BarChart3 },
       { labelKey: 'nav.salesOrders', href: '/sales/orders', icon: ClipboardList },
@@ -378,7 +393,11 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
                 >
                   <Icon className={cn(
                     'h-4.5 w-4.5 flex-shrink-0 transition-colors duration-200',
-                    isHubActive ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-600',
+                    // Modul-Akzentfarbe immer sichtbar — auch wenn nicht aktiv.
+                    // Sorgt für den bunten Look ohne Overkill (nur Haupt-
+                    // Modul-Icons sind farbig, Sub-Nav bleibt neutral).
+                    item.accent ?? 'text-gray-400 dark:text-gray-500',
+                    isHubActive && 'drop-shadow-[0_0_8px_currentColor]',
                   )} />
                   {!collapsed && (
                     <>
@@ -404,7 +423,8 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
                 >
                   <Icon className={cn(
                     'h-4.5 w-4.5 flex-shrink-0 transition-colors duration-200',
-                    active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500',
+                    item.accent ?? 'text-gray-400 dark:text-gray-500',
+                    active && 'drop-shadow-[0_0_8px_currentColor]',
                   )} />
                   {!collapsed && <span>{label}</span>}
                 </Link>
