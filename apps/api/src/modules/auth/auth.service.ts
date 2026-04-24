@@ -72,6 +72,8 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly jwtSecret: string;
 
+  private readonly jwtExpiry: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -80,6 +82,10 @@ export class AuthService {
       'JWT_SECRET',
       'filapen-jwt-secret-change-me',
     );
+    // Default 180 Tage Sessionlaufzeit — für eine interne Business-Tool-App
+    // mit kleinem Team genug, erspart häufiges Neu-Einloggen. Anpassbar
+    // via JWT_EXPIRY (z.B. "7d", "30d", "365d").
+    this.jwtExpiry = this.config.get<string>('JWT_EXPIRY', '180d');
   }
 
   /**
@@ -422,7 +428,7 @@ export class AuthService {
       orgId: user.orgId,
     };
 
-    const token = jwt.sign(payload, this.jwtSecret, { expiresIn: '7d' });
+    const token = jwt.sign(payload, this.jwtSecret, { expiresIn: this.jwtExpiry } as jwt.SignOptions);
 
     return {
       token,
