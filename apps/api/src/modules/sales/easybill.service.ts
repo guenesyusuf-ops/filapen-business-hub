@@ -204,7 +204,7 @@ export class EasybillService {
     return match?.id ? String(match.id) : null;
   }
 
-  private orderPayload(order: any, easybillCustomerId: string, type: 'ORDER' | 'INVOICE') {
+  private orderPayload(order: any, easybillCustomerId: string, type: 'CHARGE_CONFIRM' | 'INVOICE') {
     // EMPIRISCHER FIX: easybill interpretiert `single_price_net` offensichtlich
     // als Cent-Integer und NICHT als EUR-Float (12.06 in → 0.1206 €). Wir
     // multiplizieren daher × 100 und runden auf Integer.
@@ -233,7 +233,7 @@ export class EasybillService {
     // übernimmt easybill den Default aus der Dokumentvorlage ("nachfolgend
     // berechnen wir Ihnen …" + Zahlungsbedingungen).
     const fmt = (d: any) => d ? new Date(d).toLocaleDateString('de-DE') : '';
-    const isConfirmation = type === 'ORDER';
+    const isConfirmation = type === 'CHARGE_CONFIRM';
 
     const orderDateStr = fmt(order.orderDate);
     const externalNum = order.externalOrderNumber || '';
@@ -260,17 +260,9 @@ export class EasybillService {
     if (introText !== undefined) payload.text = introText;
     if (footerText !== undefined) payload.text_additional = footerText;
 
-    // status=ACCEPT unterscheidet in easybill den "Auftrag" vom
-    // "Auftragsbestätigung"-Rendering. Swagger: status enum ACCEPT/DONE/
-    // DROPSHIPPING/CANCEL erlaubt auf Dokumenttypen ORDER/DELIVERY/CHARGE/
-    // OFFER. Die UI-Labels Angebot/Auftrag/Auftragsbestätigung/Bestellung
-    // in easybill sind Varianten von OFFER und ORDER mit unterschiedlichem
-    // Status — aus deutscher Geschäftslogik:
-    //   ORDER            = Auftrag (Kundenauftrag intern)
-    //   ORDER + ACCEPT   = Auftragsbestätigung (an Kunde verschickbar)
-    if (type === 'ORDER') {
-      payload.status = 'ACCEPT';
-    }
+    // CHARGE_CONFIRM ist der einzige easybill-Typ der "CONFIRM" im Namen hat.
+    // Status darf hier NICHT gesetzt werden (Swagger: status nur für DELIVERY,
+    // ORDER, CHARGE, OFFER erlaubt — NICHT für CHARGE_CONFIRM).
     // Zahlungsbedingungen für Rechnungen — aus paymentTerms-Freitext der
     // Bestellung extrahieren. Format muss etwa so aussehen (egal ob Komma/Punkt):
     //   "3% Skonto innerhalb 7 Tagen, 30 Tage netto"
@@ -323,9 +315,9 @@ export class EasybillService {
     }
 
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
-    const body = this.orderPayload(order, easybillCustomerId, 'ORDER');
+    const body = this.orderPayload(order, easybillCustomerId, 'CHARGE_CONFIRM');
 
-    // Schritt 1: POST /documents mit type=ORDER
+    // Schritt 1: POST /documents mit type=CHARGE_CONFIRM
     const url1 = `${this.baseUrl}/documents`;
     console.error(`[easybill][AB#1] REQUEST POST ${url1}`);
     console.error(`[easybill][AB#1] BODY ${JSON.stringify(body)}`);
