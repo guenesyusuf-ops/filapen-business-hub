@@ -91,21 +91,54 @@ export class ShippingOrderService {
         none: { productVariantId: { in: filters.excludedProductVariantIds } },
       });
     }
-    // Exklusiv-Filter: genau diese Variant mit dieser Menge, sonst nichts
+    // Exklusiv-Filter: genau diese Variant mit dieser *Summen-Menge*, sonst nichts.
+    //
+    // Nicht-triviales Detail: Shopify-Orders können mehrere Line-Items derselben
+    // Variant haben (z.B. Gruppen-Rabatt-Splits). Eine naive Prisma-Filterung
+    // `some: { quantity: X }` matcht Orders in denen IRGENDEIN Einzel-Line N ist
+    // — aber die UI zeigt die SUMME pro Produkt. Resultat: filter "= 1" lieferte
+    // Orders mit Gesamt-2 (zwei Lines à 1) zurück, was der User als Bug meldet.
+    //
+    // Fix: Raw SQL GroupBy + HAVING auf SUM(quantity) — 1:1 wie die UI aggregiert.
+    // Der Filter wird als pre-query ausgeführt und die Ergebnis-IDs per `where.id
+    // IN (...)` an die Haupt-Query gehängt.
     if (filters.exclusiveVariantId && filters.exclusiveQuantity != null) {
-      const opMap: Record<string, string> = { eq: 'equals', gte: 'gte', lte: 'lte', gt: 'gt', lt: 'lt' };
-      const prismaOp = opMap[filters.exclusiveQuantityOp ?? 'eq'] ?? 'equals';
-      // 1. Mindestens ein LineItem mit dieser Variant in passender Menge
-      lineItemConditions.push({
-        some: {
-          productVariantId: filters.exclusiveVariantId,
-          quantity: { [prismaOp]: filters.exclusiveQuantity },
-        },
-      });
-      // 2. Jedes LineItem der Order MUSS diese Variant sein (also keine anderen Produkte)
-      lineItemConditions.push({
-        every: { productVariantId: filters.exclusiveVariantId },
-      });
+      const op = filters.exclusiveQuantityOp ?? 'eq';
+      const matchesOp = (sum: number, n: number): boolean => {
+        switch (op) {
+          case 'gt': return sum > n;
+          case 'gte': return sum >= n;
+          case 'lt': return sum < n;
+          case 'lte': return sum <= n;
+          default: return sum === n; // 'eq'
+        }
+      };
+      const rows = await this.prisma.$queryRaw<Array<{ orderId: string; sumQ: number }>>`
+        SELECT li.order_id::text AS "orderId",
+               SUM(li.quantity)::int AS "sumQ"
+        FROM order_line_items li
+        WHERE li.org_id = ${orgId}::uuid
+          AND li.product_variant_id = ${filters.exclusiveVariantId}::uuid
+          AND NOT EXISTS (
+            SELECT 1 FROM order_line_items li2
+            WHERE li2.order_id = li.order_id
+              AND (li2.product_variant_id IS NULL
+                   OR li2.product_variant_id <> ${filters.exclusiveVariantId}::uuid)
+          )
+        GROUP BY li.order_id
+      `;
+      const matchingIds = rows
+        .filter((r) => matchesOp(Number(r.sumQ), filters.exclusiveQuantity!))
+        .map((r) => r.orderId);
+      // Wenn wir eine andere IDs-Restriction schon haben, schneiden wir sie
+      // beide — sonst einfach setzen. where.id = { in: [] } liefert korrekt 0
+      // Treffer statt alles wenn kein Order matcht.
+      if (where.id?.in) {
+        const prev: string[] = where.id.in;
+        where.id = { in: matchingIds.filter((id) => prev.includes(id)) };
+      } else {
+        where.id = { in: matchingIds };
+      }
     }
     if (lineItemConditions.length === 1) {
       where.lineItems = lineItemConditions[0];
