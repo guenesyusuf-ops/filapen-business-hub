@@ -170,18 +170,21 @@ html {
     letter-spacing: -0.02em;
   }
 
-  /* Mesh-Gradient Hintergrund für Hero-Bereiche */
+  /* Mesh-Gradient Hintergrund für Hero-Bereiche — neue harmonische Palette:
+     Soft Blue, Amber, Orange, Navy. Kein Lila/Pink mehr. */
   .bg-mesh {
     background-image:
-      radial-gradient(at 15% 20%, rgba(101, 72, 255, 0.18) 0px, transparent 50%),
-      radial-gradient(at 85% 10%, rgba(236, 72, 153, 0.15) 0px, transparent 50%),
-      radial-gradient(at 50% 90%, rgba(6, 182, 212, 0.12) 0px, transparent 50%);
+      radial-gradient(at 20% 25%, rgba(169, 198, 224, 0.5) 0px, transparent 50%),
+      radial-gradient(at 85% 15%, rgba(242, 169, 0, 0.18) 0px, transparent 50%),
+      radial-gradient(at 60% 85%, rgba(255, 140, 0, 0.15) 0px, transparent 50%),
+      radial-gradient(at 10% 95%, rgba(44, 62, 80, 0.08) 0px, transparent 50%);
   }
   .dark .bg-mesh {
     background-image:
-      radial-gradient(at 15% 20%, rgba(101, 72, 255, 0.3) 0px, transparent 50%),
-      radial-gradient(at 85% 10%, rgba(168, 85, 247, 0.22) 0px, transparent 50%),
-      radial-gradient(at 50% 90%, rgba(6, 182, 212, 0.15) 0px, transparent 50%);
+      radial-gradient(at 20% 25%, rgba(169, 198, 224, 0.25) 0px, transparent 50%),
+      radial-gradient(at 85% 15%, rgba(242, 169, 0, 0.22) 0px, transparent 50%),
+      radial-gradient(at 60% 85%, rgba(255, 140, 0, 0.18) 0px, transparent 50%),
+      radial-gradient(at 10% 95%, rgba(44, 62, 80, 0.3) 0px, transparent 50%);
   }
 
   /* Animated gradient border — für Premium-Akzente */
@@ -198,7 +201,7 @@ html {
     z-index: -1;
     margin: -1px;
     border-radius: inherit;
-    background: linear-gradient(135deg, #6548FF, #EC4899, #F59E0B);
+    background: linear-gradient(135deg, #A9C6E0, #F2A900, #FF8C00);
     background-size: 300% 300%;
     animation: gradient 8s ease infinite;
   }

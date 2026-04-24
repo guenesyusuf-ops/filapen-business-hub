@@ -24,63 +24,74 @@ const config: Config = {
           950: '#172554',
           DEFAULT: '#2563EB',
         },
-        // Module-Akzentfarben — jedes Hub/Modul hat seine Signaturfarbe
-        // damit die Sidebar + Dashboards sofort visuell erkennbar sind
+        // Harmonisches 4-Farben-System:
+        //   Blautöne (Hauptstellen):  #a9c6e0  soft blue,  #2c3e50  navy
+        //   Warm-Akzente (Farb-Pop):   #f2a900  amber,      #ff8c00  orange
+        // Aufgeteilt auf Module: action-heavy Modules (Sales, Email, Work)
+        // bekommen warme Akzente, struktur-/tool-Modules (Shipping, Content,
+        // Documents, Influencer, Creator) bekommen Blautöne.
         'accent-sales': {
-          light: '#FFE4DA',
-          DEFAULT: '#FF7A59',
-          dark: '#C94A2D',
+          light: '#FFE5C2',
+          DEFAULT: '#FF8C00',     // orange — "hustle"
+          dark: '#C46C00',
         },
         'accent-shipping': {
-          light: '#CFFAFE',
-          DEFAULT: '#06B6D4',
-          dark: '#0E7490',
+          light: '#E7F0F9',
+          DEFAULT: '#A9C6E0',     // soft blue — "flow/logistics"
+          dark: '#7098B8',
         },
         'accent-finance': {
-          light: '#D1FAE5',
-          DEFAULT: '#10B981',
-          dark: '#047857',
+          light: '#FDE9B4',
+          DEFAULT: '#F2A900',     // amber — "gold/money"
+          dark: '#B47E00',
         },
         'accent-creator': {
-          light: '#FCE7F3',
-          DEFAULT: '#EC4899',
-          dark: '#9D174D',
+          light: '#E7F0F9',
+          DEFAULT: '#A9C6E0',
+          dark: '#7098B8',
         },
         'accent-work': {
-          light: '#FEF3C7',
-          DEFAULT: '#F59E0B',
-          dark: '#B45309',
+          light: '#FDE9B4',
+          DEFAULT: '#F2A900',     // amber — "fokus"
+          dark: '#B47E00',
         },
         'accent-content': {
-          light: '#EDE9FE',
-          DEFAULT: '#8B5CF6',
-          dark: '#6D28D9',
+          light: '#E2E8EF',
+          DEFAULT: '#2C3E50',     // navy — "kreativ, seriös"
+          dark: '#1A2733',
         },
         'accent-email': {
-          light: '#FFE4E6',
-          DEFAULT: '#F43F5E',
-          dark: '#BE123C',
+          light: '#FFE5C2',
+          DEFAULT: '#FF8C00',     // orange — "action"
+          dark: '#C46C00',
         },
         'accent-influencer': {
-          light: '#FAE8FF',
-          DEFAULT: '#D946EF',
-          dark: '#A21CAF',
+          light: '#E7F0F9',
+          DEFAULT: '#A9C6E0',
+          dark: '#7098B8',
         },
         'accent-purchase': {
-          light: '#DBEAFE',
-          DEFAULT: '#3B82F6',
-          dark: '#1D4ED8',
+          light: '#E2E8EF',
+          DEFAULT: '#2C3E50',     // navy — "procurement"
+          dark: '#1A2733',
         },
         'accent-documents': {
-          light: '#E0E7FF',
-          DEFAULT: '#6366F1',
-          dark: '#3730A3',
+          light: '#E7F0F9',
+          DEFAULT: '#A9C6E0',
+          dark: '#7098B8',
+        },
+        // Brand-Tokens für einfachen direkten Zugriff
+        brand: {
+          blue: '#A9C6E0',
+          navy: '#2C3E50',
+          amber: '#F2A900',
+          orange: '#FF8C00',
         },
         semantic: {
           success: '#10B981',
-          warning: '#F59E0B',
+          warning: '#F2A900',
           error: '#EF4444',
-          info: '#6548FF',
+          info: '#2C3E50',
         },
         // Light-Mode Surfaces — warm off-white inspired by Notion + Misso
         surface: {
@@ -142,16 +153,14 @@ const config: Config = {
         'bento': '0 2px 4px rgba(17, 12, 44, 0.04), 0 12px 40px -8px rgba(17, 12, 44, 0.08)',
       },
       backgroundImage: {
-        // Hero-Gradients fürs Dashboard
-        'gradient-hero': 'linear-gradient(135deg, #6548FF 0%, #A855F7 50%, #EC4899 100%)',
-        'gradient-hero-subtle': 'linear-gradient(135deg, rgba(101, 72, 255, 0.15) 0%, rgba(168, 85, 247, 0.1) 50%, rgba(236, 72, 153, 0.08) 100%)',
-        'gradient-sunset': 'linear-gradient(135deg, #FF7A59 0%, #F59E0B 50%, #EC4899 100%)',
-        'gradient-ocean': 'linear-gradient(135deg, #06B6D4 0%, #3B82F6 50%, #6548FF 100%)',
-        'gradient-forest': 'linear-gradient(135deg, #10B981 0%, #06B6D4 50%, #3B82F6 100%)',
-        // Dark-Mode: tiefere Gradients
-        'gradient-hero-dark': 'linear-gradient(135deg, #2B1877 0%, #6548FF 50%, #8B5CF6 100%)',
-        // Mesh-Gradient für Hero-Hintergrund (radial)
-        'gradient-mesh': 'radial-gradient(at 20% 30%, rgba(101, 72, 255, 0.25) 0px, transparent 50%), radial-gradient(at 80% 10%, rgba(236, 72, 153, 0.2) 0px, transparent 50%), radial-gradient(at 50% 80%, rgba(6, 182, 212, 0.15) 0px, transparent 50%)',
+        // Hero-Gradients — harmonische 4-Farben-Palette
+        'gradient-hero': 'linear-gradient(135deg, #A9C6E0 0%, #F2A900 50%, #FF8C00 100%)',
+        'gradient-hero-subtle': 'linear-gradient(135deg, rgba(169, 198, 224, 0.25) 0%, rgba(242, 169, 0, 0.15) 50%, rgba(255, 140, 0, 0.1) 100%)',
+        'gradient-sunset': 'linear-gradient(135deg, #F2A900 0%, #FF8C00 100%)',
+        'gradient-ocean': 'linear-gradient(135deg, #A9C6E0 0%, #2C3E50 100%)',
+        'gradient-warm': 'linear-gradient(135deg, #F2A900 0%, #FF8C00 50%, #A9C6E0 100%)',
+        'gradient-hero-dark': 'linear-gradient(135deg, #2C3E50 0%, #A9C6E0 50%, #F2A900 100%)',
+        'gradient-mesh': 'radial-gradient(at 20% 30%, rgba(169, 198, 224, 0.35) 0px, transparent 50%), radial-gradient(at 80% 10%, rgba(242, 169, 0, 0.2) 0px, transparent 50%), radial-gradient(at 50% 80%, rgba(255, 140, 0, 0.15) 0px, transparent 50%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',

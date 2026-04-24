@@ -126,7 +126,7 @@ function GreetingCard() {
             className="h-14 w-14 rounded-2xl object-cover ring-2 ring-gray-100 dark:ring-white/10"
           />
         ) : (
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary-500 to-accent-creator flex items-center justify-center shadow-glow-soft">
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-navy to-brand-blue flex items-center justify-center shadow-glow-soft">
             <span className="text-xl font-bold text-white">{initial}</span>
           </div>
         )}
@@ -135,7 +135,7 @@ function GreetingCard() {
             {greeting}
           </p>
           <h1 className="font-display-serif text-4xl md:text-5xl font-medium leading-[1.05] tracking-tight text-gray-900 dark:text-white">
-            {firstName}<span className="text-accent-creator">.</span>
+            {firstName}<span className="text-brand-amber">.</span>
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-3 max-w-xl">{message}</p>
         </div>
@@ -525,7 +525,7 @@ function NotesWidget() {
     <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
-          <StickyNote className="h-4 w-4 text-accent-content" />
+          <StickyNote className="h-4 w-4 text-accent-email" />
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Notizen</h2>
           {notes.length > 0 && (
             <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-[10px] font-bold text-primary-700 dark:text-primary-300">
