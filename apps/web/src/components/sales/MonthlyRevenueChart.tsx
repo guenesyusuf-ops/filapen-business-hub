@@ -23,6 +23,7 @@ export function MonthlyRevenueChart({ year }: MonthlyRevenueChartProps) {
     cogs: number;
     shippingFlatPerOrder: number;
     profit: number;
+    cogsCoverage: { withCogs: number; total: number };
     totalAllTime: number;
     totalAllTimeCount: number;
     byMonth: Array<{ month: number; revenue: number; orderCount: number }>;
@@ -183,6 +184,14 @@ export function MonthlyRevenueChart({ year }: MonthlyRevenueChartProps) {
           >
             {loading ? '—' : fmtMoney(data?.profit ?? 0)}
           </span>
+          {data && data.cogsCoverage.total > 0 && data.cogsCoverage.withCogs < data.cogsCoverage.total && (
+            <span
+              className="text-[10px] text-amber-600 dark:text-amber-400 font-medium"
+              title={`Nur ${data.cogsCoverage.withCogs} von ${data.cogsCoverage.total} Positionen haben COGS — Gewinn ist optimistischer als real`}
+            >
+              ⚠ {data.cogsCoverage.withCogs}/{data.cogsCoverage.total} mit COGS
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-gray-500 dark:text-gray-400">Gesamtsumme aller Bestellungen:</span>

@@ -30,6 +30,7 @@ export const salesApi = {
       cogs: number;
       shippingFlatPerOrder: number;
       profit: number;
+      cogsCoverage: { withCogs: number; total: number };
       totalAllTime: number;
       totalAllTimeCount: number;
       byMonth: Array<{ month: number; revenue: number; orderCount: number }>;

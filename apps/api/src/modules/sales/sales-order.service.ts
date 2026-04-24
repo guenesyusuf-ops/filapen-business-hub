@@ -602,23 +602,36 @@ export class SalesOrderService {
     const totalCount = byMonth.reduce((acc, m) => acc + m.orderCount, 0);
 
     // Gewinn-Berechnung: Umsatz - COGS - 50€ pauschal pro Bestellung (Versand).
-    // COGS ziehen wir über matched_product_variant_id, also nur für Line-Items
-    // die einem Produkt zugeordnet sind. Lines ohne Match (oder ohne cogs)
-    // werden mit 0 angesetzt — der Gewinn wirkt dann optimistischer als er
-    // ist. Das nehmen wir bewusst in Kauf bis alle Produkte gepflegt sind.
-    type CogsRow = { cogs_total: string };
+    // COGS-Lookup mit Fallback-Kette weil matched_product_variant_id beim
+    // PDF-Import oft nicht gesetzt wird (Claude-Vision matched on-the-fly,
+    // schreibt aber nicht zurück). Reihenfolge:
+    //   1. matched_product_variant_id (wenn der Importer es gesetzt hat)
+    //   2. EAN → product_variants.barcode
+    //   3. supplier_article_number → product_variants.sku
+    // Lines ohne jegliche Übereinstimmung tragen 0 zum COGS bei — wir geben
+    // zusätzlich die Coverage zurück damit das Frontend warnen kann wenn
+    // Daten fehlen.
+    type CogsRow = { cogs_total: string; lines_with_cogs: bigint; lines_total: bigint };
     const cogsRows = await this.prisma.$queryRaw<CogsRow[]>`
-      SELECT COALESCE(SUM(li.quantity * v.cogs), 0)::text AS cogs_total
+      SELECT
+        COALESCE(SUM(li.quantity * COALESCE(v_match.cogs, v_ean.cogs, v_sku.cogs, 0)), 0)::text AS cogs_total,
+        COUNT(*) FILTER (WHERE COALESCE(v_match.cogs, v_ean.cogs, v_sku.cogs) IS NOT NULL) AS lines_with_cogs,
+        COUNT(*) AS lines_total
       FROM "sales_order_line_items" li
       JOIN "sales_orders" o ON o.id = li.order_id
-      JOIN "product_variants" v ON v.id = li.matched_product_variant_id
+      LEFT JOIN "product_variants" v_match ON v_match.id = li.matched_product_variant_id
+      LEFT JOIN "product_variants" v_ean
+        ON v_ean.org_id = o.org_id AND v_ean.barcode = li.ean
+      LEFT JOIN "product_variants" v_sku
+        ON v_sku.org_id = o.org_id AND v_sku.sku = li.supplier_article_number
       WHERE o.org_id = ${orgId}::uuid
         AND o.created_at >= ${yearStart}
         AND o.created_at < ${yearEnd}
         AND o.status != 'cancelled'
-        AND v.cogs IS NOT NULL
     `;
     const cogs = Number(cogsRows[0]?.cogs_total ?? 0);
+    const linesWithCogs = Number(cogsRows[0]?.lines_with_cogs ?? 0);
+    const linesTotal = Number(cogsRows[0]?.lines_total ?? 0);
     const SHIPPING_FLAT_PER_ORDER = 50;
     const profit = total - cogs - totalCount * SHIPPING_FLAT_PER_ORDER;
 
@@ -637,6 +650,8 @@ export class SalesOrderService {
       cogs,
       shippingFlatPerOrder: SHIPPING_FLAT_PER_ORDER,
       profit,
+      // Wie viele Line-Items hatten COGS-Daten — Frontend kann warnen wenn < 100%
+      cogsCoverage: { withCogs: linesWithCogs, total: linesTotal },
       totalAllTime: Number(allTimeRaw._sum.totalNet ?? 0),
       totalAllTimeCount: allTimeRaw._count._all,
       byMonth,
