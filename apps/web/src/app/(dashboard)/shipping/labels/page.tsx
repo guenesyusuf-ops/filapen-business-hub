@@ -38,7 +38,7 @@ export default function ShippingLabelsPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await shippingApi.listShipments({ limit: '200' });
+      const res = await shippingApi.listShipments({ limit: '500' });
       const flat: LabelRow[] = [];
       for (const s of res.items || []) {
         for (const l of s.labels || []) {

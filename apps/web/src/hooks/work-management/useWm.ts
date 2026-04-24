@@ -275,8 +275,16 @@ export function useCreateWmTask() {
 export function useUpdateWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: Partial<WmTask> & { id: string; assigneeIds?: string[] }) =>
-      wmFetch<WmTask>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    mutationFn: ({ id, ...data }: Partial<WmTask> & { id: string; assigneeIds?: string[] }) => {
+      // Guard: optimistic Tasks haben "temp-..." IDs. Ein Update-Call würde
+      // beim Backend zu einer Prisma-UUID-Validation-Exception führen (500).
+      // Besser: Noop zurückgeben und warten bis die Create-Mutation settled —
+      // danach invalidiert der Cache sowieso und der echte Task erscheint.
+      if (!id || id.startsWith('temp-')) {
+        return Promise.resolve(data as unknown as WmTask);
+      }
+      return wmFetch<WmTask>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    },
     onMutate: async (vars) => {
       // We need projectId to update the cache — try to find it from existing data
       const allQueries = qc.getQueriesData<any>({ queryKey: ['wm', 'project'] });
@@ -355,8 +363,15 @@ export function useUpdateWmTask() {
 export function useDeleteWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, projectId }: { id: string; projectId: string }) =>
-      wmFetch(`/tasks/${id}`, { method: 'DELETE' }),
+    mutationFn: ({ id, projectId }: { id: string; projectId: string }) => {
+      // Gleiche temp-ID-Guard wie bei Update: optimistic-Tasks nicht ans
+      // Backend schicken. Wenn ein temp-Task gelöscht werden soll, reicht
+      // es ihn aus dem Cache zu entfernen — das macht onSettled.
+      if (!id || id.startsWith('temp-')) {
+        return Promise.resolve({ deleted: true });
+      }
+      return wmFetch(`/tasks/${id}`, { method: 'DELETE' });
+    },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
     },
@@ -366,8 +381,12 @@ export function useDeleteWmTask() {
 export function useMoveWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { taskId: string; projectId: string; columnId: string; position: number }) =>
-      wmFetch(`/tasks/${data.taskId}/move`, { method: 'PATCH', body: JSON.stringify(data) }),
+    mutationFn: (data: { taskId: string; projectId: string; columnId: string; position: number }) => {
+      if (!data.taskId || data.taskId.startsWith('temp-')) {
+        return Promise.resolve({} as any);
+      }
+      return wmFetch(`/tasks/${data.taskId}/move`, { method: 'PATCH', body: JSON.stringify(data) });
+    },
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
       const prev = qc.getQueryData(['wm', 'project', vars.projectId]);

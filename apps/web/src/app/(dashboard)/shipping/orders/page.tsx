@@ -7,7 +7,9 @@ import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle,
 import { shippingApi, fmtDate, fmtDateTime } from '@/lib/shipping';
 import { PageHeader, Empty, btn, input as inputCls, label as labelCls, SectionCard, Badge, Money } from '@/components/shipping/ShippingUI';
 
-const PAGE_SIZE = 50;
+// Raised from 50 to 200 so bulk label creation in one batch is realistic —
+// user-Feedback: 50 war zu wenig wenn ein Tag viele Bestellungen reinkommen.
+const PAGE_SIZE = 200;
 
 type ProductFilterMode = 'include' | 'exclude';
 type OrdersTab = 'pending' | 'address_errors';

@@ -67,7 +67,7 @@ export function ChatDrawer({ partner, onClose }: ChatDrawerProps) {
   }
 
   return (
-    <div className="fixed z-40 bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-2xl flex flex-col animate-slide-up inset-0 sm:inset-auto sm:bottom-0 sm:right-6 sm:w-96 sm:h-[500px] sm:max-h-[calc(100vh-2rem)] sm:rounded-t-2xl">
+    <div className="fixed z-[80] bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-2xl flex flex-col animate-slide-up inset-0 sm:inset-auto sm:bottom-0 sm:right-6 sm:w-96 sm:h-[500px] sm:max-h-[calc(100vh-2rem)] sm:rounded-t-2xl">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5 bg-gradient-to-r from-primary-50/50 to-transparent dark:from-primary-900/10">
         <div className="flex items-center gap-3 min-w-0">
@@ -145,8 +145,9 @@ export function ChatDrawer({ partner, onClose }: ChatDrawerProps) {
         })}
       </div>
 
-      {/* Input */}
-      <div className="border-t border-gray-100 dark:border-white/5 p-3">
+      {/* Input — 16px font-size verhindert iOS Zoom-On-Focus, pb-safe schiebt
+          über die Home-Indicator. */}
+      <div className="border-t border-gray-100 dark:border-white/5 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
@@ -155,7 +156,8 @@ export function ChatDrawer({ partner, onClose }: ChatDrawerProps) {
             onKeyDown={handleKeyDown}
             placeholder={`Nachricht an ${partner.name.split(' ')[0]}...`}
             rows={1}
-            className="flex-1 resize-none rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 max-h-24"
+            style={{ fontSize: '16px' }}
+            className="flex-1 resize-none rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 max-h-24"
           />
           <button
             onClick={handleSend}

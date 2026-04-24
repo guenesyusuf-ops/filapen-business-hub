@@ -190,6 +190,11 @@ function StatusDot({ on, label }: { on: boolean; label: string }) {
 // Fallback. Hover → Popover mit Produkt + Menge.
 // ---------------------------------------------------------------------------
 function ProductTiles({ items }: { items: any[] }) {
+  // Hover-State explizit über React — group-hover/Tailwind funktioniert in
+  // Tabellen nicht zuverlässig wegen Stacking Context der <tr>/<td> Elemente.
+  const [hovered, setHovered] = useState(false);
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+
   if (!items?.length) return <span className="text-xs text-gray-400">—</span>;
 
   // Aggregate per product (falls dasselbe Produkt in mehreren Positions-
@@ -217,49 +222,68 @@ function ProductTiles({ items }: { items: any[] }) {
   const shown = tiles.slice(0, 5);
   const overflow = tiles.length - shown.length;
 
+  // Position des Popovers: direkt unter dem Hover-Element, viewport-fixiert
+  // damit <td>/<tr> Stacking-Context keine Rolle spielt.
+  function handleEnter(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setAnchor({ x: rect.left, y: rect.bottom + 4 });
+    setHovered(true);
+  }
+
   return (
-    <div className="group relative inline-flex items-center gap-1">
-      {shown.map((t) => (
-        <div key={t.key} className="flex-shrink-0">
-          {t.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={t.image}
-              alt={t.title}
-              className="h-9 w-9 rounded-md object-cover bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10"
-              loading="lazy"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-            />
-          ) : (
-            <div className="h-9 w-9 rounded-md bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/5 dark:to-white/10 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] font-semibold text-gray-500 dark:text-gray-400">
-              {t.title.slice(0, 2).toUpperCase() || '?'}
-            </div>
-          )}
-        </div>
-      ))}
-      {overflow > 0 && (
-        <div className="h-9 min-w-[2.25rem] px-1.5 rounded-md bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] font-semibold text-gray-600 dark:text-gray-300">
-          +{overflow}
+    <>
+      <div
+        className="inline-flex items-center gap-1"
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {shown.map((t) => (
+          <div key={t.key} className="flex-shrink-0">
+            {t.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={t.image}
+                alt={t.title}
+                className="h-9 w-9 rounded-md object-cover bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10"
+                loading="lazy"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div className="h-9 w-9 rounded-md bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/5 dark:to-white/10 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+                {t.title.slice(0, 2).toUpperCase() || '?'}
+              </div>
+            )}
+          </div>
+        ))}
+        {overflow > 0 && (
+          <div className="h-9 min-w-[2.25rem] px-1.5 rounded-md bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center text-[10px] font-semibold text-gray-600 dark:text-gray-300">
+            +{overflow}
+          </div>
+        )}
+      </div>
+
+      {/* Popover: position: fixed entgeht dem Table-Stacking-Context komplett.
+          Rendering direkt am viewport, hoher z-index, pointer-events-none damit
+          er nicht mit der Maus zwischen Hover und Popover interferiert. */}
+      {hovered && anchor && (
+        <div
+          role="tooltip"
+          style={{ position: 'fixed', left: anchor.x, top: anchor.y, zIndex: 60 }}
+          className="pointer-events-none w-max max-w-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900 shadow-lg p-2"
+        >
+          <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1.5">
+            {tiles.length} Artikel
+          </div>
+          <div className="space-y-1">
+            {tiles.map((t) => (
+              <div key={t.key} className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate text-gray-800 dark:text-gray-200">{t.title}</span>
+                <span className="flex-shrink-0 font-semibold text-gray-900 dark:text-gray-100">×{t.quantity}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
-
-      {/* Hover-Popover mit der vollständigen Liste + Mengen. */}
-      <div
-        className="pointer-events-none absolute left-0 top-full mt-2 z-20 w-max max-w-sm rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900 shadow-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-        role="tooltip"
-      >
-        <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1.5">
-          {tiles.length} Artikel
-        </div>
-        <div className="space-y-1">
-          {tiles.map((t) => (
-            <div key={t.key} className="flex items-center justify-between gap-3 text-xs">
-              <span className="truncate text-gray-800 dark:text-gray-200">{t.title}</span>
-              <span className="flex-shrink-0 font-semibold text-gray-900 dark:text-gray-100">×{t.quantity}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+    </>
   );
 }

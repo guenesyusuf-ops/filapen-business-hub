@@ -56,11 +56,28 @@ export class ShippingOrderService {
       if (filters.toDate) where.placedAt.lte = new Date(filters.toDate);
     }
     if (filters.search) {
-      where.OR = [
-        { orderNumber: { contains: filters.search, mode: 'insensitive' as const } },
-        { customerName: { contains: filters.search, mode: 'insensitive' as const } },
-        { customerEmail: { contains: filters.search, mode: 'insensitive' as const } },
-      ];
+      // Bei rein-numerischen Eingaben (typische Bestellnummer-Suche wie "1234")
+      // matchen wir orderNumber mit startsWith — contains erzeugte sonst für
+      // "1" Treffer wie "#200100" und "#12345", was verwirrt. Für Text-
+      // Eingaben (Kundennamen) bleibt contains sinnvoll.
+      const q = filters.search.trim();
+      const isNumeric = /^\d+$/.test(q.replace(/[#-]/g, ''));
+      if (isNumeric) {
+        // Order-Number-Feld kann # oder führende Nullen haben; prüfe beide Varianten
+        const cleaned = q.replace(/^#/, '');
+        where.OR = [
+          { orderNumber: { startsWith: cleaned, mode: 'insensitive' as const } },
+          { orderNumber: { startsWith: `#${cleaned}`, mode: 'insensitive' as const } },
+          { orderNumber: { equals: cleaned, mode: 'insensitive' as const } },
+          { orderNumber: { equals: `#${cleaned}`, mode: 'insensitive' as const } },
+        ];
+      } else {
+        where.OR = [
+          { orderNumber: { contains: q, mode: 'insensitive' as const } },
+          { customerName: { contains: q, mode: 'insensitive' as const } },
+          { customerEmail: { contains: q, mode: 'insensitive' as const } },
+        ];
+      }
     }
     // Product variant filters (combinable: nur mit X + nicht mit Y)
     const lineItemConditions: any[] = [];
@@ -122,7 +139,7 @@ export class ShippingOrderService {
       where.id = { in: matchingIds };
     }
 
-    const limit = Math.min(filters.limit ?? 50, 200);
+    const limit = Math.min(filters.limit ?? 50, 500);
     const offset = filters.offset ?? 0;
 
     const [items, total] = await Promise.all([

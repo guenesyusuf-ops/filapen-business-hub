@@ -52,37 +52,104 @@ export interface AiGenerateResult {
 // Service
 // ---------------------------------------------------------------------------
 
+type AiProvider = 'openai' | 'anthropic';
+
 @Injectable()
 export class AiGeneratorService {
-  private readonly apiKey: string | null;
+  private readonly openaiKey: string | null;
+  private readonly anthropicKey: string | null;
+  private readonly provider: AiProvider;
+  private readonly openaiModel: string;
   private readonly logger = new Logger(AiGeneratorService.name);
 
   constructor(private readonly config: ConfigService) {
-    this.apiKey = this.config.get<string>('ANTHROPIC_API_KEY') || null;
-    if (this.apiKey) {
-      this.logger.log('Anthropic API key configured — AI generation enabled');
+    this.openaiKey = this.config.get<string>('OPENAI_API_KEY') || null;
+    this.anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY') || null;
+    this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
+
+    // Provider-Auswahl:
+    //   1. CONTENT_AI_PROVIDER=openai|anthropic explizit → verwenden
+    //   2. OpenAI-Key vorhanden → openai
+    //   3. Anthropic-Key vorhanden → anthropic
+    //   4. Nichts → null (Fallback auf Template Engine im Caller)
+    const forced = (this.config.get<string>('CONTENT_AI_PROVIDER') || '').toLowerCase();
+    if (forced === 'openai' || forced === 'anthropic') {
+      this.provider = forced as AiProvider;
+    } else if (this.openaiKey) {
+      this.provider = 'openai';
     } else {
-      this.logger.warn(
-        'ANTHROPIC_API_KEY not set — AI generation disabled, using template engine fallback',
-      );
+      this.provider = 'anthropic';
     }
+    this.logger.log(`Content-AI provider: ${this.provider} (openai=${!!this.openaiKey}, anthropic=${!!this.anthropicKey}, model=${this.openaiModel})`);
   }
 
   async generate(params: AiGenerateParams): Promise<AiGenerateResult | null> {
-    if (!this.apiKey) {
-      this.logger.warn('ANTHROPIC_API_KEY not set — falling back to template engine');
+    const systemPrompt = this.buildSystemPrompt(params);
+    const userPrompt = this.buildUserPrompt(params);
+
+    if (this.provider === 'openai') {
+      if (!this.openaiKey) {
+        this.logger.warn('OPENAI_API_KEY nicht gesetzt — Fallback auf Template Engine');
+        return null;
+      }
+      return this.callOpenAI(systemPrompt, userPrompt, params);
+    }
+    if (!this.anthropicKey) {
+      this.logger.warn('ANTHROPIC_API_KEY nicht gesetzt — Fallback auf Template Engine');
       return null;
     }
+    return this.callAnthropic(systemPrompt, userPrompt, params);
+  }
 
+  /**
+   * OpenAI Chat Completions API. JSON-Output erzwungen via response_format,
+   * damit wir keinen Fenced-JSON-Parser brauchen. Fehler sauber abfangen und
+   * null zurückgeben damit der Caller auf die Template Engine fallen kann.
+   */
+  private async callOpenAI(systemPrompt: string, userPrompt: string, params: AiGenerateParams): Promise<AiGenerateResult | null> {
     try {
-      const systemPrompt = this.buildSystemPrompt(params);
-      const userPrompt = this.buildUserPrompt(params);
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.openaiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.openaiModel,
+          max_tokens: 4000,
+          temperature: 0.8,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => 'unknown');
+        this.logger.error(`OpenAI ${response.status}: ${errorBody.slice(0, 400)}`);
+        return null;
+      }
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content || '';
+      if (!text) {
+        this.logger.error('OpenAI returned empty content');
+        return null;
+      }
+      return this.parseResponse(text, params);
+    } catch (error) {
+      this.logger.error('OpenAI call failed', error instanceof Error ? error.message : error);
+      return null;
+    }
+  }
 
+  private async callAnthropic(systemPrompt: string, userPrompt: string, params: AiGenerateParams): Promise<AiGenerateResult | null> {
+    try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
+          'x-api-key': this.anthropicKey!,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
@@ -92,26 +159,20 @@ export class AiGeneratorService {
           messages: [{ role: 'user', content: userPrompt }],
         }),
       });
-
       if (!response.ok) {
         const errorBody = await response.text().catch(() => 'unknown');
-        this.logger.error(
-          `Claude API error: ${response.status} ${response.statusText} — ${errorBody}`,
-        );
+        this.logger.error(`Claude API error: ${response.status} ${errorBody.slice(0, 400)}`);
         return null;
       }
-
       const data = await response.json();
       const text = data.content?.[0]?.text || '';
-
       if (!text) {
-        this.logger.error('Claude API returned empty content');
+        this.logger.error('Claude returned empty content');
         return null;
       }
-
       return this.parseResponse(text, params);
     } catch (error) {
-      this.logger.error('Claude API call failed', error instanceof Error ? error.message : error);
+      this.logger.error('Claude call failed', error instanceof Error ? error.message : error);
       return null;
     }
   }
@@ -258,7 +319,7 @@ Gib die Ergebnisse in folgendem JSON-Format zurueck:
               example: a.example || '',
             }))
           : [],
-        aiModel: 'claude-sonnet-4-20250514',
+        aiModel: this.provider === 'openai' ? this.openaiModel : 'claude-sonnet-4-20250514',
         aiGenerated: true,
       };
     } catch (e) {
@@ -273,7 +334,7 @@ Gib die Ergebnisse in folgendem JSON-Format zurueck:
         ctas: [],
         hooks: [],
         angles: [],
-        aiModel: 'claude-sonnet-4-20250514',
+        aiModel: this.provider === 'openai' ? this.openaiModel : 'claude-sonnet-4-20250514',
         aiGenerated: true,
       };
     }

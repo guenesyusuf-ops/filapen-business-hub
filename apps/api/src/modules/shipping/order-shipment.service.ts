@@ -58,7 +58,7 @@ export class OrderShipmentService {
         { order: { orderNumber: { contains: filters.search, mode: 'insensitive' as const } } },
       ];
     }
-    const limit = Math.min(filters.limit ?? 50, 200);
+    const limit = Math.min(filters.limit ?? 50, 500);
     const offset = filters.offset ?? 0;
     const [items, total] = await Promise.all([
       this.prisma.orderShipment.findMany({

@@ -178,14 +178,21 @@ export function KanbanTaskCard({ task, onClick, onDelete }: KanbanTaskCardProps)
 
       {/* Bottom row: Due date + Subtasks + Assignee(s) */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Due date */}
-        {task.dueDate && (
+        {/* Due date — immer sichtbar, auch ohne gesetztes Datum (Placeholder)
+            damit klar ist dass das Feld existiert und schnell per Task-Modal
+            gesetzt werden kann. */}
+        {task.dueDate ? (
           <span className={cn(
             'flex items-center gap-1 text-[11px]',
             overdue ? 'text-red-500 font-semibold' : 'text-gray-500 dark:text-gray-400',
           )}>
             <Calendar className="h-3 w-3" />
             {formatDueDate(task.dueDate)}
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 text-[11px] text-gray-300 dark:text-gray-600 italic">
+            <Calendar className="h-3 w-3" />
+            kein Datum
           </span>
         )}
 

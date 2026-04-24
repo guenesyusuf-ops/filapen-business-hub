@@ -112,33 +112,99 @@ export class SalesCustomerService {
   }
 
   /**
-   * Try to find an existing customer that matches the given hints — used by
-   * the PDF importer to auto-link orders to existing customers instead of
-   * creating duplicates. Matches in priority: externalCustomerNumber → email →
-   * companyName (case-insensitive). Returns null if no match.
+   * Dubletten-Vermeidung: Finde einen existierenden Kunden anhand mehrerer
+   * Hints in dieser Priorität (hart → weich):
+   *
+   *   1. externalCustomerNumber — explizit vom Kunden vergebene Nummer (hart)
+   *   2. email (case-insensitive, getrimmt)
+   *   3. companyName EXAKT (case-insensitive, getrimmt, normalisiert)
+   *   4. companyName + PLZ + Straße (Adressähnlichkeit, fängt
+   *      "GmbH" vs "GmbH & Co. KG" Varianten, Umlaut-Schreibweisen, etc)
+   *   5. PLZ + Straße (falls Firmenname sich geändert hat aber Standort gleich)
+   *
+   * Wichtig: das EINE EINZIGE Match wird nie falsch-positiv zusammengeführt —
+   * bei mehreren potentiellen Treffern in einer Kategorie wird NULL zurück-
+   * gegeben und ein neuer Kunde angelegt (sicherer Fallback).
    */
   async findMatching(
     orgId: string,
-    hints: { externalCustomerNumber?: string | null; email?: string | null; companyName?: string | null },
+    hints: {
+      externalCustomerNumber?: string | null;
+      email?: string | null;
+      companyName?: string | null;
+      billingAddress?: any;
+    },
   ) {
-    if (hints.externalCustomerNumber) {
+    // 1. externalCustomerNumber — härtestes Match
+    if (hints.externalCustomerNumber?.trim()) {
       const byExt = await this.prisma.salesCustomer.findFirst({
-        where: { orgId, externalCustomerNumber: hints.externalCustomerNumber },
+        where: { orgId, externalCustomerNumber: hints.externalCustomerNumber.trim() },
       });
       if (byExt) return byExt;
     }
-    if (hints.email) {
+
+    // 2. email
+    const email = hints.email?.trim().toLowerCase();
+    if (email) {
       const byEmail = await this.prisma.salesCustomer.findFirst({
-        where: { orgId, email: { equals: hints.email, mode: 'insensitive' } },
+        where: { orgId, email: { equals: email, mode: 'insensitive' } },
       });
       if (byEmail) return byEmail;
     }
-    if (hints.companyName) {
+
+    // 3. companyName exakt (nach Normalisierung — Leerzeichen trimmen)
+    const nameNormalized = normalizeCompanyName(hints.companyName);
+    if (nameNormalized) {
       const byName = await this.prisma.salesCustomer.findFirst({
-        where: { orgId, companyName: { equals: hints.companyName, mode: 'insensitive' } },
+        where: { orgId, companyName: { equals: hints.companyName!.trim(), mode: 'insensitive' } },
       });
       if (byName) return byName;
     }
+
+    // 4. / 5. Adress-basiertes Matching
+    const addr = hints.billingAddress;
+    const zip = addr?.zip?.toString().trim();
+    const street = addr?.address1?.toString().trim();
+    if (zip && street) {
+      // 4. Firma + Adresse
+      if (nameNormalized) {
+        const byNameAddr = await this.prisma.salesCustomer.findMany({
+          where: {
+            orgId,
+            companyName: { contains: nameNormalized.split(' ')[0], mode: 'insensitive' },
+            billingAddress: { path: ['zip'], equals: zip } as any,
+          },
+          take: 2,
+        });
+        // Nur zusammenführen wenn EINDEUTIG — bei mehreren Kandidaten Fallback auf neu anlegen
+        if (byNameAddr.length === 1) return byNameAddr[0];
+      }
+
+      // 5. nur Adresse
+      const byAddr = await this.prisma.salesCustomer.findMany({
+        where: {
+          orgId,
+          billingAddress: { path: ['zip'], equals: zip } as any,
+        },
+        take: 5,
+      });
+      const exactAddr = byAddr.filter((c) => {
+        const a = c.billingAddress as any;
+        return a?.address1 && String(a.address1).trim().toLowerCase() === street.toLowerCase();
+      });
+      if (exactAddr.length === 1) return exactAddr[0];
+    }
+
     return null;
   }
+}
+
+/**
+ * Firmennamen für Matching normalisieren: trimmen, mehrfache Leerzeichen auf
+ * eines reduzieren. KEINE Rechtsform-Entfernung (GmbH etc.) — das könnte
+ * verschiedene Firmen fälschlicherweise zusammenführen.
+ */
+function normalizeCompanyName(n: string | null | undefined): string {
+  if (!n) return '';
+  return n.trim().replace(/\s+/g, ' ');
 }

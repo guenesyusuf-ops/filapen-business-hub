@@ -1005,8 +1005,19 @@ export class WorkManagementService {
   }
 
   private async ensureTaskExists(id: string) {
+    // Frontend legt optimistic-Tasks mit "temp-..." IDs in den Cache. Wenn
+    // der User so einen Task bearbeitet BEVOR die Server-Antwort der Create-
+    // Mutation gekommen ist, landet die temp-ID hier. wmTask.id ist @db.Uuid,
+    // daher würde ein Prisma-Validation-Error als 500 landen.
+    // Frühzeitig als 404 zurückgeben — der Frontend-Hook sollte die Mutation
+    // ohnehin gar nicht erst senden, aber belt-and-suspenders.
+    if (!UUID_REGEX.test(id)) {
+      throw new NotFoundException(`Task not found (invalid id: ${id})`);
+    }
     const task = await this.prisma.wmTask.findUnique({ where: { id } });
     if (!task) throw new NotFoundException('Task not found');
     return task;
   }
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

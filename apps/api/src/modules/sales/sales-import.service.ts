@@ -50,6 +50,15 @@ const PROMPT = `Du bist ein präziser OCR- und Daten-Extraktor für B2B-Bestellu
 
 Extrahiere aus dem angehängten Dokument (PDF oder Bild einer Bestellung) ALLE verfügbaren Felder strikt im folgenden JSON-Schema. Fehlende Felder: null. Datumsfelder im Format YYYY-MM-DD.
 
+KRITISCH — WER IST DER KUNDE:
+- "customer" + "billingAddress" = der BESTELLER / Rechnungsempfänger / Käufer / Auftraggeber.
+- Das ist der, AN DEN die Bestellung adressiert ist bzw. VON DEM die Bestellung kommt.
+- NICHT der Absender / Lieferant / Rechnungssteller (Filapen GmbH, Filapen, etc.).
+- Im typischen Bestelldokument steht oben links oft der Absender/Lieferant, und links mittig die Käufer-Adresse ("Rechnungsempfänger:" / "Besteller:" / "Bill-To:" / "An:").
+- Der EMPFÄNGER im Briefkopf (an wen das Dokument gerichtet ist) = Kunde.
+- Wenn "Filapen" oder ähnliche Absender-Merkmale auftauchen (EORI, WEEE der Filapen, buchhaltung@filapen.de), gehört diese Firma NICHT ins customer-Feld.
+- Bestellnummer (externalOrderNumber) ist die Nummer des KUNDEN (z.B. "Bestellnummer 4500183634" = seine interne PO-Nummer).
+
 WICHTIG — Zahlen-Regeln:
 - Beträge als reine Zahl mit Punkt als Dezimalzeichen (keine Währungszeichen, kein Tausender-Trennzeichen).
 - "unitPriceNet" ist der Einzelpreis pro EINER Einheit in EUR. Wenn das PDF "Einzelpreis 12,06" zeigt, gib 12.06 zurück (nicht 0.1206, nicht 1206).
@@ -183,11 +192,32 @@ export class SalesImportService {
 
     const extracted = this.normalizeExtracted(parsed);
 
-    // Auto-match customer
+    // Guardrail: Falls Claude trotz Prompt den Absender (uns selbst) als
+    // Kunde extrahiert, hart abweisen. Der User hat sonst einen doppelten
+    // "Filapen GmbH"-Eintrag in seiner Kundenliste und falsche Bestellungen.
+    // Prüfen gegen charakteristische Eigen-Merkmale:
+    //   - Firmenname enthält "filapen"
+    //   - Mail ist eine Filapen-Adresse
+    const ownCompanyPatterns = /filapen|buchhaltung@filapen/i;
+    const companyName = (extracted.customer?.companyName ?? '').trim();
+    const email = (extracted.customer?.email ?? '').trim();
+    if (ownCompanyPatterns.test(companyName) || ownCompanyPatterns.test(email)) {
+      this.logger.warn(
+        `Import rejected: KI hat den Absender als Kunden extrahiert (company="${companyName}", email="${email}")`,
+      );
+      throw new BadRequestException(
+        'Die KI hat fälschlicherweise den Absender (Filapen) als Kunden erkannt. ' +
+        'Bitte lade das Dokument erneut hoch oder lege den richtigen Kunden manuell an.',
+      );
+    }
+
+    // Auto-match customer — Priorität: easybill-Nummer, dann externe Nr,
+    // dann E-Mail, dann Firmenname, dann Adresse (Straße+PLZ)
     const matched = await this.customers.findMatching(orgId, {
       externalCustomerNumber: extracted.supplierNumber,
-      email: extracted.customer?.email ?? null,
-      companyName: extracted.customer?.companyName ?? null,
+      email: email || null,
+      companyName: companyName || null,
+      billingAddress: extracted.billingAddress,
     });
 
     // Auto-match line items via EAN or supplier article number → ProductVariant
