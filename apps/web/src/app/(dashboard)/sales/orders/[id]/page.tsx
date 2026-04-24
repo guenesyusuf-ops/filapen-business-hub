@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Save, Trash2, FileText, Upload, Download, Send, FilePlus,
-  Plus, X, AlertTriangle, Clock,
+  Plus, X, AlertTriangle, Clock, Truck, Package, PackageCheck,
 } from 'lucide-react';
 import { salesApi, fmtDate, fmtMoney, urgencyOf, STATUS_LABELS, SalesDocumentKind } from '@/lib/sales';
 import { PageHeader, btn, Badge } from '@/components/sales/SalesUI';
@@ -18,6 +18,7 @@ export default function SalesOrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [headerEdits, setHeaderEdits] = useState<any>({});
   const [items, setItems] = useState<any[]>([]);
+  const [shipModal, setShipModal] = useState(false);
   const [dirtyItems, setDirtyItems] = useState(false);
 
   async function load() {
@@ -255,6 +256,11 @@ export default function SalesOrderDetailPage() {
 
           <Section title="Positionen" actions={
             <div className="flex gap-2">
+              {(order.lineItems ?? []).some((li: any) => !li.shipmentId) && (
+                <button onClick={() => setShipModal(true)} className={btn('primary', 'text-xs')}>
+                  <Truck className="h-3 w-3" /> Versenden
+                </button>
+              )}
               <button onClick={addItem} className={btn('ghost', 'text-xs')}><Plus className="h-3 w-3" /> Zeile</button>
               <button onClick={saveLineItems} disabled={!dirtyItems || saving} className={btn('primary', 'text-xs')}>
                 <Save className="h-3 w-3" /> Speichern
@@ -273,40 +279,65 @@ export default function SalesOrderDetailPage() {
                     <th className="py-1 text-right">Menge</th>
                     <th className="py-1 text-right">Einzel-€</th>
                     <th className="py-1 text-right">Netto</th>
+                    <th className="py-1">Versand</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((li, idx) => (
-                    <tr key={idx} className="border-t border-gray-200/60 dark:border-white/5">
-                      <td className="py-1 text-xs text-gray-500">{idx + 1}</td>
-                      <td className="py-1 pr-1"><input className={inputCls} value={li.title ?? ''} onChange={(e) => updateItem(idx, { title: e.target.value })} /></td>
-                      <td className="py-1 pr-1"><input className={inputCls} value={li.supplierArticleNumber ?? ''} onChange={(e) => updateItem(idx, { supplierArticleNumber: e.target.value })} /></td>
-                      <td className="py-1 pr-1"><input className={inputCls} value={li.ean ?? ''} onChange={(e) => updateItem(idx, { ean: e.target.value })} /></td>
-                      <td className="py-1 pr-1"><input type="number" className={inputCls} value={li.unitsPerCarton ?? ''} onChange={(e) => updateItem(idx, { unitsPerCarton: e.target.value ? Number(e.target.value) : null })} /></td>
-                      <td className="py-1 pr-1"><input type="number" className={`${inputCls} text-right`} value={li.quantity ?? 1} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
-                      <td className="py-1 pr-1"><input type="number" step="0.0001" className={`${inputCls} text-right`} value={li.unitPriceNet ?? 0} onChange={(e) => updateItem(idx, { unitPriceNet: Number(e.target.value), lineNet: Number(e.target.value) * (Number(li.quantity) || 1) })} /></td>
-                      <td className="py-1 pr-1"><input type="number" step="0.01" className={`${inputCls} text-right`} value={li.lineNet ?? 0} onChange={(e) => updateItem(idx, { lineNet: Number(e.target.value) })} /></td>
-                      <td className="py-1"><button onClick={() => removeItem(idx)} className="text-gray-400 hover:text-red-500"><X className="h-3.5 w-3.5" /></button></td>
-                    </tr>
-                  ))}
+                  {items.map((li, idx) => {
+                    // Versandstatus aus der persistierten Order ziehen (nicht aus
+                    // dem editierbaren `items`-State — der wird erst bei Speichern
+                    // mit dem Backend synchronisiert und hat keine shipmentId-Info).
+                    const persisted = (order.lineItems ?? []).find((x: any) => x.id === li.id);
+                    const shipped = !!persisted?.shipmentId;
+                    return (
+                      <tr key={idx} className="border-t border-gray-200/60 dark:border-white/5">
+                        <td className="py-1 text-xs text-gray-500">{idx + 1}</td>
+                        <td className="py-1 pr-1"><input className={inputCls} value={li.title ?? ''} onChange={(e) => updateItem(idx, { title: e.target.value })} /></td>
+                        <td className="py-1 pr-1"><input className={inputCls} value={li.supplierArticleNumber ?? ''} onChange={(e) => updateItem(idx, { supplierArticleNumber: e.target.value })} /></td>
+                        <td className="py-1 pr-1"><input className={inputCls} value={li.ean ?? ''} onChange={(e) => updateItem(idx, { ean: e.target.value })} /></td>
+                        <td className="py-1 pr-1"><input type="number" className={inputCls} value={li.unitsPerCarton ?? ''} onChange={(e) => updateItem(idx, { unitsPerCarton: e.target.value ? Number(e.target.value) : null })} /></td>
+                        <td className="py-1 pr-1"><input type="number" className={`${inputCls} text-right`} value={li.quantity ?? 1} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
+                        <td className="py-1 pr-1"><input type="number" step="0.0001" className={`${inputCls} text-right`} value={li.unitPriceNet ?? 0} onChange={(e) => updateItem(idx, { unitPriceNet: Number(e.target.value), lineNet: Number(e.target.value) * (Number(li.quantity) || 1) })} /></td>
+                        <td className="py-1 pr-1"><input type="number" step="0.01" className={`${inputCls} text-right`} value={li.lineNet ?? 0} onChange={(e) => updateItem(idx, { lineNet: Number(e.target.value) })} /></td>
+                        <td className="py-1">
+                          {shipped ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 text-[10px] font-medium">
+                              <PackageCheck className="h-3 w-3" /> versendet
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 px-1.5 py-0.5 text-[10px] font-medium">
+                              <Package className="h-3 w-3" /> offen
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1"><button onClick={() => removeItem(idx)} className="text-gray-400 hover:text-red-500"><X className="h-3.5 w-3.5" /></button></td>
+                      </tr>
+                    );
+                  })}
                   {items.length === 0 && (
-                    <tr><td colSpan={9} className="py-4 text-center text-xs text-gray-500">Keine Positionen — klick auf „Zeile" um hinzuzufügen.</td></tr>
+                    <tr><td colSpan={10} className="py-4 text-center text-xs text-gray-500">Keine Positionen — klick auf „Zeile" um hinzuzufügen.</td></tr>
                   )}
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-gray-200 dark:border-white/10">
                     <td colSpan={7} className="py-1.5 text-right text-xs font-semibold">Gesamt Netto</td>
                     <td className="py-1.5 text-right font-semibold">{fmtMoney(total, order.currency)}</td>
-                    <td />
+                    <td colSpan={2} />
                   </tr>
                 </tfoot>
               </table>
             </div>
           </Section>
 
-          <Section title="Versand-Info">
-            <ShippingForm order={order} onSaved={load} />
+          <Section title="Sendungen" actions={
+            (order.lineItems ?? []).some((li: any) => !li.shipmentId) && (
+              <button onClick={() => setShipModal(true)} className={btn('primary', 'text-xs')}>
+                <Truck className="h-3 w-3" /> Neue Sendung
+              </button>
+            )
+          }>
+            <ShipmentsList order={order} onChanged={load} />
           </Section>
         </div>
 
@@ -343,6 +374,14 @@ export default function SalesOrderDetailPage() {
           </Section>
         </div>
       </div>
+
+      {shipModal && (
+        <ShipmentModal
+          order={order}
+          onClose={() => setShipModal(false)}
+          onSaved={() => { setShipModal(false); load(); }}
+        />
+      )}
     </div>
   );
 }
@@ -507,4 +546,186 @@ function kindLabel(k: string) {
   if (k === 'confirmation') return 'Auftragsbestätigung';
   if (k === 'invoice') return 'Rechnung';
   return 'Sonstiges';
+}
+
+// ---------------------------------------------------------------------------
+// Shipment Modal — beim Klick auf "Versenden" werden ALLE offenen Positionen
+// automatisch ausgewählt. Für Teilsendungen einzeln abwählen. Danach Tracking-
+// Nummern (kommasepariert) eintragen und speichern.
+// ---------------------------------------------------------------------------
+function ShipmentModal({ order, onClose, onSaved }: { order: any; onClose: () => void; onSaved: () => void }) {
+  const openLines = (order.lineItems ?? []).filter((li: any) => !li.shipmentId);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(openLines.map((li: any) => li.id)));
+  const [tracking, setTracking] = useState('');
+  const [carrierNote, setCarrierNote] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  function toggle(id: string) {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelected(next);
+  }
+
+  async function save() {
+    if (selected.size === 0) return alert('Mindestens eine Position auswählen');
+    setSaving(true);
+    try {
+      await salesApi.createShipment(order.id, {
+        lineItemIds: Array.from(selected),
+        trackingNumbers: tracking.split(',').map((t) => t.trim()).filter(Boolean),
+        carrierNote: carrierNote || null,
+        notes: notes || null,
+      });
+      onSaved();
+    } catch (e: any) {
+      alert(e.message);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 p-5 shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">Versand erstellen</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div>
+          <div className="text-xs text-gray-500 mb-2">
+            {openLines.length} offene Position{openLines.length === 1 ? '' : 'en'} — alle ausgewählt. Haken entfernen für Teilsendung:
+          </div>
+          <div className="space-y-1 max-h-72 overflow-y-auto border border-gray-200 dark:border-white/10 rounded-lg p-2">
+            {openLines.map((li: any) => (
+              <label key={li.id} className="flex items-start gap-2 text-xs p-1.5 rounded hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.has(li.id)}
+                  onChange={() => toggle(li.id)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-900 dark:text-gray-100 truncate">{li.title}</div>
+                  <div className="text-[10px] text-gray-500 font-mono">
+                    {li.supplierArticleNumber || '—'} · {li.quantity}× · {fmtMoney(li.lineNet, order.currency)}
+                  </div>
+                </div>
+              </label>
+            ))}
+            {openLines.length === 0 && (
+              <div className="text-xs text-gray-500 p-4 text-center">Alle Positionen sind bereits versendet.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="text-xs sm:col-span-2">
+            <div className="text-gray-500 mb-1">Sendungsnummer(n) — mehrere mit Komma trennen</div>
+            <input
+              className={inputCls}
+              value={tracking}
+              onChange={(e) => setTracking(e.target.value)}
+              placeholder="00340001234567890123, …"
+            />
+          </label>
+          <label className="text-xs">
+            <div className="text-gray-500 mb-1">Carrier / Notiz</div>
+            <input
+              className={inputCls}
+              value={carrierNote}
+              onChange={(e) => setCarrierNote(e.target.value)}
+              placeholder="z.B. DHL Express"
+            />
+          </label>
+          <label className="text-xs">
+            <div className="text-gray-500 mb-1">Zusätzliche Notiz (optional)</div>
+            <input
+              className={inputCls}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="flex justify-between items-center pt-2">
+          <div className="text-xs text-gray-500">
+            <strong>{selected.size}</strong> von {openLines.length} Position{openLines.length === 1 ? '' : 'en'} ausgewählt
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className={btn('ghost', 'text-sm')}>Abbrechen</button>
+            <button onClick={save} disabled={saving || selected.size === 0} className={btn('primary', 'text-sm')}>
+              <Truck className="h-3.5 w-3.5" /> Versand anlegen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Zeigt bestehende Sendungen einer Order — mit Tracking-Nrn, betroffenen
+// Positionen und Storno-Button. Pro Sendung Collapse-Zeile.
+// ---------------------------------------------------------------------------
+function ShipmentsList({ order, onChanged }: { order: any; onChanged: () => void }) {
+  const shipments = order.shipments ?? [];
+  const lineById = new Map<string, any>();
+  for (const li of order.lineItems ?? []) lineById.set(li.id, li);
+
+  async function remove(shipmentId: string) {
+    if (!confirm('Sendung stornieren? Die zugehörigen Positionen werden wieder als offen markiert.')) return;
+    try {
+      await salesApi.deleteShipment(order.id, shipmentId);
+      onChanged();
+    } catch (e: any) { alert(e.message); }
+  }
+
+  if (shipments.length === 0) {
+    return (
+      <div className="text-xs text-gray-500 py-2">Noch keine Sendung angelegt. Klick auf „Versenden" oben.</div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {shipments.map((s: any) => {
+        const lines = (order.lineItems ?? []).filter((li: any) => li.shipmentId === s.id);
+        return (
+          <div key={s.id} className="rounded-lg border border-gray-200/60 dark:border-white/5 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                  Sendung · {fmtDate(s.shippedAt)}
+                </div>
+                <div className="text-[10px] text-gray-500">
+                  {lines.length} Position{lines.length === 1 ? '' : 'en'}
+                  {s.carrierNote ? ` · ${s.carrierNote}` : ''}
+                </div>
+              </div>
+              <button onClick={() => remove(s.id)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500" title="Sendung stornieren">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {s.trackingNumbers?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {s.trackingNumbers.map((t: string) => (
+                  <span key={t} className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 text-[10px] font-mono">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="space-y-0.5">
+              {lines.map((li: any) => (
+                <div key={li.id} className="flex items-center justify-between text-[11px] text-gray-700 dark:text-gray-300">
+                  <span className="truncate">{li.supplierArticleNumber || li.title}</span>
+                  <span className="text-gray-500 font-mono">{li.quantity}×</span>
+                </div>
+              ))}
+            </div>
+            {s.notes && <div className="text-[10px] text-gray-500 italic">{s.notes}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
 }

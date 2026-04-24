@@ -55,6 +55,12 @@ export const salesApi = {
   updateShipping: (id: string, data: { trackingNumbers?: string[]; shippingCarrierNote?: string | null; shippedAt?: string | null }) =>
     call<any>(`/orders/${id}/shipping`, { method: 'PUT', body: JSON.stringify(data) }),
 
+  // Teilsendungen
+  createShipment: (orderId: string, data: { lineItemIds: string[]; trackingNumbers?: string[]; carrierNote?: string | null; notes?: string | null }) =>
+    call<any>(`/orders/${orderId}/shipments`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteShipment: (orderId: string, shipmentId: string) =>
+    call<any>(`/orders/${orderId}/shipments/${shipmentId}`, { method: 'DELETE' }),
+
   // Documents
   listDocuments: (orderId: string) => call<any[]>(`/orders/${orderId}/documents`),
   uploadDocument: async (orderId: string, file: File, kind: SalesDocumentKind = 'other') => {

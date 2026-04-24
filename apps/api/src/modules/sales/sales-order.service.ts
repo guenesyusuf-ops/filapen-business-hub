@@ -126,6 +126,7 @@ export class SalesOrderService {
         lineItems: { orderBy: { position: 'asc' } },
         documents: { orderBy: { uploadedAt: 'desc' } },
         events: { orderBy: { createdAt: 'desc' }, take: 50 },
+        shipments: { orderBy: { shippedAt: 'desc' } },
       },
     });
     if (!order) throw new NotFoundException('Bestellung nicht gefunden');
@@ -313,6 +314,144 @@ export class SalesOrderService {
         events: { create: { orgId, type: 'edited', actorId: userId, note: 'Versand-Info geändert' } },
       },
     });
+  }
+
+  /**
+   * Legt eine neue (Teil-)Sendung an, ordnet die angegebenen Line-Items
+   * dieser Sendung zu und aktualisiert den Gesamt-Status des Orders:
+   *
+   *   - ALLE LineItems shipmentId → order.status = 'shipped', shippedAt = jetzt
+   *   - Einige LineItems shipmentId → status bleibt (Teilsendung, kein 'shipped')
+   *
+   * Eingabe-Validierung:
+   *   - lineItemIds müssen zur selben Order gehören
+   *   - lineItemIds dürfen nicht bereits versendet sein
+   */
+  async createShipment(
+    orgId: string,
+    userId: string,
+    orderId: string,
+    data: { lineItemIds: string[]; trackingNumbers?: string[]; carrierNote?: string | null; notes?: string | null },
+  ) {
+    if (!data.lineItemIds?.length) {
+      throw new BadRequestException('Mindestens eine Position auswählen');
+    }
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: orderId, orgId },
+      include: { lineItems: { select: { id: true, shipmentId: true } } },
+    });
+    if (!order) throw new NotFoundException('Bestellung nicht gefunden');
+
+    // Alle ausgewählten IDs müssen zu dieser Order gehören UND noch offen sein
+    const validIds = new Set(order.lineItems.map((li) => li.id));
+    const alreadyShipped = new Set(order.lineItems.filter((li) => li.shipmentId).map((li) => li.id));
+    for (const liId of data.lineItemIds) {
+      if (!validIds.has(liId)) {
+        throw new BadRequestException(`Position ${liId} gehört nicht zu dieser Bestellung`);
+      }
+      if (alreadyShipped.has(liId)) {
+        throw new BadRequestException(`Position ${liId} ist bereits versendet`);
+      }
+    }
+
+    const tracking = (data.trackingNumbers ?? []).map((t) => t.trim()).filter(Boolean);
+
+    const shipment = await this.prisma.$transaction(async (tx) => {
+      const s = await tx.salesOrderShipment.create({
+        data: {
+          orgId,
+          orderId,
+          trackingNumbers: tracking,
+          carrierNote: data.carrierNote || null,
+          notes: data.notes || null,
+          createdById: userId,
+        },
+      });
+      await tx.salesOrderLineItem.updateMany({
+        where: { id: { in: data.lineItemIds }, orderId },
+        data: { shipmentId: s.id },
+      });
+      return s;
+    });
+
+    // Check if everything is shipped now → aktualisiere Gesamt-Order-Status
+    const remaining = await this.prisma.salesOrderLineItem.count({
+      where: { orderId, shipmentId: null },
+    });
+    const now = new Date();
+    const allShipped = remaining === 0;
+    await this.prisma.salesOrder.update({
+      where: { id: orderId },
+      data: {
+        ...(allShipped ? {
+          shippedAt: now,
+          status: order.status === 'draft' || order.status === 'confirmed' ? 'shipped' : order.status,
+        } : {}),
+        // Tracking-Nummern aggregieren (alle Shipments) damit Legacy-Anzeige
+        // weiter funktioniert. Re-fetch + neu berechnen.
+        trackingNumbers: await this.aggregateTrackingNumbers(orderId),
+        events: {
+          create: {
+            orgId, type: 'shipped', actorId: userId,
+            note: allShipped
+              ? `Restliche Positionen versendet (${data.lineItemIds.length} Pos., ${tracking.length} Tracking-Nrn)`
+              : `Teilsendung: ${data.lineItemIds.length} Positionen versendet (${tracking.length} Tracking-Nrn), ${remaining} noch offen`,
+          },
+        },
+      },
+    });
+
+    return shipment;
+  }
+
+  async deleteShipment(orgId: string, userId: string, orderId: string, shipmentId: string) {
+    const shipment = await this.prisma.salesOrderShipment.findFirst({
+      where: { id: shipmentId, orderId, orgId },
+      include: { lineItems: { select: { id: true } } },
+    });
+    if (!shipment) throw new NotFoundException('Sendung nicht gefunden');
+
+    await this.prisma.$transaction(async (tx) => {
+      // Line-Items wieder freigeben (shipmentId → null geschieht automatisch
+      // via ON DELETE SET NULL, aber wir setzen es explizit um Race-Conditions
+      // zu vermeiden wenn Cascade-Order anders ist).
+      await tx.salesOrderLineItem.updateMany({
+        where: { shipmentId },
+        data: { shipmentId: null },
+      });
+      await tx.salesOrderShipment.delete({ where: { id: shipmentId } });
+    });
+
+    // Order-Status neu berechnen: wenn vorher shipped aber jetzt nicht alle
+    // versendet sind → zurück auf 'confirmed'
+    const stillOpen = await this.prisma.salesOrderLineItem.count({
+      where: { orderId, shipmentId: null },
+    });
+    await this.prisma.salesOrder.update({
+      where: { id: orderId },
+      data: {
+        ...(stillOpen > 0 ? { shippedAt: null, status: 'confirmed' } : {}),
+        trackingNumbers: await this.aggregateTrackingNumbers(orderId),
+        events: {
+          create: {
+            orgId, type: 'edited', actorId: userId,
+            note: `Sendung ${shipmentId.slice(0, 8)} storniert — ${shipment.lineItems.length} Positionen wieder offen`,
+          },
+        },
+      },
+    });
+
+    return { ok: true };
+  }
+
+  private async aggregateTrackingNumbers(orderId: string): Promise<string[]> {
+    const shipments = await this.prisma.salesOrderShipment.findMany({
+      where: { orderId },
+      select: { trackingNumbers: true },
+    });
+    const all = new Set<string>();
+    for (const s of shipments) for (const t of s.trackingNumbers) all.add(t);
+    return Array.from(all);
   }
 
   /**

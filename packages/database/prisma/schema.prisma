@@ -363,6 +363,7 @@ model Organization {
   salesOrderDocuments      SalesOrderDocument[]
   salesOrderEvents         SalesOrderEvent[]
   salesOrderReminders      SalesOrderReminder[]
+  salesOrderShipments      SalesOrderShipment[]
 
   @@map("organizations")
 }
@@ -2976,6 +2977,7 @@ model SalesOrder {
   documents    SalesOrderDocument[]
   events       SalesOrderEvent[]
   reminders    SalesOrderReminder[]
+  shipments    SalesOrderShipment[]
 
   @@unique([orgId, orderNumber], map: "uq_sales_order_org_number")
   @@index([orgId])
@@ -3001,15 +3003,21 @@ model SalesOrderLineItem {
   lineNet                Decimal  @default(0) @map("line_net") @db.Decimal(12, 2)
   // Auto-matched to internal product (nullable)
   matchedProductVariantId String? @map("matched_product_variant_id") @db.Uuid
+  // Teilsendung: wenn gesetzt, ist diese Position versendet (als Teil eines
+  // SalesOrderShipment). NULL = noch offen. Nur EINE Sendung pro Position —
+  // partielle Mengen pro Position sind aktuell nicht gefordert.
+  shipmentId             String?  @map("shipment_id") @db.Uuid
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  organization    Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  order           SalesOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  matchedVariant  ProductVariant? @relation(fields: [matchedProductVariantId], references: [id], onDelete: SetNull)
+  organization    Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order           SalesOrder          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  matchedVariant  ProductVariant?     @relation(fields: [matchedProductVariantId], references: [id], onDelete: SetNull)
+  shipment        SalesOrderShipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([orgId, ean])
   @@index([orgId, supplierArticleNumber])
+  @@index([shipmentId])
   @@map("sales_order_line_items")
 }
 
@@ -3065,4 +3073,28 @@ model SalesOrderReminder {
   @@unique([orderId, kind], map: "uq_sales_reminder_order_kind")
   @@index([orderId])
   @@map("sales_order_reminders")
+}
+
+/// Teilsendung: repräsentiert einen Versandvorgang für N Line-Items einer
+/// Bestellung. Eine Bestellung kann mehrere Shipments haben. Line-Items ohne
+/// shipmentId sind noch offen. Order-Status 'shipped' gilt wenn ALLE Lines
+/// einem Shipment zugeordnet sind.
+model SalesOrderShipment {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String       @map("org_id") @db.Uuid
+  orderId         String       @map("order_id") @db.Uuid
+  trackingNumbers String[]     @default([]) @map("tracking_numbers")
+  carrierNote     String?      @map("carrier_note") @db.VarChar(255)
+  shippedAt       DateTime     @default(now()) @map("shipped_at") @db.Timestamptz
+  createdById     String       @map("created_by_id") @db.Uuid
+  notes           String?      @db.Text
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order        SalesOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lineItems    SalesOrderLineItem[]
+
+  @@index([orderId])
+  @@index([orgId, shippedAt])
+  @@map("sales_order_shipments")
 }

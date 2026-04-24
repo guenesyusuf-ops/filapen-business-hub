@@ -223,6 +223,34 @@ export class SalesController {
     return this.orders.updateShipping(orgId, userId, id, body);
   }
 
+  // Teilsendungen --------------------------------------------------------------
+  @Post('orders/:id/shipments')
+  async createShipment(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { lineItemIds?: string[]; trackingNumbers?: string[]; carrierNote?: string | null; notes?: string | null },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.orders.createShipment(orgId, userId, id, {
+      lineItemIds: body.lineItemIds ?? [],
+      trackingNumbers: body.trackingNumbers ?? [],
+      carrierNote: body.carrierNote ?? null,
+      notes: body.notes ?? null,
+    });
+  }
+
+  @Delete('orders/:id/shipments/:shipmentId')
+  async deleteShipment(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Param('shipmentId') shipmentId: string,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.orders.deleteShipment(orgId, userId, id, shipmentId);
+  }
+
   // ==========================================================
   // Documents
   // ==========================================================
