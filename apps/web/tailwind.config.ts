@@ -8,21 +8,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Primary: Blaue Palette wie aktuell Live — bleibt unverändert damit
-        // Finance Hub + Buttons + aktive Elemente gleich aussehen.
+        // Primary folgt dem User-Theme via CSS-Variablen.
+        //   50-200  = Light-Tint (accent-1 in weiss gemischt)
+        //   300-500 = accent-1 (Highlight-Farbe)
+        //   600-900 = accent-2 (Struktur/Button/Active)
+        //   950     = accent-2 verdunkelt
+        // color-mix erlaubt Aufhellung/Verdunklung für Hover/Focus-States.
+        // Browser-Support: Chrome 111+, Firefox 113+, Safari 16.2+ — passt.
         primary: {
-          50: '#EFF6FF',
-          100: '#DBEAFE',
-          200: '#BFDBFE',
-          300: '#93C5FD',
-          400: '#60A5FA',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-          800: '#1E40AF',
-          900: '#1E3A8A',
-          950: '#172554',
-          DEFAULT: '#2563EB',
+          50:  'color-mix(in srgb, rgb(var(--accent-1)) 10%, white)',
+          100: 'color-mix(in srgb, rgb(var(--accent-1)) 20%, white)',
+          200: 'color-mix(in srgb, rgb(var(--accent-1)) 35%, white)',
+          300: 'color-mix(in srgb, rgb(var(--accent-1)) 55%, white)',
+          400: 'color-mix(in srgb, rgb(var(--accent-1)) 80%, white)',
+          500: 'rgb(var(--accent-1))',
+          600: 'rgb(var(--accent-2))',
+          700: 'color-mix(in srgb, rgb(var(--accent-2)) 85%, black)',
+          800: 'color-mix(in srgb, rgb(var(--accent-2)) 70%, black)',
+          900: 'color-mix(in srgb, rgb(var(--accent-2)) 55%, black)',
+          950: 'color-mix(in srgb, rgb(var(--accent-2)) 40%, black)',
+          DEFAULT: 'rgb(var(--accent-2))',
         },
         // Theme-Variable Accents — lesen CSS-Vars die pro data-theme gesetzt
         // werden. Dadurch kann jeder User ein eigenes Farbschema wählen und
