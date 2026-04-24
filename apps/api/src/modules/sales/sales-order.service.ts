@@ -105,6 +105,7 @@ export class SalesOrderService {
           lineItems: {
             select: {
               id: true, title: true, quantity: true,
+              ean: true, supplierArticleNumber: true,
               matchedVariant: {
                 select: { id: true, sku: true, product: { select: { id: true, title: true, imageUrl: true } } },
               },
@@ -115,7 +116,69 @@ export class SalesOrderService {
       }),
       this.prisma.salesOrder.count({ where }),
     ]);
+
+    // On-the-fly Matching: wenn matchedVariant NULL ist aber ean/supplier-
+    // ArticleNumber gesetzt, lookup via ProductVariant.barcode oder .sku.
+    // So sehen Kachel-Bilder auch für Line-Items erscheinen, die VOR dem
+    // nachträglichen EAN-Eintrag importiert wurden. Batch-Lookup damit's
+    // performant bleibt.
+    await this.enrichLineItemVariants(orgId, items as any[]);
+
     return { items, total };
+  }
+
+  /**
+   * Ergänzt Line-Items deren matchedVariantId NULL ist, aber deren ean oder
+   * supplierArticleNumber zu einer ProductVariant passt. Mutiert die Items
+   * in-place mit einem zusätzlichen matchedVariant-Objekt (gleiche Shape wie
+   * von Prisma). Ein DB-Call pro Feld (EAN + SKU) für alle offenen Items.
+   */
+  private async enrichLineItemVariants(orgId: string, orders: any[]): Promise<void> {
+    const unmatched: any[] = [];
+    for (const o of orders) {
+      for (const li of o.lineItems ?? []) {
+        if (!li.matchedVariant && (li.ean || li.supplierArticleNumber)) {
+          unmatched.push(li);
+        }
+      }
+    }
+    if (unmatched.length === 0) return;
+
+    const eans = Array.from(new Set(unmatched.map((li) => li.ean).filter(Boolean))) as string[];
+    const skus = Array.from(new Set(unmatched.map((li) => li.supplierArticleNumber).filter(Boolean))) as string[];
+
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        orgId,
+        OR: [
+          eans.length ? { barcode: { in: eans } } : undefined,
+          skus.length ? { sku: { in: skus } } : undefined,
+        ].filter(Boolean) as any[],
+      },
+      select: {
+        id: true, sku: true, barcode: true,
+        product: { select: { id: true, title: true, imageUrl: true } },
+      },
+    });
+
+    // Index by barcode AND by sku für schnelle Zuordnung
+    const byBarcode = new Map<string, any>();
+    const bySku = new Map<string, any>();
+    for (const v of variants) {
+      if (v.barcode) byBarcode.set(v.barcode, v);
+      if (v.sku) bySku.set(v.sku, v);
+    }
+
+    for (const li of unmatched) {
+      const v = (li.ean && byBarcode.get(li.ean)) || (li.supplierArticleNumber && bySku.get(li.supplierArticleNumber));
+      if (v) {
+        li.matchedVariant = {
+          id: v.id,
+          sku: v.sku,
+          product: v.product,
+        };
+      }
+    }
   }
 
   async get(orgId: string, id: string) {
