@@ -204,7 +204,7 @@ export class EasybillService {
     return match?.id ? String(match.id) : null;
   }
 
-  private orderPayload(order: any, easybillCustomerId: string, type: 'OFFER' | 'INVOICE') {
+  private orderPayload(order: any, easybillCustomerId: string, type: 'ORDER' | 'INVOICE') {
     // EMPIRISCHER FIX: easybill interpretiert `single_price_net` offensichtlich
     // als Cent-Integer und NICHT als EUR-Float (12.06 in → 0.1206 €). Wir
     // multiplizieren daher × 100 und runden auf Integer.
@@ -233,7 +233,7 @@ export class EasybillService {
     // übernimmt easybill den Default aus der Dokumentvorlage ("nachfolgend
     // berechnen wir Ihnen …" + Zahlungsbedingungen).
     const fmt = (d: any) => d ? new Date(d).toLocaleDateString('de-DE') : '';
-    const isConfirmation = type === 'OFFER';
+    const isConfirmation = type === 'ORDER';
 
     const orderDateStr = fmt(order.orderDate);
     const externalNum = order.externalOrderNumber || '';
@@ -275,9 +275,30 @@ export class EasybillService {
   }
 
   /**
-   * Create an Auftragsbestätigung (easybill document type "OFFER") from the
-   * SalesOrder, download the generated PDF, attach it as SalesOrderDocument,
-   * and store the easybill ref on the order.
+   * Auftragsbestätigung = easybill Document-Typ "ORDER" (nicht OFFER/Angebot,
+   * nicht INVOICE/Rechnung).
+   *
+   * Flow laut easybill-Swagger + User-Vorgabe:
+   *   1. POST /rest/v1/documents  mit { type: "ORDER", ... }
+   *      → erzeugt den Auftrag im Entwurfs-Status (is_draft=true)
+   *   2. PUT /rest/v1/documents/{id}/done
+   *      → stellt den Auftrag fertig (is_draft=false)
+   *   3. PDF runterladen und als SalesOrderDocument(kind=confirmation) anheften
+   *
+   * Hinweis: easybill hat KEINEN separaten Dokumenttyp für "Auftrags-
+   * bestätigung" in der REST-API-Swagger-Spec (Enum sind: INVOICE, OFFER,
+   * ORDER, CREDIT, DELIVERY, CHARGE, CHARGE_CONFIRM, REMINDER, DUNNING,
+   * STORNO, STORNO_CREDIT, RECURRING, PDF, LETTER, PROFORMA_INVOICE,
+   * STORNO_PROFORMA_INVOICE). Die Darstellung "Auftragsbestätigung" im
+   * PDF-Header ist eine easybill-Dokumentvorlage — unter
+   * Einstellungen → Vorlagen → Auftrag kann der Titel umgeschrieben werden.
+   * Falls das PDF mit "Auftrag" oder "Bestellung" statt "Auftrags-
+   * bestätigung" rendert: easybill-Vorlage entsprechend anpassen.
+   *
+   * Ehemaliger Workaround: wir hatten vorher OFFER→/done→convert-to-ORDER
+   * als zweistufigen Flow — das erzeugte immer ein zusätzliches Angebot
+   * das übrig bleibt, und ist laut User-Feedback auch nicht das richtige
+   * Zieldokument. Direkter ORDER-Create ist sauber und idiomatisch.
    */
   async createConfirmation(orgId: string, userId: string, orderId: string) {
     const order = await this.prisma.salesOrder.findFirst({
@@ -288,36 +309,35 @@ export class EasybillService {
     if (order.easybillConfirmationId) {
       throw new BadRequestException('Auftragsbestätigung existiert bereits — Rechnung wäre der nächste Schritt.');
     }
+
     const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
-    // easybill-Flow für Auftragsbestätigung (empirisch ermittelt):
-    //   1. POST /documents  mit type=OFFER   → erzeugt Angebot (offer_id)
-    //   2. POST /documents/{offer_id}/ORDER  → konvertiert zu Auftragsbestätigung
-    // Direkt type=ORDER erzeugt eine "Bestellung" (eingehender Auftrag vom
-    // Kunden), NICHT die Auftragsbestätigung. type=OFFER+status=ACCEPT bleibt
-    // ebenfalls ein Angebot.
-    const offerBody = this.orderPayload(order, easybillCustomerId, 'OFFER');
-    console.error('[easybill] REQUEST offer:', JSON.stringify(offerBody));
-    const offer = await this.call<any>(orgId, '/documents', { method: 'POST', body: offerBody });
-    const offerId = String(offer.id);
-    console.error('[easybill] offer created:', JSON.stringify({
-      id: offerId, type: offer.type, number: offer.number,
-    }));
+    const body = this.orderPayload(order, easybillCustomerId, 'ORDER');
 
-    // Entwurfs-Status aufheben — sonst verweigert easybill den Convert mit
-    // "Zu einem Dokument im Entwurfsmodus kann keine Bestellung erstellt werden"
-    console.error(`[easybill] marking offer ${offerId} as done`);
-    await this.call<any>(orgId, `/documents/${offerId}/done`, { method: 'PUT' });
+    // Schritt 1: POST /documents mit type=ORDER
+    const url1 = `${this.baseUrl}/documents`;
+    console.error(`[easybill][AB#1] REQUEST POST ${url1}`);
+    console.error(`[easybill][AB#1] BODY ${JSON.stringify(body)}`);
+    const created = await this.call<any>(orgId, '/documents', { method: 'POST', body });
+    const docId = String(created.id);
+    console.error(`[easybill][AB#1] RESPONSE id=${docId} type=${created.type} document_number=${created.document_number ?? created.number ?? '—'} is_draft=${created.is_draft} status=${created.status ?? 'null'}`);
 
-    // Convert Angebot → Auftragsbestätigung
-    console.error(`[easybill] converting offer ${offerId} to ORDER`);
-    const doc = await this.call<any>(orgId, `/documents/${offerId}/ORDER`, { method: 'POST' });
-    const docId = String(doc.id);
-    console.error('[easybill] AB after convert:', JSON.stringify({
-      id: docId, type: doc.type, status: doc.status, number: doc.number,
-    }));
+    // Schritt 2: PUT /documents/{id}/done → aus Entwurf holen
+    const url2 = `${this.baseUrl}/documents/${docId}/done`;
+    console.error(`[easybill][AB#2] REQUEST PUT ${url2}`);
+    let done: any = null;
+    try {
+      done = await this.call<any>(orgId, `/documents/${docId}/done`, { method: 'PUT' });
+      console.error(`[easybill][AB#2] RESPONSE id=${done?.id ?? docId} type=${done?.type ?? 'n/a'} document_number=${done?.document_number ?? done?.number ?? '—'} is_draft=${done?.is_draft}`);
+    } catch (err: any) {
+      // Nicht-fatal: wenn /done fehlschlägt, existiert der Auftrag weiterhin
+      // als Entwurf — User kann das in easybill manuell "fertigstellen".
+      console.error(`[easybill][AB#2] /done fehlgeschlagen (non-fatal): ${err.message}`);
+    }
 
-    // Pull PDF
+    // Schritt 3: PDF runterladen + R2-Mirror
+    console.error(`[easybill][AB#3] DOWNLOAD PDF ${this.baseUrl}/documents/${docId}/pdf`);
     const pdfBuffer = await this.downloadPdf(orgId, docId);
+    console.error(`[easybill][AB#3] PDF bytes=${pdfBuffer.length}`);
     const attached = await this.documents.attachBuffer(
       orgId, userId, orderId, pdfBuffer,
       `auftragsbestaetigung-${order.orderNumber}.pdf`,
@@ -329,10 +349,20 @@ export class EasybillService {
       data: {
         easybillConfirmationId: docId,
         easybillConfirmationPdfUrl: attached.url,
-        events: { create: { orgId, type: 'note', actorId: userId, note: `easybill AB erstellt (${docId})` } },
+        events: {
+          create: {
+            orgId, type: 'note', actorId: userId,
+            note: `easybill Auftrag erstellt (ID ${docId}, Nr ${created.document_number ?? created.number ?? '—'})`,
+          },
+        },
       },
     });
-    return { easybillId: docId, pdfUrl: attached.url };
+    return {
+      easybillId: docId,
+      pdfUrl: attached.url,
+      easybillType: created.type,
+      easybillNumber: created.document_number ?? created.number ?? null,
+    };
   }
 
   async sendConfirmation(orgId: string, userId: string, orderId: string) {
