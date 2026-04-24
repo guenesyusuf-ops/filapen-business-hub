@@ -20,6 +20,9 @@ export function MonthlyRevenueChart({ year }: MonthlyRevenueChartProps) {
     year: number;
     total: number;
     totalCount: number;
+    cogs: number;
+    shippingFlatPerOrder: number;
+    profit: number;
     totalAllTime: number;
     totalAllTimeCount: number;
     byMonth: Array<{ month: number; revenue: number; orderCount: number }>;
@@ -155,15 +158,41 @@ export function MonthlyRevenueChart({ year }: MonthlyRevenueChartProps) {
         />
       )}
 
-      {/* Footer — unten rechts die Gesamtsumme aller Bestellungen (all-time) */}
-      <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-end gap-2 text-xs">
-        <span className="text-gray-500 dark:text-gray-400">Gesamtsumme aller Bestellungen:</span>
-        <span className="font-semibold text-gray-900 dark:text-white tabular-nums">
-          {loading ? '—' : fmtMoney(data?.totalAllTime ?? 0)}
-        </span>
-        <span className="text-gray-400 dark:text-gray-500">
-          ({data?.totalAllTimeCount ?? 0})
-        </span>
+      {/* Footer — links der Gewinn (Jahr), rechts die Gesamtsumme aller Zeiten.
+          Gewinn = Umsatz - COGS (aus Produkt-DB) - 50€ Versand pro Bestellung.
+          Tooltip zeigt die Komponenten damit nachvollziehbar bleibt wie der
+          Wert zustande kommt. */}
+      <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-between gap-3 text-xs">
+        <div
+          className="flex items-center gap-2"
+          title={
+            data
+              ? `Umsatz ${fmtMoney(data.total)} − COGS ${fmtMoney(data.cogs)} − Versand ${fmtMoney(data.totalCount * data.shippingFlatPerOrder)} (${data.totalCount} × ${fmtMoney(data.shippingFlatPerOrder)})`
+              : ''
+          }
+        >
+          <span className="text-gray-500 dark:text-gray-400">Gewinn {targetYear}:</span>
+          <span
+            className={`font-semibold tabular-nums ${
+              loading
+                ? 'text-gray-400'
+                : (data?.profit ?? 0) >= 0
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-red-600 dark:text-red-400'
+            }`}
+          >
+            {loading ? '—' : fmtMoney(data?.profit ?? 0)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500 dark:text-gray-400">Gesamtsumme aller Bestellungen:</span>
+          <span className="font-semibold text-gray-900 dark:text-white tabular-nums">
+            {loading ? '—' : fmtMoney(data?.totalAllTime ?? 0)}
+          </span>
+          <span className="text-gray-400 dark:text-gray-500">
+            ({data?.totalAllTimeCount ?? 0})
+          </span>
+        </div>
       </div>
     </div>
   );

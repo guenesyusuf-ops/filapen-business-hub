@@ -587,6 +587,27 @@ export class SalesOrderService {
     const total = byMonth.reduce((acc, m) => acc + m.revenue, 0);
     const totalCount = byMonth.reduce((acc, m) => acc + m.orderCount, 0);
 
+    // Gewinn-Berechnung: Umsatz - COGS - 50€ pauschal pro Bestellung (Versand).
+    // COGS ziehen wir über matched_product_variant_id, also nur für Line-Items
+    // die einem Produkt zugeordnet sind. Lines ohne Match (oder ohne cogs)
+    // werden mit 0 angesetzt — der Gewinn wirkt dann optimistischer als er
+    // ist. Das nehmen wir bewusst in Kauf bis alle Produkte gepflegt sind.
+    type CogsRow = { cogs_total: string };
+    const cogsRows = await this.prisma.$queryRaw<CogsRow[]>`
+      SELECT COALESCE(SUM(li.quantity * v.cogs), 0)::text AS cogs_total
+      FROM "sales_order_line_items" li
+      JOIN "sales_orders" o ON o.id = li.order_id
+      JOIN "product_variants" v ON v.id = li.matched_product_variant_id
+      WHERE o.org_id = ${orgId}::uuid
+        AND o.created_at >= ${yearStart}
+        AND o.created_at < ${yearEnd}
+        AND o.status != 'cancelled'
+        AND v.cogs IS NOT NULL
+    `;
+    const cogs = Number(cogsRows[0]?.cogs_total ?? 0);
+    const SHIPPING_FLAT_PER_ORDER = 50;
+    const profit = total - cogs - totalCount * SHIPPING_FLAT_PER_ORDER;
+
     // All-Time Gesamtsumme (alle Jahre, ohne Cancelled) — für den Footer
     // unten rechts. Single aggregate query, billig.
     const allTimeRaw = await this.prisma.salesOrder.aggregate({
@@ -599,6 +620,9 @@ export class SalesOrderService {
       year,
       total,
       totalCount,
+      cogs,
+      shippingFlatPerOrder: SHIPPING_FLAT_PER_ORDER,
+      profit,
       totalAllTime: Number(allTimeRaw._sum.totalNet ?? 0),
       totalAllTimeCount: allTimeRaw._count._all,
       byMonth,

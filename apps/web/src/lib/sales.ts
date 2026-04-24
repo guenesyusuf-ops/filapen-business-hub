@@ -27,6 +27,9 @@ export const salesApi = {
       year: number;
       total: number;
       totalCount: number;
+      cogs: number;
+      shippingFlatPerOrder: number;
+      profit: number;
       totalAllTime: number;
       totalAllTimeCount: number;
       byMonth: Array<{ month: number; revenue: number; orderCount: number }>;
