@@ -63,6 +63,10 @@ export class SalesOrderService {
       customerId?: string;
       search?: string;
       urgency?: 'urgent' | 'overdue';
+      // archived=false → nur offene (shippedAt IS NULL), default Tab "Offen"
+      // archived=true  → nur versendete (shippedAt IS NOT NULL), Tab "Abgeschlossen"
+      // undefined     → kein Filter (alle)
+      archived?: boolean;
       limit?: number;
       offset?: number;
     } = {},
@@ -77,12 +81,22 @@ export class SalesOrderService {
         { customer: { companyName: { contains: filters.search, mode: 'insensitive' as const } } },
       ];
     }
-    // Urgency filters: in-verzug = past due + not shipped; urgent = within 3d + not shipped
-    if (filters.urgency === 'overdue') {
+    // Archive-Tab: Offen vs. Abgeschlossen via shippedAt. Wird ZUERST gesetzt
+    // damit urgency-Filter (die nur für offene Bestellungen sinnvoll sind)
+    // nichts überschreiben wenn archive=true.
+    if (filters.archived === true) {
+      where.shippedAt = { not: null };
+    } else if (filters.archived === false) {
+      where.shippedAt = null;
+    }
+    // Urgency filters: in-verzug = past due + not shipped; urgent = within 3d + not shipped.
+    // Nur anwenden wenn nicht im Abgeschlossen-Tab (dort macht "dringend"
+    // keinen Sinn, alles ist schon versendet).
+    if (filters.urgency === 'overdue' && filters.archived !== true) {
       where.shippedAt = null;
       where.requiredDeliveryDate = { lt: new Date() };
     }
-    if (filters.urgency === 'urgent') {
+    if (filters.urgency === 'urgent' && filters.archived !== true) {
       const threeDaysOut = new Date();
       threeDaysOut.setDate(threeDaysOut.getDate() + 3);
       where.shippedAt = null;

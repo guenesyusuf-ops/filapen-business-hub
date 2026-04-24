@@ -126,7 +126,16 @@ export class SalesController {
   @Get('orders')
   async listOrders(
     @Headers('authorization') authHeader: string,
-    @Query() q: { status?: string; customerId?: string; search?: string; urgency?: 'urgent' | 'overdue'; limit?: string; offset?: string },
+    @Query() q: {
+      status?: string;
+      customerId?: string;
+      search?: string;
+      urgency?: 'urgent' | 'overdue';
+      // 'true' / 'false' / unset — string weil Query-Params Strings sind
+      archived?: string;
+      limit?: string;
+      offset?: string;
+    },
   ) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     return this.orders.list(orgId, {
@@ -134,6 +143,7 @@ export class SalesController {
       customerId: q.customerId,
       search: q.search,
       urgency: q.urgency,
+      archived: q.archived === 'true' ? true : q.archived === 'false' ? false : undefined,
       limit: q.limit ? parseInt(q.limit, 10) : undefined,
       offset: q.offset ? parseInt(q.offset, 10) : undefined,
     });

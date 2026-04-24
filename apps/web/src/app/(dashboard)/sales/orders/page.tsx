@@ -2,19 +2,24 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Upload, AlertTriangle, Clock, FileText } from 'lucide-react';
+import { Plus, Upload, AlertTriangle, Clock, FileText, Inbox, CheckCircle2 } from 'lucide-react';
 import { salesApi, STATUS_LABELS, fmtDate, fmtMoney, urgencyOf, SalesOrderStatus } from '@/lib/sales';
 import { PageHeader, Empty, btn, Badge } from '@/components/sales/SalesUI';
+import { cn } from '@/lib/utils';
 
 type UrgencyFilter = 'all' | 'urgent' | 'overdue';
+type Tab = 'open' | 'done';
 
 export default function SalesOrdersPage() {
   const [items, setItems] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
+  const [openCount, setOpenCount] = useState<number | null>(null);
+  const [doneCount, setDoneCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [urgency, setUrgency] = useState<UrgencyFilter>('all');
   const [status, setStatus] = useState<SalesOrderStatus | 'all'>('all');
+  const [tab, setTab] = useState<Tab>('open');
 
   async function load() {
     setLoading(true);
@@ -23,16 +28,25 @@ export default function SalesOrdersPage() {
         search: search || undefined,
         urgency: urgency === 'all' ? undefined : urgency,
         status: status === 'all' ? undefined : status,
+        archived: tab === 'done' ? 'true' : 'false',
         limit: '100',
       });
       setItems(res.items);
       setTotal(res.total);
+      // Counts pro Tab fürs Badge — zwei Mini-Calls parallel zum Haupt-Load.
+      // Limit=1 reicht weil nur res.total interessant ist; spart Payload.
+      const [openRes, doneRes] = await Promise.all([
+        salesApi.listOrders({ archived: 'false', limit: '1' }),
+        salesApi.listOrders({ archived: 'true', limit: '1' }),
+      ]);
+      setOpenCount(openRes.total);
+      setDoneCount(doneRes.total);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [urgency, status]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [urgency, status, tab]);
 
   const counts = useMemo(() => ({
     total,
@@ -44,7 +58,11 @@ export default function SalesOrdersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Verkauf"
-        subtitle={`${counts.total} Bestellungen gesamt — ${counts.urgent} dringend, ${counts.overdue} in Verzug`}
+        subtitle={
+          tab === 'open'
+            ? `${counts.total} offene Bestellungen — ${counts.urgent} dringend, ${counts.overdue} in Verzug`
+            : `${counts.total} abgeschlossene Bestellungen`
+        }
         actions={
           <div className="flex gap-2">
             <Link href="/sales/import" className={btn('secondary')}>
@@ -57,6 +75,25 @@ export default function SalesOrdersPage() {
         }
       />
 
+      {/* Tabs: Offen / Abgeschlossen. shippedAt entscheidet — alles mit
+          gesetztem Versand-Datum landet im Abgeschlossen-Tab. */}
+      <div className="flex items-center gap-1 border-b border-gray-200 dark:border-white/8">
+        <TabButton
+          active={tab === 'open'}
+          onClick={() => setTab('open')}
+          icon={<Inbox className="h-4 w-4" />}
+          label="Offen"
+          count={openCount}
+        />
+        <TabButton
+          active={tab === 'done'}
+          onClick={() => setTab('done')}
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          label="Abgeschlossen"
+          count={doneCount}
+        />
+      </div>
+
       {/* Filter-Leiste */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3">
         <input
@@ -66,15 +103,19 @@ export default function SalesOrdersPage() {
           placeholder="Suche: Bestellnummer, Kunde …"
           className="flex-1 min-w-[200px] rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
         />
-        <select
-          value={urgency}
-          onChange={(e) => setUrgency(e.target.value as UrgencyFilter)}
-          className="rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1.5 text-sm"
-        >
-          <option value="all">Alle</option>
-          <option value="urgent">Dringend (≤3 Tage)</option>
-          <option value="overdue">In Verzug</option>
-        </select>
+        {/* Urgency-Filter nur im Offen-Tab — abgeschlossene Bestellungen
+            können nicht mehr "dringend" sein. */}
+        {tab === 'open' && (
+          <select
+            value={urgency}
+            onChange={(e) => setUrgency(e.target.value as UrgencyFilter)}
+            className="rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1.5 text-sm"
+          >
+            <option value="all">Alle</option>
+            <option value="urgent">Dringend (≤3 Tage)</option>
+            <option value="overdue">In Verzug</option>
+          </select>
+        )}
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as any)}
@@ -164,6 +205,44 @@ export default function SalesOrdersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function TabButton({
+  active, onClick, icon, label, count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  count: number | null;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-2 px-4 py-2.5 -mb-px text-sm font-medium transition-colors border-b-2',
+        active
+          ? 'border-primary-600 text-primary-600 dark:text-primary-400'
+          : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
+      )}
+    >
+      {icon}
+      {label}
+      {count !== null && (
+        <span
+          className={cn(
+            'inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold tabular-nums',
+            active
+              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
+              : 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-400',
+          )}
+        >
+          {count}
+        </span>
+      )}
+    </button>
   );
 }
 
