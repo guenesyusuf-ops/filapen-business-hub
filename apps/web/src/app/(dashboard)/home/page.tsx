@@ -32,6 +32,13 @@ import {
   Bell,
   X,
 } from 'lucide-react';
+// Phosphor Duotone-Icons geben optische Tiefe durch zwei Farblayer —
+// die sehen sofort premium aus. Nur für WOW-Bereiche (KPI-Cards, Hero).
+import {
+  ListChecks as PhListChecks,
+  Clock as PhClock,
+  CheckCircle as PhCheckCircle,
+} from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { OnlineUsersWidget } from '@/components/home/OnlineUsersWidget';
 import { PendingApprovalsWidget } from '@/components/home/PendingApprovalsWidget';
@@ -93,40 +100,48 @@ function GreetingCard() {
   const greeting = greetingFor();
   const message = messageForToday();
 
-  return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-500 via-primary-600 to-accent-creator text-white p-7 shadow-card-primary">
-      {/* Dekorative Mesh-Overlay-Schicht für subtile Tiefe */}
-      <div className="absolute inset-0 bg-mesh opacity-60 pointer-events-none" />
-      {/* Floating Blur-Kreise für Premium-Look */}
-      <div className="absolute -top-20 -right-10 w-64 h-64 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-accent-creator/30 blur-3xl pointer-events-none" />
+  const now = new Date();
+  const weekday = now.toLocaleDateString('de-DE', { weekday: 'long' });
+  const dateLong = now.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
 
-      <div className="relative flex items-center gap-5">
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-bento">
+      {/* Mesh-Gradient nur als DEZENTE Akzent-Ebene im oberen rechten Quadranten,
+          nicht flächig — dadurch viel weniger Lila insgesamt */}
+      <div className="absolute top-0 right-0 w-[60%] h-full bg-mesh opacity-70 pointer-events-none" />
+      {/* Grain-Overlay für Premium-Haptik */}
+      <div
+        className="absolute inset-0 opacity-[0.015] dark:opacity-[0.04] pointer-events-none mix-blend-overlay"
+        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }}
+      />
+
+      <div className="relative p-7 md:p-9 flex items-start gap-6">
         {user?.avatarUrl ? (
           <img
             src={user.avatarUrl}
             alt={firstName}
-            className="h-16 w-16 rounded-2xl object-cover border-2 border-white/40 shadow-glow-soft"
+            className="h-14 w-14 rounded-2xl object-cover ring-2 ring-gray-100 dark:ring-white/10"
           />
         ) : (
-          <div className="h-16 w-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border-2 border-white/40 shadow-glow-soft">
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary-500 to-accent-creator flex items-center justify-center shadow-glow-soft">
             <span className="text-xl font-bold text-white">{initial}</span>
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <h1 className="font-display-serif text-3xl sm:text-4xl font-medium leading-tight tracking-tight">
-            {greeting}, <span className="italic">{firstName}</span>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 font-semibold mb-2">
+            {greeting}
+          </p>
+          <h1 className="font-display-serif text-4xl md:text-5xl font-medium leading-[1.05] tracking-tight text-gray-900 dark:text-white">
+            {firstName}<span className="text-accent-creator">.</span>
           </h1>
-          <p className="text-sm text-white/85 mt-2">{message}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-3 max-w-xl">{message}</p>
         </div>
-        <div className="hidden md:block text-right">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold">Heute</p>
-          <p className="font-display-serif text-xl font-medium mt-1">
-            {new Date().toLocaleDateString('de-DE', { weekday: 'long' })}
+        <div className="hidden md:block text-right flex-shrink-0">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-semibold">{weekday}</p>
+          <p className="font-display-serif text-3xl font-medium mt-1 text-gray-900 dark:text-white tracking-tight">
+            {now.getDate()}
           </p>
-          <p className="text-xs text-white/70 mt-0.5">
-            {new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })}
-          </p>
+          <p className="text-[11px] text-gray-500 mt-0.5">{dateLong.split(' ').slice(1).join(' ')}</p>
         </div>
       </div>
     </div>
@@ -147,7 +162,7 @@ function TasksWidget() {
     <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
-          <ClipboardList className="h-4 w-4 text-primary-500" />
+          <ClipboardList className="h-4 w-4 text-accent-work" />
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Meine Aufgaben</h2>
           {open.length > 0 && (
             <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-[10px] font-bold text-primary-700 dark:text-primary-300">
@@ -255,7 +270,7 @@ function CalendarWidget() {
     <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-primary-500" />
+          <Calendar className="h-4 w-4 text-accent-purchase" />
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Kalender</h2>
         </div>
         <button
@@ -507,7 +522,7 @@ function NotesWidget() {
     <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
-          <StickyNote className="h-4 w-4 text-primary-500" />
+          <StickyNote className="h-4 w-4 text-accent-content" />
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Notizen</h2>
           {notes.length > 0 && (
             <span className="ml-1 inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary-100 dark:bg-primary-900/40 text-[10px] font-bold text-primary-700 dark:text-primary-300">
@@ -649,22 +664,63 @@ function QuickStats() {
     (t) => !t.completed && t.dueDate?.split('T')[0] === todayStr,
   ).length;
 
+  // Phosphor-Duotone-Icons statt Lucide Lines — wirken durch die zwei
+  // Farblayer direkt "premium". Jede KPI hat eigene Modul-Farbe und eigenes
+  // Icon-Gradient-Tinting.
   const items = [
-    { label: 'Offene Aufgaben', value: open, icon: ClipboardList, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    { label: 'Heute fällig', value: dueToday, icon: Clock, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-    { label: 'Heute erledigt', value: completedToday, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+    {
+      label: 'Offene Aufgaben', value: open,
+      Icon: PhListChecks,
+      tint: 'from-accent-purchase/15 to-accent-purchase/5',
+      iconColor: 'text-accent-purchase',
+      ring: 'ring-accent-purchase/20',
+    },
+    {
+      label: 'Heute fällig', value: dueToday,
+      Icon: PhClock,
+      tint: 'from-accent-sales/15 to-accent-sales/5',
+      iconColor: 'text-accent-sales',
+      ring: 'ring-accent-sales/20',
+    },
+    {
+      label: 'Heute erledigt', value: completedToday,
+      Icon: PhCheckCircle,
+      tint: 'from-accent-finance/15 to-accent-finance/5',
+      iconColor: 'text-accent-finance',
+      ring: 'ring-accent-finance/20',
+    },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {items.map((it) => (
-        <div key={it.label} className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 p-4 flex items-center gap-3">
-          <div className={cn('h-10 w-10 rounded-lg flex items-center justify-center', it.bg)}>
-            <it.icon className={cn('h-5 w-5', it.color)} />
+        <div
+          key={it.label}
+          className={cn(
+            'group relative overflow-hidden rounded-2xl bg-white dark:bg-[var(--card-bg)]',
+            'border border-gray-200/70 dark:border-white/8 shadow-card hover:shadow-card-hover',
+            'transition-all duration-300 hover:-translate-y-0.5',
+            'p-5',
+          )}
+        >
+          {/* Gradient-Tint im Hintergrund — dezent, nur sichtbar wenn man hinschaut */}
+          <div className={cn('absolute inset-0 bg-gradient-to-br opacity-60 pointer-events-none', it.tint)} />
+
+          <div className="relative flex items-start justify-between">
+            <div className={cn(
+              'h-12 w-12 rounded-2xl bg-white dark:bg-white/5 flex items-center justify-center',
+              'ring-1', it.ring, 'shadow-sm',
+            )}>
+              <it.Icon className={cn('h-6 w-6', it.iconColor)} weight="duotone" />
+            </div>
           </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none">{it.value}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{it.label}</p>
+          <div className="relative mt-4">
+            <p className="font-display-serif text-5xl font-medium tracking-tight text-gray-900 dark:text-white leading-none">
+              {it.value}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 font-medium uppercase tracking-wider">
+              {it.label}
+            </p>
           </div>
         </div>
       ))}

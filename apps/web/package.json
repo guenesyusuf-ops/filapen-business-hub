@@ -15,6 +15,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@filapen/shared": "*",
     "@hookform/resolvers": "^3.3.0",
+    "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
     "@radix-ui/react-popover": "^1.0.7",

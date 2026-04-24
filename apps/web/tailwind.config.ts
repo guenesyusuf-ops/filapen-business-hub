@@ -8,20 +8,32 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Primary: Vibrant Indigo-Violet — das neue Signatur-Lila
-        // Light mode: tief sattes Lila  |  Dark mode: heller zum Kontrast
+        // Primary: Warmes Anthrazit/Schwarz (Notion/Attio-Style) statt dominant Lila.
+        // Die Vibrancy kommt durch die Modul-Akzente (unten), nicht durch
+        // die Primary-Flächenfarbe. Feinere, ruhigere Optik mit mehr Tiefe.
         primary: {
+          50: '#F6F5F3',
+          100: '#EBE9E5',
+          200: '#D6D3CC',
+          300: '#B5B0A6',
+          400: '#8D877B',
+          500: '#2B2823',     // Hauptton — warmes tiefes Anthrazit
+          600: '#1F1D19',     // Hover
+          700: '#181612',     // Pressed
+          800: '#13110E',
+          900: '#0D0B09',
+          950: '#070604',
+          DEFAULT: '#2B2823',
+        },
+        // Das Lila bleibt verfügbar als eigener Akzent (nicht mehr Primary):
+        accent: {
           50: '#F4F1FF',
           100: '#E9E3FF',
           200: '#D0C3FF',
-          300: '#B09AFF',
           400: '#8C6FFF',
-          500: '#6548FF',  // Haupt-Primary, deutlich lebendiger als alte Blau-Variante
+          500: '#6548FF',
           600: '#5234E5',
           700: '#4327BC',
-          800: '#361F94',
-          900: '#2B1877',
-          950: '#1A0D4E',
           DEFAULT: '#6548FF',
         },
         // Module-Akzentfarben — jedes Hub/Modul hat seine Signaturfarbe

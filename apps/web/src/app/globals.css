@@ -78,8 +78,9 @@ html {
 
 @layer base {
   :root {
-    /* Primary: Vibrant Indigo-Violet (#6548FF) */
-    --color-primary: 101 72 255;
+    /* Primary: Warmes Anthrazit (#2B2823) — Notion/Attio-Style.
+       Lila bleibt als Akzent via --color-accent-* verfügbar. */
+    --color-primary: 43 40 35;
     --color-primary-foreground: 255 255 255;
 
     /* Surfaces — Light Mode: warm off-white (Notion + Misso mix) */
