@@ -161,38 +161,37 @@ export class SalesCustomerService {
       if (byName) return byName;
     }
 
-    // 4. / 5. Adress-basiertes Matching
+    // 4. / 5. Adress-basiertes Matching — JSON-Path-Filter ist in Prisma für
+    // PG nicht reliably → wir machen das rein In-Memory. Das skaliert bis ca.
+    // 10k Kunden ohne Probleme; danach lohnt sich ein generated column + index.
     const addr = hints.billingAddress;
     const zip = addr?.zip?.toString().trim();
     const street = addr?.address1?.toString().trim();
     if (zip && street) {
-      // 4. Firma + Adresse
-      if (nameNormalized) {
-        const byNameAddr = await this.prisma.salesCustomer.findMany({
-          where: {
-            orgId,
-            companyName: { contains: nameNormalized.split(' ')[0], mode: 'insensitive' },
-            billingAddress: { path: ['zip'], equals: zip } as any,
-          },
-          take: 2,
-        });
-        // Nur zusammenführen wenn EINDEUTIG — bei mehreren Kandidaten Fallback auf neu anlegen
-        if (byNameAddr.length === 1) return byNameAddr[0];
+      const allCustomers = await this.prisma.salesCustomer.findMany({
+        where: { orgId },
+        select: { id: true, companyName: true, billingAddress: true, shippingAddress: true },
+      });
+      const firstWord = nameNormalized ? nameNormalized.split(' ')[0].toLowerCase() : '';
+      const matchesAddr = (c: any) => {
+        const a = (c.billingAddress || c.shippingAddress) as any;
+        if (!a) return false;
+        const aZip = a.zip?.toString().trim();
+        const aStreet = a.address1?.toString().trim().toLowerCase();
+        return aZip === zip && aStreet === street.toLowerCase();
+      };
+      if (firstWord) {
+        const byNameAddr = allCustomers.filter(
+          (c) => c.companyName.toLowerCase().includes(firstWord) && matchesAddr(c),
+        );
+        if (byNameAddr.length === 1) {
+          return this.prisma.salesCustomer.findUnique({ where: { id: byNameAddr[0].id } });
+        }
       }
-
-      // 5. nur Adresse
-      const byAddr = await this.prisma.salesCustomer.findMany({
-        where: {
-          orgId,
-          billingAddress: { path: ['zip'], equals: zip } as any,
-        },
-        take: 5,
-      });
-      const exactAddr = byAddr.filter((c) => {
-        const a = c.billingAddress as any;
-        return a?.address1 && String(a.address1).trim().toLowerCase() === street.toLowerCase();
-      });
-      if (exactAddr.length === 1) return exactAddr[0];
+      const byAddr = allCustomers.filter(matchesAddr);
+      if (byAddr.length === 1) {
+        return this.prisma.salesCustomer.findUnique({ where: { id: byAddr[0].id } });
+      }
     }
 
     return null;

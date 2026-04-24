@@ -119,10 +119,12 @@ export class SalesOrderService {
 
     // On-the-fly Matching: wenn matchedVariant NULL ist aber ean/supplier-
     // ArticleNumber gesetzt, lookup via ProductVariant.barcode oder .sku.
-    // So sehen Kachel-Bilder auch für Line-Items erscheinen, die VOR dem
-    // nachträglichen EAN-Eintrag importiert wurden. Batch-Lookup damit's
-    // performant bleibt.
-    await this.enrichLineItemVariants(orgId, items as any[]);
+    // Defensiv: Fehler hier dürfen NIEMALS die Order-Liste leer liefern.
+    try {
+      await this.enrichLineItemVariants(orgId, items as any[]);
+    } catch (err: any) {
+      this.logger.warn(`enrichLineItemVariants failed (non-fatal): ${err.message}`);
+    }
 
     return { items, total };
   }
@@ -146,20 +148,25 @@ export class SalesOrderService {
 
     const eans = Array.from(new Set(unmatched.map((li) => li.ean).filter(Boolean))) as string[];
     const skus = Array.from(new Set(unmatched.map((li) => li.supplierArticleNumber).filter(Boolean))) as string[];
+    // Defensiv: ohne Query-Kriterien nicht anfragen (Prisma wirft bei OR: [])
+    if (eans.length === 0 && skus.length === 0) return;
 
-    const variants = await this.prisma.productVariant.findMany({
-      where: {
-        orgId,
-        OR: [
-          eans.length ? { barcode: { in: eans } } : undefined,
-          skus.length ? { sku: { in: skus } } : undefined,
-        ].filter(Boolean) as any[],
-      },
-      select: {
-        id: true, sku: true, barcode: true,
-        product: { select: { id: true, title: true, imageUrl: true } },
-      },
-    });
+    // Zwei separate Queries statt OR — einfacher und risikofrei
+    const variants: any[] = [];
+    if (eans.length > 0) {
+      const byEan = await this.prisma.productVariant.findMany({
+        where: { orgId, barcode: { in: eans } },
+        select: { id: true, sku: true, barcode: true, product: { select: { id: true, title: true, imageUrl: true } } },
+      });
+      variants.push(...byEan);
+    }
+    if (skus.length > 0) {
+      const bySkuList = await this.prisma.productVariant.findMany({
+        where: { orgId, sku: { in: skus } },
+        select: { id: true, sku: true, barcode: true, product: { select: { id: true, title: true, imageUrl: true } } },
+      });
+      variants.push(...bySkuList);
+    }
 
     // Index by barcode AND by sku für schnelle Zuordnung
     const byBarcode = new Map<string, any>();
@@ -182,6 +189,10 @@ export class SalesOrderService {
   }
 
   async get(orgId: string, id: string) {
+    // Defensiv: shipments-Relation wurde erst in einem späteren Schema-Update
+    // hinzugefügt. Falls Railway's Prisma-Client aus irgendeinem Grund (Cache)
+    // die Relation nicht kennt, würde die ganze Order-Detail-Seite brechen.
+    // Erst Basis-Query, dann Shipments separat mit try/catch.
     const order = await this.prisma.salesOrder.findFirst({
       where: { id, orgId },
       include: {
@@ -189,11 +200,21 @@ export class SalesOrderService {
         lineItems: { orderBy: { position: 'asc' } },
         documents: { orderBy: { uploadedAt: 'desc' } },
         events: { orderBy: { createdAt: 'desc' }, take: 50 },
-        shipments: { orderBy: { shippedAt: 'desc' } },
       },
     });
     if (!order) throw new NotFoundException('Bestellung nicht gefunden');
-    return order;
+
+    let shipments: any[] = [];
+    try {
+      shipments = await this.prisma.salesOrderShipment.findMany({
+        where: { orderId: id, orgId },
+        orderBy: { shippedAt: 'desc' },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Shipments-Query failed (non-fatal): ${err.message}`);
+    }
+
+    return { ...order, shipments };
   }
 
   async create(orgId: string, userId: string, data: SalesOrderInput) {

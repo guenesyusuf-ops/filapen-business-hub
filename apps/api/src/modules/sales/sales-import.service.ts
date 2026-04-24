@@ -212,13 +212,20 @@ export class SalesImportService {
     }
 
     // Auto-match customer — Priorität: easybill-Nummer, dann externe Nr,
-    // dann E-Mail, dann Firmenname, dann Adresse (Straße+PLZ)
-    const matched = await this.customers.findMatching(orgId, {
-      externalCustomerNumber: extracted.supplierNumber,
-      email: email || null,
-      companyName: companyName || null,
-      billingAddress: extracted.billingAddress,
-    });
+    // dann E-Mail, dann Firmenname, dann Adresse (Straße+PLZ). Fehler beim
+    // Matching darf NIE den Import blockieren — dann wird halt ein neuer
+    // Kunde vorgeschlagen.
+    let matched: any = null;
+    try {
+      matched = await this.customers.findMatching(orgId, {
+        externalCustomerNumber: extracted.supplierNumber,
+        email: email || null,
+        companyName: companyName || null,
+        billingAddress: extracted.billingAddress,
+      });
+    } catch (err: any) {
+      this.logger.warn(`Customer-Match fehlgeschlagen (non-fatal): ${err.message}`);
+    }
 
     // Auto-match line items via EAN or supplier article number → ProductVariant
     const matchedLineItems: ImportResult['matchedLineItems'] = [];
