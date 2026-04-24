@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { TrendingUp, AlertTriangle, Clock, FileText } from 'lucide-react';
 import { salesApi, fmtMoney } from '@/lib/sales';
 import { PageHeader, KpiCard } from '@/components/sales/SalesUI';
+import { MonthlyRevenueChart } from '@/components/sales/MonthlyRevenueChart';
 
 export default function SalesDashboardPage() {
   const [kpi, setKpi] = useState<{ open: number; urgent: number; overdue: number; monthRevenue: number } | null>(null);
@@ -41,6 +42,8 @@ export default function SalesDashboardPage() {
           icon={<TrendingUp className="h-4 w-4 text-green-500" />}
         />
       </div>
+
+      <MonthlyRevenueChart />
 
       {urgentOrders.length > 0 && (
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-4">

@@ -43,12 +43,15 @@ function relativeTime(iso: string): string {
   return `${days}d`;
 }
 
+// Categorical icon styling — uses theme tokens so colors follow the user's
+// chosen palette. dm bleibt emerald (semantic für "Nachricht erfolgreich"),
+// alles andere folgt den 4 Theme-Akzent-Rollen.
 const ICON_MAP = {
-  approval: { icon: ShieldCheck, color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' },
+  approval: { icon: ShieldCheck, color: 'bg-theme-3/15 dark:bg-theme-3/25 text-theme-3' },
   task: { icon: ClipboardList, color: 'bg-primary-100 dark:bg-primary-900/30 text-primary-600' },
-  comment: { icon: MessageSquare, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' },
+  comment: { icon: MessageSquare, color: 'bg-theme-1/20 dark:bg-theme-1/25 text-primary-600' },
   dm: { icon: MessageSquare, color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' },
-  mention: { icon: AtSign, color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' },
+  mention: { icon: AtSign, color: 'bg-theme-4/15 dark:bg-theme-4/25 text-theme-4' },
 };
 
 export function ShortcutInbox() {

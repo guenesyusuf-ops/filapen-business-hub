@@ -20,6 +20,19 @@ async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
 export const salesApi = {
   dashboard: () => call<{ open: number; urgent: number; overdue: number; monthRevenue: number }>('/dashboard'),
 
+  yearly: (year?: number) => {
+    const p = new URLSearchParams();
+    if (year) p.set('year', String(year));
+    return call<{
+      year: number;
+      total: number;
+      totalCount: number;
+      totalAllTime: number;
+      totalAllTimeCount: number;
+      byMonth: Array<{ month: number; revenue: number; orderCount: number }>;
+    }>(`/dashboard/yearly${p.toString() ? `?${p.toString()}` : ''}`);
+  },
+
   // Customers
   listCustomers: (q: Record<string, string | undefined> = {}) => {
     const p = new URLSearchParams();

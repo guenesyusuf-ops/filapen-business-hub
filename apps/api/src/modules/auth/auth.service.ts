@@ -58,6 +58,7 @@ export interface AuthResponse {
     orgId: string;
     menuPermissions: string[];
     mustChangePassword: boolean;
+    themePreset: string;
   };
 }
 
@@ -455,6 +456,11 @@ export class AuthService {
         orgId: user.orgId,
         menuPermissions: user.menuPermissions ?? [],
         mustChangePassword: user.mustChangePassword ?? false,
+        // Theme-Preset MUSS hier sein damit der useThemePreset-Hook nach Login
+        // die richtige Palette appliziert. Ohne das fällt jeder User nach
+        // Login auf "standard" zurück bis /me erfolgreich fetcht — und in der
+        // Zwischenzeit wirken die Theme-Klassen wie nicht funktionierend.
+        themePreset: user.themePreset ?? 'standard',
       },
     };
   }

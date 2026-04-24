@@ -786,7 +786,7 @@ export default function DashboardLayout({
   if (!authChecked) {
     return (
       <div className="flex h-screen items-center justify-center bg-surface-secondary dark:bg-[#0f1117]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-theme-2 border-t-transparent" />
       </div>
     );
   }

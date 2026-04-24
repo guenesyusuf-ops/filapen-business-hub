@@ -16,12 +16,12 @@ export function PendingApprovalsWidget() {
   if (pending.length === 0) return null;
 
   return (
-    <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-amber-200 dark:border-amber-900/30 shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-amber-100 dark:border-amber-900/20 bg-amber-50/50 dark:bg-amber-900/10">
+    <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-theme-3/30 dark:border-theme-3/30 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-theme-3/20 dark:border-theme-3/20 bg-theme-3/10 dark:bg-theme-3/10">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-amber-600" />
+          <ShieldCheck className="h-4 w-4 text-theme-3" />
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Warten auf Genehmigung</h2>
-          <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-amber-500 text-[10px] font-bold text-white">
+          <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-theme-3 text-[10px] font-bold text-white">
             {pending.length}
           </span>
         </div>
@@ -39,11 +39,11 @@ export function PendingApprovalsWidget() {
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{item.title}</p>
                 <p className="text-[10px] text-gray-500 dark:text-gray-400">
                   {item.projectName} · von {item.createdByName} · {item.progress} genehmigt
-                  {item.version > 1 && <span className="ml-1 text-amber-600 font-semibold">V{item.version}</span>}
+                  {item.version > 1 && <span className="ml-1 text-theme-3 font-semibold">V{item.version}</span>}
                 </p>
               </div>
               {item.deadline && (
-                <span className="flex items-center gap-1 text-[10px] text-orange-500 flex-shrink-0">
+                <span className="flex items-center gap-1 text-[10px] text-theme-4 flex-shrink-0">
                   <Clock className="h-3 w-3" />
                   Deadline
                 </span>

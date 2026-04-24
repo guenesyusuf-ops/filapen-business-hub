@@ -37,6 +37,20 @@ export class SalesController {
     return this.orders.dashboard(orgId);
   }
 
+  // Monats-Aggregation fürs Linien-Chart. ?year=YYYY (default: aktuelles Jahr).
+  @Get('dashboard/yearly')
+  async dashboardYearly(
+    @Headers('authorization') authHeader: string,
+    @Query('year') year?: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    if (!Number.isFinite(yearNum) || yearNum < 2000 || yearNum > 2100) {
+      throw new BadRequestException('year muss eine gültige Jahreszahl sein');
+    }
+    return this.orders.yearly(orgId, yearNum);
+  }
+
   // ==========================================================
   // Export (CSV)
   // ==========================================================

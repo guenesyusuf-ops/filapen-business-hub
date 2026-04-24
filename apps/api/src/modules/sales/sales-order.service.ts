@@ -539,6 +539,73 @@ export class SalesOrderService {
   }
 
   /**
+   * Monatlicher Umsatz für ein Jahr — feedet das Linien-Chart auf dem
+   * Verkauf-Dashboard. Gruppiert in SQL via date_trunc/EXTRACT damit auch
+   * bei tausenden Bestellungen schnell ist. Stornierte Bestellungen
+   * werden ausgeschlossen weil sie keinen real-Umsatz darstellen.
+   *
+   * Rückgabe enthält alle 12 Monate (zero-filled wenn kein Umsatz),
+   * den Jahres-Total und den All-Time-Total für den Footer.
+   */
+  async yearly(orgId: string, year: number) {
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year + 1, 0, 1);
+
+    type Row = { month: number; revenue: string; order_count: bigint };
+    const rows = await this.prisma.$queryRaw<Row[]>`
+      SELECT
+        EXTRACT(MONTH FROM "created_at")::int AS month,
+        COALESCE(SUM("total_net"), 0)::text AS revenue,
+        COUNT(*)::bigint AS order_count
+      FROM "sales_orders"
+      WHERE "org_id" = ${orgId}::uuid
+        AND "created_at" >= ${yearStart}
+        AND "created_at" < ${yearEnd}
+        AND "status" != 'cancelled'
+      GROUP BY EXTRACT(MONTH FROM "created_at")
+      ORDER BY month
+    `;
+
+    // Zero-fill für alle 12 Monate damit das Chart eine durchgängige Linie
+    // zeigen kann (sonst springt es bei Lücken).
+    const byMonth = Array.from({ length: 12 }, (_, i) => ({
+      month: i,
+      revenue: 0,
+      orderCount: 0,
+    }));
+    for (const r of rows) {
+      const idx = Number(r.month) - 1;
+      if (idx >= 0 && idx < 12) {
+        byMonth[idx] = {
+          month: idx,
+          revenue: Number(r.revenue),
+          orderCount: Number(r.order_count),
+        };
+      }
+    }
+
+    const total = byMonth.reduce((acc, m) => acc + m.revenue, 0);
+    const totalCount = byMonth.reduce((acc, m) => acc + m.orderCount, 0);
+
+    // All-Time Gesamtsumme (alle Jahre, ohne Cancelled) — für den Footer
+    // unten rechts. Single aggregate query, billig.
+    const allTimeRaw = await this.prisma.salesOrder.aggregate({
+      where: { orgId, status: { not: 'cancelled' } },
+      _sum: { totalNet: true },
+      _count: { _all: true },
+    });
+
+    return {
+      year,
+      total,
+      totalCount,
+      totalAllTime: Number(allTimeRaw._sum.totalNet ?? 0),
+      totalAllTimeCount: allTimeRaw._count._all,
+      byMonth,
+    };
+  }
+
+  /**
    * Dashboard KPIs — counters for the landing card grid.
    */
   async dashboard(orgId: string) {

@@ -16,8 +16,11 @@ export const metadata: Metadata = {
 };
 
 // Inline script that runs before React hydrates — prevents flash of wrong theme.
-// Reads the persisted Zustand store from localStorage and sets the `dark` class
-// on <html> synchronously so Tailwind dark: variants are active from the first paint.
+// Setzt synchron sowohl die `dark` class (light/dark) als auch das
+// `data-theme` Attribut (color-preset). Liest dafür das Zustand-Auth-Store
+// aus localStorage damit das Farbschema schon ab dem ersten Paint stimmt
+// (sonst wirkt der Theme-Wechsel "broken" weil jeder Page-Load erst mal
+// auf Standard zurückfällt bis /me fetcht und der Hook reagiert).
 const themeScript = `
 (function(){
   try {
@@ -26,6 +29,15 @@ const themeScript = `
       var t = JSON.parse(s).state?.theme;
       if (t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme:dark)').matches)) {
         document.documentElement.classList.add('dark');
+      }
+    }
+  } catch(e){}
+  try {
+    var a = localStorage.getItem('filapen-auth');
+    if (a) {
+      var preset = JSON.parse(a).state?.user?.themePreset;
+      if (preset && preset !== 'standard') {
+        document.documentElement.setAttribute('data-theme', preset);
       }
     }
   } catch(e){}

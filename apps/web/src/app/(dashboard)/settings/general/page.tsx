@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Save, Building2, Globe, Clock, Calendar, Palette } from 'lucide-react';
+import { Save, Building2, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useThemeStore } from '@/stores/theme';
 import { useLanguageStore } from '@/stores/language';
 import { useFinanceUI } from '@/stores/finance-ui';
 
@@ -29,7 +28,6 @@ const FISCAL_MONTHS = [
 ];
 
 export default function GeneralSettingsPage() {
-  const { theme, setTheme } = useThemeStore();
   const { locale, setLocale } = useLanguageStore();
   const { currency, setCurrency } = useFinanceUI();
 
@@ -143,36 +141,6 @@ export default function GeneralSettingsPage() {
               <option value="en">English</option>
               <option value="de">Deutsch</option>
             </select>
-          </div>
-        </div>
-      </section>
-
-      {/* Appearance */}
-      <section className="rounded-xl bg-white dark:bg-[var(--card-bg)] shadow-card dark:shadow-[var(--card-shadow)] p-6 space-y-5">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-          <Palette className="h-4 w-4 text-primary-500" />
-          Appearance
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-            Theme
-          </label>
-          <div className="flex gap-2">
-            {(['light', 'dark', 'system'] as const).map((opt) => (
-              <button
-                key={opt}
-                onClick={() => setTheme(opt)}
-                className={cn(
-                  'px-4 py-2 rounded-lg text-sm font-medium transition-all border',
-                  theme === opt
-                    ? 'bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300'
-                    : 'bg-white dark:bg-white/5 border-border dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10',
-                )}
-              >
-                {opt.charAt(0).toUpperCase() + opt.slice(1)}
-              </button>
-            ))}
           </div>
         </div>
       </section>

@@ -106,12 +106,20 @@ function GreetingCard() {
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-bento">
-      {/* Basis-Mesh auf voller Breite, unten drunter */}
-      <div className="absolute inset-0 bg-mesh pointer-events-none" />
-      {/* Weicher horizontaler Fade: links fast reines Weiss, rechts
-          transparent — lässt das Mesh von rechts "ins" Weiss einfließen,
-          kein harter Bruch, gleiche Logik für Light + Dark via Card-BG. */}
-      <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-white via-white/70 to-transparent dark:from-[var(--card-bg)] dark:via-[color:var(--card-bg)]/70 dark:to-transparent" />
+      {/* Theme-Sättigungs-Layer: stark sichtbarer Akzent-Gradient damit der
+          Theme-Wechsel sofort auffällt (Standard zu Mystic = navy → tiefes
+          Lila). Kombiniert mit dem subtileren Mesh oben drauf. */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-90"
+        style={{
+          backgroundImage:
+            'linear-gradient(110deg, transparent 0%, transparent 35%, rgb(var(--accent-1) / 0.25) 60%, rgb(var(--accent-3) / 0.35) 85%, rgb(var(--accent-4) / 0.4) 100%)',
+        }}
+      />
+      <div className="absolute inset-0 bg-mesh pointer-events-none opacity-90" />
+      {/* Weicher Fade nur auf der linken ~40% damit der Avatar-/Greeting-
+          Bereich lesbar bleibt — Theme-Akzent zeigt sich rechts deutlich. */}
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-white via-white/85 to-transparent dark:from-[var(--card-bg)] dark:via-[color:var(--card-bg)]/85 dark:to-transparent" style={{ backgroundSize: '60% 100%', backgroundRepeat: 'no-repeat' }} />
       {/* Grain-Overlay für Premium-Haptik */}
       <div
         className="absolute inset-0 opacity-[0.015] dark:opacity-[0.04] pointer-events-none mix-blend-overlay"
@@ -667,30 +675,30 @@ function QuickStats() {
     (t) => !t.completed && t.dueDate?.split('T')[0] === todayStr,
   ).length;
 
-  // Phosphor-Duotone-Icons statt Lucide Lines — wirken durch die zwei
-  // Farblayer direkt "premium". Jede KPI hat eigene Modul-Farbe und eigenes
-  // Icon-Gradient-Tinting.
+  // 3 Theme-Akzent-Rollen rotieren über die Cards. Tints bei /35 alpha damit
+  // der Theme-Wechsel auf weißem Hintergrund deutlich sichtbar wird (vorher
+  // /15 war zu subtil — User hat berechtigt nichts gesehen).
   const items = [
     {
       label: 'Offene Aufgaben', value: open,
       Icon: PhListChecks,
-      tint: 'from-accent-purchase/15 to-accent-purchase/5',
-      iconColor: 'text-accent-purchase',
-      ring: 'ring-accent-purchase/20',
+      tint: 'from-theme-2/30 to-theme-2/5',
+      iconColor: 'text-theme-2',
+      ring: 'ring-theme-2/40',
     },
     {
       label: 'Heute fällig', value: dueToday,
       Icon: PhClock,
-      tint: 'from-accent-sales/15 to-accent-sales/5',
-      iconColor: 'text-accent-sales',
-      ring: 'ring-accent-sales/20',
+      tint: 'from-theme-4/30 to-theme-4/5',
+      iconColor: 'text-theme-4',
+      ring: 'ring-theme-4/40',
     },
     {
       label: 'Heute erledigt', value: completedToday,
       Icon: PhCheckCircle,
-      tint: 'from-accent-finance/15 to-accent-finance/5',
-      iconColor: 'text-accent-finance',
-      ring: 'ring-accent-finance/20',
+      tint: 'from-theme-3/30 to-theme-3/5',
+      iconColor: 'text-theme-3',
+      ring: 'ring-theme-3/40',
     },
   ];
 

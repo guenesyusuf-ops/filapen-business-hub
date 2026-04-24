@@ -26,16 +26,18 @@ export function KpiCard({
   icon?: ReactNode;
   onClick?: () => void;
 }) {
-  // Farb-Map für Ring-Container um das Icon + Gradient-Tint-Background.
-  // Gibt jeder KPI-Card ihre eigene Modul-Signatur.
+  // Farb-Map fürs Icon-Ring + Gradient-Tint. Mappt 7 Accent-Varianten auf die
+  // 4 Theme-Rollen, sodass alle Dashboards (Einkauf, Versand, Email-Marketing)
+  // automatisch dem User-Farbschema folgen. Tints bei /25-30 alpha damit der
+  // Theme-Wechsel auch auf weißem Hintergrund deutlich sichtbar ist.
   const tintMap: Record<string, { tint: string; ring: string; text: string }> = {
-    blue: { tint: 'from-blue-500/10 to-blue-500/[0.02]', ring: 'ring-blue-500/20', text: 'text-blue-500' },
-    green: { tint: 'from-emerald-500/10 to-emerald-500/[0.02]', ring: 'ring-emerald-500/20', text: 'text-emerald-500' },
-    amber: { tint: 'from-amber-500/10 to-amber-500/[0.02]', ring: 'ring-amber-500/20', text: 'text-amber-500' },
-    red: { tint: 'from-orange-500/10 to-orange-500/[0.02]', ring: 'ring-orange-500/20', text: 'text-orange-500' },
-    purple: { tint: 'from-amber-500/10 to-amber-500/[0.02]', ring: 'ring-amber-500/20', text: 'text-amber-500' },
-    indigo: { tint: 'from-blue-500/10 to-blue-500/[0.02]', ring: 'ring-blue-500/20', text: 'text-blue-500' },
-    gray: { tint: 'from-gray-400/10 to-gray-400/[0.02]', ring: 'ring-gray-400/20', text: 'text-gray-500' },
+    blue:   { tint: 'from-theme-1/30 to-theme-1/5',  ring: 'ring-theme-1/40', text: 'text-theme-1' },
+    green:  { tint: 'from-theme-3/30 to-theme-3/5',  ring: 'ring-theme-3/40', text: 'text-theme-3' },
+    amber:  { tint: 'from-theme-3/30 to-theme-3/5',  ring: 'ring-theme-3/40', text: 'text-theme-3' },
+    red:    { tint: 'from-theme-4/30 to-theme-4/5',  ring: 'ring-theme-4/40', text: 'text-theme-4' },
+    purple: { tint: 'from-theme-2/25 to-theme-2/5',  ring: 'ring-theme-2/40', text: 'text-theme-2' },
+    indigo: { tint: 'from-theme-2/25 to-theme-2/5',  ring: 'ring-theme-2/40', text: 'text-theme-2' },
+    gray:   { tint: 'from-gray-400/10 to-gray-400/[0.02]', ring: 'ring-gray-400/20', text: 'text-gray-500' },
   };
   const styles = tintMap[accent || 'gray'];
   return (

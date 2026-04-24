@@ -82,34 +82,36 @@ export function StatCards({ stats, loading, onUploadsClick }: StatCardsProps) {
   const withoutUploads = stats?.creatorsWithoutUploads ?? 0;
   const totalCreators = stats?.totalCreators ?? 0;
 
+  // 4 Theme-Rollen rotieren über die Cards damit jede Kachel optisch
+  // unterscheidbar ist und gleichzeitig der gewählten Palette folgt.
   const cards: CardDef[] = [
     {
       label: 'Creator',
       key: 'creatorCount',
-      icon: <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />,
-      gradient: 'bg-gradient-to-r from-amber-500 to-amber-500',
-      iconBg: 'bg-amber-50 dark:bg-amber-500/10',
+      icon: <Users className="h-5 w-5 text-theme-3" />,
+      gradient: 'bg-gradient-to-r from-theme-3 to-theme-3',
+      iconBg: 'bg-theme-3/10 dark:bg-theme-3/20',
     },
     {
       label: 'Produkte',
       key: 'productCount',
-      icon: <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />,
-      gradient: 'bg-gradient-to-r from-blue-500 to-sky-500',
-      iconBg: 'bg-blue-50 dark:bg-blue-500/10',
+      icon: <Package className="h-5 w-5 text-theme-1" />,
+      gradient: 'bg-gradient-to-r from-theme-1 to-theme-2',
+      iconBg: 'bg-theme-1/15 dark:bg-theme-1/20',
     },
     {
       label: 'Projekte',
       key: 'projectCount',
-      icon: <FolderOpen className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />,
-      gradient: 'bg-gradient-to-r from-emerald-500 to-sky-500',
-      iconBg: 'bg-emerald-50 dark:bg-emerald-500/10',
+      icon: <FolderOpen className="h-5 w-5 text-theme-2" />,
+      gradient: 'bg-gradient-to-r from-theme-2 to-theme-1',
+      iconBg: 'bg-theme-2/10 dark:bg-theme-2/20',
     },
     {
       label: 'Uploads',
       key: 'uploadCount',
-      icon: <Upload className="h-5 w-5 text-amber-600 dark:text-amber-400" />,
-      gradient: 'bg-gradient-to-r from-amber-500 to-orange-500',
-      iconBg: 'bg-amber-50 dark:bg-amber-500/10',
+      icon: <Upload className="h-5 w-5 text-theme-4" />,
+      gradient: 'bg-gradient-to-r from-theme-4 to-theme-3',
+      iconBg: 'bg-theme-4/10 dark:bg-theme-4/20',
       subtitle: (s) =>
         s.totalCreators > 0
           ? `${numberFormatter.format(s.creatorsWithoutUploads)} von ${numberFormatter.format(s.totalCreators)} ohne Upload`

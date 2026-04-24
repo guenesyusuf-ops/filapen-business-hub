@@ -29,31 +29,27 @@ const config: Config = {
           950: 'color-mix(in srgb, rgb(var(--accent-2)) 40%, black)',
           DEFAULT: 'rgb(var(--accent-2))',
         },
-        // Theme-Variable Accents — lesen CSS-Vars die pro data-theme gesetzt
-        // werden. Dadurch kann jeder User ein eigenes Farbschema wählen und
-        // alle Komponenten ziehen automatisch mit. Fallback: accent-rgb
-        // kommt aus :root (Standard-Palette).
-        'accent-sales':      'rgb(var(--color-accent-sales))',
-        'accent-shipping':   'rgb(var(--color-accent-shipping))',
-        'accent-finance':    'rgb(var(--color-accent-finance))',
-        'accent-creator':    'rgb(var(--color-accent-creator))',
-        'accent-work':       'rgb(var(--color-accent-work))',
-        'accent-content':    'rgb(var(--color-accent-content))',
-        'accent-email':      'rgb(var(--color-accent-email))',
-        'accent-influencer': 'rgb(var(--color-accent-influencer))',
-        'accent-purchase':   'rgb(var(--color-accent-purchase))',
-        'accent-documents':  'rgb(var(--color-accent-documents))',
-        // 4 Theme-Rollen direkt erreichbar (für Gradients etc.)
-        'theme-1': 'rgb(var(--accent-1))',
-        'theme-2': 'rgb(var(--accent-2))',
-        'theme-3': 'rgb(var(--accent-3))',
-        'theme-4': 'rgb(var(--accent-4))',
-        // Alias auf Brand für Abwärtskompatibilität
+        // Theme-Variable Accents — mit <alpha-value> Platzhalter damit Tailwind
+        // Opacity-Modifier (z.B. bg-accent-sales/15) korrekt füllt.
+        'accent-sales':      'rgb(var(--color-accent-sales) / <alpha-value>)',
+        'accent-shipping':   'rgb(var(--color-accent-shipping) / <alpha-value>)',
+        'accent-finance':    'rgb(var(--color-accent-finance) / <alpha-value>)',
+        'accent-creator':    'rgb(var(--color-accent-creator) / <alpha-value>)',
+        'accent-work':       'rgb(var(--color-accent-work) / <alpha-value>)',
+        'accent-content':    'rgb(var(--color-accent-content) / <alpha-value>)',
+        'accent-email':      'rgb(var(--color-accent-email) / <alpha-value>)',
+        'accent-influencer': 'rgb(var(--color-accent-influencer) / <alpha-value>)',
+        'accent-purchase':   'rgb(var(--color-accent-purchase) / <alpha-value>)',
+        'accent-documents':  'rgb(var(--color-accent-documents) / <alpha-value>)',
+        'theme-1': 'rgb(var(--accent-1) / <alpha-value>)',
+        'theme-2': 'rgb(var(--accent-2) / <alpha-value>)',
+        'theme-3': 'rgb(var(--accent-3) / <alpha-value>)',
+        'theme-4': 'rgb(var(--accent-4) / <alpha-value>)',
         brand: {
-          blue:   'rgb(var(--accent-1))',
-          navy:   'rgb(var(--accent-2))',
-          amber:  'rgb(var(--accent-3))',
-          orange: 'rgb(var(--accent-4))',
+          blue:   'rgb(var(--accent-1) / <alpha-value>)',
+          navy:   'rgb(var(--accent-2) / <alpha-value>)',
+          amber:  'rgb(var(--accent-3) / <alpha-value>)',
+          orange: 'rgb(var(--accent-4) / <alpha-value>)',
         },
         semantic: {
           success: '#10B981',
@@ -121,14 +117,13 @@ const config: Config = {
         'bento': '0 2px 4px rgba(17, 12, 44, 0.04), 0 12px 40px -8px rgba(17, 12, 44, 0.08)',
       },
       backgroundImage: {
-        // Hero-Gradients — harmonische 4-Farben-Palette
-        'gradient-hero': 'linear-gradient(135deg, #A9C6E0 0%, #F2A900 50%, #FF8C00 100%)',
-        'gradient-hero-subtle': 'linear-gradient(135deg, rgba(169, 198, 224, 0.25) 0%, rgba(242, 169, 0, 0.15) 50%, rgba(255, 140, 0, 0.1) 100%)',
-        'gradient-sunset': 'linear-gradient(135deg, #F2A900 0%, #FF8C00 100%)',
-        'gradient-ocean': 'linear-gradient(135deg, #A9C6E0 0%, #2C3E50 100%)',
-        'gradient-warm': 'linear-gradient(135deg, #F2A900 0%, #FF8C00 50%, #A9C6E0 100%)',
-        'gradient-hero-dark': 'linear-gradient(135deg, #2C3E50 0%, #A9C6E0 50%, #F2A900 100%)',
-        'gradient-mesh': 'radial-gradient(at 20% 30%, rgba(169, 198, 224, 0.35) 0px, transparent 50%), radial-gradient(at 80% 10%, rgba(242, 169, 0, 0.2) 0px, transparent 50%), radial-gradient(at 50% 80%, rgba(255, 140, 0, 0.15) 0px, transparent 50%)',
+        // Theme-aware Gradients — nutzen CSS-Vars, wechseln mit Theme mit.
+        'gradient-hero': 'linear-gradient(135deg, rgb(var(--accent-1)) 0%, rgb(var(--accent-3)) 50%, rgb(var(--accent-4)) 100%)',
+        'gradient-hero-subtle': 'linear-gradient(135deg, rgb(var(--accent-1) / 0.25) 0%, rgb(var(--accent-3) / 0.15) 50%, rgb(var(--accent-4) / 0.1) 100%)',
+        'gradient-sunset': 'linear-gradient(135deg, rgb(var(--accent-3)) 0%, rgb(var(--accent-4)) 100%)',
+        'gradient-ocean': 'linear-gradient(135deg, rgb(var(--accent-1)) 0%, rgb(var(--accent-2)) 100%)',
+        'gradient-warm': 'linear-gradient(135deg, rgb(var(--accent-3)) 0%, rgb(var(--accent-4)) 50%, rgb(var(--accent-1)) 100%)',
+        'gradient-hero-dark': 'linear-gradient(135deg, rgb(var(--accent-2)) 0%, rgb(var(--accent-1)) 50%, rgb(var(--accent-3)) 100%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
