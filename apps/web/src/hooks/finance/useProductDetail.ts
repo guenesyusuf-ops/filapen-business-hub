@@ -150,13 +150,15 @@ export function useUpdateVariant(productId: string) {
   return useMutation<
     ProductDetailVariant,
     Error,
-    { variantId: string; cogs?: number | null; cogsCurrency?: string | null; vatRate?: number }
+    { variantId: string; cogs?: number | null; cogsCurrency?: string | null; vatRate?: number; barcode?: string | null; sku?: string | null }
   >({
-    mutationFn: ({ variantId, cogs, cogsCurrency, vatRate }) =>
+    mutationFn: ({ variantId, cogs, cogsCurrency, vatRate, barcode, sku }) =>
       patchJson<ProductDetailVariant>(`${API_BASE}/variants/${variantId}`, {
         cogs,
         cogsCurrency,
         vatRate,
+        barcode,
+        sku,
       }),
     onMutate: async ({ variantId, cogs, cogsCurrency }) => {
       await queryClient.cancelQueries({

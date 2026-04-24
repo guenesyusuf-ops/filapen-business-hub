@@ -101,6 +101,20 @@ export const salesApi = {
   },
   confirmImport: (data: any) => call<any>('/orders/import/confirm', { method: 'POST', body: JSON.stringify(data) }),
 
+  // Export (CSV)
+  downloadExport: async (from: string, to: string): Promise<{ blob: Blob; filename: string }> => {
+    const p = new URLSearchParams({ from, to });
+    const res = await fetch(`${API_URL}/api/sales/export?${p.toString()}`, { headers: getAuthHeaders() });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
+      throw new Error(msg);
+    }
+    const filename = `verkauf-export-${from}-bis-${to}.csv`;
+    const blob = await res.blob();
+    return { blob, filename };
+  },
+
   // easybill
   easybillStatus: () => call<{ connected: boolean; error?: string }>('/easybill/status'),
   createConfirmation: (id: string) => call<any>(`/orders/${id}/easybill/create-confirmation`, { method: 'POST' }),

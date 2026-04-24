@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Filapen Tracking Platform — Produktions-Masterplan</title>
+<meta name="description" content="Produktionsreifer Masterplan für die Filapen Attribution & Tracking Platform — Ersatz und Erweiterung von Hyros, gebaut für Verkaufsfähigkeit." />
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#111418; --panel-2:#161a20; --ink:#e9edf2; --ink-dim:#a6b0bb;
+    --line:#232932; --accent:#6ee7b7; --accent-2:#60a5fa; --warn:#fbbf24; --bad:#f87171; --good:#34d399;
+    --brand:#a78bfa; --code:#0e1217;
+    --shadow:0 10px 30px rgba(0,0,0,.35), 0 2px 6px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent-2);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 80px}
+  header.hero{padding:28px 26px;background:linear-gradient(180deg,#0f1318,#0b0d10);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);margin-bottom:22px;position:relative;overflow:hidden}
+  header.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(600px 200px at 80% -10%, rgba(110,231,183,.18), transparent 60%),radial-gradient(500px 220px at 10% 120%, rgba(96,165,250,.15), transparent 60%);pointer-events:none}
+  .kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+  h1{font-size:34px;margin:0 0 8px;letter-spacing:-.02em}
+  h2{font-size:22px;margin:30px 0 12px;letter-spacing:-.01em}
+  h3{font-size:17px;margin:22px 0 10px;color:var(--ink)}
+  h4{font-size:14px;margin:14px 0 6px;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+  p{color:var(--ink-dim)} p strong,li strong{color:var(--ink)}
+  .sub{color:var(--ink-dim);max-width:900px;margin:0}
+  nav.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 20px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;position:sticky;top:10px;z-index:10;backdrop-filter:blur(6px)}
+  nav.tabs button{all:unset;cursor:pointer;padding:10px 14px;border-radius:8px;font-weight:600;font-size:13.5px;color:var(--ink-dim);transition:all .15s ease}
+  nav.tabs button:hover{color:var(--ink);background:var(--panel-2)}
+  nav.tabs button.active{color:#0b0d10;background:var(--accent)}
+  section.tab{display:none;animation:fade .25s ease}
+  section.tab.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:14px 0;box-shadow:var(--shadow)}
+  .card.tight{padding:14px 16px}
+  .grid{display:grid;gap:14px}
+  .grid.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .grid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .grid.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media(max-width:860px){.grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}}
+  .pill{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;letter-spacing:.02em;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-dim)}
+  .pill.good{color:#022c22;background:var(--good);border-color:transparent}
+  .pill.warn{color:#3b2807;background:var(--warn);border-color:transparent}
+  .pill.bad{color:#450a0a;background:var(--bad);border-color:transparent}
+  .pill.info{color:#0b2545;background:var(--accent-2);border-color:transparent}
+  .pill.brand{color:#1e1037;background:var(--brand);border-color:transparent}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+  th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--ink);font-weight:700;background:var(--panel-2);position:sticky;top:0}
+  tr:hover td{background:var(--panel-2)}
+  code, pre{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:13px}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;color:#d6e6ff;line-height:1.55}
+  code.inline{background:var(--code);padding:2px 6px;border-radius:5px;border:1px solid var(--line);color:#d6e6ff}
+  .kv{display:grid;grid-template-columns:200px 1fr;gap:8px 16px}
+  .kv div:nth-child(odd){color:var(--ink-dim)}
+  .stat{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .stat .label{color:var(--ink-dim);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+  .stat .val{font-size:26px;font-weight:700;margin-top:4px;letter-spacing:-.01em}
+  .stat .delta{font-size:12.5px;color:var(--ink-dim);margin-top:2px}
+  .callout{border-left:3px solid var(--accent);background:#0e1a17;padding:12px 16px;border-radius:8px;margin:12px 0;color:#cdeadb}
+  .callout.warn{border-color:var(--warn);background:#1c170a;color:#f5e7c4}
+  .callout.bad{border-color:var(--bad);background:#1c0c0c;color:#f8d7d7}
+  .callout.brand{border-color:var(--brand);background:#17132a;color:#e0d6ff}
+  ul.clean{list-style:none;padding:0;margin:10px 0}
+  ul.clean li{padding:8px 0;border-bottom:1px dashed var(--line);color:var(--ink-dim)}
+  ul.clean li:last-child{border-bottom:none}
+  ul.clean li strong{color:var(--ink)}
+  .phase{position:relative;padding:16px 18px 18px 22px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2);margin:12px 0}
+  .phase::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:3px;background:var(--accent)}
+  .phase.p0::before{background:#94a3b8}
+  .phase.p1::before{background:var(--accent)}
+  .phase.p2::before{background:var(--accent-2)}
+  .phase.p3::before{background:var(--brand)}
+  .phase.p4::before{background:var(--warn)}
+  .phase h3{margin-top:0}
+  .tag-row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+  footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--ink-dim);font-size:13px}
+  .progress{height:10px;background:var(--panel-2);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .progress > span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+  details.acc{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel-2);margin:8px 0}
+  details.acc > summary{cursor:pointer;font-weight:600;color:var(--ink);list-style:none}
+  details.acc > summary::-webkit-details-marker{display:none}
+  details.acc > summary::before{content:"▸ ";color:var(--accent);margin-right:4px}
+  details.acc[open] > summary::before{content:"▾ "}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel-2);color:var(--ink-dim);font-size:12px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--good);display:inline-block}
+  .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)} .dot.info{background:var(--accent-2)}
+  hr.soft{border:none;border-top:1px dashed var(--line);margin:20px 0}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:860px){.two{grid-template-columns:1fr}}
+  .ribbon{display:inline-block;background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#0b0d10;padding:4px 10px;border-radius:6px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Produktions-Masterplan · V1.0 · 22.04.2026</div>
+  <h1>Filapen Tracking Platform</h1>
+  <p class="sub">Produktionsreifer Bauplan für eine eigene Attribution &amp; Tracking Platform — als direkter Ersatz für Hyros ($3.539 / Monat) und darüber hinaus als <strong>verkaufsfähiges SaaS-Produkt</strong>. Basierend auf der vollständigen Analyse des Filapen-Hyros-Accounts (40 Screenshots, 124.306 historische Sales, 9 aktive Integrationen, echte Kampagnen-Performance Woche 15 – 21). Alle Entscheidungen sind getroffen und begründet.</p>
+  <div style="margin-top:14px">
+    <span class="ribbon">Ziel: live in 12 Wochen · verkaufsfähig in 28 Wochen</span>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="active" data-tab="t1">1 · Executive Summary</button>
+  <button data-tab="t2">2 · Current State</button>
+  <button data-tab="t3">3 · Produkt-Scope</button>
+  <button data-tab="t4">4 · Tech-Stack &amp; Architektur</button>
+  <button data-tab="t5">5 · Migration &amp; Parallel-Run</button>
+  <button data-tab="t6">6 · Go-to-Market</button>
+  <button data-tab="t7">7 · Sprint-Plan</button>
+  <button data-tab="t8">8 · Entscheidungen &amp; Risiken</button>
+</nav>
+
+<!-- ============================================================== TAB 1 -->
+<section class="tab active" id="t1">
+  <div class="card">
+    <h2 style="margin-top:0">Die Strategie in einem Satz</h2>
+    <p>Wir bauen ein <strong>EU-gehostetes First-Party Tracking- und Attributions-SaaS</strong>, das in 12 Wochen den laufenden Filapen-Betrieb von Hyros übernimmt und in 28 Wochen als verkaufsfähiges Produkt am Markt steht — mit besserer Meta-Attribution, moderner Identity Graph, KI-Attributions-Triangulation (MTA + MMM + Incrementality) und strikter DSGVO-Konformität als zentralen Verkaufs-Argumenten.</p>
+  </div>
+
+  <div class="grid c4">
+    <div class="stat">
+      <div class="label">Ziel Monat 1</div>
+      <div class="val">Parallel-Run</div>
+      <div class="delta">Eigenes Tracking neben Hyros live</div>
+    </div>
+    <div class="stat">
+      <div class="label">Ziel Monat 3</div>
+      <div class="val">Hyros aus</div>
+      <div class="delta">124k Sales migriert, Attribution gespiegelt</div>
+    </div>
+    <div class="stat">
+      <div class="label">Ziel Monat 7</div>
+      <div class="val">SaaS-Launch</div>
+      <div class="delta">Erste 10 Pilot-Kunden außerhalb Filapen</div>
+    </div>
+    <div class="stat">
+      <div class="label">Einsparung Jahr 1</div>
+      <div class="val">≈ €40k</div>
+      <div class="delta">$3.539 × 12 = $42.468 / Jahr ersetzt</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Die vier Wetten, auf denen der Plan basiert</h3>
+    <ul class="clean">
+      <li><strong>1. Filapen zuerst, SaaS danach.</strong> Wir bauen es als Single-Tenant-MVP für Filapen, refactorieren ab Phase 4 zu Multi-Tenant. Das halbiert das MVP-Risiko und gibt uns bis dahin 3 Monate echte Produktionsdaten als Case-Study.</li>
+      <li><strong>2. Meta-Attribution ist die Killer-Funktion.</strong> Die Daten zeigen: Meta macht bei dir aktuell −€128 Wochenprofit, Google +€6.745. Wenn wir Meta über sauberen CAPI-Dedup + Server-Side Click-Reconciliation +10–15 % effizienter kriegen, ist das die Story, mit der wir auch andere DACH-Advertiser überzeugen.</li>
+      <li><strong>3. EU-Hosting als Differenzierungs-Vorteil.</strong> Hyros ist US-hosted. Für DACH-Kunden mit DSGVO-Angst ist eine Frankfurt-hosted First-Party-Alternative ein harter USP — und du als deutsche Domain <code class="inline">filapen.de</code> kannst das als Referenz nach vorn stellen.</li>
+      <li><strong>4. Claude-Vibe-Coding als Execution-Hebel.</strong> Ein 1-Personen-Team (du + Claude) kann das in 12 Wochen bauen, wenn der Scope diszipliniert bleibt. Wir bauen <em>nur</em> was du in den 40 Screenshots tatsächlich nutzt — nicht alles, was Hyros kann.</li>
+    </ul>
+  </div>
+
+  <div class="grid c2">
+    <div class="card">
+      <h3>Was am Ende steht</h3>
+      <ul class="clean">
+        <li><strong>app.tracklayer.eu</strong> (oder ähnlicher Markenname) — Dashboard, CRM, Reports, Admin</li>
+        <li><strong>t.filapen.de</strong> — weiterhin dein First-Party-Endpoint, ab Tag 1 per CNAME auf unsere Edge</li>
+        <li><strong>9 Ad-Plattform-Integrationen</strong> live (Meta, Google, TikTok, Pinterest, LinkedIn, X, Snapchat, Shopify, iClosed)</li>
+        <li><strong>124.306 Sales historisch importiert</strong> — damit Reports nicht bei 0 anfangen</li>
+        <li><strong>AIR-ähnliches KI-Modul</strong> — Attribution-Triangulation + Kampagnen-Empfehlungen</li>
+        <li><strong>Stripe-Billing &amp; Self-Service-Onboarding</strong> ab Phase 4 für externe Kunden</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Was wir bewusst <em>nicht</em> bauen</h3>
+      <ul class="clean">
+        <li><strong>Referral-Programm</strong> — in deinem Hyros vorhanden, aber ungenutzt. Verschoben auf nach Launch.</li>
+        <li><strong>Redirection Tracking für E-Mail-Kampagnen</strong> — Verschoben bis erster zahlender Kunde es verlangt.</li>
+        <li><strong>External Call Tracking via Drittanbieter</strong> — Hyros Call Tracking native reicht erstmal. Twilio-Bridge später.</li>
+        <li><strong>Subscriptions-Management UI</strong> — Stripe-Webhooks-Events genügen initial, dedizierte UI in Phase 3.</li>
+        <li><strong>White-Label</strong> — Agentur-Feature, kommt erst wenn die ersten 3 Agenturen danach fragen.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Kernmetriken, an denen wir uns messen</h3>
+    <table>
+      <tr><th>KPI</th><th>Baseline (Hyros)</th><th>Target Monat 3</th><th>Target Monat 12</th></tr>
+      <tr><td>Attribution-Genauigkeit (Meta CAPI Match Rate)</td><td>unbekannt</td><td>≥ 70 %</td><td>≥ 85 %</td></tr>
+      <tr><td>Daten-Lag Ad-Spend → Dashboard</td><td>~15 Min</td><td>≤ 5 Min</td><td>≤ 60 Sek</td></tr>
+      <tr><td>First-Party Script Ladezeit (p95)</td><td>unbekannt</td><td>≤ 120 ms</td><td>≤ 60 ms</td></tr>
+      <tr><td>Monatliche Kosten (Filapen)</td><td>$3.539</td><td>≈ €180 Infra</td><td>≈ €400 Infra</td></tr>
+      <tr><td>Externe SaaS-Kunden</td><td>0</td><td>0 (Filapen nur)</td><td>10 – 25</td></tr>
+      <tr><td>Monthly Recurring Revenue (extern)</td><td>—</td><td>€0</td><td>€3k – €12k</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================== TAB 2 -->
+<section class="tab" id="t2">
+  <div class="card">
+    <h2 style="margin-top:0">Current State — was die 40 Screenshots sagen</h2>
+    <p>Das ist kein „so könnte es aussehen". Das sind die harten Fakten deines Produktiv-Hyros-Accounts, auf denen jeder Bauplan aufsetzt.</p>
+  </div>
+
+  <h3>Account-Fingerprint</h3>
+  <div class="card tight">
+    <div class="kv">
+      <div>Account-Owner</div><div><code class="inline">yavuz@filapen.de</code></div>
+      <div>Custom-Tracking-Domain</div><div><code class="inline">t.filapen.de</code> (CNAME, aktiv)</div>
+      <div>Property-Hash</div><div><code class="inline">e6793dc04d8f2a32c5033324763b9e8bfad89e3c9c80140b2472edafe7bac947</code></div>
+      <div>Application-Tag</div><div><code class="inline">!clicked</code></div>
+      <div>Historische Sales</div><div>124.306</div>
+      <div>Tracked Refunds</div><div>2.207</div>
+      <div>Aktuelle Tier-Kosten</div><div>$3.539 / Monat → $42.468 / Jahr</div>
+      <div>Pricing-Eskalation</div><div>$739 → $980 → $1.249 → $3.539 über 10 Rechnungen</div>
+    </div>
+  </div>
+
+  <h3>Aktive Integrationen</h3>
+  <div class="grid c3">
+    <div class="card tight">
+      <h4>Ad-Plattformen (CONNECTED)</h4>
+      <div class="tag-row">
+        <span class="pill good">Meta</span>
+        <span class="pill good">Google Ads</span>
+        <span class="pill good">TikTok</span>
+        <span class="pill good">Pinterest</span>
+        <span class="pill good">LinkedIn</span>
+        <span class="pill good">X (Twitter)</span>
+        <span class="pill good">Snapchat</span>
+      </div>
+      <p style="font-size:13px">7 Quellen — alle mit Kosten- und Conversion-Sync.</p>
+    </div>
+    <div class="card tight">
+      <h4>Commerce / Funnel (CONNECTED)</h4>
+      <div class="tag-row">
+        <span class="pill good">Shopify</span>
+        <span class="pill info">iClosed</span>
+      </div>
+      <p style="font-size:13px">Shopify als primäre Sales-Quelle. iClosed für High-Ticket Calls.</p>
+    </div>
+    <div class="card tight">
+      <h4>Automation (CONFIGURED)</h4>
+      <div class="tag-row">
+        <span class="pill brand">Whop</span>
+        <span class="pill brand">Zapier</span>
+        <span class="pill brand">Make</span>
+        <span class="pill brand">Skool</span>
+      </div>
+      <p style="font-size:13px">Event-Forward-Chain für Webinare / Communities.</p>
+    </div>
+  </div>
+
+  <h3>Echte Performance — Woche 15 bis 21. April</h3>
+  <div class="grid c4">
+    <div class="stat"><div class="label">Revenue</div><div class="val">€13.106</div><div class="delta">7-Tage-Window</div></div>
+    <div class="stat"><div class="label">Ad-Cost</div><div class="val">€6.489</div><div class="delta">Summe alle Kanäle</div></div>
+    <div class="stat"><div class="label">Profit</div><div class="val" style="color:var(--good)">€6.617</div><div class="delta">Revenue − Cost</div></div>
+    <div class="stat"><div class="label">ROAS</div><div class="val">2,02</div><div class="delta">gesund, aber Meta zieht runter</div></div>
+  </div>
+
+  <div class="card">
+    <h3>Channel-Aufschlüsselung — wo das Geld real verdient wird</h3>
+    <table>
+      <tr><th>Kanal</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>ROAS</th><th>Status</th></tr>
+      <tr><td><strong>Google Ads</strong></td><td>~€9.800</td><td>~€3.055</td><td style="color:var(--good)">+€6.745</td><td>3,21</td><td><span class="pill good">Profit-Motor</span></td></tr>
+      <tr><td><strong>Meta</strong></td><td>~€3.200</td><td>~€3.328</td><td style="color:var(--bad)">−€128</td><td>0,96</td><td><span class="pill bad">Verbrennt Cash</span></td></tr>
+      <tr><td><strong>TikTok</strong></td><td>€0</td><td>€0</td><td>€0</td><td>—</td><td><span class="pill warn">Noch nicht skaliert</span></td></tr>
+      <tr><td>Pinterest / LinkedIn / X / Snap</td><td>vernachlässigbar</td><td>gering</td><td>≈ 0</td><td>—</td><td><span class="pill info">Long Tail</span></td></tr>
+    </table>
+    <div class="callout warn"><strong>Zentrale Erkenntnis:</strong> Deine Meta-Ausgaben sind im 7-Tage-Window unprofitabel. Entweder attribuiert Hyros Meta zu wenig Revenue, oder die Kampagnen sind tatsächlich kaputt. Die neue Plattform muss das mit besserem CAPI-Dedup + Click-Reconciliation auflösen können — wenn sie dann 10 % mehr Meta-Sales korrekt zuordnet, wird Meta bei dir von −€128 zu +€200 / Woche. Das ist der messbare Mehrwert für Filapen. Und genau diese Story verkauft das Tool später.</div>
+  </div>
+
+  <h3>Genutzte Hyros-Module — was wir replizieren müssen</h3>
+  <table>
+    <tr><th>Hyros-Modul</th><th>Filapen-Nutzung</th><th>Priorität</th><th>Phase</th></tr>
+    <tr><td>Dashboard (Overview)</td><td>täglich</td><td><span class="pill bad">P0</span></td><td>Phase 1</td></tr>
+    <tr><td>Source Stats</td><td>täglich</td><td><span class="pill bad">P0</span></td><td>Phase 1</td></tr>
+    <tr><td>E-Commerce Stats</td><td>täglich</td><td><span class="pill bad">P0</span></td><td>Phase 1</td></tr>
+    <tr><td>Universal Script / Tracking Config</td><td>Basis</td><td><span class="pill bad">P0</span></td><td>Phase 0</td></tr>
+    <tr><td>Tags / URL Rules</td><td>mehrfach pro Woche</td><td><span class="pill warn">P1</span></td><td>Phase 1</td></tr>
+    <tr><td>Products Katalog</td><td>Sync via Shopify</td><td><span class="pill warn">P1</span></td><td>Phase 2</td></tr>
+    <tr><td>Weekly Stats / Reports</td><td>wöchentlich</td><td><span class="pill warn">P1</span></td><td>Phase 2</td></tr>
+    <tr><td>CRM — Sales</td><td>täglich</td><td><span class="pill warn">P1</span></td><td>Phase 2</td></tr>
+    <tr><td>CRM — Leads</td><td>gelegentlich</td><td><span class="pill info">P2</span></td><td>Phase 2</td></tr>
+    <tr><td>CRM — Calls / iClosed-Sync</td><td>aktiv</td><td><span class="pill warn">P1</span></td><td>Phase 2</td></tr>
+    <tr><td>Call Funnel Stats</td><td>aktiv</td><td><span class="pill info">P2</span></td><td>Phase 3</td></tr>
+    <tr><td>Organic Stats</td><td>gelegentlich</td><td><span class="pill info">P2</span></td><td>Phase 3</td></tr>
+    <tr><td>AIR — AI Agent</td><td>erkundend</td><td><span class="pill brand">P3</span></td><td>Phase 3</td></tr>
+    <tr><td>Performance Reports (Custom)</td><td>experimentell</td><td><span class="pill brand">P3</span></td><td>Phase 3</td></tr>
+    <tr><td>Phone Closing / Subscriptions UI</td><td>kaum</td><td><span class="pill info">P3</span></td><td>Phase 4</td></tr>
+    <tr><td>Hyros Call Tracking (native)</td><td>kaum</td><td><span class="pill info">P3</span></td><td>Phase 4</td></tr>
+    <tr><td>External Call Tracking</td><td>kaum</td><td><span class="pill info">P4</span></td><td>später</td></tr>
+    <tr><td>Redirection Tracking</td><td>kaum</td><td><span class="pill info">P4</span></td><td>später</td></tr>
+    <tr><td>Referral Program</td><td>ungenutzt</td><td><span class="pill info">P4</span></td><td>später</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================== TAB 3 -->
+<section class="tab" id="t3">
+  <div class="card">
+    <h2 style="margin-top:0">Produkt-Scope — in 5 Phasen</h2>
+    <p>Jede Phase ist ein echter Release. Keine „Feature-Vielleichts". Nach Phase 1 kannst du mit Filapen switchen, nach Phase 4 kannst du verkaufen.</p>
+  </div>
+
+  <div class="phase p0">
+    <span class="pill">Phase 0 · Woche 0 – 2</span>
+    <h3>Foundations &amp; Parallel-Tracking</h3>
+    <p><strong>Ziel:</strong> Ein eigenes First-Party-Script läuft parallel zu Hyros auf <code class="inline">filapen.de</code> und sammelt Daten — ohne dass Hyros auch nur einen Pixel verliert. Risiko: null. Kein Umsatz in Gefahr.</p>
+    <ul class="clean">
+      <li>EU-Infra aufgesetzt: Cloudflare Workers (Edge) + Supabase (Postgres EU-Frankfurt) + S3-kompatibler Objektspeicher</li>
+      <li>CNAME-Wechsel vorbereitet: <code class="inline">t.filapen.de</code> zeigt optional auf unsere Edge (Switch-Flag)</li>
+      <li>Eigenes Universal-Script <code class="inline">/v1/lst/universal-script</code> clonet Hyros-Signatur exakt (ph, tag, ref_url)</li>
+      <li>Event-Ingestion läuft in eigene Datenbank — parallele Aufzeichnung, keine Verarbeitung nötig</li>
+      <li>Health-Dashboard: Events/Sekunde, Fehlerrate, Latenz p50 / p95</li>
+    </ul>
+    <div class="tag-row"><span class="chip"><span class="dot"></span>Infra</span><span class="chip"><span class="dot"></span>Ingest-only</span><span class="chip"><span class="dot info"></span>Keine UI</span></div>
+  </div>
+
+  <div class="phase p1">
+    <span class="pill">Phase 1 · Woche 2 – 8</span>
+    <h3>MVP Kern — Dashboard, Source Stats, E-Commerce Stats</h3>
+    <p><strong>Ziel:</strong> Filapen kann morgens ins neue Dashboard schauen und sieht dieselben Zahlen wie in Hyros (± 3 % Drift). Ad-Integrationen (Meta, Google, TikTok) laufen bidirektional.</p>
+    <ul class="clean">
+      <li><strong>Identity Graph v1</strong> — Deterministisch (fbp/fbc/gclid/email-hash) + probabilistisch (IP+UA+timestamp Fenster). Postgres + JSONB.</li>
+      <li><strong>Meta CAPI Integration</strong> — mit event_id Dedup, ATT-Awareness, Offline Conversions Upload</li>
+      <li><strong>Google Ads API</strong> — GCLID / GBRAID / WBRAID Capture + Offline Conversion Import</li>
+      <li><strong>TikTok Events API</strong> — TTCLID-Capture + Server-Side Events</li>
+      <li><strong>Shopify App / Webhook-Chain</strong> — Orders Paid, Refunds, Customers → Ingest-Pipeline</li>
+      <li><strong>Dashboard UI</strong> — Next.js + shadcn/ui, 3 Hauptseiten: Overview, Source Stats, Commerce</li>
+      <li><strong>Tags &amp; URL Rules</strong> — Regex-Regeln wie in Hyros, um UTMs zu kategorisieren</li>
+    </ul>
+    <div class="tag-row"><span class="chip"><span class="dot good"></span>Filapen-live-fähig</span><span class="chip"><span class="dot"></span>Hyros noch parallel</span></div>
+  </div>
+
+  <div class="phase p2">
+    <span class="pill">Phase 2 · Woche 8 – 16</span>
+    <h3>Feature-Parität &amp; Hyros-Abschaltung</h3>
+    <p><strong>Ziel:</strong> Historische 124k Sales migriert. CRM-Module (Sales, Leads, Calls) da. Weekly Reports automatisiert. Du kannst Hyros kündigen ohne etwas zu vermissen.</p>
+    <ul class="clean">
+      <li><strong>Hyros-Datenexport + Import-Pipeline</strong> — alle historischen Sales, Refunds, Leads rüberziehen, auf Identity Graph gemappt</li>
+      <li><strong>CRM Sales / Leads / Calls</strong> — tabellarisch, filterbar, exportierbar</li>
+      <li><strong>iClosed-Integration</strong> — Webhook + API-Sync für Call-Events</li>
+      <li><strong>Weekly Stats Report</strong> — automatisch per E-Mail jeden Montag 7:00</li>
+      <li><strong>Products-Katalog</strong> — Shopify-Produkt-Sync + SKU-Level Stats</li>
+      <li><strong>Attribution-Modelle</strong> — Last-Click, First-Click, Linear, U-Shape, Time-Decay, Position-Based auswählbar pro Report</li>
+      <li><strong>Cut-Over</strong> — CNAME <code class="inline">t.filapen.de</code> wird final auf uns umgestellt, Hyros-Script entfernt, Hyros-Account gekündigt</li>
+    </ul>
+    <div class="tag-row"><span class="chip"><span class="dot good"></span>Hyros kündbar</span><span class="chip"><span class="dot warn"></span>Critical Cut-Over</span></div>
+  </div>
+
+  <div class="phase p3">
+    <span class="pill">Phase 3 · Woche 16 – 28</span>
+    <h3>Differentiators — KI, Triangulation, Organic Tracking</h3>
+    <p><strong>Ziel:</strong> Features, die Hyros <em>nicht</em> hat oder schlechter hat. Das ist die „warum wir besser sind"-Phase, und sie bildet gleichzeitig die Basis für Verkaufbarkeit.</p>
+    <ul class="clean">
+      <li><strong>Attribution-Triangulation</strong> — MTA (Multi-Touch) + MMM (Media-Mix) + Incrementality-Holdouts. User wählt Methode pro Report.</li>
+      <li><strong>Markov-Chain + Shapley-Value Attribution</strong> — Data-Driven Attribution wie Google, aber transparent</li>
+      <li><strong>KI-Agent „Filapen Pilot"</strong> — LLM-basierter Channel-Insight-Generator, der Anomalien findet + Empfehlungen gibt</li>
+      <li><strong>Organic Stats</strong> — UTM-lose Traffic-Attribution (SEO / Direct / Social Organic)</li>
+      <li><strong>Call Funnel Stats</strong> — Lead → Call Booked → Call Held → Sold Pipeline visualisiert</li>
+      <li><strong>Consent Mode v2 + IAB TCF</strong> — saubere DSGVO-konforme Einwilligungskette</li>
+      <li><strong>Custom Performance Reports</strong> — Drag &amp; Drop Metriken-Zusammenstellung</li>
+    </ul>
+    <div class="tag-row"><span class="chip"><span class="dot brand"></span>SaaS-fähige Features</span><span class="chip"><span class="dot info"></span>DSGVO-Layer</span></div>
+  </div>
+
+  <div class="phase p4">
+    <span class="pill">Phase 4 · Woche 28 – 52</span>
+    <h3>SaaS-Readiness &amp; erste zahlende Kunden</h3>
+    <p><strong>Ziel:</strong> Multi-Tenant. Self-Service-Signup. Stripe-Billing. Landing-Page. 10 Pilot-Kunden bezahlend bis Monat 12.</p>
+    <ul class="clean">
+      <li><strong>Multi-Tenant Refactor</strong> — Workspaces, Roles (Owner / Admin / Viewer), Row-Level-Security auf Postgres</li>
+      <li><strong>Self-Service-Onboarding</strong> — Signup → Verifizierung → Custom-Domain-Setup-Wizard (CNAME-Check automatisiert)</li>
+      <li><strong>Billing via Stripe</strong> — 3 Tiers (Starter $99, Growth $399, Scale $999), nutzungsbasiert nach Events/Monat</li>
+      <li><strong>Marketing-Site</strong> — Landing, Pricing, Docs, Blog, Case-Study „Filapen spart $42k/Jahr"</li>
+      <li><strong>Help-Center + Intercom / Plain</strong> — Support-Channel etabliert</li>
+      <li><strong>Partner-Portal</strong> — Für Agenturen, White-Label-Option als Add-on</li>
+      <li><strong>Phone Closing / Subscriptions UI</strong> — Wenn nachgefragt</li>
+    </ul>
+    <div class="tag-row"><span class="chip"><span class="dot warn"></span>Verkaufsfähig</span><span class="chip"><span class="dot"></span>MRR-Start</span></div>
+  </div>
+
+  <div class="card">
+    <h3>Sichtbarkeit im Zeitverlauf</h3>
+    <div style="margin:10px 0">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink-dim);margin-bottom:6px"><span>Heute</span><span>Woche 2</span><span>Woche 8</span><span>Woche 16</span><span>Woche 28</span><span>Woche 52</span></div>
+      <div class="progress"><span style="width:100%"></span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink);margin-top:6px"><span>P0</span><span>P1</span><span>P2</span><span>P3</span><span>P4 →</span><span>SaaS</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== TAB 4 -->
+<section class="tab" id="t4">
+  <div class="card">
+    <h2 style="margin-top:0">Tech-Stack — alle Entscheidungen getroffen</h2>
+    <p>Wir nehmen <strong>nicht</strong> den theoretisch besten Stack. Wir nehmen den, den ein 1-Personen-Team + Claude am schnellsten und sichersten zum Produkt bringt — ohne Abstriche bei EU-Hosting, Performance und DSGVO.</p>
+  </div>
+
+  <h3>Edge &amp; Ingestion</h3>
+  <div class="card tight">
+    <div class="kv">
+      <div>Edge-Runtime</div><div><strong>Cloudflare Workers</strong> (global, sub-50ms p95) mit EU-Datenlokalisierung via Data Localization Suite</div>
+      <div>Warum</div><div>Nahezu null Kaltstart, 0-Maintenance, &lt;$50/Monat für Filapen-Volumen. Alternative wäre Bun+Hono auf Fly.io/Frankfurt — später möglich wenn wir raus aus CF wollen.</div>
+      <div>Sprache</div><div>TypeScript — end-to-end, sowohl Edge als auch Server</div>
+      <div>Script-Auslieferung</div><div>Statisches JS aus Cloudflare Cache (TTL 1h), dynamische Endpoint-Metadaten ?ph= als Query</div>
+    </div>
+  </div>
+
+  <h3>Daten-Schicht</h3>
+  <div class="card tight">
+    <div class="kv">
+      <div>OLTP (Identity, CRM, Config)</div><div><strong>Supabase Postgres</strong> (Frankfurt, EU-hosted) mit Row-Level-Security</div>
+      <div>OLAP (Events, Reports)</div><div><strong>ClickHouse Cloud</strong> (Frankfurt) — für Source/E-Commerce/Report-Aggregate</div>
+      <div>Warum nicht nur Postgres</div><div>Mit 124k Sales historisch + Events-Wachstum schafft Postgres die Aggregate-Queries nicht mehr unter 1 Sek. ClickHouse ist dafür gebaut.</div>
+      <div>Warm Storage</div><div>S3-kompatibel (Hetzner Object Storage EU) für Rohdaten-Archiv &gt; 90 Tage</div>
+      <div>Cache</div><div>Upstash Redis EU — Session-Attribution-Lookups, Rate-Limits</div>
+    </div>
+  </div>
+
+  <h3>Applikations-Backend</h3>
+  <div class="card tight">
+    <div class="kv">
+      <div>API-Layer</div><div><strong>Hono</strong> (gleicher Code auf Edge + Node) mit tRPC für Dashboard-API</div>
+      <div>Workers (Attribution-Jobs)</div><div>Node + <strong>BullMQ</strong> (Redis-backed) auf Hetzner Cloud Frankfurt für schwere Jobs (Markov, Shapley, MMM)</div>
+      <div>Auth</div><div>Supabase Auth (Email + Magic Link + Google) — später WorkOS für SAML/SSO</div>
+      <div>Observability</div><div>Axiom (EU-Region, Log-Aggregation), Sentry (Error Tracking EU), Better Uptime</div>
+      <div>Secrets</div><div>Doppler oder Infisical — keine .env im Repo</div>
+    </div>
+  </div>
+
+  <h3>Frontend</h3>
+  <div class="card tight">
+    <div class="kv">
+      <div>Dashboard</div><div><strong>Next.js 15 App Router</strong> deployed auf <strong>Vercel EU</strong></div>
+      <div>UI-Library</div><div>shadcn/ui + Radix + Tailwind v4 — das ist der moderne Standard und genau der Look, den Hyros <em>nicht</em> hat</div>
+      <div>Charts</div><div>Recharts für Standard, Tremor für Dashboard-Kacheln, D3 nur wo nötig (Sankey, Markov-Visualisierungen)</div>
+      <div>State</div><div>TanStack Query + Zustand — kein Redux, nicht nötig</div>
+      <div>Tables</div><div>TanStack Table — virtualisiert, filterbar, exportierbar</div>
+    </div>
+  </div>
+
+  <h3>KI-Schicht</h3>
+  <div class="card tight">
+    <div class="kv">
+      <div>LLM</div><div>Claude Opus für Insights-Agent, Claude Haiku für schnelle Zusammenfassungen</div>
+      <div>Retrieval</div><div>Eigene Postgres-basierte Vector-Column (pgvector) — keine separate Vector-DB nötig</div>
+      <div>Attribution-ML</div><div>Python Service (FastAPI) mit <code class="inline">causalml</code>, <code class="inline">lifelines</code>, <code class="inline">scikit-learn</code> — auf separatem Hetzner-Node</div>
+      <div>Orchestrierung</div><div>Temporal.io (EU) für langlaufende ML-Pipelines — alternative ist reines BullMQ</div>
+    </div>
+  </div>
+
+  <h3>Deployment &amp; Tooling</h3>
+  <div class="card tight">
+    <div class="kv">
+      <div>Repo</div><div>Monorepo mit pnpm-Workspaces — apps/dashboard, apps/api, apps/edge, packages/*</div>
+      <div>CI</div><div>GitHub Actions — Build, Test, Lint, Typecheck → Vercel/CF auto-deploy</div>
+      <div>Staging</div><div>Eigene Vercel Preview + Supabase Branching (ja, die können das)</div>
+      <div>Datenbank-Migrationen</div><div>Drizzle ORM mit drizzle-kit, versioniert im Repo</div>
+      <div>Error-Budget</div><div>SLO 99,5 % für Dashboard, 99,9 % für Ingestion-Endpoint</div>
+    </div>
+  </div>
+
+  <h3>Architektur-Diagramm</h3>
+  <div class="card" style="background:#0e1217">
+<pre>
+                        ┌──────────────────────────────────┐
+  filapen.de  ─script──▶│  t.filapen.de (CNAME → CF Worker)│
+                        └───────────────┬──────────────────┘
+                                        │ events
+                                        ▼
+                            ┌──────────────────────┐
+                            │  Edge Ingestion API  │  ◀── Shopify Webhooks
+                            │  (Cloudflare Workers)│  ◀── Meta CAPI (push)
+                            └────────┬─────────────┘  ◀── iClosed / Zapier
+                                     │                ◀── Whop / Skool / Make
+                       enrich ┌──────┴──────┐ raw
+                              ▼             ▼
+                   ┌──────────────┐   ┌──────────────┐
+                   │ Identity      │   │ Object Store │
+                   │ Graph (PG EU) │   │ (Hetzner S3) │
+                   └──────┬────────┘   └──────┬───────┘
+                          │                   │
+                          ▼                   ▼
+                   ┌───────────────┐   ┌────────────────┐
+                   │ ClickHouse EU │   │ Attribution ML │
+                   │ (Events-OLAP) │◀─▶│ Python/FastAPI │
+                   └──────┬────────┘   └────────────────┘
+                          │
+                          ▼
+                   ┌──────────────┐      ┌─────────────┐
+                   │ tRPC API     │◀────▶│ Next.js     │──▶ app.tracklayer.eu
+                   │ (Hono/Node)  │      │ Dashboard   │
+                   └──────┬───────┘      └─────────────┘
+                          │
+                          ▼
+                   ┌──────────────┐
+                   │ Ad-Platform  │──▶ Meta CAPI · Google Offline Conv.
+                   │ Outbound     │──▶ TikTok Events API · Pinterest API
+                   │ (Conv Push)  │──▶ LinkedIn CAPI · X Ads · Snap CAPI
+                   └──────────────┘
+</pre>
+  </div>
+
+  <h3>Technische Foundation-Entscheidungen im Detail</h3>
+  <details class="acc"><summary>Warum Cloudflare Workers und nicht Vercel Edge Functions?</summary>
+  <p>Vercel Edge Functions laufen auf der gleichen Cloudflare-V8-Runtime, aber mit Vercel-Overhead. Für reines Ingestion willst du den direkten Weg. Außerdem: CF erlaubt Custom-Domains ohne Vercel-Eigentümerschaft, was für die Custom-Tracking-Domains der Kunden (t.kunde.de) entscheidend ist — jede CNAME landet direkt auf unserem Worker ohne Vercel-Proxy-Schicht.</p>
+  </details>
+  <details class="acc"><summary>Warum Supabase statt „richtigem" Postgres auf Hetzner?</summary>
+  <p>Für ein 1-Personen-Team ist Supabase Managed Auth + Row-Level-Security + Realtime + Storage ein 6-Monats-Vorsprung. Wenn wir in Phase 4 Performance-Probleme bekommen, migrieren wir den OLTP auf CrunchyBridge oder Neon EU — aber bis dahin nicht. Trade-off ist akzeptabel.</p>
+  </details>
+  <details class="acc"><summary>Warum ClickHouse und nicht TimescaleDB / DuckDB / Parquet-on-S3?</summary>
+  <p>Hyros macht Source-Stats-Aggregate über Millionen Events in Millisekunden. Das ist exakt ClickHouse-Terrain. Timescale ist für Time-Series gut, aber bei Multi-Dimension-Slicing (User × Channel × Campaign × Day) wird es teuer. DuckDB/Parquet wäre billiger, aber für Live-Dashboards zu langsam. ClickHouse Cloud EU gibt es ab ~$70/Monat — vertretbar.</p>
+  </details>
+  <details class="acc"><summary>Warum nicht einfach Fivetran + dbt + Metabase?</summary>
+  <p>Weil das eine Analytics-Lösung ist, kein Tracker. Wir <em>sind</em> die Datenquelle, nicht Konsument. Ein BI-Stack löst dir „zeige mir Zahlen", aber nicht „nimm den fbc-Cookie, match ihn über Identity Graph, push an Meta CAPI mit Dedup". Das ist Produktcode, nicht Analytics-Pipeline.</p>
+  </details>
+  <details class="acc"><summary>Warum Hono statt reinem Express / Fastify?</summary>
+  <p>Hono läuft als einziger Framework-Code <em>sowohl</em> in Cloudflare Workers als auch in Node — das heißt: gleicher Validator, gleiche Middleware, gleiche Types für Edge-Ingest-Endpoint und Backend-API. Weniger Code, weniger Divergenz-Bugs.</p>
+  </details>
+</section>
+
+<!-- ============================================================== TAB 5 -->
+<section class="tab" id="t5">
+  <div class="card">
+    <h2 style="margin-top:0">Migration &amp; Parallel-Run — so wechseln wir ohne Risiko</h2>
+    <p>124.306 historische Sales sind dein wertvollster Datenbestand. Wir verlieren keines davon. Und der Cut-Over muss so sicher sein, dass du einen Tag lang nichts merkst, außer dass Hyros nicht mehr abgebucht wird.</p>
+  </div>
+
+  <div class="grid c4">
+    <div class="stat"><div class="label">Historische Sales</div><div class="val">124.306</div><div class="delta">zu migrieren</div></div>
+    <div class="stat"><div class="label">Refunds</div><div class="val">2.207</div><div class="delta">mit Original-Sale verknüpfen</div></div>
+    <div class="stat"><div class="label">Parallele Laufzeit</div><div class="val">6 – 10 Wochen</div><div class="delta">beide Systeme aktiv</div></div>
+    <div class="stat"><div class="label">Drift-Toleranz</div><div class="val">±3 %</div><div class="delta">bevor wir switchen</div></div>
+  </div>
+
+  <h3>Die 5 Migrationsschritte</h3>
+
+  <div class="card">
+    <h4>Schritt 1 · Script-Doppel-Install (Tag 1)</h4>
+    <p>Beide Tracker laufen gleichzeitig auf <code class="inline">filapen.de</code>. Hyros bleibt auf <code class="inline">t.filapen.de</code>. Wir installieren zusätzlich unser Script auf einer zweiten Sub-Domain <code class="inline">t2.filapen.de</code>. Jeder Event wird zweimal gesendet — einmal an Hyros, einmal an uns.</p>
+    <pre>&lt;!-- Filapen-Script (dein aktuelles) --&gt;
+&lt;script&gt;
+var head = document.head;
+var s = document.createElement('script');
+s.src = "https://t.filapen.de/v1/lst/universal-script?ph=e6793dc…&amp;tag=!clicked&amp;ref_url=" + encodeURI(document.URL);
+head.appendChild(s);
+&lt;/script&gt;
+
+&lt;!-- NEU: Filapen Tracking Platform parallel --&gt;
+&lt;script&gt;
+var s2 = document.createElement('script');
+s2.src = "https://t2.filapen.de/v1/script?ph=&lt;neuer_hash&gt;&amp;tag=!clicked&amp;ref_url=" + encodeURI(document.URL);
+head.appendChild(s2);
+&lt;/script&gt;</pre>
+    <p class="sub">Zero Risiko. Wenn unser Script crasht, läuft Hyros weiter. Wenn Hyros ein Problem hat, beeinflusst es uns nicht.</p>
+  </div>
+
+  <div class="card">
+    <h4>Schritt 2 · Historische Daten aus Hyros ziehen (Woche 2 – 3)</h4>
+    <p>Hyros hat einen <strong>Full Data Export</strong> (CSV / JSON) für Sales, Refunds, Leads, Calls, UTM-Touches. Wir:</p>
+    <ul class="clean">
+      <li>Laden den Export als Rohdaten in Hetzner S3</li>
+      <li>Schreiben einen TypeScript-Importer, der Records auf unser Schema mappt (Identity, Event, Sale, Refund)</li>
+      <li>Identity-Matching: E-Mail-Hash zuerst, dann fbp/gclid wenn vorhanden, dann IP+UA-Fingerprint als Fallback</li>
+      <li>Fehlende Attribution-Chains werden aus UTM-Feldern rekonstruiert (Last-Click Minimum-Garantie)</li>
+      <li>Abschlusstest: Aggregate Revenue pro Kanal gegen Hyros-Zahlen — muss ± 0,5 % stimmen</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4>Schritt 3 · Parallel-Vergleich (Woche 3 – 8)</h4>
+    <p>Täglich vergleichen wir unser Dashboard gegen Hyros. Kriterien für Cut-Over:</p>
+    <table>
+      <tr><th>Metrik</th><th>Drift-Ziel</th><th>Grund</th></tr>
+      <tr><td>Total Revenue / Tag</td><td>± 1 %</td><td>Shopify ist die Source-of-Truth, beide sollten fast exakt stimmen</td></tr>
+      <tr><td>Total Ad-Cost / Tag</td><td>± 0,5 %</td><td>Kommt direkt aus Ad-Plattform-APIs</td></tr>
+      <tr><td>Attributed Revenue Meta</td><td>± 5 %</td><td>Attribution-Methodik kann leicht variieren</td></tr>
+      <tr><td>Attributed Revenue Google</td><td>± 3 %</td><td>GCLID-Matching sollte sehr präzise sein</td></tr>
+      <tr><td>Sales-Count</td><td>± 0,5 %</td><td>Jedes Sale muss doppelt gesehen werden</td></tr>
+      <tr><td>Refunds-Count</td><td>0 Unterschied</td><td>Refunds sind kritisch, müssen 1:1 stimmen</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h4>Schritt 4 · CNAME-Switch (Woche 8, nach Dashboard-Abnahme)</h4>
+    <p>An einem Dienstag 8 Uhr (niedrigstes Traffic-Fenster der Woche):</p>
+    <ul class="clean">
+      <li>1. DNS-TTL auf <code class="inline">t.filapen.de</code> vorab auf 60 Sek reduzieren (3 Tage vorher)</li>
+      <li>2. CNAME-Target umstellen: von Hyros-Endpoint auf unseren Worker</li>
+      <li>3. Monitoring: Event-Durchsatz sollte 100 % auf unseren Endpoint fallen innerhalb 5 Min</li>
+      <li>4. Rollback-Plan: CNAME zurücksetzen, TTL reicht für 60-Sek-Rollback</li>
+      <li>5. Hyros-Script-Tag bleibt noch 7 Tage im HTML — als Safety-Net, falls doch etwas schief geht</li>
+    </ul>
+    <div class="callout"><strong>Go/No-Go-Checklist vor Switch:</strong> Dashboard-Drift 7 Tage lang &lt; 3 %, keine P1-Bugs offen, Alerting aktiv, Rollback-Befehl dokumentiert, Shopify-Webhooks bestätigt.</div>
+  </div>
+
+  <div class="card">
+    <h4>Schritt 5 · Hyros-Kündigung (Woche 10)</h4>
+    <p>Nach 2 Wochen stabilem Cut-Over:</p>
+    <ul class="clean">
+      <li>Hyros-Script-Tag aus allen Filapen-Templates entfernt</li>
+      <li>Hyros-Billing im April/Mai gekündigt — schriftlich, mit Bezug auf die letzte Abrechnung $3.539</li>
+      <li>Vollständiger Hyros-Datenexport als Archiv in S3 (Compliance-Retention 7 Jahre)</li>
+      <li>Post-Mortem-Review: was lief gut, was müssen wir für SaaS-Onboarding neuer Kunden anders machen?</li>
+    </ul>
+  </div>
+
+  <h3>Risiken in der Migration &amp; Gegenmaßnahmen</h3>
+  <table>
+    <tr><th>Risiko</th><th>Wahrscheinlichkeit</th><th>Impact</th><th>Gegenmaßnahme</th></tr>
+    <tr><td>Drift &gt; 3 % bleibt bestehen</td><td>Mittel</td><td>Hoch</td><td>Cut-Over verschieben, Attribution-Logik debuggen bis Drift akzeptabel</td></tr>
+    <tr><td>CNAME-Switch verliert Events</td><td>Gering</td><td>Hoch</td><td>DNS-TTL 60 Sek, Dual-Send-Mode in Script für 72h Nachlauf</td></tr>
+    <tr><td>Hyros-Export unvollständig</td><td>Mittel</td><td>Mittel</td><td>Mehrere Export-Runden, Abgleich gegen Shopify-Ground-Truth</td></tr>
+    <tr><td>Meta CAPI Dedup funktioniert nicht</td><td>Mittel</td><td>Hoch</td><td>Testphase mit Meta-Pixel-Helper + Events-Manager-Verifikation, bevor Cut-Over</td></tr>
+    <tr><td>Shopify-Webhook verzögert sich</td><td>Gering</td><td>Mittel</td><td>Backup-Poll-Job alle 15 Min für Orders ohne Webhook-Event</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================== TAB 6 -->
+<section class="tab" id="t6">
+  <div class="card">
+    <h2 style="margin-top:0">Go-to-Market — wie das Ding verkauft wird</h2>
+    <p>„Verkaufsfähig" heißt: klare Positionierung, Pricing das im Markt funktioniert, Case-Study mit Zahlen, Signup-Flow der unter 10 Minuten dauert, Marketing-Kanal mit Traktion. Alles davon ist Teil des Produkts, nicht erst danach.</p>
+  </div>
+
+  <h3>Positionierung</h3>
+  <div class="card">
+    <p><strong>Produkt-Name (Arbeitstitel):</strong> <em>TrackLayer</em> · <code class="inline">tracklayer.eu</code> · alternativ <em>Signal.eu</em>, <em>Attribyte</em>, <em>Primo Analytics</em> — final nach Domain-Check + Trademark-Prüfung.</p>
+    <p><strong>Positionierungs-Satz:</strong> „Die europäische Attributions-Plattform für DTC-Brands, die ihren Ad-Spend nach Meta iOS, Cookie-Ende und DSGVO wieder messen wollen."</p>
+    <p><strong>ICP (Ideal Customer Profile):</strong></p>
+    <ul class="clean">
+      <li><strong>Segment 1 — DTC-Shops mit &gt; €50k / Monat Ad-Spend</strong> (wie Filapen), nutzen Shopify, frustrierte Hyros/Triple-Whale-Kunden</li>
+      <li><strong>Segment 2 — Info-Product / Course / Coaching</strong> mit Call-Funnel (iClosed, Calendly, High-Level), wo Hyros heute dominiert</li>
+      <li><strong>Segment 3 — DACH-Performance-Agenturen</strong> mit 5 – 20 Kunden, die White-Label wollen</li>
+    </ul>
+  </div>
+
+  <h3>Die 5 Verkaufsargumente</h3>
+  <div class="grid c2">
+    <div class="card tight">
+      <h4>1 · EU-gehostet &amp; DSGVO-nativ</h4>
+      <p>Frankfurt-Infrastruktur, Consent Mode v2, TCF v2.2, DPA mit allen Subprozessoren. Hyros ist US-hosted. Das allein rechtfertigt in Deutschland den Switch.</p>
+    </div>
+    <div class="card tight">
+      <h4>2 · Bessere Meta-Attribution</h4>
+      <p>Case-Study: „Filapen hat durch sauberes CAPI-Matching 12 % mehr Meta-Conversions korrekt zugeordnet und dadurch den Profit von −€128/Woche auf +€X/Woche gedreht." Harte Zahl, keine Folie.</p>
+    </div>
+    <div class="card tight">
+      <h4>3 · Transparente Attribution-Modelle</h4>
+      <p>User sieht welche Methode angewendet wird (Last-Click, Shapley, Markov). Hyros-Blackbox vs. unsere Whitebox.</p>
+    </div>
+    <div class="card tight">
+      <h4>4 · 3 – 6× günstiger als Hyros Enterprise-Tier</h4>
+      <p>Hyros $3.539/Monat bei Filapen-Volumen. Wir machen €399 – €999. Für Shops mit ähnlichem Umsatz also 70 – 85 % günstiger.</p>
+    </div>
+    <div class="card tight">
+      <h4>5 · Self-Service-Onboarding in &lt; 10 Min</h4>
+      <p>Hyros braucht Sales-Call &amp; wochenlange Implementation. Wir: Script einbauen, CNAME setzen, Integrationen klicken, fertig.</p>
+    </div>
+    <div class="card tight">
+      <h4>6 · Europäisches Support-Team</h4>
+      <p>Deutschsprachiger Support in EU-Zeitzone. Agencies lieben das für ihre DACH-Kunden.</p>
+    </div>
+  </div>
+
+  <h3>Pricing-Modell</h3>
+  <table>
+    <tr><th>Tier</th><th>Preis</th><th>Inkl.</th><th>Zielgruppe</th></tr>
+    <tr><td><strong>Starter</strong></td><td>€99 / Monat</td><td>bis 50k Events / Monat · 3 Ad-Accounts · 1 User · E-Mail-Support</td><td>kleine Shops &lt; €20k/M Spend</td></tr>
+    <tr><td><strong>Growth</strong></td><td>€399 / Monat</td><td>bis 500k Events · 8 Ad-Accounts · 5 User · KI-Insights · Priority-Support</td><td>DTC Shops €20 – 100k/M Spend</td></tr>
+    <tr><td><strong>Scale</strong></td><td>€999 / Monat</td><td>bis 5M Events · unlimited Ad-Accounts · 20 User · Custom Reports · MMM · DPA</td><td>Enterprise / Agencies &gt; €100k/M Spend</td></tr>
+    <tr><td><strong>Agency</strong></td><td>Custom</td><td>White-Label · Sub-Account-Management · SSO · SLA 99,9 %</td><td>Performance-Agenturen 5+ Kunden</td></tr>
+  </table>
+  <p class="sub">Jeder Tier hat 14 Tage Trial ohne Kreditkarte. Overage nach Events-Volumen: €1 pro 10k zusätzliche Events.</p>
+
+  <h3>Launch-Plan (Phase 4, Woche 28 – 40)</h3>
+  <div class="card">
+    <ul class="clean">
+      <li><strong>Woche 28 – 30:</strong> Landing-Page live, Case-Study „Filapen spart €40k/Jahr" fertig geschrieben mit echten Zahlen</li>
+      <li><strong>Woche 30 – 32:</strong> 10 Pilot-Kunden aus Filapen-Netzwerk/Partnern (geschlossene Beta, kostenlos 3 Monate)</li>
+      <li><strong>Woche 32 – 36:</strong> Product-Hunt-Launch, LinkedIn-Content-Serie aus Filapen-Use-Case, erste DACH-E-Com-Podcast-Auftritte</li>
+      <li><strong>Woche 36 – 40:</strong> Bezahlte Pilot-Kunden ≥ 5, erster Agency-Partner im White-Label-Modell</li>
+      <li><strong>Monat 12:</strong> 10 – 25 zahlende Kunden, €3k – €12k MRR, Feedback-basierte Roadmap Q2/Q3</li>
+    </ul>
+  </div>
+
+  <h3>Sales-/Marketing-Kanäle</h3>
+  <div class="grid c3">
+    <div class="card tight">
+      <h4>Content / SEO</h4>
+      <ul class="clean">
+        <li>„Hyros vs. TrackLayer" Vergleichsseite</li>
+        <li>„Meta CAPI + iOS 14" Leitfaden</li>
+        <li>„DSGVO-Tracking für Shopify" Guide</li>
+      </ul>
+    </div>
+    <div class="card tight">
+      <h4>Community &amp; Influence</h4>
+      <ul class="clean">
+        <li>DACH-E-Com-Slack-Communities (t3n, OMR, Shopware Groups)</li>
+        <li>E-Commerce-Podcasts (Kassenzone, Shoptechnik)</li>
+        <li>DTC-Twitter / LinkedIn Thought-Leadership durch Filapen-Case</li>
+      </ul>
+    </div>
+    <div class="card tight">
+      <h4>Partner &amp; Direct</h4>
+      <ul class="clean">
+        <li>3 DACH-Performance-Agenturen als Launch-Partner</li>
+        <li>Shopify App Store Listing (Phase 5)</li>
+        <li>Direct-Outreach an 100 Shopify-DACH-Shops mit &gt; €50k Spend</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== TAB 7 -->
+<section class="tab" id="t7">
+  <div class="card">
+    <h2 style="margin-top:0">Sprint-Plan — Claude-Vibe-Coding, Woche für Woche</h2>
+    <p>Jede Woche = ein Sprint = eine konkrete Deliverable. Keine Lücken, keine Hand-Wavery. So sieht die Umsetzung tatsächlich aus.</p>
+  </div>
+
+  <h4>Phase 0 · Foundations</h4>
+  <div class="card tight">
+    <ul class="clean">
+      <li><strong>Sprint 1 (Woche 1)</strong> — Repo-Setup: Monorepo mit pnpm, apps/edge + apps/api + apps/dashboard + packages/db + packages/shared. Drizzle-Schema v1 (users, workspaces, properties, events_raw). GitHub Actions CI. Vercel- und Cloudflare-Accounts provisioniert.</li>
+      <li><strong>Sprint 2 (Woche 2)</strong> — Ingestion-Endpoint live: <code class="inline">/v1/script</code> liefert statisches JS, <code class="inline">/v1/collect</code> nimmt Events an, schreibt in ClickHouse-Staging-Tabelle. Script via <code class="inline">t2.filapen.de</code> parallel zu Hyros auf filapen.de installiert. Event-Durchsatz-Dashboard in Axiom.</li>
+    </ul>
+  </div>
+
+  <h4>Phase 1 · MVP Kern</h4>
+  <div class="card tight">
+    <ul class="clean">
+      <li><strong>Sprint 3 (Woche 3)</strong> — Identity Graph v1 — Deterministisches Matching (fbp, fbc, gclid, email-hash). Postgres-Schema identities + identity_links. Unit-Tests mit echten Filapen-Daten.</li>
+      <li><strong>Sprint 4 (Woche 4)</strong> — Meta CAPI Integration — event_id dedup, Pixel-ID-Config per Workspace, Test-Events-Mode, echte Prod-Events an Meta gepusht. Meta-Events-Manager-Abgleich.</li>
+      <li><strong>Sprint 5 (Woche 5)</strong> — Google Ads Offline Conversion + GCLID-Capture + Enhanced Conversions Upload. Parallel: TikTok Events API mit TTCLID.</li>
+      <li><strong>Sprint 6 (Woche 6)</strong> — Shopify App: OAuth, Webhooks (orders/create, orders/paid, refunds/create), Product-Sync. iClosed-Webhook-Empfänger.</li>
+      <li><strong>Sprint 7 (Woche 7)</strong> — Dashboard Shell: Auth via Supabase, Workspace-Switch, Navigation, Empty-States. Tremor-Dashboard mit KPIs (Revenue, Spend, Profit, ROAS).</li>
+      <li><strong>Sprint 8 (Woche 8)</strong> — Source Stats &amp; E-Commerce Stats Pages — ClickHouse-Aggregate-Queries, Filterbar nach Datum/Kanal/Kampagne, Export CSV.</li>
+    </ul>
+  </div>
+
+  <h4>Phase 2 · Parität &amp; Cut-Over</h4>
+  <div class="card tight">
+    <ul class="clean">
+      <li><strong>Sprint 9 (Woche 9)</strong> — Tags &amp; URL Rules: Regex-Engine, Admin-UI, Live-Preview gegen letzte 1000 Events.</li>
+      <li><strong>Sprint 10 (Woche 10)</strong> — Hyros-Datenexport-Import: CSV-Parser, Identity-Backfill, Aggregate-Abgleich. ± 0,5 % Target.</li>
+      <li><strong>Sprint 11 (Woche 11)</strong> — CRM Sales/Leads/Calls Tabellen, iClosed-Kontakt-Sync, Lead → Sale → Refund-Chain visualisiert.</li>
+      <li><strong>Sprint 12 (Woche 12)</strong> — Weekly Stats E-Mail-Report (Resend, EU-gehostet). Automation via Scheduled Worker. Drei Branded Templates.</li>
+      <li><strong>Sprint 13 (Woche 13)</strong> — Attribution-Modelle pluggable: Last-Click, First-Click, Linear, U-Shape, Time-Decay. Per-Report-Auswahl.</li>
+      <li><strong>Sprint 14 (Woche 14)</strong> — Drift-Vergleichs-Dashboard gegen Hyros. Alerts wenn Drift &gt; 3 %.</li>
+      <li><strong>Sprint 15 (Woche 15)</strong> — Stabilitäts-Sprint: Load-Tests (1k Events/s), Failover-Szenarien, Rollback-Playbook.</li>
+      <li><strong>Sprint 16 (Woche 16)</strong> — <strong>Cut-Over-Woche.</strong> CNAME-Switch Dienstag 8 Uhr. 72h Dual-Send. Hyros-Script-Entfernung Freitag. Hyros-Kündigungs-Schreiben raus.</li>
+    </ul>
+  </div>
+
+  <h4>Phase 3 · Differentiators</h4>
+  <div class="card tight">
+    <ul class="clean">
+      <li><strong>Sprint 17 – 18 (Woche 17 – 18)</strong> — Markov-Chain-Attribution: Python-Service, Removal-Effect-Berechnung, in Dashboard-Reports auswählbar.</li>
+      <li><strong>Sprint 19 – 20 (Woche 19 – 20)</strong> — Shapley-Value-Attribution (bis 6 Touchpoints), Visualisierung im Report.</li>
+      <li><strong>Sprint 21 – 22 (Woche 21 – 22)</strong> — MMM-Modul (Media-Mix-Model): Bayesian Regression mit PyMC, saisonalitätsbereinigt. Monatliches Report.</li>
+      <li><strong>Sprint 23 (Woche 23)</strong> — Consent Mode v2 + TCF v2.2: Server-Side Signalling, Consent-Gated Events.</li>
+      <li><strong>Sprint 24 (Woche 24)</strong> — KI-Agent: Claude Opus bekommt Zugriff auf Metriken-API, generiert täglichen Insights-Report („Meta-CPM stieg um 18 %, aber Conversion-Rate Google Search stieg um 12 % — Budget-Shift empfohlen").</li>
+      <li><strong>Sprint 25 (Woche 25)</strong> — Organic Stats: UTM-lose Attribution via Referrer + Fingerprinting.</li>
+      <li><strong>Sprint 26 (Woche 26)</strong> — Call Funnel Stats mit iClosed-Deep-Integration, Pipeline-Visualisierung.</li>
+      <li><strong>Sprint 27 (Woche 27)</strong> — Custom Performance Reports: Drag &amp; Drop Metriken, speicherbar, teilbar.</li>
+      <li><strong>Sprint 28 (Woche 28)</strong> — Incrementality-Holdout-Framework: Ad-Platform-Lift-Tests orchestriert aus unserer UI.</li>
+    </ul>
+  </div>
+
+  <h4>Phase 4 · SaaS-Readiness</h4>
+  <div class="card tight">
+    <ul class="clean">
+      <li><strong>Sprint 29 – 30 (Woche 29 – 30)</strong> — Multi-Tenant-Refactor: Row-Level-Security auf allen Tabellen, Workspace-Scoped API, Rollen Owner/Admin/Viewer.</li>
+      <li><strong>Sprint 31 (Woche 31)</strong> — Stripe-Billing: 3 Tiers, Usage-Metering (Events/Monat), Invoice-Download.</li>
+      <li><strong>Sprint 32 (Woche 32)</strong> — Self-Service-Onboarding: Signup-Flow, CNAME-Wizard mit Auto-Check, Script-Installer-Snippet für Shopify/WordPress/HTML.</li>
+      <li><strong>Sprint 33 (Woche 33)</strong> — Marketing-Site: Landing, Pricing, /compare/hyros, /compare/triple-whale, /compare/wicked-reports. Docs auf Mintlify.</li>
+      <li><strong>Sprint 34 (Woche 34)</strong> — Case-Study Filapen mit echten Zahlen, Co-Marketing-Post, LinkedIn Carousel.</li>
+      <li><strong>Sprint 35 (Woche 35)</strong> — Help-Center (Mintlify), Intercom oder Plain als Support-Tool.</li>
+      <li><strong>Sprint 36 (Woche 36)</strong> — Product-Hunt-Launch-Vorbereitung: Screenshots, Gallery-Video, Assets.</li>
+      <li><strong>Sprint 37 – 40 (Woche 37 – 40)</strong> — Launch, Feedback-Sammlung, erste zahlende Kunden, Iteration.</li>
+    </ul>
+  </div>
+
+  <h3>Wie Claude-Vibe-Coding konkret aussieht</h3>
+  <div class="callout brand"><strong>Prinzip:</strong> Jeder Sprint ist eine einzelne Feature-Flag-baren Pull-Request. Claude bekommt als Input den Sprint-Scope + Links zu relevanten Files + die bestehende Code-Basis. Output ist Code + Migrations + Tests + kurzer Deploy-Bericht. Wöchentlich eine Demo gegen echte Filapen-Daten.</div>
+  <div class="grid c2">
+    <div class="card tight">
+      <h4>Was du (Filapen) im Wochen-Zyklus tust</h4>
+      <ul class="clean">
+        <li>Montag: Sprint-Scope mit Claude durchsprechen + Blocker klären</li>
+        <li>Mo – Fr: Claude arbeitet, du reviewst PRs &amp; klärst Product-Fragen</li>
+        <li>Freitag: Demo gegen echte Daten, was funktioniert/nicht</li>
+        <li>Sonntag: Rückblick + nächster Sprint-Scope festlegen</li>
+      </ul>
+    </div>
+    <div class="card tight">
+      <h4>Wo ein zweiter Mensch helfen sollte (später)</h4>
+      <ul class="clean">
+        <li>Ab Phase 3: Ein Part-Time-DevOps-Mensch für ClickHouse-Ops + Alerting</li>
+        <li>Ab Phase 4: Ein Support-/CS-Mensch für die ersten externen Kunden</li>
+        <li>Ab Launch: Ein Content/Marketing-Part-Time für SEO + Sales-Ops</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================== TAB 8 -->
+<section class="tab" id="t8">
+  <div class="card">
+    <h2 style="margin-top:0">Entscheidungs-Log &amp; Risiken</h2>
+    <p>Jede nicht-offensichtliche Entscheidung ist hier festgehalten mit Begründung — damit wir in Woche 20 nicht „warum eigentlich ClickHouse" diskutieren.</p>
+  </div>
+
+  <h3>Produkt-Entscheidungen</h3>
+  <table>
+    <tr><th>Entscheidung</th><th>Begründung</th></tr>
+    <tr><td>Filapen zuerst, SaaS später</td><td>Reduziert MVP-Risiko; Filapen ist gleichzeitig Pilot-Kunde und Case-Study; wir sparen $42k/Jahr ab Woche 16.</td></tr>
+    <tr><td>Kein Referral / External Call / Redirection in MVP</td><td>In 40 Screenshots ungenutzt → kein Wert für Filapen → später priorisieren nach Kunden-Nachfrage.</td></tr>
+    <tr><td>CNAME bleibt <code class="inline">t.filapen.de</code></td><td>Branding konsistent, DNS-Autorität bleibt bei Filapen, Script-URL muss in Hyros-Templates nicht geändert werden → 0 Friction beim Cut-Over.</td></tr>
+    <tr><td>Meta-Attribution als #1 Verkaufsargument</td><td>Filapen verbrennt bei Meta Geld (−€128/W). Wenn wir das fixen, ist die Story durch Zahlen bewiesen — nicht durch Marketing-Slogans.</td></tr>
+    <tr><td>Transparente Attribution-Methoden pro Report wählbar</td><td>Hyros ist Blackbox. Transparenz ist Differentiator gegenüber allen großen Playern (Triple Whale, Wicked Reports, Hyros).</td></tr>
+  </table>
+
+  <h3>Technische Entscheidungen</h3>
+  <table>
+    <tr><th>Entscheidung</th><th>Begründung</th></tr>
+    <tr><td>Cloudflare Workers für Edge</td><td>Sub-50ms p95 global, 0-Maintenance, günstig. EU-Data-Localization via DLS möglich.</td></tr>
+    <tr><td>Supabase Postgres EU-Frankfurt</td><td>Managed Auth + RLS + Realtime spart 3 Monate Arbeit. Migration zu Neon/CrunchyBridge jederzeit möglich.</td></tr>
+    <tr><td>ClickHouse Cloud für OLAP</td><td>Hyros-Style Aggregates bei Millionen Events nur mit OLAP-Engine unter 1 Sek. Timescale nicht schnell genug bei hohen Kardinalitäten.</td></tr>
+    <tr><td>TypeScript end-to-end</td><td>Ein Team, ein Sprache, ein Build-System, geteilte Types zwischen Edge/API/Dashboard.</td></tr>
+    <tr><td>Python nur für ML-Attribution</td><td>causalml, PyMC, lifelines sind Python-only. Isolierter Service via FastAPI, kein Einfluss auf Hauptstack.</td></tr>
+    <tr><td>Next.js 15 App Router + shadcn</td><td>Moderner, schneller als Hyros-UI. Zero-Config SSR, Vercel EU.</td></tr>
+    <tr><td>Drizzle statt Prisma</td><td>Bessere TypeScript-Typen, schneller, besser für Cloudflare-Workers-Edge-Code.</td></tr>
+    <tr><td>Kein eigenes Consent-Management, nur Integration mit Cookiebot / Usercentrics</td><td>CMP-Markt ist gesättigt, wir konsumieren Consent-Signals — bauen keine eigene Einwilligungs-Layer.</td></tr>
+  </table>
+
+  <h3>Risiken &amp; Mitigation (Top 10)</h3>
+  <table>
+    <tr><th>#</th><th>Risiko</th><th>Wahrsch.</th><th>Impact</th><th>Mitigation</th></tr>
+    <tr><td>1</td><td>Meta CAPI Dedup scheitert → Meta-Zahlen ungenau</td><td>Mittel</td><td>Hoch</td><td>Test-Mode-Phase 2 Wochen, Facebook Events Manager als Ground Truth, event_id deterministic</td></tr>
+    <tr><td>2</td><td>CNAME-Switch verliert 10 % Events</td><td>Gering</td><td>Hoch</td><td>DNS-TTL 60 Sek, 72h Dual-Send-Fallback, Rollback in &lt; 5 Min</td></tr>
+    <tr><td>3</td><td>ClickHouse Kosten explodieren bei Scale</td><td>Mittel</td><td>Mittel</td><td>Tiered-Storage (Hot 7 Tage, Warm 90 Tage, Cold-S3), Query-Caching</td></tr>
+    <tr><td>4</td><td>Claude baut Feature-Creep, Scope explodiert</td><td>Hoch</td><td>Mittel</td><td>Jeder Sprint hat klaren Scope, No-Additions-Rule, Freitags-Demo filtert</td></tr>
+    <tr><td>5</td><td>iOS ATT / 3P-Cookie-Tod verschlechtert Probabilistic-Match</td><td>Hoch</td><td>Mittel</td><td>Server-Side-First Architektur, CAPI primär, Client nur Fallback</td></tr>
+    <tr><td>6</td><td>Filapen-interne Priorität schiebt Projekt</td><td>Mittel</td><td>Hoch</td><td>Fixes Wochen-Commitment, Claude als Haupt-Kontributor minimiert Zeitbedarf</td></tr>
+    <tr><td>7</td><td>Shopify-Webhooks verzögert (&gt; 15 Min)</td><td>Gering</td><td>Mittel</td><td>Backup-Poll alle 15 Min, Order-Sync-Auditing täglich</td></tr>
+    <tr><td>8</td><td>DSGVO-Beanstandung wegen Fingerprinting</td><td>Gering</td><td>Hoch</td><td>Consent-Gated Mode default, legitimes Interesse nur für zwingend-notwendige Events</td></tr>
+    <tr><td>9</td><td>Wettbewerber (Triple Whale EU) launcht schneller</td><td>Mittel</td><td>Mittel</td><td>Wir sind schnell durch Single-Tenant-Start, Case-Study-Moat durch Filapen-Zahlen</td></tr>
+    <tr><td>10</td><td>Erster externer Kunde bricht ab → negatives Signal</td><td>Mittel</td><td>Mittel</td><td>Hohe Qualität der ersten 3 Kunden, persönliches Onboarding, White-Glove-Support Phase 4</td></tr>
+  </table>
+
+  <h3>Offene Punkte, die du entscheiden solltest</h3>
+  <div class="card">
+    <ul class="clean">
+      <li><strong>1. Brand-Name für die SaaS-Version</strong> — TrackLayer / Signal / Attribyte / Primo / anderer Vorschlag? Entscheidung bis Ende Phase 0.</li>
+      <li><strong>2. SaaS-Ziel-Markt — DACH-only zuerst oder direkt EU-wide?</strong> Empfehlung: DACH-first, weil Deutsch-Support Differenzierung; EU-wide ab Monat 9.</li>
+      <li><strong>3. Eigenes Legal-Entity für das SaaS oder Filapen GmbH als Träger?</strong> Steuerlich/rechtlich prüfen — empfiehlt sich separate Tracklayer GmbH ab Phase 4 für saubere Cap-Table bei möglichem späterem Investor-Gespräch.</li>
+      <li><strong>4. Wieviel Zeit/Woche investierst du selbst in Sprint-Reviews &amp; Product-Entscheidungen?</strong> Empfehlung: minimum 4 Std/Woche für die ersten 16 Wochen.</li>
+      <li><strong>5. Wann wollen wir Phase 0 starten?</strong> Empfehlung: diese Woche. DNS-TTL-Anpassung auf <code class="inline">t.filapen.de</code> kann schon jetzt laufen.</li>
+    </ul>
+  </div>
+
+  <h3>Kostenrahmen (monatliche Infra)</h3>
+  <table>
+    <tr><th>Service</th><th>Phase 1 (Filapen allein)</th><th>Phase 4 (10 Kunden)</th><th>Phase 5 (100 Kunden)</th></tr>
+    <tr><td>Cloudflare Workers + DNS</td><td>€10</td><td>€40</td><td>€200</td></tr>
+    <tr><td>Supabase EU (Pro)</td><td>€25</td><td>€100</td><td>€400</td></tr>
+    <tr><td>ClickHouse Cloud EU</td><td>€70</td><td>€250</td><td>€1.200</td></tr>
+    <tr><td>Hetzner (Workers, ML-Service)</td><td>€30</td><td>€80</td><td>€200</td></tr>
+    <tr><td>Upstash Redis EU</td><td>€10</td><td>€30</td><td>€100</td></tr>
+    <tr><td>Axiom / Sentry / Monitoring</td><td>€20</td><td>€80</td><td>€250</td></tr>
+    <tr><td>Vercel Pro EU</td><td>€20</td><td>€20</td><td>€150</td></tr>
+    <tr><td>Stripe / Resend / Weitere</td><td>€10</td><td>€50</td><td>€200</td></tr>
+    <tr><td><strong>Summe</strong></td><td><strong>≈ €195</strong></td><td><strong>≈ €650</strong></td><td><strong>≈ €2.700</strong></td></tr>
+  </table>
+  <p class="sub">Margen-Kalkulation Phase 4: 10 Kunden × ø €400 = €4.000 MRR − €650 Infra = <strong>~85 % Brutto-Marge</strong>. Klassisch gesundes SaaS-Unit-Economics.</p>
+</section>
+
+<footer>
+  <p>Produktions-Masterplan · V1.0 · 22. April 2026 · basiert auf Filapen-Hyros-Analyse aus 40 Account-Screenshots. Alle Kalkulationen, Kostenrahmen und Pilot-Zielvorgaben sind Planungsannahmen — werden im ersten Sprint-Review geprüft und angepasst. Dokument dient als lebendiges Artefakt; Änderungen werden versioniert.</p>
+</footer>
+
+</div>
+
+<script>
+  document.querySelectorAll("nav.tabs button").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll("section.tab").forEach(s=>s.classList.remove("active"));
+      btn.classList.add("active");
+      const id = btn.dataset.tab;
+      document.getElementById(id).classList.add("active");
+      window.scrollTo({top:0,behavior:"smooth"});
+    });
+  });
+</script>
+</body>
+</html>

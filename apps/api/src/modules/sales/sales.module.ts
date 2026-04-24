@@ -8,6 +8,7 @@ import { SalesDocumentService } from './sales-document.service';
 import { SalesImportService } from './sales-import.service';
 import { EasybillService } from './easybill.service';
 import { SalesReminderService } from './sales-reminder.service';
+import { SalesExportService } from './sales-export.service';
 
 @Module({
   imports: [AuthModule, StorageModule],
@@ -19,6 +20,7 @@ import { SalesReminderService } from './sales-reminder.service';
     SalesImportService,
     EasybillService,
     SalesReminderService,
+    SalesExportService,
   ],
   exports: [SalesOrderService, SalesCustomerService],
 })

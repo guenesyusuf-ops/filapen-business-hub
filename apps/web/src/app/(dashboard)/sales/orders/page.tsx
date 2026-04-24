@@ -99,7 +99,7 @@ export default function SalesOrdersPage() {
           />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03]">
+        <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03]">
           <table className="w-full text-sm">
             <thead className="border-b border-gray-200/80 dark:border-white/8 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>

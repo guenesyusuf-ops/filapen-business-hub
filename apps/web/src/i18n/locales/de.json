@@ -99,7 +99,8 @@
     "salesDashboard": "Dashboard",
     "salesOrders": "Bestellungen",
     "salesCustomers": "B2B-Kunden",
-    "salesImport": "Import"
+    "salesImport": "Import",
+    "salesExport": "Export"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",

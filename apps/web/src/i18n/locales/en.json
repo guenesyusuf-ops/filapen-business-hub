@@ -99,7 +99,8 @@
     "salesDashboard": "Dashboard",
     "salesOrders": "Orders",
     "salesCustomers": "B2B Customers",
-    "salesImport": "Import"
+    "salesImport": "Import",
+    "salesExport": "Export"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",

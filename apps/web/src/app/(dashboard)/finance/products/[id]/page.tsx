@@ -180,18 +180,21 @@ function VariantRow({
   );
   const [currency, setCurrency] = useState<string>(variant.cogsCurrency || 'EUR');
   const [vatRate, setVatRate] = useState<string>(String(variant.vatRate ?? 19));
+  const [ean, setEan] = useState<string>(variant.barcode ?? '');
   const updateVariant = useUpdateVariant(productId);
 
   useEffect(() => {
     setCogs(variant.cogs != null ? String(toNumber(variant.cogs)) : '');
     setCurrency(variant.cogsCurrency || 'EUR');
     setVatRate(String(variant.vatRate ?? 19));
-  }, [variant.cogs, variant.cogsCurrency, variant.vatRate]);
+    setEan(variant.barcode ?? '');
+  }, [variant.cogs, variant.cogsCurrency, variant.vatRate, variant.barcode]);
 
   const isDirty =
     String(variant.cogs ?? '') !== cogs.trim() ||
     (variant.cogsCurrency || 'EUR') !== currency ||
-    String(variant.vatRate ?? 19) !== vatRate;
+    String(variant.vatRate ?? 19) !== vatRate ||
+    (variant.barcode ?? '') !== ean.trim();
 
   const handleSave = () => {
     const parsed = cogs.trim() === '' ? null : Number(cogs.replace(',', '.'));
@@ -201,6 +204,7 @@ function VariantRow({
       cogs: parsed,
       cogsCurrency: currency,
       vatRate: Number(vatRate),
+      barcode: ean.trim() || null,
     });
   };
 
@@ -210,8 +214,18 @@ function VariantRow({
       <td className="px-3 py-3 text-xs font-mono text-gray-500 dark:text-gray-400">
         {variant.sku || <span className="italic text-gray-400 dark:text-gray-500">—</span>}
       </td>
-      <td className="px-3 py-3 text-xs font-mono text-gray-500 dark:text-gray-400">
-        {variant.barcode || <span className="italic text-gray-400 dark:text-gray-500">—</span>}
+      <td className="px-3 py-3">
+        <input
+          type="text"
+          value={ean}
+          onChange={(e) => setEan(e.target.value)}
+          placeholder="EAN"
+          className={cn(
+            'w-36 rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-black/30 px-2 py-1.5',
+            'text-xs font-mono text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500',
+            'focus:border-gray-400 dark:focus:border-white/30 focus:outline-none',
+          )}
+        />
       </td>
       <td
         className="px-3 py-3 text-sm text-gray-500 dark:text-gray-300 opacity-70"

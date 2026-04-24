@@ -12,6 +12,7 @@ import { SalesOrderService } from './sales-order.service';
 import { SalesDocumentService } from './sales-document.service';
 import { SalesImportService } from './sales-import.service';
 import { EasybillService } from './easybill.service';
+import { SalesExportService } from './sales-export.service';
 
 @Controller('sales')
 export class SalesController {
@@ -24,6 +25,7 @@ export class SalesController {
     private readonly documents: SalesDocumentService,
     private readonly importer: SalesImportService,
     private readonly easybill: EasybillService,
+    private readonly exporter: SalesExportService,
   ) {}
 
   // ==========================================================
@@ -33,6 +35,28 @@ export class SalesController {
   async dashboard(@Headers('authorization') authHeader: string) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     return this.orders.dashboard(orgId);
+  }
+
+  // ==========================================================
+  // Export (CSV)
+  // ==========================================================
+  @Get('export')
+  async export(
+    @Headers('authorization') authHeader: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Res({ passthrough: false }) res: Response,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    if (!from || !to) {
+      res.status(400).json({ message: 'from und to erforderlich (YYYY-MM-DD)' });
+      return;
+    }
+    const csv = await this.exporter.exportCsv(orgId, from, to);
+    const fileName = `verkauf-export-${from}-bis-${to}.csv`;
+    res.set('Content-Type', 'text/csv; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(csv);
   }
 
   // ==========================================================

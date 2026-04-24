@@ -398,7 +398,7 @@ export class ProductService {
   async updateVariantCogs(
     orgId: string,
     variantId: string,
-    data: { cogs?: number | null; cogsCurrency?: string | null; vatRate?: number },
+    data: { cogs?: number | null; cogsCurrency?: string | null; vatRate?: number; barcode?: string | null; sku?: string | null },
   ) {
     const variant = await this.prisma.productVariant.findFirst({
       where: { id: variantId, orgId },
@@ -423,6 +423,15 @@ export class ProductService {
     }
     if (data.vatRate !== undefined) {
       updateData.vatRate = data.vatRate;
+    }
+    if (data.barcode !== undefined) {
+      // EAN/Barcode — manuell pflegbar für besseres Matching beim Sales-Import.
+      // Trim und auf null normalisieren damit leere Strings die Unique-Lookups
+      // nicht versauen.
+      updateData.barcode = data.barcode?.trim() || null;
+    }
+    if (data.sku !== undefined) {
+      updateData.sku = data.sku?.trim() || null;
     }
     if (Object.keys(updateData).length > 0) {
       await this.prisma.productVariant.update({
