@@ -302,7 +302,7 @@ export default function ProductsPage() {
           <div>
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-              <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">Produkte</h1>
+              <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Produkte</h1>
             </div>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {isLoading

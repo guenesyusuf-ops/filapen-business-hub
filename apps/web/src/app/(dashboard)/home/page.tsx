@@ -106,9 +106,12 @@ function GreetingCard() {
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-bento">
-      {/* Mesh-Gradient nur als DEZENTE Akzent-Ebene im oberen rechten Quadranten,
-          nicht flächig — dadurch viel weniger Lila insgesamt */}
-      <div className="absolute top-0 right-0 w-[60%] h-full bg-mesh opacity-70 pointer-events-none" />
+      {/* Basis-Mesh auf voller Breite, unten drunter */}
+      <div className="absolute inset-0 bg-mesh pointer-events-none" />
+      {/* Weicher horizontaler Fade: links fast reines Weiss, rechts
+          transparent — lässt das Mesh von rechts "ins" Weiss einfließen,
+          kein harter Bruch, gleiche Logik für Light + Dark via Card-BG. */}
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-white via-white/70 to-transparent dark:from-[var(--card-bg)] dark:via-[color:var(--card-bg)]/70 dark:to-transparent" />
       {/* Grain-Overlay für Premium-Haptik */}
       <div
         className="absolute inset-0 opacity-[0.015] dark:opacity-[0.04] pointer-events-none mix-blend-overlay"

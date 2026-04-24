@@ -204,7 +204,7 @@ export default function AmazonDashboardPage() {
       {/* Header + Date picker */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Amazon</h1>
+          <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Amazon</h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">Bestellungen, Umsatz und Performance</p>
         </div>
 

@@ -406,7 +406,7 @@ export default function ProductDetailPage() {
               <ArrowLeft className="h-3.5 w-3.5" />
               Zurück zu Produkten
             </Link>
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+            <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">
               {product.title}
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">

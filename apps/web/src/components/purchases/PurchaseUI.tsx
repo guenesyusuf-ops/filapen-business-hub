@@ -26,35 +26,53 @@ export function KpiCard({
   icon?: ReactNode;
   onClick?: () => void;
 }) {
-  const accentMap: Record<string, string> = {
-    blue: 'from-blue-500 to-blue-600',
-    green: 'from-green-500 to-green-600',
-    amber: 'from-amber-500 to-amber-600',
-    red: 'from-red-500 to-red-600',
-    purple: 'from-purple-500 to-purple-600',
-    indigo: 'from-indigo-500 to-indigo-600',
-    gray: 'from-gray-400 to-gray-500',
+  // Farb-Map für Ring-Container um das Icon + Gradient-Tint-Background.
+  // Gibt jeder KPI-Card ihre eigene Modul-Signatur.
+  const tintMap: Record<string, { tint: string; ring: string; text: string }> = {
+    blue: { tint: 'from-blue-500/10 to-blue-500/[0.02]', ring: 'ring-blue-500/20', text: 'text-blue-500' },
+    green: { tint: 'from-emerald-500/10 to-emerald-500/[0.02]', ring: 'ring-emerald-500/20', text: 'text-emerald-500' },
+    amber: { tint: 'from-amber-500/10 to-amber-500/[0.02]', ring: 'ring-amber-500/20', text: 'text-amber-500' },
+    red: { tint: 'from-rose-500/10 to-rose-500/[0.02]', ring: 'ring-rose-500/20', text: 'text-rose-500' },
+    purple: { tint: 'from-violet-500/10 to-violet-500/[0.02]', ring: 'ring-violet-500/20', text: 'text-violet-500' },
+    indigo: { tint: 'from-indigo-500/10 to-indigo-500/[0.02]', ring: 'ring-indigo-500/20', text: 'text-indigo-500' },
+    gray: { tint: 'from-gray-400/10 to-gray-400/[0.02]', ring: 'ring-gray-400/20', text: 'text-gray-500' },
   };
+  const styles = tintMap[accent || 'gray'];
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'group relative overflow-hidden rounded-2xl bg-white dark:bg-white/[0.03] border border-gray-200/80 dark:border-white/8 text-left transition-all duration-200',
-        // Responsive padding — tighter on mobile so 2-col KPI grids don't overflow
-        'px-3 py-3 sm:px-5 sm:py-4',
-        onClick && 'hover:shadow-lg hover:-translate-y-0.5 cursor-pointer active:scale-[0.99]',
+        'group relative overflow-hidden rounded-2xl bg-white dark:bg-[var(--card-bg)]',
+        'border border-gray-200/70 dark:border-white/8 shadow-card hover:shadow-card-hover',
+        'text-left transition-all duration-300',
+        'px-4 py-4 sm:px-5 sm:py-5',
+        onClick && 'hover:-translate-y-0.5 cursor-pointer active:scale-[0.99]',
       )}
     >
-      <div className={cn('absolute top-0 left-0 h-1 w-full bg-gradient-to-r', accentMap[accent || 'gray'])} />
-      <div className="flex items-start justify-between gap-2 sm:gap-3">
+      {/* Dezenter Farb-Tint im Hintergrund — Modul-Farbe sichtbar ohne zu dominieren */}
+      <div className={cn('absolute inset-0 bg-gradient-to-br opacity-70 pointer-events-none', styles.tint)} />
+
+      <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 truncate">{label}</div>
-          {/* Value fits a 120-190px card width on mobile without wrapping 5-6 digit amounts */}
-          <div className="mt-1 sm:mt-1.5 text-lg sm:text-2xl font-bold text-gray-900 dark:text-white tabular-nums truncate">{value}</div>
-          {sublabel && <div className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 truncate">{sublabel}</div>}
+          <div className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400 truncate">
+            {label}
+          </div>
+          {/* Fraunces-Serif für Premium-Report-Feeling */}
+          <div className="mt-2 sm:mt-2.5 font-display-serif text-3xl sm:text-[2.75rem] font-medium tracking-tight leading-none text-gray-900 dark:text-white tabular-nums truncate">
+            {value}
+          </div>
+          {sublabel && <div className="mt-1.5 text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">{sublabel}</div>}
         </div>
-        {icon && <div className="text-gray-300 dark:text-gray-600 flex-shrink-0 hidden sm:block">{icon}</div>}
+        {icon && (
+          <div className={cn(
+            'h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-white dark:bg-white/5',
+            'flex items-center justify-center flex-shrink-0 shadow-sm ring-1',
+            styles.ring, styles.text,
+          )}>
+            {icon}
+          </div>
+        )}
       </div>
     </button>
   );
@@ -67,7 +85,7 @@ export function PageHeader({
     // Stack vertically on mobile, horizontal from sm: up. Actions wrap if multiple.
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
       <div className="min-w-0">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">{title}</h1>
+        <h1 className="font-display-serif text-2xl sm:text-3xl md:text-[2.25rem] font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">{title}</h1>
         {subtitle && <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
       </div>
       {actions && (

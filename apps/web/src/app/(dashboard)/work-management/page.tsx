@@ -119,7 +119,7 @@ export default function WorkManagementPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Aufgabenverwaltung</h1>
+            <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1] truncate">Aufgabenverwaltung</h1>
             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 hidden sm:block">Projekte und Aufgaben verwalten</p>
           </div>
           {/* Notification Bell */}

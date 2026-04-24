@@ -320,7 +320,7 @@ export default function ApprovalsPage() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">User Approvals</h1>
+              <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">User Approvals</h1>
               {pendingUsers.length > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-xs font-bold text-white">
                   {pendingUsers.length}

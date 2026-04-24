@@ -221,7 +221,7 @@ export default function CampaignDetailPage() {
           </Link>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{campaign.name}</h1>
+              <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">{campaign.name}</h1>
               {platformBadge(campaign.platform)}
               {statusBadge(campaign.status)}
             </div>

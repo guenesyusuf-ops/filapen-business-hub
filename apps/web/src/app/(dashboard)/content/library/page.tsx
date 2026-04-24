@@ -793,7 +793,7 @@ export default function ContentLibraryPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Content Library</h1>
+          <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Content Library</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {activeTab === 'content'
               ? `${total} piece${total !== 1 ? 's' : ''} of content`

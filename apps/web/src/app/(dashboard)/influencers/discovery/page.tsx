@@ -460,7 +460,7 @@ export default function InfluencerDiscoveryPage() {
     <div className="space-y-5 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Discovery</h1>
+        <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Discovery</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Find and filter influencers across platforms
         </p>

@@ -259,7 +259,7 @@ export default function PortalDealsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Meine Projekte</h1>
+        <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Meine Projekte</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Projekte, die du angenommen hast
         </p>

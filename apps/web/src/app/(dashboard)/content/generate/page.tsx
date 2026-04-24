@@ -357,7 +357,7 @@ export default function GenerateContentPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Generate Content</h1>
+          <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Generate Content</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Elite content generation powered by proven copywriting frameworks.
           </p>

@@ -163,7 +163,7 @@ export default function ReportsPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Page Header */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Reports</h1>
+        <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Reports</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Generate and download financial reports for your business
         </p>

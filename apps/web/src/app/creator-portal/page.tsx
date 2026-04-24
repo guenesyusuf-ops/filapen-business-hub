@@ -86,7 +86,7 @@ function LoginScreen({ onLogin }: { onLogin: (creator: PortalCreator) => void })
     <div className="flex items-center justify-center min-h-[70vh]">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Welcome</h1>
+          <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Welcome</h1>
           <p className="text-sm text-gray-500 mt-1">
             Enter your invite code to access your portal
           </p>
@@ -322,7 +322,7 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
     <div className="space-y-6">
       {/* Welcome */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">
           Welcome back, {creator.name}
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">

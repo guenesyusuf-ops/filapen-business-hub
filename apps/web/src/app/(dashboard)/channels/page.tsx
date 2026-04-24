@@ -55,7 +55,7 @@ export default function ChannelsOverviewPage() {
   return (
     <div className="text-gray-900 dark:text-white">
       <header className="mb-8">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Channels</h1>
+        <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Channels</h1>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           Alle verbundenen Vertriebs- und Marketing-Kanäle im Überblick.
         </p>
