@@ -301,7 +301,7 @@ export default function InfluencerHubOverview() {
           previousValue={null}
           format="number"
           icon={<Users className="h-4 w-4" />}
-          accentColor="#EC4899"
+          accentColor="rgb(var(--accent-1))"
           loading={loading}
         />
         <KPICard
@@ -310,7 +310,7 @@ export default function InfluencerHubOverview() {
           previousValue={null}
           format="percentage"
           icon={<Heart className="h-4 w-4" />}
-          accentColor="#F59E0B"
+          accentColor="rgb(var(--accent-3))"
           loading={loading}
         />
         <KPICard
@@ -319,7 +319,7 @@ export default function InfluencerHubOverview() {
           previousValue={null}
           format="number"
           icon={<TrendingUp className="h-4 w-4" />}
-          accentColor="#3B82F6"
+          accentColor="rgb(var(--accent-2))"
           loading={loading}
         />
         <KPICard
@@ -328,7 +328,7 @@ export default function InfluencerHubOverview() {
           previousValue={null}
           format="number"
           icon={<ListChecks className="h-4 w-4" />}
-          accentColor="#8B5CF6"
+          accentColor="rgb(var(--accent-4))"
           loading={loading}
         />
       </div>

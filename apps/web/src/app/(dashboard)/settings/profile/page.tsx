@@ -5,6 +5,7 @@ import { useAuthStore, getAuthHeaders } from '@/stores/auth';
 import { API_URL } from '@/lib/api';
 import { Camera, Save, CheckCircle2, X, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { THEME_PRESETS } from '@/hooks/useThemePreset';
 
 const MAX_AVATAR_BYTES = 300 * 1024; // 300KB
 
@@ -294,6 +295,112 @@ export default function ProfileSettingsPage() {
           </button>
         </div>
       </form>
+
+      <ThemePresetPicker />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Theme-Picker — jeder User wählt sein eigenes Farbschema.
+// Speichert sofort via PATCH /auth/profile, updated den Auth-Store, das
+// useThemePreset-Hook setzt dann data-theme automatisch.
+// ---------------------------------------------------------------------------
+function ThemePresetPicker() {
+  const { user, token, setAuth } = useAuthStore();
+  const current = user?.themePreset ?? 'standard';
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function pick(preset: string) {
+    if (!token || preset === current) return;
+    setBusy(preset);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/auth/profile`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ themePreset: preset }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Theme konnte nicht gespeichert werden');
+      }
+      const updated = await res.json();
+      setAuth(token, updated);
+    } catch (err: any) {
+      setError(err.message || 'Fehler');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="mt-8 rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card p-6">
+      <div className="mb-4">
+        <h2 className="font-display-serif text-xl font-medium tracking-tight text-gray-900 dark:text-white">
+          Farbschema
+        </h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Wähle dein persönliches Farbschema. Greift sofort in der ganzen App — nur für dich.
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+          {error}
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {THEME_PRESETS.map((preset) => {
+          const selected = current === preset.id;
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => pick(preset.id)}
+              disabled={busy !== null}
+              className={cn(
+                'group relative overflow-hidden rounded-2xl border text-left transition-all',
+                'px-4 py-4',
+                selected
+                  ? 'border-primary-500 ring-2 ring-primary-500/30 shadow-card-primary'
+                  : 'border-gray-200/70 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-card',
+                busy === preset.id && 'opacity-60',
+              )}
+            >
+              {/* Swatch-Row — zeigt die 4 Farben der Palette */}
+              <div className="flex gap-1.5 mb-3">
+                {preset.swatches.map((hex) => (
+                  <div
+                    key={hex}
+                    className="h-8 flex-1 rounded-lg shadow-inner"
+                    style={{ backgroundColor: hex }}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                    {preset.label}
+                  </div>
+                  <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                    {preset.description}
+                  </div>
+                </div>
+                {selected && (
+                  <div className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-600 flex items-center justify-center">
+                    <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

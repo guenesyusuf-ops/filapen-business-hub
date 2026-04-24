@@ -383,6 +383,9 @@ model User {
   status             UserStatus @default(active)
   menuPermissions    String[]   @default([]) @map("menu_permissions")
   mustChangePassword Boolean    @default(false) @map("must_change_password")
+  // Farbschema-Preset: standard | mystic | sunset | grey | petal. Wirkt pro
+  // User, nicht org-weit — jeder sieht seine eigene Palette.
+  themePreset        String     @default("standard") @map("theme_preset") @db.VarChar(32)
   lastActiveAt       DateTime?  @map("last_active_at") @db.Timestamptz
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
 

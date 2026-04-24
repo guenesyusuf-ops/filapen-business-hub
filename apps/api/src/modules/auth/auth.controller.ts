@@ -153,6 +153,7 @@ export class AuthController {
       lastName?: string | null;
       phone?: string | null;
       avatarUrl?: string | null;
+      themePreset?: string;
     },
   ) {
     const token = this.extractToken(authHeader);

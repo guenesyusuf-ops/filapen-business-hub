@@ -14,6 +14,8 @@ interface AuthUser {
   orgId: string;
   menuPermissions?: string[];
   mustChangePassword?: boolean;
+  /** User-gewähltes Farbschema. Wird via data-theme am <html> angewendet. */
+  themePreset?: string;
 }
 
 interface AuthState {

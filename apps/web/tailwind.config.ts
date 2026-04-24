@@ -24,68 +24,31 @@ const config: Config = {
           950: '#172554',
           DEFAULT: '#2563EB',
         },
-        // Harmonisches 4-Farben-System:
-        //   Blautöne (Hauptstellen):  #a9c6e0  soft blue,  #2c3e50  navy
-        //   Warm-Akzente (Farb-Pop):   #f2a900  amber,      #ff8c00  orange
-        // Aufgeteilt auf Module: action-heavy Modules (Sales, Email, Work)
-        // bekommen warme Akzente, struktur-/tool-Modules (Shipping, Content,
-        // Documents, Influencer, Creator) bekommen Blautöne.
-        'accent-sales': {
-          light: '#FFE5C2',
-          DEFAULT: '#FF8C00',     // orange — "hustle"
-          dark: '#C46C00',
-        },
-        'accent-shipping': {
-          light: '#E7F0F9',
-          DEFAULT: '#A9C6E0',     // soft blue — "flow/logistics"
-          dark: '#7098B8',
-        },
-        'accent-finance': {
-          light: '#FDE9B4',
-          DEFAULT: '#F2A900',     // amber — "gold/money"
-          dark: '#B47E00',
-        },
-        'accent-creator': {
-          light: '#E7F0F9',
-          DEFAULT: '#A9C6E0',
-          dark: '#7098B8',
-        },
-        'accent-work': {
-          light: '#FDE9B4',
-          DEFAULT: '#F2A900',     // amber — "fokus"
-          dark: '#B47E00',
-        },
-        'accent-content': {
-          light: '#E2E8EF',
-          DEFAULT: '#2C3E50',     // navy — "kreativ, seriös"
-          dark: '#1A2733',
-        },
-        'accent-email': {
-          light: '#FFE5C2',
-          DEFAULT: '#FF8C00',     // orange — "action"
-          dark: '#C46C00',
-        },
-        'accent-influencer': {
-          light: '#E7F0F9',
-          DEFAULT: '#A9C6E0',
-          dark: '#7098B8',
-        },
-        'accent-purchase': {
-          light: '#E2E8EF',
-          DEFAULT: '#2C3E50',     // navy — "procurement"
-          dark: '#1A2733',
-        },
-        'accent-documents': {
-          light: '#E7F0F9',
-          DEFAULT: '#A9C6E0',
-          dark: '#7098B8',
-        },
-        // Brand-Tokens für einfachen direkten Zugriff
+        // Theme-Variable Accents — lesen CSS-Vars die pro data-theme gesetzt
+        // werden. Dadurch kann jeder User ein eigenes Farbschema wählen und
+        // alle Komponenten ziehen automatisch mit. Fallback: accent-rgb
+        // kommt aus :root (Standard-Palette).
+        'accent-sales':      'rgb(var(--color-accent-sales))',
+        'accent-shipping':   'rgb(var(--color-accent-shipping))',
+        'accent-finance':    'rgb(var(--color-accent-finance))',
+        'accent-creator':    'rgb(var(--color-accent-creator))',
+        'accent-work':       'rgb(var(--color-accent-work))',
+        'accent-content':    'rgb(var(--color-accent-content))',
+        'accent-email':      'rgb(var(--color-accent-email))',
+        'accent-influencer': 'rgb(var(--color-accent-influencer))',
+        'accent-purchase':   'rgb(var(--color-accent-purchase))',
+        'accent-documents':  'rgb(var(--color-accent-documents))',
+        // 4 Theme-Rollen direkt erreichbar (für Gradients etc.)
+        'theme-1': 'rgb(var(--accent-1))',
+        'theme-2': 'rgb(var(--accent-2))',
+        'theme-3': 'rgb(var(--accent-3))',
+        'theme-4': 'rgb(var(--accent-4))',
+        // Alias auf Brand für Abwärtskompatibilität
         brand: {
-          blue: '#A9C6E0',
-          navy: '#2C3E50',
-          amber: '#F2A900',
-          orange: '#FF8C00',
+          blue:   'rgb(var(--accent-1))',
+          navy:   'rgb(var(--accent-2))',
+          amber:  'rgb(var(--accent-3))',
+          orange: 'rgb(var(--accent-4))',
         },
         semantic: {
           success: '#10B981',

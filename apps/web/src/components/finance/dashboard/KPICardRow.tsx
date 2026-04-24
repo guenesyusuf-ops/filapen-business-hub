@@ -18,28 +18,30 @@ interface KPICardRowProps {
   loading: boolean;
 }
 
-/** Configuration for which KPIs to show and in what order */
+/** Configuration — accentColor nutzt CSS-Variablen die mit dem User-Theme
+ *  wechseln. Dadurch werden KPI-Kachel-Schattierungen automatisch an das
+ *  gewählte Farbschema angepasst. Rot bleibt hart für Negativ-KPI (Ad Spend). */
 const KPI_CONFIG = [
   {
     key: 'grossRevenue' as const,
     labelKey: 'finance.grossRevenue',
     format: 'currency' as const,
     icon: <DollarSign className="h-4 w-4" />,
-    accentColor: '#2563EB',
+    accentColor: 'rgb(var(--accent-1))',
   },
   {
     key: 'netProfit' as const,
     labelKey: 'finance.netProfit',
     format: 'currency' as const,
     icon: <TrendingUp className="h-4 w-4" />,
-    accentColor: '#059669',
+    accentColor: 'rgb(var(--accent-3))',
   },
   {
     key: 'totalAdSpend' as const,
     labelKey: 'finance.adSpend',
     format: 'currency' as const,
     icon: <BarChart3 className="h-4 w-4" />,
-    accentColor: '#DC2626',
+    accentColor: '#DC2626',   // semantic red bleibt — bedeutet "Kostenstelle"
     invertTrend: true,
   },
   {
@@ -47,14 +49,14 @@ const KPI_CONFIG = [
     labelKey: 'finance.blendedRoas',
     format: 'multiplier' as const,
     icon: <Target className="h-4 w-4" />,
-    accentColor: '#7C3AED',
+    accentColor: 'rgb(var(--accent-2))',
   },
   {
     key: 'orderCount' as const,
     labelKey: 'finance.orders',
     format: 'number' as const,
     icon: <ShoppingCart className="h-4 w-4" />,
-    accentColor: '#D97706',
+    accentColor: 'rgb(var(--accent-4))',
   },
 ] as const;
 

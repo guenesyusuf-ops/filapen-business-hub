@@ -408,7 +408,7 @@ export default function ChannelDetailPage() {
           previousValue={null}
           format="multiplier"
           icon={<Target className="h-4 w-4" />}
-          accentColor="#7C3AED"
+          accentColor="rgb(var(--accent-2))"
         />
         <KPICard
           label="Profit"
@@ -416,7 +416,7 @@ export default function ChannelDetailPage() {
           previousValue={null}
           format="currency"
           icon={<TrendingUp className="h-4 w-4" />}
-          accentColor="#059669"
+          accentColor="rgb(var(--accent-3))"
         />
         <KPICard
           label="Orders"
@@ -424,7 +424,7 @@ export default function ChannelDetailPage() {
           previousValue={null}
           format="number"
           icon={<ShoppingCart className="h-4 w-4" />}
-          accentColor="#D97706"
+          accentColor="rgb(var(--accent-4))"
         />
       </div>
 

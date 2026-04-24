@@ -90,13 +90,15 @@ export function KPICard({
       )}
       style={accentColor ? { borderTopColor: accentColor } : undefined}
     >
-      {/* Subtle gradient overlay on hover */}
+      {/* Subtle gradient overlay on hover. color-mix() erlaubt Opacity
+          sowohl für hex-Werte als auch für rgb(var(--...)) — dadurch
+          funktioniert das für theme-basierte Farben. */}
       <div
         className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
         style={
           accentColor
             ? {
-                background: `linear-gradient(135deg, ${accentColor}08 0%, transparent 60%)`,
+                background: `linear-gradient(135deg, color-mix(in srgb, ${accentColor} 8%, transparent) 0%, transparent 60%)`,
               }
             : undefined
         }
@@ -112,7 +114,10 @@ export function KPICard({
               className="flex items-center justify-center h-8 w-8 rounded-lg opacity-80 transition-transform duration-200 group-hover:scale-110"
               style={
                 accentColor
-                  ? { backgroundColor: `${accentColor}12`, color: accentColor }
+                  ? {
+                      backgroundColor: `color-mix(in srgb, ${accentColor} 12%, transparent)`,
+                      color: accentColor,
+                    }
                   : undefined
               }
             >

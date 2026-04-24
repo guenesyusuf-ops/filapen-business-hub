@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
+import { useThemePreset } from '@/hooks/useThemePreset';
 import { API_URL } from '@/lib/api';
 import { AdminNotificationBell } from '@/components/admin/AdminNotificationBell';
 import {
@@ -653,6 +654,9 @@ export default function DashboardLayout({
   const { theme, setTheme } = useThemeStore();
   const { logout, setAuth } = useAuthStore();
   const [commandBarOpen, toggleCommandBar] = useCommandBar();
+  // Apply User-Theme-Preset als data-theme am <html> (läuft automatisch
+  // wenn User sich ändert oder das Theme in Settings gewechselt wird)
+  useThemePreset();
 
   // Read localStorage directly — no Zustand hydration timing needed
   const [authChecked, setAuthChecked] = useState(false);

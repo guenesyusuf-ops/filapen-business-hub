@@ -325,6 +325,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
       menuPermissions: user.menuPermissions ?? [],
       mustChangePassword: user.mustChangePassword ?? false,
+      themePreset: user.themePreset ?? 'standard',
       createdAt: user.createdAt.toISOString(),
     };
   }
@@ -340,8 +341,16 @@ export class AuthService {
       lastName?: string | null;
       phone?: string | null;
       avatarUrl?: string | null;
+      themePreset?: string;
     },
   ) {
+    // Theme-Preset-Validierung: nur erlaubte Werte, sonst ignorieren (nicht
+    // crashen), damit veraltete Clients nicht die ganze Profil-Speicherung
+    // brechen.
+    const ALLOWED_THEMES = ['standard', 'mystic', 'sunset', 'grey', 'petal'];
+    if (data.themePreset !== undefined && !ALLOWED_THEMES.includes(data.themePreset)) {
+      delete data.themePreset;
+    }
     // Validate avatar payload — accept either a remote URL or a data URL,
     // and cap size so we don't bloat the DB with enormous base64 blobs.
     if (data.avatarUrl && data.avatarUrl.length > 0) {
@@ -373,6 +382,7 @@ export class AuthService {
         ...(data.lastName !== undefined && { lastName: data.lastName || null }),
         ...(data.phone !== undefined && { phone: data.phone || null }),
         ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl || null }),
+        ...(data.themePreset !== undefined && { themePreset: data.themePreset }),
         name: derivedName,
       },
     });
