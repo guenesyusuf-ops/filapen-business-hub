@@ -131,7 +131,7 @@ function ChannelCard({ channel, dragHandleProps }: { channel: ChannelPnL; dragHa
 function OverviewCard({ kpis, dragHandleProps }: { kpis: OverviewKPIs; dragHandleProps?: any }) {
   const items = [
     { label: 'Cost per Order', value: eur(kpis.costPerOrder), icon: <ShoppingBag className="h-3.5 w-3.5" />, color: 'text-blue-600' },
-    { label: 'CAC', value: eur(kpis.cac), icon: <TrendingUp className="h-3.5 w-3.5" />, color: 'text-violet-600' },
+    { label: 'CAC', value: eur(kpis.cac), icon: <TrendingUp className="h-3.5 w-3.5" />, color: 'text-amber-600' },
     { label: 'Wiederkehrende Kunden', value: pct(kpis.returningCustomersPct), icon: <BarChart3 className="h-3.5 w-3.5" />, color: 'text-emerald-600' },
     { label: 'Ø Warenkorb', value: eur(kpis.avgOrderValue), icon: <Store className="h-3.5 w-3.5" />, color: 'text-orange-600' },
   ];

@@ -57,7 +57,7 @@ function fileTypeIcon(fileType: string) {
     case 'image':
       return <ImageIcon className="h-5 w-5 text-blue-500" />;
     case 'video':
-      return <Video className="h-5 w-5 text-purple-500" />;
+      return <Video className="h-5 w-5 text-amber-500" />;
     default:
       return <File className="h-5 w-5 text-gray-400" />;
   }
@@ -125,8 +125,8 @@ function BriefingFolder({
               className="h-16 w-16 rounded-lg object-cover border border-gray-100"
             />
           ) : (
-            <div className="h-16 w-16 rounded-lg bg-violet-50 flex items-center justify-center">
-              <FolderOpen className="h-6 w-6 text-violet-400" />
+            <div className="h-16 w-16 rounded-lg bg-amber-50 flex items-center justify-center">
+              <FolderOpen className="h-6 w-6 text-amber-400" />
             </div>
           )}
           <div>
@@ -183,7 +183,7 @@ function BriefingFolder({
                 {att.fileType === 'image' ? (
                   <button
                     onClick={() => setLightboxUrl(att.fileUrl)}
-                    className="h-12 w-12 rounded-lg overflow-hidden border border-gray-100 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-violet-300 transition-all"
+                    className="h-12 w-12 rounded-lg overflow-hidden border border-gray-100 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-amber-300 transition-all"
                   >
                     <img
                       src={att.fileUrl}
@@ -192,8 +192,8 @@ function BriefingFolder({
                     />
                   </button>
                 ) : att.fileType === 'video' ? (
-                  <div className="h-12 w-12 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                    <Video className="h-5 w-5 text-purple-500" />
+                  <div className="h-12 w-12 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                    <Video className="h-5 w-5 text-amber-500" />
                   </div>
                 ) : (
                   <div className="h-12 w-12 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
@@ -223,7 +223,7 @@ function BriefingFolder({
                   href={att.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors flex-shrink-0"
+                  className="p-2 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors flex-shrink-0"
                   title="Download"
                 >
                   <Download className="h-4 w-4" />
@@ -340,7 +340,7 @@ export default function PortalBriefingsPage() {
             <button
               key={briefing.id}
               onClick={() => setSelectedBriefing(briefing)}
-              className="rounded-xl bg-white dark:bg-white/5 border border-gray-100 overflow-hidden text-left hover:shadow-md hover:border-violet-200 transition-all group"
+              className="rounded-xl bg-white dark:bg-white/5 border border-gray-100 overflow-hidden text-left hover:shadow-md hover:border-amber-200 transition-all group"
             >
               {/* Product image as folder preview */}
               <div className="h-32 bg-gray-50 flex items-center justify-center overflow-hidden">
@@ -351,14 +351,14 @@ export default function PortalBriefingsPage() {
                     className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
-                  <FolderOpen className="h-10 w-10 text-gray-200 group-hover:text-violet-300 transition-colors" />
+                  <FolderOpen className="h-10 w-10 text-gray-200 group-hover:text-amber-300 transition-colors" />
                 )}
               </div>
 
               {/* Folder info */}
               <div className="p-4">
                 {briefing.product && (
-                  <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide truncate">
+                  <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide truncate">
                     {briefing.product.title}
                   </p>
                 )}

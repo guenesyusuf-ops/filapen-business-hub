@@ -48,7 +48,7 @@ const ICON_MAP = {
   task: { icon: ClipboardList, color: 'bg-primary-100 dark:bg-primary-900/30 text-primary-600' },
   comment: { icon: MessageSquare, color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' },
   dm: { icon: MessageSquare, color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' },
-  mention: { icon: AtSign, color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' },
+  mention: { icon: AtSign, color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' },
 };
 
 export function ShortcutInbox() {
@@ -103,7 +103,7 @@ export function ShortcutInbox() {
   const unreadCount = items.filter((i) => i.unread).length + (dmUnread?.count ?? 0);
 
   return (
-    <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
+    <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card shadow-sm overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
           <Inbox className="h-4 w-4 text-primary-500" />

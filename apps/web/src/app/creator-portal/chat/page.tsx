@@ -165,7 +165,7 @@ export default function CreatorChatPage() {
       <div className="flex-1 overflow-y-auto space-y-4 pb-4">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
+            <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-16">
@@ -194,12 +194,12 @@ export default function CreatorChatPage() {
                         className={cn(
                           'max-w-[75%] rounded-2xl px-4 py-2.5',
                           isCreator
-                            ? 'bg-violet-600 text-white rounded-br-md'
+                            ? 'bg-amber-600 text-white rounded-br-md'
                             : 'bg-white dark:bg-white/5 border border-gray-200 text-gray-900 rounded-bl-md',
                         )}
                       >
                         {!isCreator && (
-                          <p className="text-xs font-medium text-violet-600 mb-0.5">
+                          <p className="text-xs font-medium text-amber-600 mb-0.5">
                             {msg.senderName}
                           </p>
                         )}
@@ -207,7 +207,7 @@ export default function CreatorChatPage() {
                         <p
                           className={cn(
                             'text-[10px] mt-1',
-                            isCreator ? 'text-violet-200' : 'text-gray-400',
+                            isCreator ? 'text-amber-200' : 'text-gray-400',
                           )}
                         >
                           {formatTime(msg.createdAt)}
@@ -233,13 +233,13 @@ export default function CreatorChatPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+          className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
           autoFocus
         />
         <button
           type="submit"
           disabled={!input.trim() || sending}
-          className="shrink-0 h-10 w-10 rounded-xl bg-violet-600 flex items-center justify-center text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+          className="shrink-0 h-10 w-10 rounded-xl bg-amber-600 flex items-center justify-center text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
         >
           {sending ? (
             <Loader2 className="h-4 w-4 animate-spin" />

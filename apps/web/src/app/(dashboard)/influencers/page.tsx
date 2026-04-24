@@ -198,12 +198,12 @@ function TopInfluencersTable({
             {influencers.map((inf) => (
               <tr
                 key={inf.id}
-                className="hover:bg-pink-50/30 cursor-pointer transition-colors"
+                className="hover:bg-orange-50/30 cursor-pointer transition-colors"
                 onClick={() => router.push(`/influencers/discovery/${inf.id}`)}
               >
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 text-xs font-semibold shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-semibold shrink-0">
                       {inf.displayName.charAt(0)}
                     </div>
                     <div>
@@ -278,7 +278,7 @@ export default function InfluencerHubOverview() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/influencers/discovery')}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
           >
             <Search className="h-3.5 w-3.5" />
             Discover Influencers
@@ -367,12 +367,12 @@ export default function InfluencerHubOverview() {
           className="group flex items-center justify-between rounded-xl bg-white p-4 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all"
         >
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-pink-50 text-pink-600">
+            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-orange-50 text-orange-600">
               <Search className="h-4.5 w-4.5" />
             </div>
             <span className="text-sm font-medium text-gray-900 dark:text-white">Discovery Search</span>
           </div>
-          <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-pink-600 transition-colors" />
+          <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-orange-600 transition-colors" />
         </button>
         <button
           onClick={() => router.push('/influencers/brands')}
@@ -391,12 +391,12 @@ export default function InfluencerHubOverview() {
           className="group flex items-center justify-between rounded-xl bg-white p-4 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all"
         >
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-purple-50 text-purple-600">
+            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-amber-50 text-amber-600">
               <Eye className="h-4.5 w-4.5" />
             </div>
             <span className="text-sm font-medium text-gray-900 dark:text-white">Watchlists</span>
           </div>
-          <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-purple-600 transition-colors" />
+          <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-amber-600 transition-colors" />
         </button>
         <button
           onClick={() => router.push('/influencers/discovery?sortBy=engagementRate')}

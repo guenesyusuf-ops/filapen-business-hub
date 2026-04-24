@@ -125,8 +125,8 @@ export default function CreatorInvoicesPage() {
         className={cn(
           'rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-all',
           uploading
-            ? 'border-violet-400 bg-violet-50'
-            : 'border-gray-300 hover:border-violet-400 hover:bg-violet-50/30',
+            ? 'border-amber-400 bg-amber-50'
+            : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50/30',
         )}
       >
         <input
@@ -138,8 +138,8 @@ export default function CreatorInvoicesPage() {
         />
         {uploading ? (
           <div className="flex flex-col items-center gap-2">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-600 border-t-transparent" />
-            <p className="text-sm font-medium text-violet-600">Wird hochgeladen...</p>
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+            <p className="text-sm font-medium text-amber-600">Wird hochgeladen...</p>
           </div>
         ) : uploadSuccess ? (
           <div className="flex flex-col items-center gap-2">
@@ -162,7 +162,7 @@ export default function CreatorInvoicesPage() {
       {/* Invoice list */}
       {loading ? (
         <div className="flex justify-center py-8">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-600 border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
         </div>
       ) : invoices.length === 0 ? (
         <div className="text-center py-8">
@@ -186,10 +186,10 @@ export default function CreatorInvoicesPage() {
               )}>
                 {inv.status === 'live' ? 'Geprüft' : 'Hochgeladen'}
               </span>
-              <a href={inv.fileUrl} target="_blank" rel="noreferrer" className="p-1.5 rounded text-gray-400 hover:text-violet-600" title="Ansehen">
+              <a href={inv.fileUrl} target="_blank" rel="noreferrer" className="p-1.5 rounded text-gray-400 hover:text-amber-600" title="Ansehen">
                 <Eye className="h-4 w-4" />
               </a>
-              <a href={inv.fileUrl} download={inv.fileName} className="p-1.5 rounded text-gray-400 hover:text-violet-600" title="Herunterladen">
+              <a href={inv.fileUrl} download={inv.fileName} className="p-1.5 rounded text-gray-400 hover:text-amber-600" title="Herunterladen">
                 <Download className="h-4 w-4" />
               </a>
             </div>

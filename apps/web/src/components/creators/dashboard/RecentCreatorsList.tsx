@@ -26,7 +26,7 @@ export function RecentCreatorsList({ creators, loading }: Props) {
   return (
     <section className="rounded-2xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
       <header className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-100 dark:border-white/5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-white">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-sky-500 text-white">
           <Users className="h-4 w-4" />
         </div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Neueste Creator</h2>

@@ -132,7 +132,7 @@ export const salesApi = {
 export const STATUS_LABELS: Record<SalesOrderStatus, { label: string; color: string }> = {
   draft:     { label: 'Entwurf',    color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
   confirmed: { label: 'Bestätigt',  color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
-  shipped:   { label: 'Versendet',  color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  shipped:   { label: 'Versendet',  color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
   invoiced:  { label: 'Berechnet',  color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
   completed: { label: 'Abgeschlossen', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
   cancelled: { label: 'Storniert',  color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },

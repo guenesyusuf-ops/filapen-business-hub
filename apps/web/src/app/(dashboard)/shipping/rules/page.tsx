@@ -12,7 +12,7 @@ function RuleActionBadge({ actionType, action }: { actionType: string; action: a
     return <Badge color="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">Carrier: {carrierLabel}</Badge>;
   }
   if (actionType === 'select_method') {
-    return <Badge color="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">Methode: {action?.method}</Badge>;
+    return <Badge color="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">Methode: {action?.method}</Badge>;
   }
   if (actionType === 'block_shipment') {
     return (

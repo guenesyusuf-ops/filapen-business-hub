@@ -183,7 +183,7 @@ export function AttachmentRow({
         {isImage ? (
           <img src={attachment.fileUrl} alt={attachment.fileName} className="w-full h-full object-cover" />
         ) : type === 'video' ? (
-          <FileIcon className="h-4 w-4 text-purple-500" />
+          <FileIcon className="h-4 w-4 text-amber-500" />
         ) : type === 'pdf' ? (
           <FileText className="h-4 w-4 text-red-500" />
         ) : type === 'audio' ? (

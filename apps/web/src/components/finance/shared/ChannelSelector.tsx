@@ -9,7 +9,7 @@ const CHANNELS = [
   { key: null, labelKey: 'channels.allChannels', icon: Layers, color: 'text-gray-600', bg: 'bg-gray-100' },
   { key: 'shopify_dtc', labelKey: 'channels.shopify', icon: ShoppingBag, color: 'text-green-600', bg: 'bg-green-50' },
   { key: 'amazon', labelKey: 'channels.amazon', icon: Package, color: 'text-orange-500', bg: 'bg-orange-50' },
-  { key: 'tiktok', labelKey: 'channels.tiktok', icon: Music, color: 'text-pink-500', bg: 'bg-pink-50' },
+  { key: 'tiktok', labelKey: 'channels.tiktok', icon: Music, color: 'text-orange-500', bg: 'bg-orange-50' },
   { key: 'meta_ads', labelKey: 'channels.metaAds', icon: Facebook, color: 'text-blue-600', bg: 'bg-blue-50' },
   { key: 'google_ads', labelKey: 'channels.googleAds', icon: Search, color: 'text-red-600', bg: 'bg-red-50' },
 ] as const;

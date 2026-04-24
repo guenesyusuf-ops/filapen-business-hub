@@ -105,7 +105,7 @@ function NotificationBell({ creatorId }: { creatorId: string }) {
             {unreadCount > 0 && (
               <button
                 onClick={() => markAllRead.mutate(creatorId)}
-                className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700"
+                className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
                 Alle gelesen
@@ -125,7 +125,7 @@ function NotificationBell({ creatorId }: { creatorId: string }) {
                   onClick={() => handleNotificationClick(n)}
                   className={cn(
                     'w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0',
-                    !n.read && 'bg-violet-50/40',
+                    !n.read && 'bg-amber-50/40',
                   )}
                 >
                   <NotificationIcon type={n.type} />
@@ -149,7 +149,7 @@ function NotificationBell({ creatorId }: { creatorId: string }) {
                     </p>
                   </div>
                   {!n.read && (
-                    <span className="h-2 w-2 rounded-full bg-violet-500 mt-1.5 shrink-0" />
+                    <span className="h-2 w-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
                   )}
                 </button>
               ))
@@ -172,7 +172,7 @@ function NavTab({ href, label, active }: { href: string; label: string; active: 
       className={cn(
         'px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
         active
-          ? 'border-violet-600 text-violet-600'
+          ? 'border-amber-600 text-amber-600'
           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
       )}
     >
@@ -239,7 +239,7 @@ export default function CreatorPortalLayout({
       {/* Simple header */}
       <header className="h-14 bg-white dark:bg-white/5 border-b border-gray-200 flex items-center justify-between px-6">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-violet-600 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-lg bg-amber-600 flex items-center justify-center">
             <span className="text-xs font-bold text-white">F</span>
           </div>
           <span className="text-sm font-semibold text-gray-900 dark:text-white">Creator Portal</span>
@@ -247,8 +247,8 @@ export default function CreatorPortalLayout({
         {isLoggedIn && creator && (
           <div className="flex items-center gap-3">
             <NotificationBell creatorId={creator.id} />
-            <div className="h-7 w-7 rounded-full bg-violet-100 flex items-center justify-center">
-              <span className="text-xs font-bold text-violet-600">
+            <div className="h-7 w-7 rounded-full bg-amber-100 flex items-center justify-center">
+              <span className="text-xs font-bold text-amber-600">
                 {creator.name.charAt(0)}
               </span>
             </div>

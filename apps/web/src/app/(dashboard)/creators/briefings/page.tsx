@@ -61,7 +61,7 @@ function fileTypeIcon(fileType: string) {
     case 'image':
       return <ImageIcon className="h-4 w-4 text-blue-500" />;
     case 'video':
-      return <Video className="h-4 w-4 text-purple-500" />;
+      return <Video className="h-4 w-4 text-amber-500" />;
     default:
       return <File className="h-4 w-4 text-gray-400" />;
   }
@@ -377,7 +377,7 @@ function BriefingDetail({
             type="text"
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
           />
         </div>
 
@@ -389,7 +389,7 @@ function BriefingDetail({
             onChange={(e) => setEditNotes(e.target.value)}
             placeholder="Hinweise, Anforderungen..."
             rows={4}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none"
           />
         </div>
 
@@ -398,7 +398,7 @@ function BriefingDetail({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="text-xs px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
+            className="text-xs px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
           >
             {saving ? 'Speichern...' : 'Änderungen speichern'}
           </button>
@@ -622,7 +622,7 @@ export default function BriefingsPage() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-600 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" />
         </div>
       }
     >

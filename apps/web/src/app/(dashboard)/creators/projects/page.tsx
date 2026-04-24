@@ -70,7 +70,7 @@ export default function ProjectsPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />
           Projekt anlegen
@@ -86,7 +86,7 @@ export default function ProjectsPage() {
           </p>
           <button
             onClick={() => setShowCreate(true)}
-            className="mt-3 text-sm text-purple-600 hover:underline"
+            className="mt-3 text-sm text-amber-600 hover:underline"
           >
             Erstes Projekt anlegen
           </button>
@@ -108,8 +108,8 @@ export default function ProjectsPage() {
                 {/* Title row */}
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2 min-w-0">
-                    <FolderKanban className="h-4.5 w-4.5 text-purple-600 flex-shrink-0" />
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-purple-700 dark:group-hover:text-purple-400 transition-colors truncate">
+                    <FolderKanban className="h-4.5 w-4.5 text-amber-600 flex-shrink-0" />
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors truncate">
                       {project.name}
                     </h3>
                   </div>
@@ -160,7 +160,7 @@ export default function ProjectsPage() {
                   <div className="mt-4">
                     <div className="h-1.5 rounded-full bg-gray-100 dark:bg-white/5 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-purple-500 transition-all"
+                        className="h-full rounded-full bg-amber-500 transition-all"
                         style={{
                           width: `${Math.min(100, (filled / needed) * 100)}%`,
                         }}

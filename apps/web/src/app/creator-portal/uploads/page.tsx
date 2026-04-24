@@ -87,7 +87,7 @@ function categoryLabel(val: string) {
 function categoryColor(val: string) {
   const map: Record<string, string> = {
     bilder: 'bg-blue-50 text-blue-700 border-blue-200',
-    videos: 'bg-pink-50 text-pink-700 border-pink-200',
+    videos: 'bg-orange-50 text-orange-700 border-orange-200',
     roh: 'bg-amber-50 text-amber-700 border-amber-200',
     auswertung: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   };
@@ -453,7 +453,7 @@ export default function PortalUploadsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-              <Folder className="h-5 w-5 text-violet-600" />
+              <Folder className="h-5 w-5 text-amber-600" />
               {folderMeta?.name || activeFolder}
             </h1>
             <div className="flex flex-wrap gap-3 mt-1">
@@ -485,7 +485,7 @@ export default function PortalUploadsPage() {
           </div>
           <button
             onClick={() => setShowUpload(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
           >
             <Upload className="h-3.5 w-3.5" />
             Datei hochladen
@@ -505,7 +505,7 @@ export default function PortalUploadsPage() {
             <p className="text-sm text-gray-500">Noch keine Dateien in diesem Ordner</p>
             <button
               onClick={() => setShowUpload(true)}
-              className="mt-3 text-sm text-violet-600 hover:underline"
+              className="mt-3 text-sm text-amber-600 hover:underline"
             >
               Erste Datei hochladen
             </button>
@@ -519,7 +519,7 @@ export default function PortalUploadsPage() {
                 className={cn(
                   'group relative rounded-xl border overflow-hidden hover:shadow-md transition-all bg-white',
                   selectedUpload?.id === upload.id
-                    ? 'border-violet-500 ring-2 ring-violet-500/30'
+                    ? 'border-amber-500 ring-2 ring-amber-500/30'
                     : 'border-gray-100',
                 )}
               >
@@ -566,7 +566,7 @@ export default function PortalUploadsPage() {
                   </div>
                 </div>
                 {upload.commentCount > 0 && (
-                  <div className="absolute top-2 right-2 bg-violet-600 rounded-full px-1.5 py-0.5 flex items-center gap-0.5">
+                  <div className="absolute top-2 right-2 bg-amber-600 rounded-full px-1.5 py-0.5 flex items-center gap-0.5">
                     <MessageCircle className="h-2.5 w-2.5 text-white" />
                     <span className="text-[10px] text-white font-medium">
                       {upload.commentCount}
@@ -621,7 +621,7 @@ export default function PortalUploadsPage() {
                   href={selectedUpload.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-violet-600 hover:underline"
+                  className="text-xs text-amber-600 hover:underline"
                 >
                   Herunterladen
                 </a>
@@ -631,7 +631,7 @@ export default function PortalUploadsPage() {
             {/* Comments */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50 dark:bg-white/[0.03]">
-                <MessageCircle className="h-4 w-4 text-violet-600" />
+                <MessageCircle className="h-4 w-4 text-amber-600" />
                 <span className="text-sm font-medium text-gray-900 dark:text-white">
                   Kommentare - {selectedUpload.label || selectedUpload.fileName}
                 </span>
@@ -652,7 +652,7 @@ export default function PortalUploadsPage() {
                       className={cn(
                         'h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
                         c.authorRole === 'admin'
-                          ? 'bg-violet-100 text-violet-700'
+                          ? 'bg-amber-100 text-amber-700'
                           : 'bg-gray-100 text-gray-600',
                       )}
                     >
@@ -661,7 +661,7 @@ export default function PortalUploadsPage() {
                     <div
                       className={cn(
                         'max-w-[70%] rounded-xl px-3 py-2',
-                        c.authorRole === 'admin' ? 'bg-violet-50' : 'bg-gray-50',
+                        c.authorRole === 'admin' ? 'bg-amber-50' : 'bg-gray-50',
                       )}
                     >
                       <div className="flex items-center gap-1.5 mb-0.5">
@@ -692,12 +692,12 @@ export default function PortalUploadsPage() {
                   if (e.key === 'Enter') handleSendComment();
                 }}
                 placeholder="Kommentar schreiben..."
-                className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
               />
               <button
                 onClick={handleSendComment}
                 disabled={!commentText.trim()}
-                className="p-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                className="p-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
               >
                 <Send className="h-4 w-4" />
               </button>
@@ -731,7 +731,7 @@ export default function PortalUploadsPage() {
                   <select
                     value={uploadCategory}
                     onChange={(e) => setUploadCategory(e.target.value as CategoryValue)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   >
                     {CATEGORIES.map((c) => (
                       <option key={c.value} value={c.value}>
@@ -751,7 +751,7 @@ export default function PortalUploadsPage() {
                     value={uploadLabel}
                     onChange={(e) => setUploadLabel(e.target.value)}
                     placeholder="z.B. Produktfoto Set A"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   />
                 </div>
 
@@ -765,7 +765,7 @@ export default function PortalUploadsPage() {
                     value={uploadProduct}
                     onChange={(e) => setUploadProduct(e.target.value)}
                     placeholder="Produktname"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   />
                 </div>
 
@@ -779,7 +779,7 @@ export default function PortalUploadsPage() {
                     value={uploadLink}
                     onChange={(e) => setUploadLink(e.target.value)}
                     placeholder="https://drive.google.com/..."
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   />
                 </div>
 
@@ -792,10 +792,10 @@ export default function PortalUploadsPage() {
                   className={cn(
                     'flex flex-col items-center justify-center h-28 rounded-xl border-2 border-dashed cursor-pointer transition-colors',
                     dragOver
-                      ? 'border-violet-400 bg-violet-50'
+                      ? 'border-amber-400 bg-amber-50'
                       : selectedFile
                         ? 'border-green-300 bg-green-50'
-                        : 'border-gray-200 hover:border-violet-300 bg-gray-50',
+                        : 'border-gray-200 hover:border-amber-300 bg-gray-50',
                   )}
                 >
                   <input
@@ -840,7 +840,7 @@ export default function PortalUploadsPage() {
                 <button
                   onClick={handleUploadSubmit}
                   disabled={uploading}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
                 >
                   {uploading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   Hochladen &rarr;
@@ -867,7 +867,7 @@ export default function PortalUploadsPage() {
         </div>
         <button
           onClick={() => setShowFolderModal(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
         >
           <FolderPlus className="h-3.5 w-3.5" />
           Ordner anlegen
@@ -887,7 +887,7 @@ export default function PortalUploadsPage() {
           <p className="text-sm text-gray-500">Noch keine Ordner vorhanden</p>
           <button
             onClick={() => setShowFolderModal(true)}
-            className="mt-3 text-sm text-violet-600 hover:underline"
+            className="mt-3 text-sm text-amber-600 hover:underline"
           >
             Ersten Ordner anlegen
           </button>
@@ -898,12 +898,12 @@ export default function PortalUploadsPage() {
             <button
               key={folder.batch}
               onClick={() => setActiveFolder(folder.batch)}
-              className="text-left rounded-xl bg-white dark:bg-white/5 p-5 border border-gray-100 shadow-sm hover:shadow-md hover:border-violet-200 transition-all group"
+              className="text-left rounded-xl bg-white dark:bg-white/5 p-5 border border-gray-100 shadow-sm hover:shadow-md hover:border-amber-200 transition-all group"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center">
-                    <Folder className="h-5 w-5 text-violet-600" />
+                  <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <Folder className="h-5 w-5 text-amber-600" />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -914,7 +914,7 @@ export default function PortalUploadsPage() {
                     </p>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-violet-600 transition-colors mt-1" />
+                <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-amber-600 transition-colors mt-1" />
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
                 {folder.datum && (
@@ -972,7 +972,7 @@ export default function PortalUploadsPage() {
                   value={folderName}
                   onChange={(e) => setFolderName(e.target.value)}
                   placeholder="z.B. Kampagne April 2026"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   autoFocus
                 />
               </div>
@@ -985,7 +985,7 @@ export default function PortalUploadsPage() {
                   value={folderBatch}
                   onChange={(e) => setFolderBatch(e.target.value)}
                   placeholder="Standard: gleich wie Name"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -997,7 +997,7 @@ export default function PortalUploadsPage() {
                     type="date"
                     value={folderDatum}
                     onChange={(e) => setFolderDatum(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   />
                 </div>
                 <div>
@@ -1008,7 +1008,7 @@ export default function PortalUploadsPage() {
                     type="date"
                     value={folderDeadline}
                     onChange={(e) => setFolderDeadline(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   />
                 </div>
               </div>
@@ -1021,7 +1021,7 @@ export default function PortalUploadsPage() {
                   value={folderProdukte}
                   onChange={(e) => setFolderProdukte(e.target.value)}
                   placeholder="z.B. Shampoo, Conditioner"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                 />
               </div>
               <div>
@@ -1033,7 +1033,7 @@ export default function PortalUploadsPage() {
                   value={folderTags}
                   onChange={(e) => setFolderTags(e.target.value)}
                   placeholder="z.B. premium, sommer, tiktok"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                 />
               </div>
             </div>
@@ -1052,7 +1052,7 @@ export default function PortalUploadsPage() {
               <button
                 onClick={handleCreateFolder}
                 disabled={creatingFolder || !folderName.trim()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
               >
                 {creatingFolder && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Ordner erstellen

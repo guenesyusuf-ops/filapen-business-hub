@@ -65,7 +65,7 @@ import { useAuthStore } from '@/stores/auth';
 const STATUS_BADGE_STYLES: Record<string, string> = {
   active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   prospect: 'bg-blue-50 text-blue-700 border-blue-200',
-  outreach: 'bg-purple-50 text-purple-700 border-purple-200',
+  outreach: 'bg-amber-50 text-amber-700 border-amber-200',
   inactive: 'bg-gray-50 text-gray-500 border-gray-200',
 };
 
@@ -74,7 +74,7 @@ function PlatformBadge({ platform }: { platform: string }) {
     instagram: {
       icon: <Camera className="h-3.5 w-3.5" />,
       label: 'Instagram',
-      className: 'bg-pink-50 text-pink-600 border-pink-200',
+      className: 'bg-orange-50 text-orange-600 border-orange-200',
     },
     tiktok: {
       icon: <Music className="h-3.5 w-3.5" />,
@@ -491,12 +491,12 @@ export default function CreatorDetailPage() {
               <div>
                 <label className="block text-[10px] font-medium text-gray-400 uppercase mb-1">Invite Code</label>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono font-bold text-purple-700 tracking-widest">
+                  <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono font-bold text-amber-700 tracking-widest">
                     {creator.inviteCode}
                   </code>
                   <button
                     onClick={handleCopyInviteCode}
-                    className="p-2 rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                    className="p-2 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                     title="Copy invite code"
                   >
                     {copiedCode ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
@@ -519,7 +519,7 @@ export default function CreatorDetailPage() {
                       navigator.clipboard.writeText(link);
                       handleCopyInviteCode();
                     }}
-                    className="shrink-0 p-2 rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                    className="shrink-0 p-2 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                     title="Copy invite link"
                   >
                     <Link2 className="h-4 w-4" />
@@ -543,7 +543,7 @@ export default function CreatorDetailPage() {
               <button
                 onClick={handleResendInvite}
                 disabled={resendStatus === 'sending'}
-                className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
               >
                 {resendStatus === 'sending' ? (
                   <><Loader2 className="h-3 w-3 animate-spin" /> Sending...</>
@@ -817,9 +817,9 @@ export default function CreatorDetailPage() {
           <div className="p-5 space-y-4">
             {/* Creator Notes (visible to creator) */}
             {creator.creatorNotes && (
-              <div className="rounded-lg bg-purple-50 border border-purple-100 p-4">
-                <h4 className="text-xs font-medium uppercase tracking-wider text-purple-600 mb-1">Notes for Creator</h4>
-                <p className="text-sm text-purple-800">{creator.creatorNotes}</p>
+              <div className="rounded-lg bg-amber-50 border border-amber-100 p-4">
+                <h4 className="text-xs font-medium uppercase tracking-wider text-amber-600 mb-1">Notes for Creator</h4>
+                <p className="text-sm text-amber-800">{creator.creatorNotes}</p>
               </div>
             )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -868,7 +868,7 @@ export default function CreatorDetailPage() {
                       className={cn(
                         'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
                         !uploadTab
-                          ? 'bg-purple-600 text-white'
+                          ? 'bg-amber-600 text-white'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                       )}
                     >
@@ -888,7 +888,7 @@ export default function CreatorDetailPage() {
                           className={cn(
                             'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
                             uploadTab === t
-                              ? 'bg-purple-600 text-white'
+                              ? 'bg-amber-600 text-white'
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                           )}
                         >
@@ -954,7 +954,7 @@ export default function CreatorDetailPage() {
                           </div>
                           <div className="px-3 py-2">
                             <div className="flex items-center gap-1.5 mb-0.5">
-                              <Folder className="h-3 w-3 text-purple-500 shrink-0" />
+                              <Folder className="h-3 w-3 text-amber-500 shrink-0" />
                               <p className="text-xs font-medium text-gray-900 truncate">{folder.name}</p>
                             </div>
                             <p className="text-[11px] text-gray-500">{folder.fileCount} {folder.fileCount === 1 ? 'Datei' : 'Dateien'}</p>
@@ -966,7 +966,7 @@ export default function CreatorDetailPage() {
                               {folder.unseenCount > 0 && (
                                 <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                               )}
-                              <div className="flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-purple-500 px-1">
+                              <div className="flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-amber-500 px-1">
                                 <span className="text-[9px] font-bold text-white">{folder.fileCount}</span>
                               </div>
                             </div>
@@ -1026,7 +1026,7 @@ export default function CreatorDetailPage() {
                             </div>
                           )}
                           {!upload.seenByAdmin && (
-                            <div className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-purple-500" />
+                            <div className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-amber-500" />
                           )}
                           <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             {upload.liveStatus === 'live' ? (

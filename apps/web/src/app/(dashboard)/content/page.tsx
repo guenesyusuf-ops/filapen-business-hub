@@ -279,12 +279,12 @@ export default function ContentHubOverview() {
           className="group flex items-center justify-between rounded-xl bg-white p-4 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all"
         >
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-purple-50 text-purple-600">
+            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-amber-50 text-amber-600">
               <Mic className="h-4.5 w-4.5" />
             </div>
             <span className="text-sm font-medium text-gray-900 dark:text-white">Brand Voice</span>
           </div>
-          <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-purple-600 transition-colors" />
+          <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-amber-600 transition-colors" />
         </button>
       </div>
     </div>

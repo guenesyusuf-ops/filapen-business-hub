@@ -135,7 +135,7 @@ export function ChatWidget({ creatorId, creatorName, role }: ChatWidgetProps) {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full bg-violet-600 text-white shadow-lg hover:bg-violet-700 transition-all hover:scale-105 flex items-center justify-center"
+          className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full bg-amber-600 text-white shadow-lg hover:bg-amber-700 transition-all hover:scale-105 flex items-center justify-center"
         >
           <MessageCircle className="h-6 w-6" />
           {unreadCount > 0 && (
@@ -150,7 +150,7 @@ export function ChatWidget({ creatorId, creatorName, role }: ChatWidgetProps) {
       {open && (
         <div className="fixed bottom-6 right-6 z-50 w-[350px] h-[500px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
           {/* Header */}
-          <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-violet-600 text-white">
+          <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-amber-600 text-white">
             <div className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4" />
               <span className="text-sm font-semibold">
@@ -159,7 +159,7 @@ export function ChatWidget({ creatorId, creatorName, role }: ChatWidgetProps) {
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="p-1 rounded-md hover:bg-violet-500 transition-colors"
+              className="p-1 rounded-md hover:bg-amber-500 transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -169,7 +169,7 @@ export function ChatWidget({ creatorId, creatorName, role }: ChatWidgetProps) {
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-gray-50">
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+                <Loader2 className="h-5 w-5 animate-spin text-amber-600" />
               </div>
             ) : messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
@@ -189,12 +189,12 @@ export function ChatWidget({ creatorId, creatorName, role }: ChatWidgetProps) {
                       className={cn(
                         'max-w-[80%] rounded-2xl px-3 py-2',
                         mine
-                          ? 'bg-violet-600 text-white rounded-br-md'
+                          ? 'bg-amber-600 text-white rounded-br-md'
                           : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md',
                       )}
                     >
                       {!mine && (
-                        <p className="text-[10px] font-medium text-violet-600 mb-0.5">
+                        <p className="text-[10px] font-medium text-amber-600 mb-0.5">
                           {msg.senderName}
                         </p>
                       )}
@@ -204,7 +204,7 @@ export function ChatWidget({ creatorId, creatorName, role }: ChatWidgetProps) {
                       <p
                         className={cn(
                           'text-[10px] mt-0.5',
-                          mine ? 'text-violet-200' : 'text-gray-400',
+                          mine ? 'text-amber-200' : 'text-gray-400',
                         )}
                       >
                         {formatTime(msg.createdAt)}
@@ -227,13 +227,13 @@ export function ChatWidget({ creatorId, creatorName, role }: ChatWidgetProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Nachricht schreiben..."
-              className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500"
+              className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
               autoFocus
             />
             <button
               type="submit"
               disabled={!input.trim() || sending}
-              className="shrink-0 h-9 w-9 rounded-xl bg-violet-600 flex items-center justify-center text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+              className="shrink-0 h-9 w-9 rounded-xl bg-amber-600 flex items-center justify-center text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
             >
               {sending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

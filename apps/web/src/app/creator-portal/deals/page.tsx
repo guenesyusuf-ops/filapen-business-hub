@@ -155,7 +155,7 @@ export default function PortalDealsPage() {
         {/* Header */}
         <div className="rounded-xl bg-white dark:bg-white/5 border border-gray-200 shadow-card p-6">
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 flex-shrink-0">
+            <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
               <FolderKanban className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
@@ -240,7 +240,7 @@ export default function PortalDealsPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       download
-                      className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-1 text-xs font-medium text-violet-600 hover:bg-violet-100 transition-colors"
+                      className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-100 transition-colors"
                     >
                       <Download className="h-3 w-3" />
                       Herunterladen
@@ -267,7 +267,7 @@ export default function PortalDealsPage() {
 
       {isLoading || detailLoading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
+          <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
         </div>
       ) : acceptedInvitations.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200 dark:border-white/10">
@@ -288,12 +288,12 @@ export default function PortalDealsPage() {
             return (
               <div
                 key={inv.id}
-                className="rounded-xl bg-white dark:bg-white/5 p-5 border border-gray-200 hover:border-violet-200 hover:shadow-sm transition-all cursor-pointer"
+                className="rounded-xl bg-white dark:bg-white/5 p-5 border border-gray-200 hover:border-amber-200 hover:shadow-sm transition-all cursor-pointer"
                 onClick={() => fetchProjectDetail(project.id)}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 flex-shrink-0">
+                    <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
                       <FolderKanban className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
@@ -325,7 +325,7 @@ export default function PortalDealsPage() {
                       </div>
                     </div>
                   </div>
-                  <span className="text-xs font-medium text-violet-600 hover:underline flex-shrink-0">
+                  <span className="text-xs font-medium text-amber-600 hover:underline flex-shrink-0">
                     Details anzeigen &rarr;
                   </span>
                 </div>

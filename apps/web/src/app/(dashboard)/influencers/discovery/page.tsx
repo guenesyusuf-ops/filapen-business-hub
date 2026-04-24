@@ -108,7 +108,7 @@ function AddToWatchlistDropdown({
             key={wl.id}
             onClick={() => handleAdd(wl.id)}
             disabled={addMutation.isPending}
-            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-700 transition-colors disabled:opacity-50"
+            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50"
           >
             {wl.name}
             <span className="text-xs text-gray-400 ml-1">({wl.itemCount})</span>
@@ -145,7 +145,7 @@ function InfluencerCard({ profile }: { profile: any }) {
       <div className="p-4">
         {/* Header */}
         <div className="flex items-start gap-3 mb-3">
-          <div className="h-11 w-11 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 font-semibold text-sm shrink-0">
+          <div className="h-11 w-11 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-semibold text-sm shrink-0">
             {profile.displayName.charAt(0)}
           </div>
           <div className="flex-1 min-w-0">
@@ -204,7 +204,7 @@ function InfluencerCard({ profile }: { profile: any }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             {profile.niche && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 text-[10px] font-medium">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-medium">
                 {profile.niche}
               </span>
             )}
@@ -235,7 +235,7 @@ function InfluencerCard({ profile }: { profile: any }) {
               e.stopPropagation();
               setShowWatchlist(!showWatchlist);
             }}
-            className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-100 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100 transition-colors"
           >
             <Plus className="h-3 w-3" />
             Add to List
@@ -340,7 +340,7 @@ function FilterPanel({
                   className={cn(
                     'h-4 w-4 rounded border-2 flex items-center justify-center transition-colors',
                     selectedPlatforms.includes(p.value)
-                      ? 'border-pink-500 bg-pink-500'
+                      ? 'border-orange-500 bg-orange-500'
                       : 'border-gray-300 group-hover:border-gray-400',
                   )}
                 >
@@ -362,7 +362,7 @@ function FilterPanel({
           <select
             value={selectedNiche}
             onChange={(e) => setSelectedNiche(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-pink-300 focus:ring-1 focus:ring-pink-200 outline-none"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 outline-none"
           >
             <option value="">All niches</option>
             {NICHES.map((n) => (
@@ -379,7 +379,7 @@ function FilterPanel({
           <select
             value={followerRange}
             onChange={(e) => setFollowerRange(parseInt(e.target.value, 10))}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-pink-300 focus:ring-1 focus:ring-pink-200 outline-none"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 outline-none"
           >
             {FOLLOWER_RANGES.map((r, i) => (
               <option key={i} value={i}>{r.label}</option>
@@ -395,7 +395,7 @@ function FilterPanel({
           <select
             value={engagementRange}
             onChange={(e) => setEngagementRange(parseInt(e.target.value, 10))}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-pink-300 focus:ring-1 focus:ring-pink-200 outline-none"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 outline-none"
           >
             {ENGAGEMENT_RANGES.map((r, i) => (
               <option key={i} value={i}>{r.label}</option>
@@ -410,7 +410,7 @@ function FilterPanel({
               className={cn(
                 'h-4 w-4 rounded border-2 flex items-center justify-center transition-colors',
                 hasEmail
-                  ? 'border-pink-500 bg-pink-500'
+                  ? 'border-orange-500 bg-orange-500'
                   : 'border-gray-300 group-hover:border-gray-400',
               )}
             >
@@ -422,7 +422,7 @@ function FilterPanel({
 
         <button
           onClick={handleApply}
-          className="w-full rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 transition-colors"
+          className="w-full rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
         >
           Apply Filters
         </button>
@@ -468,7 +468,7 @@ export default function InfluencerDiscoveryPage() {
 
       {/* Search Bar + Sort */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 focus-within:border-pink-300 focus-within:ring-1 focus-within:ring-pink-200">
+        <div className="flex-1 flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 focus-within:border-orange-300 focus-within:ring-1 focus-within:ring-orange-200">
           <Search className="h-4 w-4 text-gray-400" />
           <input
             type="text"
@@ -500,7 +500,7 @@ export default function InfluencerDiscoveryPage() {
               page: 1,
             }));
           }}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-pink-300 outline-none"
+          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-300 outline-none"
         >
           {SORT_OPTIONS.map((opt) => (
             <option key={`${opt.value}-desc`} value={`${opt.value}-desc`}>
@@ -515,7 +515,7 @@ export default function InfluencerDiscoveryPage() {
         </select>
         <button
           onClick={handleSearch}
-          className="rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700 transition-colors"
+          className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
         >
           Search
         </button>

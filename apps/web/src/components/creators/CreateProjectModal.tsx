@@ -267,7 +267,7 @@ export function CreateProjectModal({
             <button
               type="submit"
               disabled={!name.trim() || createProject.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
             >
               {createProject.isPending && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

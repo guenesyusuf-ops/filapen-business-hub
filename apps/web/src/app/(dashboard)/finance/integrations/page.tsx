@@ -75,7 +75,7 @@ const PLATFORMS: PlatformDef[] = [
     label: 'TikTok Ads',
     description: 'TikTok Werbe-Daten',
     icon: <PlayCircle className="h-6 w-6" />,
-    iconBg: 'bg-pink-500/10 text-pink-400',
+    iconBg: 'bg-orange-500/10 text-orange-400',
     comingSoon: true,
   },
   {
@@ -537,7 +537,7 @@ const CARRIER_DEFS: CarrierDef[] = [
   { key: 'ups', label: 'UPS', description: 'Express & Standard-Pakete', iconBg: 'bg-amber-600/10 text-amber-600' },
   { key: 'dpd', label: 'DPD', description: 'Classic & Express', iconBg: 'bg-red-500/10 text-red-400' },
   { key: 'hermes', label: 'Hermes', description: 'Paketversand Deutschland', iconBg: 'bg-blue-500/10 text-blue-400' },
-  { key: 'gls', label: 'GLS', description: 'Business-Parcel Europa', iconBg: 'bg-indigo-500/10 text-indigo-400' },
+  { key: 'gls', label: 'GLS', description: 'Business-Parcel Europa', iconBg: 'bg-blue-500/10 text-blue-400' },
   { key: 'custom', label: 'Manueller Versand', description: 'Ohne Carrier-API — nur Tracking-Nr. eintragen', iconBg: 'bg-gray-500/10 text-gray-400' },
 ];
 
@@ -663,7 +663,7 @@ function EmailSection() {
         <div className="rounded-xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] p-6 shadow-card dark:shadow-[var(--card-shadow)] hover:border-gray-300 dark:hover:border-white/10 transition-colors">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-purple-500/10 text-purple-400">
+              <div className="flex items-center justify-center h-12 w-12 rounded-lg bg-amber-500/10 text-amber-400">
                 <Mail className="h-6 w-6" />
               </div>
               <div>

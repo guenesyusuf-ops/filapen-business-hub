@@ -141,7 +141,7 @@ function LoginPageInner() {
   if (mode === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
       </div>
     );
   }
@@ -149,7 +149,7 @@ function LoginPageInner() {
   // Pending approval screen
   if (mode === 'pending') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-purple-50/30 px-4">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-amber-50/30 px-4">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-200">
@@ -250,11 +250,11 @@ function LoginPageInner() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-purple-50/30 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-amber-50/30 px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-200">
+          <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center shadow-lg shadow-purple-200">
             <span className="text-lg font-bold text-white">F</span>
           </div>
           <h1 className="text-xl font-bold text-gray-900">Filapen Business Hub</h1>
@@ -266,9 +266,9 @@ function LoginPageInner() {
 
         {/* Invite notice */}
         {inviteToken && mode === 'login' && (
-          <div className="mb-4 rounded-xl border border-purple-200 bg-purple-50 p-4 text-center">
-            <p className="text-xs font-semibold text-purple-800 mb-1">Du hast eine Einladung erhalten</p>
-            <p className="text-[11px] text-purple-700 leading-relaxed">
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
+            <p className="text-xs font-semibold text-amber-800 mb-1">Du hast eine Einladung erhalten</p>
+            <p className="text-[11px] text-amber-700 leading-relaxed">
               Logge dich mit deiner E-Mail und dem temporaeren Passwort aus der Einladungs-E-Mail ein.
             </p>
           </div>
@@ -290,7 +290,7 @@ function LoginPageInner() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, name: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   placeholder="Your name"
                 />
               </div>
@@ -308,7 +308,7 @@ function LoginPageInner() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, email: e.target.value }))
                 }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                 placeholder="you@company.com"
               />
             </div>
@@ -326,7 +326,7 @@ function LoginPageInner() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, password: e.target.value }))
                 }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                 placeholder={isRegistrationMode ? 'Min 8 characters' : 'Your password'}
               />
             </div>
@@ -340,7 +340,7 @@ function LoginPageInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded-lg bg-purple-600 py-2.5 text-sm font-semibold text-white hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-lg bg-amber-600 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? submittingLabel : submitLabel}
             </button>
@@ -359,7 +359,7 @@ function LoginPageInner() {
                 Don&apos;t have an account?{' '}
                 <button
                   onClick={() => { setMode('signup'); setError(''); }}
-                  className="text-purple-600 hover:text-purple-700 font-medium"
+                  className="text-amber-600 hover:text-amber-700 font-medium"
                 >
                   Request access
                 </button>
@@ -373,7 +373,7 @@ function LoginPageInner() {
                 Already have an account?{' '}
                 <button
                   onClick={() => { setMode('login'); setError(''); }}
-                  className="text-purple-600 hover:text-purple-700 font-medium"
+                  className="text-amber-600 hover:text-amber-700 font-medium"
                 >
                   Sign in
                 </button>
@@ -392,7 +392,7 @@ function LoginPageInner() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" /></div>}>
       <LoginPageInner />
     </Suspense>
   );

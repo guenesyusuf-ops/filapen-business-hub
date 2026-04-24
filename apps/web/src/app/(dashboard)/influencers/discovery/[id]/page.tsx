@@ -228,11 +228,11 @@ function BrandRelationships({ brands, influencerName }: { brands: InfluencerBran
             <button
               key={br.brand.id}
               onClick={() => router.push(`/influencers/brands/${br.brand.id}`)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-pink-50 transition-colors group"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-orange-50 transition-colors group"
             >
               <BrandLogo name={br.brand.name} />
               <div className="text-left">
-                <div className="text-xs font-medium text-gray-900 group-hover:text-pink-600 transition-colors">
+                <div className="text-xs font-medium text-gray-900 group-hover:text-orange-600 transition-colors">
                   {br.brand.name}
                 </div>
                 <div className="text-[10px] text-gray-400">
@@ -308,11 +308,11 @@ function BrandRelationships({ brands, influencerName }: { brands: InfluencerBran
                 .sort((a, b) => b.mentionDate.localeCompare(a.mentionDate))
                 .slice(0, 20)
                 .map((mention) => (
-                  <tr key={mention.id} className="hover:bg-pink-50/30 transition-colors">
+                  <tr key={mention.id} className="hover:bg-orange-50/30 transition-colors">
                     <td className="px-5 py-3">
                       <button
                         onClick={() => router.push(`/influencers/brands/${mention.brandId}`)}
-                        className="flex items-center gap-2 text-xs font-medium text-gray-900 hover:text-pink-600 transition-colors"
+                        className="flex items-center gap-2 text-xs font-medium text-gray-900 hover:text-orange-600 transition-colors"
                       >
                         <BrandLogo name={mention.brandName} />
                         {mention.brandName}
@@ -411,7 +411,7 @@ export default function InfluencerProfilePage() {
         <p className="text-sm text-gray-500 mb-4">The influencer profile could not be loaded.</p>
         <button
           onClick={() => router.push('/influencers/discovery')}
-          className="text-sm text-pink-600 hover:text-pink-700"
+          className="text-sm text-orange-600 hover:text-orange-700"
         >
           Back to Discovery
         </button>
@@ -439,7 +439,7 @@ export default function InfluencerProfilePage() {
         <div className="p-6">
           <div className="flex items-start gap-5">
             {/* Avatar */}
-            <div className="h-20 w-20 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 text-2xl font-bold shrink-0">
+            <div className="h-20 w-20 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-2xl font-bold shrink-0">
               {profile.displayName.charAt(0)}
             </div>
 
@@ -501,7 +501,7 @@ export default function InfluencerProfilePage() {
                     href={profile.websiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-pink-600 hover:text-pink-700"
+                    className="flex items-center gap-1 text-orange-600 hover:text-orange-700"
                   >
                     <ExternalLink className="h-3 w-3" />
                     Website
@@ -514,7 +514,7 @@ export default function InfluencerProfilePage() {
             <div className="relative shrink-0">
               <button
                 onClick={() => setShowWatchlistMenu(!showWatchlistMenu)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add to Watchlist
@@ -527,7 +527,7 @@ export default function InfluencerProfilePage() {
                         key={wl.id}
                         onClick={() => handleAddToWatchlist(wl.id)}
                         disabled={addMutation.isPending}
-                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-700 transition-colors disabled:opacity-50"
+                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50"
                       >
                         {wl.name}
                       </button>
@@ -645,14 +645,14 @@ export default function InfluencerProfilePage() {
       {profile.contentCategories && profile.contentCategories.length > 0 && (
         <div className="rounded-xl bg-white p-5 shadow-card">
           <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-            <Zap className="h-3.5 w-3.5 text-pink-500" />
+            <Zap className="h-3.5 w-3.5 text-orange-500" />
             Content Categories
           </h3>
           <div className="flex flex-wrap gap-2">
             {profile.contentCategories.map((cat) => (
               <span
                 key={cat}
-                className="inline-flex items-center px-3 py-1 rounded-full bg-pink-50 text-pink-700 text-xs font-medium"
+                className="inline-flex items-center px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-medium"
               >
                 {cat}
               </span>
@@ -684,7 +684,7 @@ export default function InfluencerProfilePage() {
             {profile.tags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center px-3 py-1 rounded-full bg-pink-50 text-pink-700 text-xs font-medium"
+                className="inline-flex items-center px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-medium"
               >
                 {tag}
               </span>
@@ -702,9 +702,9 @@ export default function InfluencerProfilePage() {
               <button
                 key={wl.watchlistId}
                 onClick={() => router.push(`/influencers/watchlists/${wl.watchlistId}`)}
-                className="flex items-center gap-2 text-sm text-gray-700 hover:text-pink-600 transition-colors"
+                className="flex items-center gap-2 text-sm text-gray-700 hover:text-orange-600 transition-colors"
               >
-                <Check className="h-3.5 w-3.5 text-pink-500" />
+                <Check className="h-3.5 w-3.5 text-orange-500" />
                 {wl.watchlistName}
                 <span className="text-xs text-gray-400">
                   added {new Date(wl.addedAt).toLocaleDateString()}

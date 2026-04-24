@@ -69,7 +69,7 @@ export default function WatchlistDetailPage() {
         <h2 className="text-lg font-medium text-gray-900 mb-2">Watchlist not found</h2>
         <button
           onClick={() => router.push('/influencers/watchlists')}
-          className="text-sm text-pink-600 hover:text-pink-700"
+          className="text-sm text-orange-600 hover:text-orange-700"
         >
           Back to Watchlists
         </button>
@@ -89,7 +89,7 @@ export default function WatchlistDetailPage() {
       </button>
 
       {/* Header */}
-      <div className="rounded-xl bg-white shadow-card overflow-hidden border-t-2 border-pink-400">
+      <div className="rounded-xl bg-white shadow-card overflow-hidden border-t-2 border-orange-400">
         <div className="p-6">
           <h1 className="text-xl font-bold text-gray-900 mb-1">{watchlist.name}</h1>
           {watchlist.description && (
@@ -112,7 +112,7 @@ export default function WatchlistDetailPage() {
           </p>
           <button
             onClick={() => router.push('/influencers/discovery')}
-            className="text-sm text-pink-600 hover:text-pink-700"
+            className="text-sm text-orange-600 hover:text-orange-700"
           >
             Go to Discovery
           </button>
@@ -135,13 +135,13 @@ export default function WatchlistDetailPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {watchlist.items.map((item) => (
-                  <tr key={item.id} className="hover:bg-pink-50/30 transition-colors">
+                  <tr key={item.id} className="hover:bg-orange-50/30 transition-colors">
                     <td className="px-5 py-3">
                       <button
                         onClick={() => router.push(`/influencers/discovery/${item.influencer.id}`)}
-                        className="flex items-center gap-3 text-left hover:text-pink-600 transition-colors"
+                        className="flex items-center gap-3 text-left hover:text-orange-600 transition-colors"
                       >
-                        <div className="h-8 w-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 text-xs font-semibold shrink-0">
+                        <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-semibold shrink-0">
                           {item.influencer.displayName.charAt(0)}
                         </div>
                         <div>

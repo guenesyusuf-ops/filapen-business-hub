@@ -100,7 +100,7 @@ function LoginScreen({ onLogin }: { onLogin: (creator: PortalCreator) => void })
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="INVITE CODE"
               maxLength={8}
-              className="w-full text-center rounded-xl border border-gray-200 px-4 py-3 text-lg font-mono tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 uppercase"
+              className="w-full text-center rounded-xl border border-gray-200 px-4 py-3 text-lg font-mono tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 uppercase"
               autoFocus
             />
           </div>
@@ -110,7 +110,7 @@ function LoginScreen({ onLogin }: { onLogin: (creator: PortalCreator) => void })
           <button
             type="submit"
             disabled={code.length < 4 || loading}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-3 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             Access Portal
@@ -165,7 +165,7 @@ function CalendarWidget() {
             key={i}
             className={
               day === today
-                ? 'h-8 w-8 mx-auto rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold'
+                ? 'h-8 w-8 mx-auto rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-bold'
                 : day
                   ? 'h-8 w-8 mx-auto flex items-center justify-center text-xs text-gray-700 hover:bg-gray-50 rounded-full'
                   : 'h-8 w-8'
@@ -278,7 +278,7 @@ function ClockWidget() {
       <div className="text-center">
         <p className="text-2xl font-bold text-gray-900 font-mono tracking-wider">
           {hours}:{minutes}
-          <span className="text-sm text-violet-500 ml-0.5">{seconds}</span>
+          <span className="text-sm text-amber-500 ml-0.5">{seconds}</span>
         </p>
         <p className="text-xs text-gray-500 mt-0.5 capitalize">{dateStr}</p>
       </div>
@@ -332,11 +332,11 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
 
       {/* Creator notes from admin */}
       {creator.creatorNotes && (
-        <div className="rounded-xl bg-violet-50 border border-violet-100 p-4">
-          <p className="text-xs font-medium text-violet-600 mb-1">
+        <div className="rounded-xl bg-amber-50 border border-amber-100 p-4">
+          <p className="text-xs font-medium text-amber-600 mb-1">
             Message from your team
           </p>
-          <p className="text-sm text-violet-800">{creator.creatorNotes}</p>
+          <p className="text-sm text-amber-800">{creator.creatorNotes}</p>
         </div>
       )}
 
@@ -344,8 +344,8 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center">
-              <Upload className="h-5 w-5 text-violet-600" />
+            <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
+              <Upload className="h-5 w-5 text-amber-600" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.uploads}</p>
@@ -387,7 +387,7 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link
           href="/creator-portal/uploads"
-          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
+          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-amber-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
@@ -396,12 +396,12 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
                 Bilder, Videos oder Rohdateien hochladen
               </p>
             </div>
-            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-violet-600 transition-colors" />
+            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-amber-600 transition-colors" />
           </div>
         </Link>
         <Link
           href="/creator-portal/invitations"
-          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
+          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-amber-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
@@ -410,12 +410,12 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
                 Projekteinladungen ansehen und annehmen
               </p>
             </div>
-            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-violet-600 transition-colors" />
+            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-amber-600 transition-colors" />
           </div>
         </Link>
         <Link
           href="/creator-portal/briefings"
-          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-violet-200 hover:shadow-md transition-all group"
+          className="rounded-xl bg-white dark:bg-white/5 p-5 shadow-sm border border-gray-100 hover:border-amber-200 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
             <div>
@@ -424,7 +424,7 @@ function PortalDashboard({ creator }: { creator: PortalCreator }) {
                 View your briefings
               </p>
             </div>
-            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-violet-600 transition-colors" />
+            <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-amber-600 transition-colors" />
           </div>
         </Link>
       </div>
@@ -476,7 +476,7 @@ function CreatorPortalInner() {
 
 export default function CreatorPortalPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-[70vh]"><Loader2 className="h-6 w-6 animate-spin text-violet-600" /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[70vh]"><Loader2 className="h-6 w-6 animate-spin text-amber-600" /></div>}>
       <CreatorPortalInner />
     </Suspense>
   );

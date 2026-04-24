@@ -86,7 +86,7 @@ function FolderCard({
       {/* Info */}
       <div className="px-3 py-2.5 text-left">
         <div className="flex items-center gap-1.5 mb-0.5">
-          <Folder className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+          <Folder className="h-3.5 w-3.5 text-amber-500 shrink-0" />
           <p className="text-sm font-medium text-gray-900 truncate">
             {folder.name}
           </p>
@@ -108,7 +108,7 @@ function FolderCard({
           {folder.unseenCount > 0 && (
             <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
           )}
-          <div className="flex items-center justify-center min-w-[20px] h-5 rounded-full bg-purple-500 px-1.5">
+          <div className="flex items-center justify-center min-w-[20px] h-5 rounded-full bg-amber-500 px-1.5">
             <span className="text-[10px] font-bold text-white">
               {folder.fileCount}
             </span>
@@ -204,7 +204,7 @@ export default function AllUploadsPage() {
           className={cn(
             'relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
             !tab
-              ? 'bg-purple-600 text-white'
+              ? 'bg-amber-600 text-white'
               : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10',
           )}
         >
@@ -231,7 +231,7 @@ export default function AllUploadsPage() {
               className={cn(
                 'relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
                 tab === t
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-amber-600 text-white'
                   : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10',
               )}
             >
@@ -357,7 +357,7 @@ export default function AllUploadsPage() {
 
                   {/* Unseen badge */}
                   {!upload.seenByAdmin && (
-                    <div className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-purple-500" />
+                    <div className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-amber-500" />
                   )}
 
                   {/* Tab badge */}

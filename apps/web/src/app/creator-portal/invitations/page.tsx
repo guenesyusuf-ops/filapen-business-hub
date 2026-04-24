@@ -121,7 +121,7 @@ export default function CreatorInvitationsPage() {
         </p>
         <button
           onClick={() => router.push('/creator-portal')}
-          className="mt-4 inline-flex items-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
+          className="mt-4 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors"
         >
           Zum Login
         </button>
@@ -132,7 +132,7 @@ export default function CreatorInvitationsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
       </div>
     );
   }
@@ -187,7 +187,7 @@ export default function CreatorInvitationsPage() {
                 >
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="h-10 w-10 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 flex-shrink-0">
+                      <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
                         <FolderKanban className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
@@ -253,7 +253,7 @@ export default function CreatorInvitationsPage() {
                       <button
                         onClick={() => handleAccept(inv.id)}
                         disabled={isBusy}
-                        className="inline-flex items-center gap-1 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
+                        className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
                       >
                         {isBusy && acceptMutation.isPending ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -374,7 +374,7 @@ export default function CreatorInvitationsPage() {
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{noteModal}</p>
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex justify-end">
-              <button onClick={() => setNoteModal(null)} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700">
+              <button onClick={() => setNoteModal(null)} className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
                 Schließen
               </button>
             </div>

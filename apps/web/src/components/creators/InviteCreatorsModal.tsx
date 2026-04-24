@@ -272,7 +272,7 @@ export function InviteCreatorsModal({
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                 mode === 'all'
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-amber-600 text-white'
                   : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10',
               )}
             >
@@ -285,7 +285,7 @@ export function InviteCreatorsModal({
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                 mode === 'filter'
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-amber-600 text-white'
                   : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10',
               )}
             >
@@ -311,7 +311,7 @@ export function InviteCreatorsModal({
                         className={cn(
                           'rounded-full px-3 py-1 text-xs font-medium transition-colors',
                           selected
-                            ? 'bg-purple-600 text-white'
+                            ? 'bg-amber-600 text-white'
                             : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10',
                         )}
                       >
@@ -425,7 +425,7 @@ export function InviteCreatorsModal({
                 checked={allFilteredSelected}
                 onChange={toggleSelectAll}
                 disabled={filteredCreators.length === 0}
-                className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
               />
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
                 {allFilteredSelected ? 'Alle abwählen' : 'Alle auswählen'}
@@ -490,7 +490,7 @@ export function InviteCreatorsModal({
               type="button"
               onClick={handleInvite}
               disabled={selectedIds.size === 0 || bulkInvite.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-40 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 transition-colors"
             >
               {bulkInvite.isPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -526,17 +526,17 @@ function CreatorRow({
       className={cn(
         'flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors',
         selected
-          ? 'border-purple-500 bg-purple-50 dark:bg-purple-500/10'
-          : 'border-gray-200 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-500/40 hover:bg-gray-50 dark:hover:bg-white/5',
+          ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10'
+          : 'border-gray-200 dark:border-white/10 hover:border-amber-300 dark:hover:border-amber-500/40 hover:bg-gray-50 dark:hover:bg-white/5',
       )}
     >
       <input
         type="checkbox"
         checked={selected}
         readOnly
-        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 pointer-events-none"
+        className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500 pointer-events-none"
       />
-      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center flex-shrink-0">
+      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center flex-shrink-0">
         {creator.avatarUrl ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -560,7 +560,7 @@ function CreatorRow({
         </p>
       </div>
       {creator.score > 0 && (
-        <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-1 flex-shrink-0">
+        <div className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 flex-shrink-0">
           {selected && <CheckCircle2 className="h-3 w-3" />}
           {creator.score}
         </div>

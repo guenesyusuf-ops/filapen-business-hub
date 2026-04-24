@@ -137,7 +137,7 @@ export default function ContactDetailPage() {
                     </div>
                     <div className="flex gap-2 text-xs text-gray-500">
                       {m.openCount > 0 && <Badge color="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">Geöffnet ({m.openCount})</Badge>}
-                      {m.clickCount > 0 && <Badge color="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">Geklickt ({m.clickCount})</Badge>}
+                      {m.clickCount > 0 && <Badge color="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Geklickt ({m.clickCount})</Badge>}
                     </div>
                   </div>
                 ))}

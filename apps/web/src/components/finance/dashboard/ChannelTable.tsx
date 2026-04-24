@@ -34,7 +34,7 @@ const CHANNEL_ICONS: Record<string, React.ReactNode> = {
   'Meta Ads': <Facebook className="h-4 w-4 text-blue-600" />,
   'Google Ads': <Search className="h-4 w-4 text-yellow-600" />,
   'TikTok Ads': <Music2 className="h-4 w-4 text-gray-900 dark:text-white" />,
-  'Direct / Organic': <Globe className="h-4 w-4 text-purple-600" />,
+  'Direct / Organic': <Globe className="h-4 w-4 text-amber-600" />,
 };
 
 function roasColor(roas: number): string {

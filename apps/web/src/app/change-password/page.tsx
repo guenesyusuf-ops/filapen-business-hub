@@ -90,11 +90,11 @@ export default function ChangePasswordPage() {
   if (!user) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-purple-50/30 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-amber-50/30 px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center shadow-lg shadow-purple-200">
+          <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center shadow-lg shadow-purple-200">
             <Lock className="h-5 w-5 text-white" />
           </div>
           <h1 className="text-xl font-bold text-gray-900">Passwort ändern</h1>
@@ -122,7 +122,7 @@ export default function ChangePasswordPage() {
                   value={current}
                   onChange={(e) => setCurrent(e.target.value)}
                   autoComplete="current-password"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   placeholder="Aus der Einladungs-E-Mail"
                 />
               </div>
@@ -138,7 +138,7 @@ export default function ChangePasswordPage() {
                   value={next}
                   onChange={(e) => setNext(e.target.value)}
                   autoComplete="new-password"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   placeholder="Mindestens 8 Zeichen"
                 />
               </div>
@@ -154,7 +154,7 @@ export default function ChangePasswordPage() {
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   autoComplete="new-password"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                   placeholder="Erneut eingeben"
                 />
               </div>
@@ -168,7 +168,7 @@ export default function ChangePasswordPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full rounded-lg bg-purple-600 py-2.5 text-sm font-semibold text-white hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-lg bg-amber-600 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Speichere ...' : 'Passwort ändern'}
               </button>

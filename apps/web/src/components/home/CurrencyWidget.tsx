@@ -68,7 +68,7 @@ export function CurrencyWidget() {
   const toCurrency = POPULAR_CURRENCIES.find((c) => c.code === to);
 
   return (
-    <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden">
+    <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary-500" />

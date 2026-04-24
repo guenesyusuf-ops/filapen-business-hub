@@ -33,7 +33,7 @@ export function OnlineUsersWidget() {
 
   return (
     <>
-      <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
+      <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card shadow-sm overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-primary-500" />

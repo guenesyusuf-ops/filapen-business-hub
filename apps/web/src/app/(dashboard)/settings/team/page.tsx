@@ -55,7 +55,7 @@ function roleBadge(role: string) {
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
         isAdmin
-          ? 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+          ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
           : 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
       )}
     >
@@ -182,7 +182,7 @@ function InviteModal({
                     : 'border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5',
                 )}
               >
-                <Shield className="h-4 w-4 mt-0.5 text-purple-500 flex-shrink-0" />
+                <Shield className="h-4 w-4 mt-0.5 text-amber-500 flex-shrink-0" />
                 <div>
                   <div className="text-sm font-medium text-gray-900 dark:text-white">Admin</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Voller Zugriff auf alles</div>
@@ -563,7 +563,7 @@ export default function TeamSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
       </div>
     );
   }

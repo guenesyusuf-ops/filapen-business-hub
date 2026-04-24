@@ -111,7 +111,7 @@ export default function PortalProfilePage() {
   }
 
   const inputCls =
-    'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500';
+    'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500';
   const labelCls = 'block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1';
 
   return (
@@ -126,7 +126,7 @@ export default function PortalProfilePage() {
       {/* Profile card */}
       <div className="rounded-xl bg-white dark:bg-white/5 p-6 border border-gray-100">
         <div className="flex items-center gap-4 mb-6">
-          <div className="h-16 w-16 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 font-bold text-xl shrink-0">
+          <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-xl shrink-0">
             {creator.name.charAt(0)}
           </div>
           <div>
@@ -178,7 +178,7 @@ export default function PortalProfilePage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
             >
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Save Changes
@@ -193,12 +193,12 @@ export default function PortalProfilePage() {
           Your Invite Code
         </h3>
         <div className="flex items-center gap-2">
-          <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono font-bold text-violet-700 tracking-widest">
+          <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono font-bold text-amber-700 tracking-widest">
             {creator.inviteCode}
           </code>
           <button
             onClick={handleCopyCode}
-            className="p-2 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+            className="p-2 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
             title="Copy invite code"
           >
             {copiedCode ? (

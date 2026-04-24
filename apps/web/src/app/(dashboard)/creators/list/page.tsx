@@ -37,7 +37,7 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   prospect:
     'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20',
   outreach:
-    'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-300 dark:border-purple-500/20',
+    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
   inactive:
     'bg-gray-50 text-gray-500 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10',
 };
@@ -45,7 +45,7 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
 function PlatformIcon({ platform }: { platform: string }) {
   switch (platform) {
     case 'instagram':
-      return <Camera className="h-3.5 w-3.5 text-pink-500" />;
+      return <Camera className="h-3.5 w-3.5 text-orange-500" />;
     case 'tiktok':
       return <Music className="h-3.5 w-3.5 text-gray-800" />;
     case 'youtube':
@@ -227,7 +227,7 @@ function CreatorCard({ creator, onClick }: { creator: Creator; onClick: () => vo
               <span
                 className={cn(
                   BADGE_BASE,
-                  'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:border-violet-500/20',
+                  'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20',
                 )}
               >
                 {Math.round(Number(creator.ratePerPost))} €
@@ -281,7 +281,7 @@ function CreatorCard({ creator, onClick }: { creator: Creator; onClick: () => vo
               <span
                 className={cn(
                   BADGE_BASE,
-                  'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/20',
+                  'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20',
                 )}
               >
                 {creator.compensation}
@@ -293,7 +293,7 @@ function CreatorCard({ creator, onClick }: { creator: Creator; onClick: () => vo
               <span
                 className={cn(
                   BADGE_BASE,
-                  'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-500/10 dark:text-pink-300 dark:border-pink-500/20',
+                  'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:border-orange-500/20',
                 )}
               >
                 Kinder:{' '}
@@ -605,7 +605,7 @@ function CreatorListPageInner() {
 
 export default function CreatorListPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-600 border-t-transparent" /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" /></div>}>
       <CreatorListPageInner />
     </Suspense>
   );

@@ -32,9 +32,9 @@ export function KpiCard({
     blue: { tint: 'from-blue-500/10 to-blue-500/[0.02]', ring: 'ring-blue-500/20', text: 'text-blue-500' },
     green: { tint: 'from-emerald-500/10 to-emerald-500/[0.02]', ring: 'ring-emerald-500/20', text: 'text-emerald-500' },
     amber: { tint: 'from-amber-500/10 to-amber-500/[0.02]', ring: 'ring-amber-500/20', text: 'text-amber-500' },
-    red: { tint: 'from-rose-500/10 to-rose-500/[0.02]', ring: 'ring-rose-500/20', text: 'text-rose-500' },
-    purple: { tint: 'from-violet-500/10 to-violet-500/[0.02]', ring: 'ring-violet-500/20', text: 'text-violet-500' },
-    indigo: { tint: 'from-indigo-500/10 to-indigo-500/[0.02]', ring: 'ring-indigo-500/20', text: 'text-indigo-500' },
+    red: { tint: 'from-orange-500/10 to-orange-500/[0.02]', ring: 'ring-orange-500/20', text: 'text-orange-500' },
+    purple: { tint: 'from-amber-500/10 to-amber-500/[0.02]', ring: 'ring-amber-500/20', text: 'text-amber-500' },
+    indigo: { tint: 'from-blue-500/10 to-blue-500/[0.02]', ring: 'ring-blue-500/20', text: 'text-blue-500' },
     gray: { tint: 'from-gray-400/10 to-gray-400/[0.02]', ring: 'ring-gray-400/20', text: 'text-gray-500' },
   };
   const styles = tintMap[accent || 'gray'];

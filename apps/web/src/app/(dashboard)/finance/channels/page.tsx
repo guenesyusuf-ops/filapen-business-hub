@@ -44,8 +44,8 @@ const CHANNEL_CONFIG: Record<
   tiktok: {
     label: 'TikTok',
     icon: Music,
-    color: 'text-pink-500',
-    bgColor: 'bg-pink-50',
+    color: 'text-orange-500',
+    bgColor: 'bg-orange-50',
     slug: 'tiktok',
     borderColor: '#ec4899',
   },
@@ -85,8 +85,8 @@ const CHANNEL_CONFIG: Record<
   'TikTok': {
     label: 'TikTok',
     icon: Music,
-    color: 'text-pink-500',
-    bgColor: 'bg-pink-50',
+    color: 'text-orange-500',
+    bgColor: 'bg-orange-50',
     slug: 'tiktok',
     borderColor: '#ec4899',
   },

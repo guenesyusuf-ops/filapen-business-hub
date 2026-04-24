@@ -30,9 +30,9 @@ import type { Deal, DealStage, KanbanColumn } from '@/hooks/creators/useDeals';
 // ---------------------------------------------------------------------------
 
 const DEAL_TYPE_STYLES: Record<string, string> = {
-  sponsored_post: 'bg-pink-50 text-pink-700',
+  sponsored_post: 'bg-orange-50 text-orange-700',
   video: 'bg-red-50 text-red-700',
-  story: 'bg-purple-50 text-purple-700',
+  story: 'bg-amber-50 text-amber-700',
   campaign: 'bg-blue-50 text-blue-700',
   ambassador: 'bg-amber-50 text-amber-700',
 };
@@ -559,7 +559,7 @@ function DealsPageInner() {
 
 export default function DealsPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-600 border-t-transparent" /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-600 border-t-transparent" /></div>}>
       <DealsPageInner />
     </Suspense>
   );

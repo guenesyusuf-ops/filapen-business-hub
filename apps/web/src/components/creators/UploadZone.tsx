@@ -135,7 +135,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
               className={cn(
                 'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors',
                 mode === 'file'
-                  ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                  ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700'
                   : 'bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-100 dark:hover:bg-white/10',
               )}
             >
@@ -147,7 +147,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
               className={cn(
                 'flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors',
                 mode === 'link'
-                  ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                  ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700'
                   : 'bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-100 dark:hover:bg-white/10',
               )}
             >
@@ -167,10 +167,10 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
                 className={cn(
                   'flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed cursor-pointer transition-colors',
                   isDragOver
-                    ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20'
+                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
                     : selectedFile
                       ? 'border-green-300 bg-green-50 dark:border-green-600 dark:bg-green-900/20'
-                      : 'border-gray-200 dark:border-white/20 bg-gray-50 dark:bg-white/5 hover:border-purple-300 dark:hover:border-purple-500',
+                      : 'border-gray-200 dark:border-white/20 bg-gray-50 dark:bg-white/5 hover:border-amber-300 dark:hover:border-amber-500',
                 )}
               >
                 <input
@@ -191,7 +191,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
                   <div className="text-center">
                     <Upload className="h-8 w-8 text-gray-300 dark:text-gray-500 mx-auto mb-2" />
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Ziehen & ablegen oder <span className="text-purple-600 dark:text-purple-400 font-medium">Datei waehlen</span>
+                      Ziehen & ablegen oder <span className="text-amber-600 dark:text-amber-400 font-medium">Datei waehlen</span>
                     </p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       Bilder, Videos, Dokumente
@@ -209,7 +209,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
                   </div>
                   <div className="w-full h-2 rounded-full bg-gray-100 dark:bg-white/10 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-purple-600 transition-all duration-300 ease-out"
+                      className="h-full rounded-full bg-amber-600 transition-all duration-300 ease-out"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
@@ -227,7 +227,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               placeholder="https://..."
-              className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+              className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-3 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
             />
           )}
 
@@ -244,7 +244,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
                   className={cn(
                     'flex-1 rounded-lg py-1.5 text-xs font-medium transition-colors',
                     tab === t
-                      ? 'bg-purple-600 text-white'
+                      ? 'bg-amber-600 text-white'
                       : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/20',
                   )}
                 >
@@ -263,7 +263,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="z.B. Entwurf 1"
-                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
               />
             </div>
             <div>
@@ -273,7 +273,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
                 value={product}
                 onChange={(e) => setProduct(e.target.value)}
                 placeholder="z.B. Serum"
-                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
               />
             </div>
             <div>
@@ -283,7 +283,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
                 value={batch}
                 onChange={(e) => setBatch(e.target.value)}
                 placeholder="z.B. Batch A"
-                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500"
+                className="w-full rounded-lg border border-gray-200 dark:border-white/20 bg-white dark:bg-white/5 px-2.5 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
               />
             </div>
           </div>
@@ -300,7 +300,7 @@ export function UploadZone({ creatorId, defaultTab = 'bilder', onClose, onSucces
           <button
             onClick={handleSubmit}
             disabled={uploading || (mode === 'file' && !selectedFile) || (mode === 'link' && !linkUrl.trim())}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {uploading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Hochladen

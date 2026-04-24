@@ -19,8 +19,8 @@ type ViewMode = 'grid' | 'list';
 
 function getFileIcon(fileType: string | null) {
   switch (fileType) {
-    case 'image': return <Image className="h-5 w-5 text-pink-500" />;
-    case 'video': return <Video className="h-5 w-5 text-purple-500" />;
+    case 'image': return <Image className="h-5 w-5 text-orange-500" />;
+    case 'video': return <Video className="h-5 w-5 text-amber-500" />;
     case 'pdf': return <FileText className="h-5 w-5 text-red-500" />;
     case 'document': return <FileText className="h-5 w-5 text-blue-500" />;
     case 'spreadsheet': return <FileText className="h-5 w-5 text-emerald-500" />;

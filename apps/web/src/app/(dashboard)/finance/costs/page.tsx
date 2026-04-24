@@ -68,7 +68,7 @@ const CATEGORIES: { label: string; value: CostCategory }[] = [
 const CATEGORY_COLORS: Record<CostCategory, string> = {
   software: 'bg-blue-50 text-blue-700',
   payroll: 'bg-green-50 text-green-700',
-  rent: 'bg-purple-50 text-purple-700',
+  rent: 'bg-amber-50 text-amber-700',
   marketing: 'bg-orange-50 text-orange-700',
   shipping: 'bg-yellow-50 text-yellow-700',
   other: 'bg-gray-50 text-gray-600',

@@ -136,7 +136,7 @@ export const SHIPMENT_STATUS_LABELS: Record<OrderShipmentStatus, { label: string
   label_created: { label: 'Label erstellt', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
   handed_to_carrier: { label: 'Übergeben', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
   in_transit: { label: 'Unterwegs', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' },
-  out_for_delivery: { label: 'In Zustellung', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  out_for_delivery: { label: 'In Zustellung', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
   delivered: { label: 'Zugestellt', color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
   delivery_failed: { label: 'Zustellung fehlgeschlagen', color: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
   ready_for_pickup: { label: 'Abholbereit', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },

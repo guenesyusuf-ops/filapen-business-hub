@@ -162,7 +162,7 @@ function TasksWidget() {
   const overdue = open.filter((t) => t.dueDate && t.dueDate.split('T')[0] < todayStr).length;
 
   return (
-    <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
+    <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card shadow-sm overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-4 w-4 text-accent-work" />
@@ -270,7 +270,7 @@ function CalendarWidget() {
   const selectedEvents = eventsByDay.get(selectedDate) ?? [];
 
   return (
-    <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
+    <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card shadow-sm overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-accent-purchase" />
@@ -522,7 +522,7 @@ function NotesWidget() {
   }
 
   return (
-    <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
+    <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card shadow-sm overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2">
           <StickyNote className="h-4 w-4 text-accent-email" />

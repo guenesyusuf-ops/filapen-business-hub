@@ -147,7 +147,7 @@ function CollaborationTimeline({ data }: { data: any }) {
           {data.influencers.slice(0, 20).map((inf: any) => (
             <div key={inf.id} className="flex items-center py-1.5 border-b border-gray-50 last:border-0">
               <div className="w-40 shrink-0 flex items-center gap-2 pr-3">
-                <div className="h-6 w-6 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 text-[10px] font-semibold shrink-0">
+                <div className="h-6 w-6 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-[10px] font-semibold shrink-0">
                   {inf.name.charAt(0)}
                 </div>
                 <div className="min-w-0">
@@ -402,12 +402,12 @@ function InfluencersTable({ influencers }: { influencers: any[] }) {
             {sorted.map((inf) => (
               <tr
                 key={inf.id}
-                className="hover:bg-pink-50/30 cursor-pointer transition-colors"
+                className="hover:bg-orange-50/30 cursor-pointer transition-colors"
                 onClick={() => router.push(`/influencers/discovery/${inf.id}`)}
               >
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-7 w-7 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 text-[10px] font-semibold shrink-0">
+                    <div className="h-7 w-7 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-[10px] font-semibold shrink-0">
                       {inf.displayName.charAt(0)}
                     </div>
                     <div>
@@ -441,7 +441,7 @@ function InfluencersTable({ influencers }: { influencers: any[] }) {
                   {inf.brandedContentPct != null ? `${inf.brandedContentPct.toFixed(0)}%` : '-'}
                 </td>
                 <td className="px-3 py-3 text-right">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 text-[10px] font-bold">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-bold">
                     {inf.totalMentions}
                   </span>
                 </td>
@@ -508,9 +508,9 @@ function CompetitorOverlapSection({ data }: { data: any }) {
                 <button
                   key={inf.id}
                   onClick={() => router.push(`/influencers/discovery/${inf.id}`)}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 hover:bg-pink-50 text-xs text-gray-700 hover:text-pink-700 transition-colors"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-50 hover:bg-orange-50 text-xs text-gray-700 hover:text-orange-700 transition-colors"
                 >
-                  <div className="h-4 w-4 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 text-[8px] font-semibold">
+                  <div className="h-4 w-4 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-[8px] font-semibold">
                     {inf.displayName.charAt(0)}
                   </div>
                   {inf.displayName}
@@ -574,7 +574,7 @@ export default function BrandDetailPage() {
         <h2 className="text-lg font-medium text-gray-900 mb-2">Brand not found</h2>
         <button
           onClick={() => router.push('/influencers/brands')}
-          className="text-sm text-pink-600 hover:text-pink-700"
+          className="text-sm text-orange-600 hover:text-orange-700"
         >
           Back to Brands
         </button>
@@ -594,14 +594,14 @@ export default function BrandDetailPage() {
       </button>
 
       {/* Brand Header */}
-      <div className="rounded-xl bg-white shadow-card overflow-hidden border-t-2 border-pink-400">
+      <div className="rounded-xl bg-white shadow-card overflow-hidden border-t-2 border-orange-400">
         <div className="p-6">
           <div className="flex items-start gap-4">
             <BrandLogo name={brand.name} size="lg" />
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-bold text-gray-900 mb-1">{brand.name}</h1>
               {brand.category && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-pink-50 text-pink-700 text-xs font-medium mb-2">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 text-xs font-medium mb-2">
                   {brand.category}
                 </span>
               )}
@@ -611,7 +611,7 @@ export default function BrandDetailPage() {
                     href={brand.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-pink-600 hover:text-pink-700"
+                    className="flex items-center gap-1 text-orange-600 hover:text-orange-700"
                   >
                     <Globe className="h-3 w-3" />
                     {brand.website.replace(/^https?:\/\//, '')}

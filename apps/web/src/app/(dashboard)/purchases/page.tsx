@@ -316,7 +316,7 @@ export default function PurchasesDashboardPage() {
 
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-5">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Truck className="h-4 w-4 text-purple-500" /> Top-Lieferanten
+            <Truck className="h-4 w-4 text-amber-500" /> Top-Lieferanten
           </h3>
           {top.length === 0 ? (
             <Empty title="Noch keine Bestellungen" hint="Lege deinen ersten Lieferanten an und erfasse eine Bestellung." action={
@@ -333,7 +333,7 @@ export default function PurchasesDashboardPage() {
                   className="w-full text-left flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-7 w-7 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                    <div className="h-7 w-7 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center justify-center text-xs font-bold flex-shrink-0">
                       {i + 1}
                     </div>
                     <div className="min-w-0">

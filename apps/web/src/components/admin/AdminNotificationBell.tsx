@@ -135,7 +135,7 @@ export function AdminNotificationBell() {
   };
 
   const typeColor = (type: string) => {
-    if (type === 'upload') return 'bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400';
+    if (type === 'upload') return 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400';
     if (type === 'approval') return 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400';
     if (type === 'comment') return 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400';
     return 'bg-primary-100 dark:bg-primary-500/20 text-primary-600 dark:text-primary-400';

@@ -30,9 +30,9 @@ import { useBriefings } from '@/hooks/creators/useBriefings';
 // ---------------------------------------------------------------------------
 
 const DEAL_TYPE_STYLES: Record<string, string> = {
-  sponsored_post: 'bg-pink-50 text-pink-700 border-pink-200',
+  sponsored_post: 'bg-orange-50 text-orange-700 border-orange-200',
   video: 'bg-red-50 text-red-700 border-red-200',
-  story: 'bg-purple-50 text-purple-700 border-purple-200',
+  story: 'bg-amber-50 text-amber-700 border-amber-200',
   campaign: 'bg-blue-50 text-blue-700 border-blue-200',
   ambassador: 'bg-amber-50 text-amber-700 border-amber-200',
 };

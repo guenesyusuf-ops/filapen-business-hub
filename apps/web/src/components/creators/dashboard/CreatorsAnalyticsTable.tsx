@@ -32,7 +32,7 @@ function CompensationBadges({ row }: { row: CreatorAnalyticsRow }) {
   if (row.provision) {
     const prov = row.provision.trim().endsWith('%') ? row.provision.trim() : `${row.provision.trim()}%`;
     badges.push(
-      <span key="prov" className={`${BADGE} bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300`}>
+      <span key="prov" className={`${BADGE} bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300`}>
         {prov}
       </span>,
     );
@@ -55,7 +55,7 @@ export function CreatorsAnalyticsTable({ rows, loading }: Props) {
     <section className="rounded-2xl border border-gray-200 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
       <header className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white">
             <BarChart3 className="h-4 w-4" />
           </div>
           <div>

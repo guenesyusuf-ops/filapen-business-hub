@@ -67,7 +67,7 @@ function AngleCard({ angle }: { angle: AngleSuggestion }) {
           <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{angle.name}</h4>
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">{angle.description}</p>
           <div className="flex flex-wrap items-center gap-2 mt-2.5">
-            <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xxs font-medium text-rose-600">
+            <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-xxs font-medium text-orange-600">
               {angle.emotion}
             </span>
             <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xxs font-medium text-blue-600">
@@ -133,10 +133,10 @@ function VariantCard({
               {platformLabel}
             </span>
           )}
-          <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xxs font-medium text-indigo-600">
+          <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xxs font-medium text-blue-600">
             {variant.tone}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xxs font-medium text-purple-600">
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xxs font-medium text-amber-600">
             <Sparkles className="h-2.5 w-2.5" />
             AI
           </span>

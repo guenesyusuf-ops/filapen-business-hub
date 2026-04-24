@@ -218,7 +218,7 @@ function ContentCard({ piece }: { piece: ContentPiece }) {
             {CONTENT_STATUS_LABELS[piece.status] ?? piece.status}
           </span>
           {piece.aiGenerated && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-purple-50 px-2 py-0.5 text-xxs font-medium text-purple-600">
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-2 py-0.5 text-xxs font-medium text-amber-600">
               <Sparkles className="h-2.5 w-2.5" />
               AI
             </span>

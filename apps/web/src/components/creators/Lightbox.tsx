@@ -39,7 +39,7 @@ function FileTypeIcon({ fileType }: { fileType: string }) {
     case 'image':
       return <Image className="h-5 w-5 text-blue-500" />;
     case 'video':
-      return <Video className="h-5 w-5 text-purple-500" />;
+      return <Video className="h-5 w-5 text-amber-500" />;
     case 'link':
       return <Link2 className="h-5 w-5 text-green-500" />;
     default:
@@ -70,7 +70,7 @@ function CommentItem({ comment }: { comment: UploadComment }) {
         className={cn(
           'h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
           isAdmin
-            ? 'bg-purple-100 text-purple-700'
+            ? 'bg-amber-100 text-amber-700'
             : 'bg-gray-100 text-gray-600',
         )}
       >
@@ -80,7 +80,7 @@ function CommentItem({ comment }: { comment: UploadComment }) {
         className={cn(
           'max-w-[75%] rounded-xl px-3 py-2',
           isAdmin
-            ? 'bg-purple-50 text-purple-900'
+            ? 'bg-amber-50 text-amber-900'
             : 'bg-gray-50 text-gray-800',
         )}
       >
@@ -346,7 +346,7 @@ export function Lightbox({
                 year: 'numeric',
               })}
             </span>
-            {upload.label && <span className="text-purple-400">{upload.label}</span>}
+            {upload.label && <span className="text-amber-400">{upload.label}</span>}
           </div>
         </div>
 
@@ -354,7 +354,7 @@ export function Lightbox({
         <div className="w-80 flex flex-col border-l border-gray-200 bg-white">
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
-            <MessageCircle className="h-4 w-4 text-purple-600" />
+            <MessageCircle className="h-4 w-4 text-amber-600" />
             <span className="text-sm font-semibold text-gray-900 dark:text-white">
               Comments ({comments.length})
             </span>
@@ -386,12 +386,12 @@ export function Lightbox({
                 onKeyDown={handleKeyDown}
                 placeholder="Add a comment..."
                 rows={2}
-                className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 resize-none"
+                className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 resize-none"
               />
               <button
                 onClick={handleSend}
                 disabled={!message.trim() || createComment.isPending}
-                className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="h-4 w-4" />
               </button>

@@ -54,7 +54,7 @@ function CreateWatchlistModal({ onClose }: { onClose: () => void }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Summer Campaign 2026"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-300 focus:ring-1 focus:ring-pink-200 outline-none"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 outline-none"
               autoFocus
             />
           </div>
@@ -67,7 +67,7 @@ function CreateWatchlistModal({ onClose }: { onClose: () => void }) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What is this watchlist for?"
               rows={3}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-300 focus:ring-1 focus:ring-pink-200 outline-none resize-none"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 outline-none resize-none"
             />
           </div>
           <div className="flex items-center justify-end gap-3 pt-2">
@@ -81,7 +81,7 @@ function CreateWatchlistModal({ onClose }: { onClose: () => void }) {
             <button
               type="submit"
               disabled={!name.trim() || createMutation.isPending}
-              className="rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {createMutation.isPending ? 'Creating...' : 'Create Watchlist'}
             </button>
@@ -113,7 +113,7 @@ export default function WatchlistsPage() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />
           Create Watchlist
@@ -152,7 +152,7 @@ export default function WatchlistsPage() {
               </p>
               <button
                 onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Create Watchlist
@@ -164,13 +164,13 @@ export default function WatchlistsPage() {
                 <button
                   key={wl.id}
                   onClick={() => router.push(`/influencers/watchlists/${wl.id}`)}
-                  className="group text-left rounded-xl bg-white p-5 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all border-t-2 border-pink-400"
+                  className="group text-left rounded-xl bg-white p-5 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all border-t-2 border-orange-400"
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-gray-900 group-hover:text-pink-600 transition-colors">
+                    <h3 className="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
                       {wl.name}
                     </h3>
-                    <Eye className="h-4 w-4 text-gray-400 group-hover:text-pink-500 transition-colors shrink-0" />
+                    <Eye className="h-4 w-4 text-gray-400 group-hover:text-orange-500 transition-colors shrink-0" />
                   </div>
                   {wl.description && (
                     <p className="text-xs text-gray-500 mb-3 line-clamp-2">

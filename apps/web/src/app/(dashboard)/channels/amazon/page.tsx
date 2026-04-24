@@ -343,8 +343,8 @@ export default function AmazonDashboardPage() {
             {/* ROAS */}
             <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-2">
-                <div className="h-8 w-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                  <Target className="h-4 w-4 text-violet-600" />
+                <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                  <Target className="h-4 w-4 text-amber-600" />
                 </div>
                 <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">ROAS</span>
               </div>
@@ -365,7 +365,7 @@ export default function AmazonDashboardPage() {
           </div>
 
           {/* Orders table */}
-          <div className="rounded-xl bg-white dark:bg-[var(--card-bg)] border border-gray-200 dark:border-white/10 overflow-hidden">
+          <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 dark:border-white/5 flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-orange-500" />
               <span className="text-sm font-semibold text-gray-900 dark:text-white">Bestellungen ({data.totalOrders})</span>

@@ -115,14 +115,14 @@ const COLOR_MAP = {
     border: 'border-emerald-100 group-hover:border-emerald-200',
   },
   violet: {
-    bg: 'bg-violet-50 group-hover:bg-violet-100/80',
-    icon: 'text-violet-600',
-    border: 'border-violet-100 group-hover:border-violet-200',
+    bg: 'bg-amber-50 group-hover:bg-amber-100/80',
+    icon: 'text-amber-600',
+    border: 'border-amber-100 group-hover:border-amber-200',
   },
   pink: {
-    bg: 'bg-pink-50 group-hover:bg-pink-100/80',
-    icon: 'text-pink-600',
-    border: 'border-pink-100 group-hover:border-pink-200',
+    bg: 'bg-orange-50 group-hover:bg-orange-100/80',
+    icon: 'text-orange-600',
+    border: 'border-orange-100 group-hover:border-orange-200',
   },
   amber: {
     bg: 'bg-amber-50 group-hover:bg-amber-100/80',
