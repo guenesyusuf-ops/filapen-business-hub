@@ -672,7 +672,7 @@ function QuickStats() {
 
 export default function HomePage() {
   return (
-    <div className="space-y-5 animate-fade-in max-w-7xl">
+    <div className="space-y-5 animate-fade-in w-full">
       <GreetingCard />
       <QuickStats />
       <PendingApprovalsWidget />
