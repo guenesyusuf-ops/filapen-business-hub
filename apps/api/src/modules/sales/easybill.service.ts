@@ -259,6 +259,18 @@ export class EasybillService {
     };
     if (introText !== undefined) payload.text = introText;
     if (footerText !== undefined) payload.text_additional = footerText;
+
+    // status=ACCEPT unterscheidet in easybill den "Auftrag" vom
+    // "Auftragsbestätigung"-Rendering. Swagger: status enum ACCEPT/DONE/
+    // DROPSHIPPING/CANCEL erlaubt auf Dokumenttypen ORDER/DELIVERY/CHARGE/
+    // OFFER. Die UI-Labels Angebot/Auftrag/Auftragsbestätigung/Bestellung
+    // in easybill sind Varianten von OFFER und ORDER mit unterschiedlichem
+    // Status — aus deutscher Geschäftslogik:
+    //   ORDER            = Auftrag (Kundenauftrag intern)
+    //   ORDER + ACCEPT   = Auftragsbestätigung (an Kunde verschickbar)
+    if (type === 'ORDER') {
+      payload.status = 'ACCEPT';
+    }
     // Zahlungsbedingungen für Rechnungen — aus paymentTerms-Freitext der
     // Bestellung extrahieren. Format muss etwa so aussehen (egal ob Komma/Punkt):
     //   "3% Skonto innerhalb 7 Tagen, 30 Tage netto"
