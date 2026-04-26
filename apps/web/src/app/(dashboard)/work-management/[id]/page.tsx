@@ -158,6 +158,27 @@ export default function ProjectDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTaskParam, project?.id]);
 
+  // Anhang-Resync: selectedTask wird beim Task-Klick gesnapshotted und friert
+  // ein. Wenn das Project frisch von Server kommt (anderes Browser-Tab, andere
+  // Mutation) hat es eventuell andere attachments. Ohne diesen Effect zeigt
+  // das Modal stale Daten — Anhänge "verschwinden" obwohl sie in DB sind.
+  // Wir syncen NUR attachments, nicht die ganze Task — sonst werden User-
+  // Eingaben (Titel, etc.) während dem Tippen überschrieben.
+  useEffect(() => {
+    if (!selectedTask || !project?.tasks) return;
+    const fresh = (project.tasks as any[]).find((t) => t.id === selectedTask.id);
+    if (!fresh) return;
+    const freshAttachments = fresh.attachments ?? [];
+    const currentAttachments = selectedTask.attachments ?? [];
+    // Cheap diff: compare length + IDs
+    const sameLength = freshAttachments.length === currentAttachments.length;
+    const sameIds = sameLength && freshAttachments.every((a: any, i: number) => a.id === currentAttachments[i]?.id);
+    if (!sameIds) {
+      setSelectedTask((prev) => (prev ? { ...prev, attachments: freshAttachments } : prev));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, selectedTask?.id]);
+
   // Comments and activities for selected task
   const { data: comments = [] } = useWmComments(selectedTask?.id ?? '');
   const { data: activities = [] } = useWmActivities(selectedTask?.id ?? '');
@@ -440,13 +461,30 @@ export default function ProjectDetailPage() {
                 : prev,
             );
           }}
-          onDeleteAttachment={(attachmentId) => {
-            deleteAttachment.mutate({ taskId: selectedTask.id, attachmentId, projectId });
+          onDeleteAttachment={async (attachmentId) => {
+            // Snapshot des Attachment-Arrays VOR dem optimistic remove —
+            // bei Backend-Fehler stellen wir den lokalen Modal-State wieder
+            // her. Sonst sieht der User: Datei weg → 500 → Cache reverted
+            // aber Modal zeigt nicht mehr alle Anhänge → "verschwunden".
+            const previousAttachments = selectedTask.attachments ?? [];
             setSelectedTask((prev) =>
               prev && prev.id === selectedTask.id
-                ? { ...prev, attachments: (prev.attachments ?? []).filter((a) => a.id !== attachmentId) }
+                ? { ...prev, attachments: previousAttachments.filter((a) => a.id !== attachmentId) }
                 : prev,
             );
+            try {
+              await deleteAttachment.mutateAsync({ taskId: selectedTask.id, attachmentId, projectId });
+            } catch (err: any) {
+              // Restore — sowohl Modal-State als auch Hinweis an User
+              setSelectedTask((prev) =>
+                prev && prev.id === selectedTask.id
+                  ? { ...prev, attachments: previousAttachments }
+                  : prev,
+              );
+              alert(
+                `Anhang konnte nicht gelöscht werden:\n${err?.message || 'Unbekannter Fehler'}\n\nDie Datei ist noch da.`,
+              );
+            }
           }}
           onAddLabel={(taskId, labelId) => addLabelToTask.mutate({ taskId, labelId, projectId })}
           onRemoveLabel={(taskId, labelId) => removeLabelFromTask.mutate({ taskId, labelId, projectId })}

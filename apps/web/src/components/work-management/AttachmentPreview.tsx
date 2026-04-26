@@ -217,8 +217,17 @@ export function AttachmentRow({
         <Download className="h-3.5 w-3.5" />
       </a>
       <button
-        onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
+        onClick={(e) => {
+          e.stopPropagation();
+          // Bestätigungsdialog: das X liegt direkt neben Download — ohne Rück-
+          // frage hat sich schon mancher User aus Versehen die Datei gelöscht.
+          // confirm() reicht hier — die Aktion ist nicht reversibel.
+          const ok = window.confirm(
+            `Anhang "${attachment.fileName}" wirklich löschen?\n\nDie Datei wird permanent entfernt und kann nicht wiederhergestellt werden.`,
+          );
+          if (ok) onDelete();
+        }}
+        className="opacity-60 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
         title="Löschen"
       >
         <X className="h-3.5 w-3.5" />

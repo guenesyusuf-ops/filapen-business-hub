@@ -724,15 +724,26 @@ export class WorkManagementService {
     const attachment = await this.prisma.wmAttachment.findUnique({ where: { id } });
     if (!attachment) throw new NotFoundException('Attachment not found');
 
+    // ZUERST DB-Record löschen (transaktional sicher), DANACH R2.
+    // Vorher: R2 → DB. Wenn R2 wegfliegt loggen wir nur warning, DB-Delete
+    // läuft trotzdem → Datei und Record beide weg, kein Schaden. ABER:
+    // wenn R2 erfolgreich, DB aber crasht (Connection-Loss z.B.) → Datei
+    // physisch weg in R2, Record bleibt mit toter URL → User sieht Anhang
+    // in der Liste, kann ihn aber nicht mehr öffnen → "Datei verschwunden".
+    // Neue Reihenfolge: DB zuerst (atomar), R2 danach best-effort. Wenn
+    // R2-Delete fehlschlägt → orphaned file (kein User-Schaden, nur Storage).
+    await this.prisma.wmAttachment.delete({ where: { id } });
+
     if (attachment.storageKey) {
       try {
         await this.storage.delete(attachment.storageKey);
       } catch (err) {
-        this.logger.warn(`Failed to delete from R2: ${attachment.storageKey}`, err);
+        this.logger.warn(
+          `Failed to delete from R2 (orphan file, run cleanup): ${attachment.storageKey}`,
+          err,
+        );
       }
     }
-
-    await this.prisma.wmAttachment.delete({ where: { id } });
     return { deleted: true };
   }
 
