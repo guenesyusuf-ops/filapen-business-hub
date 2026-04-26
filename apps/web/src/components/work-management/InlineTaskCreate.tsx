@@ -46,18 +46,32 @@ export function InlineTaskCreate({ onSubmit, members = [] }: InlineTaskCreatePro
     setAssigneeIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const trimmed = title.trim();
     if (!trimmed) return;
-    onSubmit({
-      title: trimmed,
-      assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
-      priority: PRIORITY_MAP[stars] || 'medium',
-    });
+    // Form-State sichern, optimistic clearen, bei Fehler restore'n. Sonst
+    // tippt User Aufgabe, klickt Erstellen, Backend 500, Form ist weg
+    // und Aufgabe nie erstellt.
+    const snapshot = { title, assigneeIds: [...assigneeIds], stars };
     setTitle('');
     setAssigneeIds([]);
     setStars(2);
     setIsOpen(false);
+    try {
+      await Promise.resolve(
+        onSubmit({
+          title: trimmed,
+          assigneeIds: snapshot.assigneeIds.length > 0 ? snapshot.assigneeIds : undefined,
+          priority: PRIORITY_MAP[snapshot.stars] || 'medium',
+        }),
+      );
+    } catch (err: any) {
+      setTitle(snapshot.title);
+      setAssigneeIds(snapshot.assigneeIds);
+      setStars(snapshot.stars);
+      setIsOpen(true);
+      alert(`Aufgabe konnte nicht erstellt werden: ${err?.message || 'Unbekannter Fehler'}`);
+    }
   }
 
   function handleCancel() {

@@ -175,10 +175,12 @@ export default function ProjectDetailPage() {
   const isApprovalProject = (project as any)?.projectType === 'approval';
 
   const handleAddTask = useCallback(
-    (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string }) => {
+    async (columnId: string, data: { title: string; assigneeIds?: string[]; priority?: string }) => {
       // Backend auto-detects approval projects — just send the task data.
-      // For approval projects it creates an approval task with auto-derived approvers.
-      createTask.mutate({ projectId, columnId, ...data });
+      // mutateAsync wirft bei Fehler — InlineTaskCreate fängt das und stellt
+      // den Form-State wieder her, sonst tippt der User die Aufgabe und
+      // sie verschwindet still bei einem Backend-Fehler.
+      await createTask.mutateAsync({ projectId, columnId, ...data });
     },
     [createTask, projectId],
   );
@@ -425,22 +427,19 @@ export default function ProjectDetailPage() {
           open={!!selectedTask}
           onClose={() => setSelectedTask(null)}
           onUpdate={handleUpdateTask}
-          onAddComment={(content) => createComment.mutate({ taskId: selectedTask.id, content })}
-          onUploadAttachment={(file) =>
-            uploadAttachment.mutate(
-              { taskId: selectedTask.id, file },
-              {
-                onSuccess: (att) => {
-                  // Mirror the new attachment into local selectedTask so the open modal shows it
-                  setSelectedTask((prev) =>
-                    prev && prev.id === selectedTask.id
-                      ? { ...prev, attachments: [att, ...(prev.attachments ?? [])] }
-                      : prev,
-                  );
-                },
-              },
-            )
-          }
+          onAddComment={async (content) => {
+            // mutateAsync throw'd auf onError — damit der Modal-await den
+            // Fehler fängt und den Comment-Text wiederherstellen kann.
+            await createComment.mutateAsync({ taskId: selectedTask.id, content });
+          }}
+          onUploadAttachment={async (file) => {
+            const att = await uploadAttachment.mutateAsync({ taskId: selectedTask.id, file });
+            setSelectedTask((prev) =>
+              prev && prev.id === selectedTask.id
+                ? { ...prev, attachments: [att, ...(prev.attachments ?? [])] }
+                : prev,
+            );
+          }}
           onDeleteAttachment={(attachmentId) => {
             deleteAttachment.mutate({ taskId: selectedTask.id, attachmentId, projectId });
             setSelectedTask((prev) =>

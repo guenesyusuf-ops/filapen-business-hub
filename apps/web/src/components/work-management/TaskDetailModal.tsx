@@ -213,11 +213,20 @@ export function TaskDetailModal({
     onUpdate({ id: task.id, subtasks: updated });
   }
 
-  function handleComment() {
-    if (!commentText.trim()) return;
-    onAddComment(commentText.trim());
+  async function handleComment() {
+    const trimmed = commentText.trim();
+    if (!trimmed) return;
+    // Optimistic clear für Snappy-Feel — aber Text behalten falls Backend
+    // den Kommentar verliert. NIEMALS still verwerfen ohne Retry-Pfad.
+    const previousText = commentText;
     setCommentText('');
     setShowMentionDropdown(false);
+    try {
+      await Promise.resolve(onAddComment(trimmed));
+    } catch (err: any) {
+      setCommentText(previousText);
+      alert(`Kommentar konnte nicht gesendet werden: ${err?.message || 'Unbekannter Fehler'}`);
+    }
   }
 
   function handleCommentChange(value: string) {
@@ -299,7 +308,44 @@ export function TaskDetailModal({
     }
   }
 
-  function handleClose() {
+  async function handleClose() {
+    // KRITISCH: Pending Auto-Save (Description, 1.5s debounce) flushen BEVOR
+    // wir das Modal schließen. Sonst wirft der useEffect-Cleanup den Timer
+    // weg und die User-Eingabe verschwindet still — genau das Problem das
+    // der User gemeldet hat. Wir warten synchron auf den Save.
+    if (editDesc !== lastCommittedDescRef.current) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      setSaveState('saving');
+      try {
+        await Promise.resolve(onUpdate({ id: task.id, description: editDesc } as any));
+        lastCommittedDescRef.current = editDesc;
+        setSaveState('saved');
+      } catch (err: any) {
+        // Save fehlgeschlagen → Modal NICHT schließen, User soll retryen
+        setSaveState('error');
+        alert(
+          `Beschreibung konnte nicht gespeichert werden:\n${err?.message || 'Unbekannter Fehler'}\n\nBitte erneut versuchen oder mit "Speichern"-Button manuell speichern.`,
+        );
+        return;
+      }
+    }
+    // Ungespeicherter Kommentar-Text → User explizit fragen, sonst leise weg
+    if (commentText.trim()) {
+      const proceed = window.confirm(
+        'Du hast einen ungespeicherten Kommentar. Trotzdem schließen? Der Text geht verloren.',
+      );
+      if (!proceed) return;
+    }
+    // Ungespeicherter neuer Subtask-Text → ebenfalls nachfragen
+    if (newSubtask.trim()) {
+      const proceed = window.confirm(
+        'Du hast einen ungespeicherten Subtask. Trotzdem schließen? Der Text geht verloren.',
+      );
+      if (!proceed) return;
+    }
     setVisible(false);
     setTimeout(onClose, 300);
   }

@@ -29,11 +29,19 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
-  function handleSend() {
+  async function handleSend() {
     const trimmed = input.trim();
     if (!trimmed) return;
-    sendMessage.mutate({ projectId, message: trimmed });
+    // Optimistic clear — aber Text behalten und auf Fehler restore'n. Vorher
+    // hat fire-and-forget die Nachricht still verloren wenn das Netz weg war.
+    const previousInput = input;
     setInput('');
+    try {
+      await sendMessage.mutateAsync({ projectId, message: trimmed });
+    } catch (err: any) {
+      setInput(previousInput);
+      alert(`Nachricht konnte nicht gesendet werden: ${err?.message || 'Unbekannter Fehler'}`);
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
