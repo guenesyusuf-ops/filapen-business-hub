@@ -190,6 +190,12 @@ export class SalesImportService {
     // to the created order via the confirm step.
     const storedUrl = await this.storeOriginal(orgId, file);
 
+    // Lerning aus existierenden Kunden: wir holen die letzten ~100 aktiven
+    // Kunden + ihre Alias-Signale (Email-Domain, Stadt, externe Nummer) und
+    // geben sie der KI als Hint. Damit wird die Erkennung mit jedem neuen
+    // Kunden besser — kein Re-Training nötig, der Kontext wächst automatisch.
+    const knownCustomersHint = await this.buildKnownCustomersHint(orgId);
+
     // Build vision content blocks.
     const base64 = file.buffer.toString('base64');
     const userContent: any[] = [];
@@ -209,7 +215,7 @@ export class SalesImportService {
         text: `Das folgende ist der Text einer Bestellung (aus einer E-Mail extrahiert):\n\n${file.buffer.toString('utf-8').slice(0, 50000)}`,
       });
     }
-    userContent.push({ type: 'text', text: PROMPT });
+    userContent.push({ type: 'text', text: knownCustomersHint + '\n\n' + PROMPT });
 
     this.logger.log(`runImport: file=${file.originalname} (${file.size} bytes, ${file.mimetype})`);
 
@@ -233,11 +239,20 @@ export class SalesImportService {
 
     const extracted = this.normalizeExtracted(parsed);
 
-    // Guardrail: Falls Claude den Absender (uns selbst) als Kunde extrahiert,
-    // markieren wir das nur als Soft-Warning. Customer-Felder bleiben wie
-    // extrahiert damit der User sieht WAS die KI gesehen hat — Frontend
-    // zwingt aber ein "ist das wirklich Filapen?" Bestaetigungs-Flow,
-    // standardmaessig ist die "Bestehenden Kunden waehlen"-Option aktiv.
+    // Layer 1 (deterministisch): Wenn Claude Filapen als Kunden extrahiert
+    // hat, versuchen wir die richtige Firma aus billingAddress/shippingAddress
+    // zu ziehen — diese Felder enthalten oft die korrekte Käufer-Firma auch
+    // wenn der "customer.companyName"-Slot vermurkst ist. Auto-Swap passiert
+    // STILL — User merkt nur dass alles korrekt ist.
+    const swapped = this.autoSwapFilapenCustomer(extracted);
+    if (swapped) {
+      this.logger.log('autoSwap: Filapen-als-Kunde durch Adress-Feld korrigiert');
+    }
+
+    // Layer 2 (Soft-Warning): Wenn auch nach Swap noch Filapen drin steht,
+    // konnte deterministisch nichts korrigiert werden → Frontend zwingt User
+    // auf manuelle Auswahl. Customer-Felder bleiben wie extrahiert damit User
+    // sieht was die KI gesehen hat.
     const ownCompanyPatterns = /filapen|buchhaltung@filapen/i;
     const companyName = (extracted.customer?.companyName ?? '').trim();
     const email = (extracted.customer?.email ?? '').trim();
@@ -245,11 +260,11 @@ export class SalesImportService {
     let warning: string | undefined;
     if (ownCompanyPatterns.test(companyName) || ownCompanyPatterns.test(email)) {
       this.logger.warn(
-        `Import: KI hat moeglicherweise Filapen als Kunden extrahiert (company="${companyName}", email="${email}") — User-Bestaetigung erforderlich`,
+        `Import: KI hat Filapen als Kunden extrahiert UND Auto-Swap fand keinen Kandidaten (company="${companyName}", email="${email}") — User-Bestaetigung erforderlich`,
       );
       suspectedSelfMatch = true;
       warning =
-        'Die KI hat "Filapen" als Kunden erkannt. Das ist normalerweise unsere eigene Firma, nicht der Kunde. Bitte aus der Liste den richtigen Kunden auswählen — falls noch nicht vorhanden, einen neuen anlegen.';
+        'Die KI hat "Filapen" als Kunden erkannt und konnte aus den Adress-Feldern keinen anderen Kandidaten ziehen. Bitte aus der Liste den richtigen Kunden auswählen — falls noch nicht vorhanden, einen neuen anlegen.';
     }
 
     // Auto-match customer — Priorität: easybill-Nummer, dann externe Nr,
@@ -315,6 +330,99 @@ export class SalesImportService {
 
   private stripFences(s: string): string {
     return s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  }
+
+  /**
+   * Baut den "Bekannte Kunden"-Block für den Prompt. Jeder neue Kunde der
+   * angelegt wird taucht hier automatisch auf — Claude lernt mit jeder
+   * importierten Bestellung weil sich die Kundenliste füllt. Wir nehmen
+   * bis zu 100 Kunden (genug für Kontext, nicht zu viel für Token-Budget).
+   * Aliase: Email-Domain (oft im Footer der Bestellung erkennbar) +
+   * Stadt aus Billing-Adresse.
+   */
+  private async buildKnownCustomersHint(orgId: string): Promise<string> {
+    try {
+      const customers = await this.prisma.salesCustomer.findMany({
+        where: { orgId },
+        select: {
+          companyName: true,
+          email: true,
+          billingAddress: true,
+          externalCustomerNumber: true,
+          easybillCustomerNumber: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 100,
+      });
+      if (customers.length === 0) {
+        return ''; // Keine Hints — nur die Standard-Logic im PROMPT.
+      }
+
+      const lines: string[] = customers.map((c) => {
+        const aliases: string[] = [];
+        if (c.email) {
+          const domain = c.email.split('@')[1];
+          if (domain) aliases.push(`Email: @${domain}`);
+        }
+        const billing: any = c.billingAddress;
+        if (billing && typeof billing === 'object') {
+          if (billing.city) aliases.push(`Stadt: ${billing.city}`);
+        }
+        if (c.externalCustomerNumber) aliases.push(`Kd-Nr: ${c.externalCustomerNumber}`);
+        if (c.easybillCustomerNumber) aliases.push(`easybill: ${c.easybillCustomerNumber}`);
+        const aliasStr = aliases.length > 0 ? ` (${aliases.join(', ')})` : '';
+        return `  - ${c.companyName}${aliasStr}`;
+      });
+
+      return `BEKANNTE KUNDEN (${customers.length}) — diese Firmen sind unsere Bestandskunden. Wenn du im Dokument eine dieser Firmen oder ein zugehöriges Signal (Email-Domain, Stadt, Kd-Nr) erkennst, ist das ZU 100% der Kunde — auch wenn die Schreibweise leicht abweicht (Abkürzungen, Rechtsform mal mit/ohne, etc.):
+
+${lines.join('\n')}
+
+Wenn keine dieser Firmen passt → folge der normalen Extraktions-Reihenfolge unten und extrahiere die neue Firma normal.`;
+    } catch (err: any) {
+      // Defensiv: wenn der Hint-Lookup fehlschlägt, importieren wir trotzdem
+      // — nur ohne Lern-Kontext. Niemals den ganzen Import wegen einem
+      // Customer-Query-Fehler abbrechen.
+      this.logger.warn(`buildKnownCustomersHint failed (non-fatal): ${err.message}`);
+      return '';
+    }
+  }
+
+  /**
+   * Wenn die KI trotz Hints Filapen als Kunden extrahiert, suchen wir nach
+   * einem deterministischen Swap-Kandidaten in den anderen Adress-Feldern.
+   * Returns: { swapped: boolean, customer/billing/shipping nach Swap }.
+   *
+   * Heuristik (deterministic, kein KI-Call):
+   *   1. billingAddress.company nicht-Filapen → swap mit customer
+   *   2. shippingAddress.company nicht-Filapen → swap mit customer
+   *   3. shippingAddress.name (Empfaenger) nicht-Filapen → ist oft die
+   *      Person, deren Firma der Kunde ist. Heuristisch riskanter.
+   *
+   * Wenn keiner passt → kein Swap, suspectedSelfMatch bleibt true und
+   * Frontend zwingt User auf manuelle Auswahl.
+   */
+  private autoSwapFilapenCustomer(extracted: ExtractedOrder): boolean {
+    const isFilapen = (s: string | null | undefined) =>
+      !!s && /filapen/i.test(s);
+    if (!isFilapen(extracted.customer?.companyName)) return false;
+
+    // Kandidat 1: billingAddress.company
+    const billCo = (extracted.billingAddress as any)?.company;
+    if (billCo && !isFilapen(billCo)) {
+      this.logger.log(`autoSwap: billingAddress.company="${billCo}" → customer`);
+      extracted.customer.companyName = billCo;
+      return true;
+    }
+    // Kandidat 2: shippingAddress.company
+    const shipCo = (extracted.shippingAddress as any)?.company;
+    if (shipCo && !isFilapen(shipCo)) {
+      this.logger.log(`autoSwap: shippingAddress.company="${shipCo}" → customer`);
+      extracted.customer.companyName = shipCo;
+      return true;
+    }
+    // Kein deterministischer Swap möglich
+    return false;
   }
 
   private normalizeExtracted(raw: any): ExtractedOrder {
