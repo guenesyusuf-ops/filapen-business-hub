@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Search,
   SlidersHorizontal,
@@ -10,376 +9,156 @@ import {
   Heart,
   Users,
   MessageCircle,
-  Plus,
   X,
   Check,
   Mail,
+  Building2,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber } from '@filapen/shared/src/utils/money';
-import { useInfluencers, type InfluencerListParams } from '@/hooks/influencers/useInfluencers';
-import { useWatchlists, useAddToWatchlist } from '@/hooks/influencers/useWatchlists';
+import { usePhylloSearch, type PhylloProfile, type PhylloSearchParams } from '@/hooks/influencers/useInfluencers';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const PLATFORMS = [
+const PLATFORMS: Array<{ value: 'instagram' | 'tiktok'; label: string; color: string }> = [
   { value: 'instagram', label: 'Instagram', color: '#E4405F' },
   { value: 'tiktok', label: 'TikTok', color: '#000000' },
-  { value: 'youtube', label: 'YouTube', color: '#FF0000' },
 ];
 
-const NICHES = [
-  'Beauty', 'Fitness', 'Tech', 'Fashion', 'Food', 'Travel', 'Gaming', 'Lifestyle',
+const FOLLOWER_RANGES: Array<{ label: string; min?: number; max?: number }> = [
+  { label: 'Alle', min: undefined, max: undefined },
+  { label: '5K – 50K', min: 5000, max: 50000 },
+  { label: '50K – 100K', min: 50000, max: 100000 },
+  { label: '100K – 500K', min: 100000, max: 500000 },
+  { label: '500K – 1M', min: 500000, max: 1000000 },
+  { label: '1M+', min: 1000000, max: undefined },
 ];
 
-const SORT_OPTIONS = [
-  { value: 'score', label: 'Score' },
-  { value: 'followerCount', label: 'Followers' },
-  { value: 'engagementRate', label: 'Engagement' },
-  { value: 'avgLikes', label: 'Avg Likes' },
+const ENGAGEMENT_RANGES: Array<{ label: string; min?: number; max?: number }> = [
+  { label: 'Alle', min: undefined, max: undefined },
+  { label: '1% – 3%', min: 0.01, max: 0.03 },
+  { label: '3% – 6%', min: 0.03, max: 0.06 },
+  { label: '6% – 10%', min: 0.06, max: 0.1 },
+  { label: '10%+', min: 0.1, max: undefined },
 ];
 
-const FOLLOWER_RANGES = [
-  { label: 'Any', min: undefined, max: undefined },
-  { label: '5K - 50K', min: 5000, max: 50000 },
-  { label: '50K - 100K', min: 50000, max: 100000 },
-  { label: '100K - 500K', min: 100000, max: 500000 },
-  { label: '500K+', min: 500000, max: undefined },
+const SORT_OPTIONS: Array<{ value: 'followers' | 'engagement' | 'avg_likes'; label: string }> = [
+  { value: 'followers', label: 'Follower' },
+  { value: 'engagement', label: 'Engagement' },
+  { value: 'avg_likes', label: 'Ø Likes' },
 ];
 
-const ENGAGEMENT_RANGES = [
-  { label: 'Any', min: undefined, max: undefined },
-  { label: '1% - 3%', min: 1, max: 3 },
-  { label: '3% - 6%', min: 3, max: 6 },
-  { label: '6% - 10%', min: 6, max: 10 },
-  { label: '10%+', min: 10, max: undefined },
-];
-
-const PLATFORM_LABELS: Record<string, string> = {
-  instagram: 'Instagram',
-  tiktok: 'TikTok',
-  youtube: 'YouTube',
-};
-
-const PLATFORM_COLORS: Record<string, string> = {
-  instagram: '#E4405F',
-  tiktok: '#000000',
-  youtube: '#FF0000',
-};
+const PAGE_SIZE = 24;
 
 // ---------------------------------------------------------------------------
-// Add to Watchlist Dropdown
+// Filter Panel — Brand-Filter ist KEY-Feature für "Mit welcher Brand hat er
+// gearbeitet?"-Use-Case (mappt auf Phyllos brand_sponsors-Array).
 // ---------------------------------------------------------------------------
 
-function AddToWatchlistDropdown({
-  influencerId,
-  onClose,
-}: {
-  influencerId: string;
-  onClose: () => void;
-}) {
-  const { data: watchlists, isLoading } = useWatchlists();
-  const addMutation = useAddToWatchlist();
-
-  const handleAdd = useCallback(
-    (watchlistId: string) => {
-      addMutation.mutate(
-        { watchlistId, influencerProfileId: influencerId },
-        { onSuccess: onClose },
-      );
-    },
-    [addMutation, influencerId, onClose],
-  );
-
-  return (
-    <div className="absolute right-0 top-full mt-1 z-20 w-56 rounded-lg bg-white shadow-lg border border-gray-200 py-1">
-      <div className="px-3 py-2 border-b border-gray-100">
-        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-          Add to watchlist
-        </span>
-      </div>
-      {isLoading ? (
-        <div className="px-3 py-4 text-center text-xs text-gray-400">Loading...</div>
-      ) : watchlists && watchlists.length > 0 ? (
-        watchlists.map((wl) => (
-          <button
-            key={wl.id}
-            onClick={() => handleAdd(wl.id)}
-            disabled={addMutation.isPending}
-            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50"
-          >
-            {wl.name}
-            <span className="text-xs text-gray-400 ml-1">({wl.itemCount})</span>
-          </button>
-        ))
-      ) : (
-        <div className="px-3 py-4 text-center text-xs text-gray-400">
-          No watchlists yet
-        </div>
-      )}
-    </div>
-  );
+interface FilterState {
+  platform: 'instagram' | 'tiktok';
+  followerRangeIdx: number;
+  engagementRangeIdx: number;
+  brandSponsors: string;       // Komma-getrennt vom User
+  countries: string;            // ISO-Codes komma-getrennt: DE,AT,CH
+  sort: 'followers' | 'engagement' | 'avg_likes';
+  sortOrder: 'asc' | 'desc';
 }
 
-// ---------------------------------------------------------------------------
-// Influencer Card
-// ---------------------------------------------------------------------------
-
-function InfluencerCard({ profile }: { profile: any }) {
-  const router = useRouter();
-  const [showWatchlist, setShowWatchlist] = useState(false);
-
-  return (
-    <div
-      className="group rounded-xl bg-white shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all cursor-pointer relative overflow-hidden"
-      onClick={() => router.push(`/influencers/discovery/${profile.id}`)}
-    >
-      {/* Top accent */}
-      <div
-        className="h-1"
-        style={{ backgroundColor: PLATFORM_COLORS[profile.platform] ?? '#9CA3AF' }}
-      />
-
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex items-start gap-3 mb-3">
-          <div className="h-11 w-11 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-semibold text-sm shrink-0">
-            {profile.displayName.charAt(0)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1">
-              <span className="font-semibold text-sm text-gray-900 truncate">
-                {profile.displayName}
-              </span>
-              {profile.isVerified && (
-                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-500 text-white text-[8px] shrink-0">
-                  &#10003;
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-gray-500 truncate">@{profile.handle}</div>
-          </div>
-          <span
-            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold text-white shrink-0"
-            style={{ backgroundColor: PLATFORM_COLORS[profile.platform] ?? '#9CA3AF' }}
-          >
-            {PLATFORM_LABELS[profile.platform] ?? profile.platform}
-          </span>
-        </div>
-
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
-              <Users className="h-3 w-3" />
-            </div>
-            <div className="text-xs font-bold text-gray-900 dark:text-white">
-              {formatNumber(profile.followerCount)}
-            </div>
-            <div className="text-[10px] text-gray-400">Followers</div>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
-              <Heart className="h-3 w-3" />
-            </div>
-            <div className="text-xs font-bold text-gray-900 dark:text-white">
-              {profile.engagementRate.toFixed(1)}%
-            </div>
-            <div className="text-[10px] text-gray-400">Engagement</div>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
-              <MessageCircle className="h-3 w-3" />
-            </div>
-            <div className="text-xs font-bold text-gray-900 dark:text-white">
-              {formatNumber(profile.avgComments)}
-            </div>
-            <div className="text-[10px] text-gray-400">Avg Comments</div>
-          </div>
-        </div>
-
-        {/* Niche + Score */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            {profile.niche && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 text-[10px] font-medium">
-                {profile.niche}
-              </span>
-            )}
-            {profile.email && (
-              <Mail className="h-3 w-3 text-gray-400" />
-            )}
-          </div>
-          <span
-            className={cn(
-              'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold',
-              profile.score >= 80
-                ? 'bg-emerald-50 text-emerald-700'
-                : profile.score >= 60
-                  ? 'bg-amber-50 text-amber-700'
-                  : 'bg-gray-100 text-gray-600',
-            )}
-          >
-            {profile.score}
-          </span>
-        </div>
-      </div>
-
-      {/* Add to List button */}
-      <div className="px-4 pb-3">
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowWatchlist(!showWatchlist);
-            }}
-            className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100 transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            Add to List
-          </button>
-          {showWatchlist && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <AddToWatchlistDropdown
-                influencerId={profile.id}
-                onClose={() => setShowWatchlist(false)}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Filter Panel
-// ---------------------------------------------------------------------------
+const DEFAULT_FILTERS: FilterState = {
+  platform: 'instagram',
+  followerRangeIdx: 0,
+  engagementRangeIdx: 0,
+  brandSponsors: '',
+  countries: '',
+  sort: 'followers',
+  sortOrder: 'desc',
+};
 
 function FilterPanel({
   filters,
-  onFiltersChange,
+  onChange,
+  onApply,
+  onClear,
+  loading,
 }: {
-  filters: InfluencerListParams;
-  onFiltersChange: (f: InfluencerListParams) => void;
+  filters: FilterState;
+  onChange: (next: FilterState) => void;
+  onApply: () => void;
+  onClear: () => void;
+  loading: boolean;
 }) {
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(
-    filters.platform ? [filters.platform] : [],
-  );
-  const [selectedNiche, setSelectedNiche] = useState(filters.niche || '');
-  const [followerRange, setFollowerRange] = useState(0);
-  const [engagementRange, setEngagementRange] = useState(0);
-  const [hasEmail, setHasEmail] = useState(false);
-
-  const handleApply = useCallback(() => {
-    const fr = FOLLOWER_RANGES[followerRange];
-    const er = ENGAGEMENT_RANGES[engagementRange];
-    onFiltersChange({
-      ...filters,
-      platform: selectedPlatforms.length === 1 ? selectedPlatforms[0] : undefined,
-      niche: selectedNiche || undefined,
-      minFollowers: fr.min,
-      maxFollowers: fr.max,
-      minEngagement: er.min,
-      maxEngagement: er.max,
-      hasEmail: hasEmail || undefined,
-      page: 1,
-    });
-  }, [filters, onFiltersChange, selectedPlatforms, selectedNiche, followerRange, engagementRange, hasEmail]);
-
-  const handleClear = useCallback(() => {
-    setSelectedPlatforms([]);
-    setSelectedNiche('');
-    setFollowerRange(0);
-    setEngagementRange(0);
-    setHasEmail(false);
-    onFiltersChange({
-      sortBy: filters.sortBy,
-      sortOrder: filters.sortOrder,
-      page: 1,
-      pageSize: filters.pageSize,
-    });
-  }, [filters, onFiltersChange]);
-
-  const togglePlatform = useCallback((p: string) => {
-    setSelectedPlatforms((prev) =>
-      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
-    );
-  }, []);
-
   return (
-    <div className="w-64 shrink-0 space-y-5">
-      <div className="rounded-xl bg-white shadow-card p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+    <div className="w-72 shrink-0 space-y-4">
+      <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-card p-5 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
+            Filter
           </h3>
           <button
-            onClick={handleClear}
+            onClick={onClear}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
-            Clear all
+            Zurücksetzen
           </button>
         </div>
 
         {/* Platform */}
-        <div className="mb-4">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-            Platform
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">
+            Plattform
           </label>
-          <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-2">
             {PLATFORMS.map((p) => (
-              <label
+              <button
                 key={p.value}
-                className="flex items-center gap-2 cursor-pointer group"
+                type="button"
+                onClick={() => onChange({ ...filters, platform: p.value })}
+                className={cn(
+                  'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium border transition-colors',
+                  filters.platform === p.value
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                    : 'border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300',
+                )}
               >
-                <div
-                  className={cn(
-                    'h-4 w-4 rounded border-2 flex items-center justify-center transition-colors',
-                    selectedPlatforms.includes(p.value)
-                      ? 'border-orange-500 bg-orange-500'
-                      : 'border-gray-300 group-hover:border-gray-400',
-                  )}
-                >
-                  {selectedPlatforms.includes(p.value) && (
-                    <Check className="h-2.5 w-2.5 text-white" />
-                  )}
-                </div>
-                <span className="text-sm text-gray-700">{p.label}</span>
-              </label>
+                {p.label}
+              </button>
             ))}
           </div>
         </div>
 
-        {/* Niche */}
-        <div className="mb-4">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-            Niche
+        {/* Brand-Sponsor */}
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block flex items-center gap-1.5">
+            <Building2 className="h-3 w-3" />
+            Hat mit Brand gearbeitet
           </label>
-          <select
-            value={selectedNiche}
-            onChange={(e) => setSelectedNiche(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 outline-none"
-          >
-            <option value="">All niches</option>
-            {NICHES.map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
+          <input
+            type="text"
+            value={filters.brandSponsors}
+            onChange={(e) => onChange({ ...filters, brandSponsors: e.target.value })}
+            placeholder="z.B. nike, adidas"
+            className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+          />
+          <p className="text-[10px] text-gray-400 mt-1">
+            Mehrere mit Komma trennen
+          </p>
         </div>
 
         {/* Follower Range */}
-        <div className="mb-4">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-            Followers
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">
+            Follower
           </label>
           <select
-            value={followerRange}
-            onChange={(e) => setFollowerRange(parseInt(e.target.value, 10))}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 outline-none"
+            value={filters.followerRangeIdx}
+            onChange={(e) => onChange({ ...filters, followerRangeIdx: parseInt(e.target.value, 10) })}
+            className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             {FOLLOWER_RANGES.map((r, i) => (
               <option key={i} value={i}>{r.label}</option>
@@ -388,14 +167,14 @@ function FilterPanel({
         </div>
 
         {/* Engagement Range */}
-        <div className="mb-4">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">
-            Engagement Rate
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">
+            Engagement
           </label>
           <select
-            value={engagementRange}
-            onChange={(e) => setEngagementRange(parseInt(e.target.value, 10))}
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 outline-none"
+            value={filters.engagementRangeIdx}
+            onChange={(e) => onChange({ ...filters, engagementRangeIdx: parseInt(e.target.value, 10) })}
+            className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
           >
             {ENGAGEMENT_RANGES.map((r, i) => (
               <option key={i} value={i}>{r.label}</option>
@@ -403,29 +182,172 @@ function FilterPanel({
           </select>
         </div>
 
-        {/* Has Email */}
-        <div className="mb-5">
-          <label className="flex items-center gap-2 cursor-pointer group">
-            <div
-              className={cn(
-                'h-4 w-4 rounded border-2 flex items-center justify-center transition-colors',
-                hasEmail
-                  ? 'border-orange-500 bg-orange-500'
-                  : 'border-gray-300 group-hover:border-gray-400',
-              )}
-            >
-              {hasEmail && <Check className="h-2.5 w-2.5 text-white" />}
-            </div>
-            <span className="text-sm text-gray-700">Has Email</span>
+        {/* Countries */}
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">
+            Länder (ISO-Codes)
           </label>
+          <input
+            type="text"
+            value={filters.countries}
+            onChange={(e) => onChange({ ...filters, countries: e.target.value.toUpperCase() })}
+            placeholder="DE,AT,CH"
+            className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 uppercase"
+          />
+        </div>
+
+        {/* Sort */}
+        <div>
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2 block">
+            Sortieren nach
+          </label>
+          <select
+            value={`${filters.sort}-${filters.sortOrder}`}
+            onChange={(e) => {
+              const [sort, sortOrder] = e.target.value.split('-') as [FilterState['sort'], FilterState['sortOrder']];
+              onChange({ ...filters, sort, sortOrder });
+            }}
+            className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={`${opt.value}-desc`} value={`${opt.value}-desc`}>{opt.label} (absteigend)</option>
+            ))}
+            {SORT_OPTIONS.map((opt) => (
+              <option key={`${opt.value}-asc`} value={`${opt.value}-asc`}>{opt.label} (aufsteigend)</option>
+            ))}
+          </select>
         </div>
 
         <button
-          onClick={handleApply}
-          className="w-full rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
+          onClick={onApply}
+          disabled={loading}
+          className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
         >
-          Apply Filters
+          {loading ? (
+            <>
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              Suche…
+            </>
+          ) : (
+            <>
+              <Search className="h-3.5 w-3.5" />
+              Suchen
+            </>
+          )}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Profile-Card — rendert PhylloProfile-Shape direkt
+// ---------------------------------------------------------------------------
+
+const PLATFORM_COLORS: Record<string, string> = {
+  Instagram: '#E4405F',
+  TikTok: '#000000',
+};
+
+function ProfileCard({ profile }: { profile: PhylloProfile }) {
+  const platformColor = PLATFORM_COLORS[profile.work_platform.name] ?? '#9CA3AF';
+  const initial = (profile.full_name || profile.platform_username || '?').charAt(0).toUpperCase();
+  const engagementPct = (profile.engagement_rate * 100).toFixed(2);
+  const hasEmail = profile.contact_details?.some((c) => c.type === 'email');
+
+  return (
+    <div className="group rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all overflow-hidden flex flex-col">
+      <div className="h-1" style={{ backgroundColor: platformColor }} />
+
+      <div className="p-4 flex-1 flex flex-col">
+        <div className="flex items-start gap-3 mb-3">
+          {profile.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profile.image_url}
+              alt={profile.platform_username}
+              referrerPolicy="no-referrer"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              className="h-11 w-11 rounded-full object-cover bg-gray-100 shrink-0"
+            />
+          ) : (
+            <div className="h-11 w-11 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 flex items-center justify-center font-semibold text-sm shrink-0">
+              {initial}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1">
+              <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                {profile.full_name || profile.platform_username}
+              </span>
+              {profile.is_verified && (
+                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-500 text-white text-[8px] shrink-0">✓</span>
+              )}
+            </div>
+            <div className="text-xs text-gray-500 truncate">@{profile.platform_username}</div>
+          </div>
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold text-white shrink-0"
+            style={{ backgroundColor: platformColor }}
+          >
+            {profile.work_platform.name}
+          </span>
+        </div>
+
+        {profile.introduction && (
+          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
+            {profile.introduction}
+          </p>
+        )}
+
+        <div className="grid grid-cols-3 gap-2 mb-3 mt-auto">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
+              <Users className="h-3 w-3" />
+            </div>
+            <div className="text-xs font-bold text-gray-900 dark:text-white">{formatNumber(profile.follower_count)}</div>
+            <div className="text-[10px] text-gray-400">Follower</div>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
+              <Heart className="h-3 w-3" />
+            </div>
+            <div className="text-xs font-bold text-gray-900 dark:text-white">{engagementPct}%</div>
+            <div className="text-[10px] text-gray-400">Engagement</div>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1 text-gray-400 mb-0.5">
+              <MessageCircle className="h-3 w-3" />
+            </div>
+            <div className="text-xs font-bold text-gray-900 dark:text-white">{formatNumber(profile.average_likes ?? 0)}</div>
+            <div className="text-[10px] text-gray-400">Ø Likes</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {profile.creator_location?.country && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 text-[10px] font-medium truncate">
+                {profile.creator_location.country}
+              </span>
+            )}
+            {hasEmail && (
+              <Mail className="h-3 w-3 text-gray-400 shrink-0" />
+            )}
+          </div>
+          {profile.url && (
+            <a
+              href={profile.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline"
+            >
+              Profil
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -436,170 +358,211 @@ function FilterPanel({
 // ---------------------------------------------------------------------------
 
 export default function InfluencerDiscoveryPage() {
-  const [filters, setFilters] = useState<InfluencerListParams>({
-    sortBy: 'score',
-    sortOrder: 'desc',
-    page: 1,
-    pageSize: 24,
-  });
-  const [searchInput, setSearchInput] = useState('');
-  const { data, isLoading, isError } = useInfluencers(filters);
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [offset, setOffset] = useState(0);
+  const search = usePhylloSearch();
 
-  const handleSearch = useCallback(() => {
-    setFilters((prev) => ({ ...prev, search: searchInput || undefined, page: 1 }));
-  }, [searchInput]);
+  // Baut den Phyllo-Filter-Body aus dem UI-State.
+  const buildPhylloFilters = useCallback((withOffset: number, fs: FilterState, query: string): PhylloSearchParams => {
+    const phylloFilters: Record<string, unknown> = {};
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') handleSearch();
-    },
-    [handleSearch],
-  );
+    const fr = FOLLOWER_RANGES[fs.followerRangeIdx];
+    if (fr.min !== undefined || fr.max !== undefined) {
+      phylloFilters.follower_count = {
+        ...(fr.min !== undefined ? { min: fr.min } : {}),
+        ...(fr.max !== undefined ? { max: fr.max } : {}),
+      };
+    }
+    const er = ENGAGEMENT_RANGES[fs.engagementRangeIdx];
+    if (er.min !== undefined || er.max !== undefined) {
+      phylloFilters.engagement_rate = {
+        ...(er.min !== undefined ? { min: er.min } : {}),
+        ...(er.max !== undefined ? { max: er.max } : {}),
+      };
+    }
+    if (fs.brandSponsors.trim()) {
+      phylloFilters.brand_sponsors = fs.brandSponsors
+        .split(',').map((s) => s.trim()).filter(Boolean);
+    }
+    if (fs.countries.trim()) {
+      phylloFilters.creator_locations = fs.countries
+        .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+    }
+    if (query.trim()) {
+      // Phyllo-Suche nach Username/Name geht über description_keywords
+      // bzw. bio_phrase je nach Plattform — wir nutzen description_keywords
+      // als robusten Standard.
+      phylloFilters.description_keywords = query.trim();
+    }
+
+    return {
+      platform: fs.platform,
+      sort: fs.sort,
+      sortOrder: fs.sortOrder,
+      limit: PAGE_SIZE,
+      offset: withOffset,
+      filters: phylloFilters,
+    };
+  }, []);
+
+  const handleApply = useCallback(() => {
+    setOffset(0);
+    search.mutate(buildPhylloFilters(0, filters, searchQuery));
+  }, [buildPhylloFilters, filters, searchQuery, search]);
+
+  const handleClear = useCallback(() => {
+    setFilters(DEFAULT_FILTERS);
+    setSearchQuery('');
+    setOffset(0);
+    search.reset();
+  }, [search]);
+
+  const handlePage = useCallback((delta: number) => {
+    const nextOffset = Math.max(0, offset + delta * PAGE_SIZE);
+    setOffset(nextOffset);
+    search.mutate(buildPhylloFilters(nextOffset, filters, searchQuery));
+  }, [offset, buildPhylloFilters, filters, searchQuery, search]);
+
+  const results = search.data?.data ?? [];
+  const hasResults = results.length > 0;
+  const hasSearched = search.isSuccess || search.isError;
 
   return (
     <div className="space-y-5 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Discovery</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Find and filter influencers across platforms
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">
+            Influencer Discovery
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5 inline-flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            Live-Suche über InsightIQ — Instagram + TikTok
+          </p>
+        </div>
       </div>
 
-      {/* Search Bar + Sort */}
+      {/* Search Bar */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 focus-within:border-orange-300 focus-within:ring-1 focus-within:ring-orange-200">
+        <div className="flex-1 flex items-center gap-2 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 focus-within:border-primary-300 focus-within:ring-2 focus-within:ring-primary-100">
           <Search className="h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name, handle, or bio..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="flex-1 text-sm text-gray-900 placeholder:text-gray-400 outline-none bg-transparent"
+            placeholder="Stichworte für Bio-Suche (optional)…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+            className="flex-1 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 outline-none bg-transparent"
           />
-          {searchInput && (
-            <button
-              onClick={() => {
-                setSearchInput('');
-                setFilters((prev) => ({ ...prev, search: undefined, page: 1 }));
-              }}
-            >
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')}>
               <X className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
             </button>
           )}
         </div>
-        <select
-          value={`${filters.sortBy}-${filters.sortOrder}`}
-          onChange={(e) => {
-            const [sortBy, sortOrder] = e.target.value.split('-');
-            setFilters((prev) => ({
-              ...prev,
-              sortBy,
-              sortOrder: sortOrder as 'asc' | 'desc',
-              page: 1,
-            }));
-          }}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-orange-300 outline-none"
-        >
-          {SORT_OPTIONS.map((opt) => (
-            <option key={`${opt.value}-desc`} value={`${opt.value}-desc`}>
-              {opt.label} (High to Low)
-            </option>
-          ))}
-          {SORT_OPTIONS.map((opt) => (
-            <option key={`${opt.value}-asc`} value={`${opt.value}-asc`}>
-              {opt.label} (Low to High)
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={handleSearch}
-          className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
-        >
-          Search
-        </button>
       </div>
 
-      {/* Content area: filter panel + results */}
+      {/* Content */}
       <div className="flex gap-6">
-        <FilterPanel filters={filters} onFiltersChange={setFilters} />
+        <FilterPanel
+          filters={filters}
+          onChange={setFilters}
+          onApply={handleApply}
+          onClear={handleClear}
+          loading={search.isPending}
+        />
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {/* Error */}
-          {isError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 mb-4">
-              Failed to load influencers. Please try again.
+          {search.isError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 p-4 text-sm text-red-700 dark:text-red-300 mb-4">
+              <strong>Fehler bei der Suche:</strong> {search.error?.message}
             </div>
           )}
 
-          {/* Results count */}
-          {data && (
-            <div className="text-sm text-gray-500 mb-4">
-              Showing {data.items.length} of {data.total} profiles
+          {/* Result count */}
+          {hasResults && (
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {results.length} Profile (Position {offset + 1}–{offset + results.length})
             </div>
           )}
 
           {/* Loading */}
-          {isLoading && (
+          {search.isPending && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="rounded-xl bg-white shadow-card p-4 animate-pulse">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-card p-4 animate-pulse">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="h-11 w-11 rounded-full bg-gray-200" />
+                    <div className="h-11 w-11 rounded-full bg-gray-200 dark:bg-white/10" />
                     <div className="flex-1">
-                      <div className="h-3.5 w-24 rounded bg-gray-200 mb-1" />
-                      <div className="h-2.5 w-16 rounded bg-gray-100" />
+                      <div className="h-3.5 w-24 rounded bg-gray-200 dark:bg-white/10 mb-1" />
+                      <div className="h-2.5 w-16 rounded bg-gray-100 dark:bg-white/5" />
                     </div>
                   </div>
-                  <div className="h-12 rounded bg-gray-100 mb-3" />
-                  <div className="h-3 w-20 rounded bg-gray-100" />
+                  <div className="h-12 rounded bg-gray-100 dark:bg-white/5 mb-3" />
+                  <div className="h-3 w-20 rounded bg-gray-100 dark:bg-white/5" />
                 </div>
               ))}
             </div>
           )}
 
-          {/* Results grid */}
-          {!isLoading && data && (
+          {/* Empty (kein Suchlauf bisher) */}
+          {!search.isPending && !hasSearched && (
+            <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-card p-12 text-center">
+              <Sparkles className="h-10 w-10 text-primary-400 mx-auto mb-3" />
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                Bereit zur Suche
+              </h3>
+              <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                Stelle die Filter links ein (Plattform, Follower, Brand-Sponsor, Land) und klicke <strong>Suchen</strong>.
+                Ergebnisse kommen live von InsightIQ.
+              </p>
+            </div>
+          )}
+
+          {/* Empty (Suche durchgelaufen, 0 Treffer) */}
+          {!search.isPending && hasSearched && !search.isError && !hasResults && (
+            <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-card p-12 text-center">
+              <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                Keine Profile gefunden
+              </h3>
+              <p className="text-xs text-gray-500">Filter lockern und nochmal probieren.</p>
+            </div>
+          )}
+
+          {/* Results */}
+          {!search.isPending && hasResults && (
             <>
-              {data.items.length === 0 ? (
-                <div className="text-center py-16">
-                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <h3 className="text-sm font-medium text-gray-900 mb-1">No influencers found</h3>
-                  <p className="text-xs text-gray-500">Try adjusting your filters or search query</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {data.items.map((profile) => (
-                    <InfluencerCard key={profile.id} profile={profile} />
-                  ))}
-                </div>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {results.map((profile) => (
+                  <ProfileCard key={`${profile.work_platform.id}-${profile.platform_username}`} profile={profile} />
+                ))}
+              </div>
 
               {/* Pagination */}
-              {data.totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-6">
-                  <button
-                    onClick={() => setFilters((prev) => ({ ...prev, page: Math.max(1, (prev.page || 1) - 1) }))}
-                    disabled={(filters.page || 1) <= 1}
-                    className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-500">
-                    Page {data.page} of {data.totalPages}
-                  </span>
-                  <button
-                    onClick={() => setFilters((prev) => ({ ...prev, page: Math.min(data.totalPages, (prev.page || 1) + 1) }))}
-                    disabled={(filters.page || 1) >= data.totalPages}
-                    className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Next
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center justify-center gap-2 mt-6">
+                <button
+                  onClick={() => handlePage(-1)}
+                  disabled={offset === 0 || search.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Vorherige
+                </button>
+                <span className="text-sm text-gray-500 px-3">
+                  Seite {Math.floor(offset / PAGE_SIZE) + 1}
+                </span>
+                <button
+                  onClick={() => handlePage(1)}
+                  disabled={results.length < PAGE_SIZE || search.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Nächste
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </>
           )}
         </div>
