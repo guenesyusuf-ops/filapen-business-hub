@@ -44,6 +44,8 @@ export interface ImportResult {
   matchedLineItems: Array<{ index: number; productVariantId: string; sku: string | null; ean: string | null }>;
   rawModel: string;
   sourceDocumentId: string;
+  /** Soft-Warning das Frontend als Banner zeigen kann (z.B. KI-Misidentifikation). */
+  warning?: string;
 }
 
 const PROMPT = `Du bist ein präziser OCR- und Daten-Extraktor für B2B-Bestellungen (deutschsprachige Geschäftskundenbestellungen, manchmal englisch).
@@ -192,23 +194,24 @@ export class SalesImportService {
 
     const extracted = this.normalizeExtracted(parsed);
 
-    // Guardrail: Falls Claude trotz Prompt den Absender (uns selbst) als
-    // Kunde extrahiert, hart abweisen. Der User hat sonst einen doppelten
-    // "Filapen GmbH"-Eintrag in seiner Kundenliste und falsche Bestellungen.
-    // Prüfen gegen charakteristische Eigen-Merkmale:
-    //   - Firmenname enthält "filapen"
-    //   - Mail ist eine Filapen-Adresse
+    // Guardrail: Falls Claude den Absender (uns selbst) als Kunde extrahiert,
+    // soft-fixen statt hart abzuweisen — User soll trotzdem importieren können
+    // und den Kunden manuell anlegen. Vorher = hard reject = User musste neu
+    // hochladen, was dem Workflow im Weg stand.
     const ownCompanyPatterns = /filapen|buchhaltung@filapen/i;
     const companyName = (extracted.customer?.companyName ?? '').trim();
     const email = (extracted.customer?.email ?? '').trim();
+    let warning: string | undefined;
     if (ownCompanyPatterns.test(companyName) || ownCompanyPatterns.test(email)) {
       this.logger.warn(
-        `Import rejected: KI hat den Absender als Kunden extrahiert (company="${companyName}", email="${email}")`,
+        `Import: KI hat Absender als Kunden extrahiert, Customer-Felder werden zurückgesetzt (company="${companyName}", email="${email}")`,
       );
-      throw new BadRequestException(
-        'Die KI hat fälschlicherweise den Absender (Filapen) als Kunden erkannt. ' +
-        'Bitte lade das Dokument erneut hoch oder lege den richtigen Kunden manuell an.',
-      );
+      // Customer-Felder leeren — Frontend zeigt dann "Neuer Kunde" Form
+      extracted.customer = { companyName: null, email: null, phone: null };
+      // billingAddress vorsichtig: könnte auch falsch sein, aber wir behalten
+      // sie damit der User sie als Vorlage editieren kann statt von Null.
+      warning =
+        'Die KI hat den Absender (Filapen) als Kunden erkannt. Die Kunden-Felder wurden geleert — bitte den richtigen Kunden manuell wählen oder neu anlegen.';
     }
 
     // Auto-match customer — Priorität: easybill-Nummer, dann externe Nr,
@@ -264,6 +267,7 @@ export class SalesImportService {
       matchedLineItems,
       rawModel: 'claude-sonnet-4-5',
       sourceDocumentId: storedUrl, // transient handle — the R2 key stored below
+      warning,
     };
   }
 

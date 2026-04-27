@@ -123,6 +123,16 @@ export default function SalesImportPage() {
 
       {result && (
         <>
+          {/* Soft-Warning Banner — z.B. wenn KI Filapen als Kunden erkannt
+              hat. Vorher war das ein Hard-Reject, jetzt nur Hinweis damit
+              der User trotzdem importieren kann (Kunde manuell anlegen). */}
+          {result.warning && (
+            <div className="rounded-xl border border-amber-300 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <div>{result.warning}</div>
+            </div>
+          )}
+
           {/* Confidence + Restart */}
           <div className="flex items-center justify-between rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3">
             <div className="text-xs">

@@ -62,6 +62,10 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDesc, setEditDesc] = useState(task.description ?? '');
+  // Description: click-to-edit. Read-Mode rendert linkifizierten Text damit
+  // URLs anklickbar sind. Edit-Mode = textarea wie vorher, mit onBlur-Auto-Save.
+  const [descEditing, setDescEditing] = useState(false);
+  const descTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [editPriority, setEditPriority] = useState<WmTask['priority']>(task.priority);
   const [editDueDate, setEditDueDate] = useState(task.dueDate ? task.dueDate.split('T')[0] : '');
   const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>(
@@ -461,18 +465,40 @@ export function TaskDetailModal({
                 className="w-full text-xl font-bold text-gray-900 dark:text-white bg-transparent border-none focus:outline-none focus:ring-0 p-0"
               />
 
-              {/* Description */}
+              {/* Description — click-to-edit. Read-Mode zeigt linkifizierten
+                  Text (URLs sind anklickbar), Edit-Mode = Textarea (10 Zeilen,
+                  resizable). Mehr Platz weil hier oft Specs/Briefings stehen. */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">
                   Beschreibung
                 </label>
-                <textarea
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                  rows={4}
-                  placeholder="Beschreibung hinzufügen..."
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
-                />
+                {descEditing ? (
+                  <textarea
+                    ref={descTextareaRef}
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    onBlur={() => setDescEditing(false)}
+                    rows={10}
+                    placeholder="Beschreibung hinzufügen..."
+                    className="w-full rounded-lg border border-primary-300 dark:border-primary-500/40 bg-white dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-y min-h-[10rem]"
+                  />
+                ) : (
+                  <div
+                    onClick={() => {
+                      setDescEditing(true);
+                      // focus on next tick so the ref is bound
+                      requestAnimationFrame(() => descTextareaRef.current?.focus());
+                    }}
+                    className={cn(
+                      'w-full min-h-[10rem] rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-3 py-2 text-sm cursor-text whitespace-pre-wrap break-words',
+                      editDesc
+                        ? 'text-gray-700 dark:text-gray-300'
+                        : 'text-gray-400 italic',
+                    )}
+                  >
+                    {editDesc ? linkifyText(editDesc) : 'Beschreibung hinzufügen... (klicken zum Bearbeiten)'}
+                  </div>
+                )}
               </div>
 
               {/* Subtasks */}
@@ -607,19 +633,21 @@ export function TaskDetailModal({
 
                 {activeBottomTab === 'comments' && (
                   <>
+                    {/* Kompakter — User wollte weniger Platz hier, mehr fuer
+                        die Beschreibung oben. */}
                     {comments.length > 0 && (
-                      <div className="space-y-3 mb-3">
+                      <div className="space-y-1.5 mb-2">
                         {comments.map((c) => (
-                          <div key={c.id} className="flex gap-2">
-                            <div className="h-6 w-6 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[10px] font-bold text-primary-700 dark:text-primary-300 flex-shrink-0 mt-0.5">
+                          <div key={c.id} className="flex gap-1.5">
+                            <div className="h-5 w-5 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-[9px] font-bold text-primary-700 dark:text-primary-300 flex-shrink-0 mt-0.5">
                               {(c.userName || '?').charAt(0).toUpperCase()}
                             </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.userName}</span>
-                                <span className="text-[10px] text-gray-400">{new Date(c.createdAt).toLocaleDateString('de-DE')}</span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">{c.userName}</span>
+                                <span className="text-[9px] text-gray-400">{new Date(c.createdAt).toLocaleDateString('de-DE')}</span>
                               </div>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{renderCommentContent(c.message || '')}</p>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug">{renderCommentContent(c.message || '')}</p>
                             </div>
                           </div>
                         ))}
@@ -961,4 +989,42 @@ export function TaskDetailModal({
       )}
     </div>
   );
+}
+
+/**
+ * Wandelt URLs im Text in anklickbare <a>-Links um. URL-Erkennung via simple
+ * http(s)-Regex — reicht für die typischen Use-Cases (Briefing-Links, Figma,
+ * Google-Docs). target="_blank" + rel für Sicherheit. stopPropagation am
+ * Klick damit das Klicken auf einen Link nicht den View→Edit-Switch triggert.
+ */
+function linkifyText(text: string): React.ReactNode {
+  const urlRegex = /(https?:\/\/[^\s<]+)/gi;
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  // exec mit /g hat State — explizit zurücksetzen
+  urlRegex.lastIndex = 0;
+  while ((match = urlRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>);
+    }
+    const url = match[0];
+    nodes.push(
+      <a
+        key={`l-${match.index}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-primary-600 dark:text-primary-400 hover:underline break-all"
+      >
+        {url}
+      </a>,
+    );
+    lastIndex = match.index + url.length;
+  }
+  if (lastIndex < text.length) {
+    nodes.push(<span key={`t-end`}>{text.slice(lastIndex)}</span>);
+  }
+  return nodes;
 }

@@ -30,7 +30,11 @@ export const salesApi = {
       cogs: number;
       shippingFlatPerOrder: number;
       profit: number;
-      cogsCoverage: { withCogs: number; total: number };
+      cogsCoverage: {
+        withCogs: number;
+        total: number;
+        missing: Array<{ title: string; sku: string | null; ean: string | null }>;
+      };
       totalAllTime: number;
       totalAllTimeCount: number;
       byMonth: Array<{ month: number; revenue: number; orderCount: number }>;
@@ -120,6 +124,7 @@ export const salesApi = {
       matchedLineItems: Array<{ index: number; productVariantId: string; sku: string | null; ean: string | null }>;
       rawModel: string;
       sourceDocumentId: string;
+      warning?: string;
     }>;
   },
   confirmImport: (data: any) => call<any>('/orders/import/confirm', { method: 'POST', body: JSON.stringify(data) }),

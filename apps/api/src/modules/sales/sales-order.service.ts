@@ -607,15 +607,19 @@ export class SalesOrderService {
     // schreibt aber nicht zurück). Reihenfolge:
     //   1. matched_product_variant_id (wenn der Importer es gesetzt hat)
     //   2. EAN → product_variants.barcode
-    //   3. supplier_article_number → product_variants.sku
-    // Lines ohne jegliche Übereinstimmung tragen 0 zum COGS bei — wir geben
-    // zusätzlich die Coverage zurück damit das Frontend warnen kann wenn
-    // Daten fehlen.
+    //   3. supplier_article_number → product_variants.sku (exact)
+    //   4. supplier_article_number → product_variants.sku (Prefix-Match,
+    //      damit "FP-03" auch "FP-03 Weiß" findet wenn der Order-SKU
+    //      verkürzt ist)
+    //   5. line.title → products.title (exact, fuer EAN-Tippfehler)
+    // Lines ohne jegliche Übereinstimmung tragen 0 zum COGS bei. Wir geben
+    // zusätzlich Titel der unmatched Lines zurück damit der User weiß WAS
+    // fehlt — vorher stand nur "X/Y" ohne Hinweis welcher Artikel.
     type CogsRow = { cogs_total: string; lines_with_cogs: bigint; lines_total: bigint };
     const cogsRows = await this.prisma.$queryRaw<CogsRow[]>`
       SELECT
-        COALESCE(SUM(li.quantity * COALESCE(v_match.cogs, v_ean.cogs, v_sku.cogs, 0)), 0)::text AS cogs_total,
-        COUNT(*) FILTER (WHERE COALESCE(v_match.cogs, v_ean.cogs, v_sku.cogs) IS NOT NULL) AS lines_with_cogs,
+        COALESCE(SUM(li.quantity * COALESCE(v_match.cogs, v_ean.cogs, v_sku.cogs, v_sku_prefix.cogs, v_title.cogs, 0)), 0)::text AS cogs_total,
+        COUNT(*) FILTER (WHERE COALESCE(v_match.cogs, v_ean.cogs, v_sku.cogs, v_sku_prefix.cogs, v_title.cogs) IS NOT NULL) AS lines_with_cogs,
         COUNT(*) AS lines_total
       FROM "sales_order_line_items" li
       JOIN "sales_orders" o ON o.id = li.order_id
@@ -624,6 +628,23 @@ export class SalesOrderService {
         ON v_ean.org_id = o.org_id AND v_ean.barcode = li.ean
       LEFT JOIN "product_variants" v_sku
         ON v_sku.org_id = o.org_id AND v_sku.sku = li.supplier_article_number
+      LEFT JOIN LATERAL (
+        SELECT cogs FROM "product_variants"
+        WHERE org_id = o.org_id
+          AND li.supplier_article_number IS NOT NULL
+          AND sku ILIKE li.supplier_article_number || ' %'
+          AND cogs IS NOT NULL
+        LIMIT 1
+      ) v_sku_prefix ON true
+      LEFT JOIN LATERAL (
+        SELECT v.cogs FROM "product_variants" v
+        JOIN "products" p ON p.id = v.product_id
+        WHERE v.org_id = o.org_id
+          AND li.title IS NOT NULL
+          AND p.title = li.title
+          AND v.cogs IS NOT NULL
+        LIMIT 1
+      ) v_title ON true
       WHERE o.org_id = ${orgId}::uuid
         AND o.created_at >= ${yearStart}
         AND o.created_at < ${yearEnd}
@@ -632,6 +653,47 @@ export class SalesOrderService {
     const cogs = Number(cogsRows[0]?.cogs_total ?? 0);
     const linesWithCogs = Number(cogsRows[0]?.lines_with_cogs ?? 0);
     const linesTotal = Number(cogsRows[0]?.lines_total ?? 0);
+
+    // Welche Lines sind nicht gematched? Titel/SKU/EAN zurueckgeben damit
+    // das Frontend dem User sagen kann was er fixen muss.
+    type MissingRow = { title: string; sku: string | null; ean: string | null };
+    let missingLines: MissingRow[] = [];
+    if (linesWithCogs < linesTotal) {
+      missingLines = await this.prisma.$queryRaw<MissingRow[]>`
+        SELECT
+          li.title,
+          li.supplier_article_number AS sku,
+          li.ean
+        FROM "sales_order_line_items" li
+        JOIN "sales_orders" o ON o.id = li.order_id
+        LEFT JOIN "product_variants" v_match ON v_match.id = li.matched_product_variant_id
+        LEFT JOIN "product_variants" v_ean ON v_ean.org_id = o.org_id AND v_ean.barcode = li.ean
+        LEFT JOIN "product_variants" v_sku ON v_sku.org_id = o.org_id AND v_sku.sku = li.supplier_article_number
+        LEFT JOIN LATERAL (
+          SELECT cogs FROM "product_variants"
+          WHERE org_id = o.org_id
+            AND li.supplier_article_number IS NOT NULL
+            AND sku ILIKE li.supplier_article_number || ' %'
+            AND cogs IS NOT NULL
+          LIMIT 1
+        ) v_sku_prefix ON true
+        LEFT JOIN LATERAL (
+          SELECT v.cogs FROM "product_variants" v
+          JOIN "products" p ON p.id = v.product_id
+          WHERE v.org_id = o.org_id
+            AND li.title IS NOT NULL
+            AND p.title = li.title
+            AND v.cogs IS NOT NULL
+          LIMIT 1
+        ) v_title ON true
+        WHERE o.org_id = ${orgId}::uuid
+          AND o.created_at >= ${yearStart}
+          AND o.created_at < ${yearEnd}
+          AND o.status != 'cancelled'
+          AND COALESCE(v_match.cogs, v_ean.cogs, v_sku.cogs, v_sku_prefix.cogs, v_title.cogs) IS NULL
+        LIMIT 20
+      `;
+    }
     const SHIPPING_FLAT_PER_ORDER = 50;
     const profit = total - cogs - totalCount * SHIPPING_FLAT_PER_ORDER;
 
@@ -650,8 +712,14 @@ export class SalesOrderService {
       cogs,
       shippingFlatPerOrder: SHIPPING_FLAT_PER_ORDER,
       profit,
-      // Wie viele Line-Items hatten COGS-Daten — Frontend kann warnen wenn < 100%
-      cogsCoverage: { withCogs: linesWithCogs, total: linesTotal },
+      // Wie viele Line-Items hatten COGS-Daten — Frontend kann warnen wenn < 100%.
+      // missing[] zeigt welche Artikel nicht matched wurden damit User weiss
+      // wo er nachhelfen muss (EAN korrigieren oder Produkt anlegen).
+      cogsCoverage: {
+        withCogs: linesWithCogs,
+        total: linesTotal,
+        missing: missingLines,
+      },
       totalAllTime: Number(allTimeRaw._sum.totalNet ?? 0),
       totalAllTimeCount: allTimeRaw._count._all,
       byMonth,

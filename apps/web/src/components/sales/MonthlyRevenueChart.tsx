@@ -23,7 +23,11 @@ export function MonthlyRevenueChart({ year }: MonthlyRevenueChartProps) {
     cogs: number;
     shippingFlatPerOrder: number;
     profit: number;
-    cogsCoverage: { withCogs: number; total: number };
+    cogsCoverage: {
+      withCogs: number;
+      total: number;
+      missing: Array<{ title: string; sku: string | null; ean: string | null }>;
+    };
     totalAllTime: number;
     totalAllTimeCount: number;
     byMonth: Array<{ month: number; revenue: number; orderCount: number }>;
@@ -186,8 +190,14 @@ export function MonthlyRevenueChart({ year }: MonthlyRevenueChartProps) {
           </span>
           {data && data.cogsCoverage.total > 0 && data.cogsCoverage.withCogs < data.cogsCoverage.total && (
             <span
-              className="text-[10px] text-amber-600 dark:text-amber-400 font-medium"
-              title={`Nur ${data.cogsCoverage.withCogs} von ${data.cogsCoverage.total} Positionen haben COGS — Gewinn ist optimistischer als real`}
+              className="text-[10px] text-amber-600 dark:text-amber-400 font-medium cursor-help"
+              title={
+                'Diese Positionen haben keine COGS-Daten (Gewinn deshalb optimistischer als real):\n\n' +
+                data.cogsCoverage.missing
+                  .map((m) => `• ${m.title}${m.sku ? ` [SKU: ${m.sku}]` : ''}${m.ean ? ` [EAN: ${m.ean}]` : ''}`)
+                  .join('\n') +
+                '\n\nFix: Produkt mit COGS in der Produktliste anlegen, oder die EAN/SKU auf der Bestellung korrigieren.'
+              }
             >
               ⚠ {data.cogsCoverage.withCogs}/{data.cogsCoverage.total} mit COGS
             </span>
