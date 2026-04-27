@@ -14,6 +14,7 @@ import {
 import { InfluencerService } from './influencer.service';
 import { WatchlistService } from './watchlist.service';
 import { BrandService, CreateBrandDto } from './brand.service';
+import { PhylloService } from './phyllo.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -25,7 +26,60 @@ export class InfluencerController {
     private readonly influencerService: InfluencerService,
     private readonly watchlistService: WatchlistService,
     private readonly brandService: BrandService,
+    private readonly phyllo: PhylloService,
   ) {}
+
+  // =========================================================================
+  // PHYLLO DISCOVERY (live external search via InsightIQ)
+  // =========================================================================
+
+  /**
+   * Live-Suche gegen die Phyllo-Discovery-API. Nicht aus lokaler DB,
+   * sondern direkt gegen InsightIQ — fuer "Neue Creator finden"-Workflow.
+   *
+   * Body-Beispiele:
+   *   { platform: "instagram", filters: { follower_count: { min: 10000, max: 100000 } } }
+   *   { platform: "instagram", filters: { brand_sponsors: ["nike"] } }     // Brand-zu-Creator
+   *
+   * Sort wird in unsere lesbaren Werte (followers/engagement) gemappt
+   * und intern auf Phyllo-Felder uebersetzt.
+   */
+  @Post('influencers/discovery/search')
+  async discoverySearch(@Body() body: {
+    platform?: 'instagram' | 'tiktok';
+    sort?: 'followers' | 'engagement' | 'avg_likes';
+    sortOrder?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+    filters?: Record<string, unknown>;
+  }) {
+    const platformId = body.platform === 'tiktok'
+      ? PhylloService.TIKTOK_ID
+      : PhylloService.INSTAGRAM_ID;
+
+    const sortMap: Record<string, string> = {
+      followers: 'FOLLOWER_COUNT',
+      engagement: 'ENGAGEMENT_RATE',
+      avg_likes: 'AVERAGE_LIKES',
+    };
+    const sortField = sortMap[body.sort ?? 'followers'] ?? 'FOLLOWER_COUNT';
+    const sortOrder = body.sortOrder === 'asc' ? 'ASCENDING' : 'DESCENDING';
+
+    try {
+      const result = await this.phyllo.searchCreators({
+        workPlatformId: platformId,
+        sortBy: { field: sortField, order: sortOrder as any },
+        limit: body.limit,
+        offset: body.offset,
+        filters: body.filters,
+      });
+      return result;
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      this.logger.error('Phyllo discovery search failed', err);
+      throw new HttpException('Discovery-Search fehlgeschlagen', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   // =========================================================================
   // INFLUENCER PROFILES

@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -150,5 +150,63 @@ export function useInfluencerStats() {
     queryFn: () => fetchApi<InfluencerStats>(`${API_BASE}/influencers/stats`),
     staleTime: 60_000,
     retry: 1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phyllo Discovery — live search gegen InsightIQ
+// ---------------------------------------------------------------------------
+
+/**
+ * Phyllo-Profil aus dem Discovery-Endpoint. Hat eine andere Form als unser
+ * lokales InfluencerProfile — daher eigener Type. UI mappt beide vor Render.
+ */
+export interface PhylloProfile {
+  work_platform: { id: string; name: string; logo_url: string };
+  platform_username: string;
+  external_id: string | null;
+  url: string | null;
+  image_url: string | null;
+  full_name: string | null;
+  introduction: string | null;
+  is_verified: boolean;
+  platform_account_type: string | null;
+  gender: string | null;
+  age_group: string | null;
+  language: string | null;
+  follower_count: number;
+  subscriber_count: number | null;
+  engagement_rate: number;
+  average_likes: number | null;
+  average_views: number | null;
+  creator_location: { country?: string; city?: string } | null;
+  contact_details: { type: string; value: string }[] | null;
+}
+
+export interface PhylloSearchParams {
+  platform?: 'instagram' | 'tiktok';
+  sort?: 'followers' | 'engagement' | 'avg_likes';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+  filters?: Record<string, unknown>;
+}
+
+import { getAuthHeaders } from '@/stores/auth';
+
+export function usePhylloSearch() {
+  return useMutation<{ data: PhylloProfile[]; metadata?: any }, Error, PhylloSearchParams>({
+    mutationFn: async (params) => {
+      const res = await fetch(`${API_BASE}/influencers/discovery/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify(params),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Discovery-Search fehlgeschlagen (${res.status}): ${text.slice(0, 200)}`);
+      }
+      return res.json();
+    },
   });
 }
