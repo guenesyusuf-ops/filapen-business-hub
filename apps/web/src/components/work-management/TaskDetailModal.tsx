@@ -359,34 +359,41 @@ export function TaskDetailModal({
 
   return (
     <div className="fixed inset-0 z-50">
-      {/* Backdrop */}
+      {/* Backdrop — sichtbar damit Vollbild-Panel sich vom restlichen UI
+          abhebt, KEIN Klick-zum-Schliessen mehr (in Vollbild faellt der
+          User sonst aus Versehen raus und verliert seine Edits). */}
       <div
         className={cn(
-          'absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300',
+          'absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300',
           visible ? 'opacity-100' : 'opacity-0',
         )}
-        onClick={handleClose}
       />
 
-      {/* Slide-over panel */}
+      {/* Vollbild-Panel mit Fade-Zoom (Linear-Style). Vorher war's ein
+          Slide-over auf 55-60% Breite — jetzt Vollbild damit Beschreibung
+          und alles deutlich mehr Platz hat. Innen begrenzt eine
+          max-w-[1400px] Wrapper-Layer die Lesbarkeit auf Ultra-Wide-Screens. */}
       <div
         className={cn(
-          'fixed inset-y-0 right-0 w-full md:w-[60%] lg:w-[55%] max-w-4xl',
-          'bg-white dark:bg-[#1a1d2e] border-l border-gray-200 dark:border-white/10 shadow-2xl',
-          'transform transition-transform duration-300 ease-out',
+          'fixed inset-0',
+          'bg-white dark:bg-[#0f1117]',
+          'transform transition-all duration-300 ease-out',
           'flex flex-col',
-          visible ? 'translate-x-0' : 'translate-x-full',
+          visible ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.98]',
         )}
       >
-        {/* Header with save button — tighter padding on mobile for more content room */}
+        {/* Header — bleibt am oberen Rand sichtbar, hat backdrop-blur damit
+            scrollender Content unten subtil durchscheint (Premium-Feel). */}
         <div
-          className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] flex-shrink-0"
-          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+          className="flex-shrink-0 border-b border-gray-200/70 dark:border-white/10 bg-white/85 dark:bg-[#0f1117]/85 backdrop-blur-md"
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
+          <div className="max-w-[1400px] mx-auto flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <button
               onClick={handleClose}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0"
+              title="Schließen"
             >
               <X className="h-5 w-5" />
             </button>
@@ -450,19 +457,24 @@ export function TaskDetailModal({
               </>
             )}
           </button>
+          </div>
         </div>
 
-        {/* Scrollable content */}
+        {/* Scrollable content — max-width Wrapper damit es auf Ultra-Wide
+            nicht ueber-dehnt wird, lg-breakpoint statt md fuer Sidebar
+            damit auf Tablet erstmal alles untereinander steht. */}
         <div className="flex-1 overflow-y-auto">
-          <div className="flex flex-col md:flex-row h-full">
-            {/* Main area */}
-            <div className="flex-1 p-6 space-y-6 min-w-0">
-              {/* Title */}
+          <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row min-h-full">
+            {/* Main area — groesseres Padding in Vollbild fuer Atemluft */}
+            <div className="flex-1 p-6 lg:p-10 space-y-7 min-w-0">
+              {/* Title — deutlich groesser jetzt da wir Vollbild haben.
+                  font-display-serif fuers WOW-Feeling. */}
               <input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full text-xl font-bold text-gray-900 dark:text-white bg-transparent border-none focus:outline-none focus:ring-0 p-0"
+                placeholder="Titel..."
+                className="w-full font-display-serif text-3xl lg:text-4xl font-medium tracking-tight text-gray-900 dark:text-white bg-transparent border-none focus:outline-none focus:ring-0 p-0 placeholder:text-gray-300 dark:placeholder:text-gray-600"
               />
 
               {/* Description — click-to-edit. Read-Mode zeigt linkifizierten
@@ -725,8 +737,10 @@ export function TaskDetailModal({
               </div>
             </div>
 
-            {/* Sidebar */}
-            <div className="w-full md:w-64 border-t md:border-t-0 md:border-l border-gray-200 dark:border-white/10 p-5 space-y-5 bg-gray-50/50 dark:bg-white/[0.02]">
+            {/* Sidebar — auf Vollbild lg-Breakpoint statt md, 80er Breite
+                wirkt auf grossem Screen besser. Auf Mobile/Tablet wandert
+                die Sidebar wie gehabt unter den Hauptbereich. */}
+            <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-white/10 p-6 space-y-5 bg-gray-50/40 dark:bg-white/[0.02]">
               {/* Status */}
               <div>
                 <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Status</label>
