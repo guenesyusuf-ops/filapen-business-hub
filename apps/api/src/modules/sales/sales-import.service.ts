@@ -46,20 +46,59 @@ export interface ImportResult {
   sourceDocumentId: string;
   /** Soft-Warning das Frontend als Banner zeigen kann (z.B. KI-Misidentifikation). */
   warning?: string;
+  /** True wenn KI vermutlich Filapen als Kunden gesehen hat — Frontend
+   *  zwingt dann den User auf "Bestehenden Kunden waehlen" und zeigt
+   *  Bestaetigungs-Frage statt blind zu uebernehmen. */
+  suspectedSelfMatch?: boolean;
 }
 
 const PROMPT = `Du bist ein präziser OCR- und Daten-Extraktor für B2B-Bestellungen (deutschsprachige Geschäftskundenbestellungen, manchmal englisch).
 
 Extrahiere aus dem angehängten Dokument (PDF oder Bild einer Bestellung) ALLE verfügbaren Felder strikt im folgenden JSON-Schema. Fehlende Felder: null. Datumsfelder im Format YYYY-MM-DD.
 
-KRITISCH — WER IST DER KUNDE:
-- "customer" + "billingAddress" = der BESTELLER / Rechnungsempfänger / Käufer / Auftraggeber.
-- Das ist der, AN DEN die Bestellung adressiert ist bzw. VON DEM die Bestellung kommt.
-- NICHT der Absender / Lieferant / Rechnungssteller (Filapen GmbH, Filapen, etc.).
-- Im typischen Bestelldokument steht oben links oft der Absender/Lieferant, und links mittig die Käufer-Adresse ("Rechnungsempfänger:" / "Besteller:" / "Bill-To:" / "An:").
-- Der EMPFÄNGER im Briefkopf (an wen das Dokument gerichtet ist) = Kunde.
-- Wenn "Filapen" oder ähnliche Absender-Merkmale auftauchen (EORI, WEEE der Filapen, buchhaltung@filapen.de), gehört diese Firma NICHT ins customer-Feld.
-- Bestellnummer (externalOrderNumber) ist die Nummer des KUNDEN (z.B. "Bestellnummer 4500183634" = seine interne PO-Nummer).
+KRITISCH — WER IST DER KUNDE (lies das HIER drei mal bevor du extrahierst):
+
+WIR SIND DER VERKÄUFER. Wir heißen "Filapen" / "Filapen GmbH". Unsere Domain
+ist filapen.de, unsere Mails buchhaltung@filapen.de, unsere EORI/WEEE-Nummern
+sind in der Fußzeile. Wir tauchen praktisch in JEDEM Bestelldokument oben
+links als Empfänger der Bestellung auf — als Lieferant. WIR SIND NICHT DER
+KUNDE. Das customer-Feld muss IMMER eine andere Firma enthalten.
+
+VERBINDLICHE EXTRAKTIONS-REIHENFOLGE für customer/billingAddress:
+
+  Schritt 1 — Suche nach EXPLIZITEN Labels (höchste Priorität):
+    "Rechnungsempfänger:" / "Rechnung an:" / "Bill-To:" / "Invoice to:"
+    → Die Adresse direkt darunter = customer.
+
+  Schritt 2 — Falls Schritt 1 leer: nimm die LIEFERANSCHRIFT
+    "Lieferanschrift:" / "Lieferadresse:" / "Ship-To:" / "Versand an:"
+    → Die Firma dort = customer (auch wenn sie als "Filiale" oder "Lager"
+       beschriftet ist — das ist der Käufer).
+
+  Schritt 3 — Falls beides leer: nimm den ABSENDER der Bestellung
+    Im Briefkopf steht oft "Von: <Firma>" oder die Firma im Logo oben rechts.
+    Das ist der bestellende Kunde.
+
+  Schritt 4 — Letzter Ausweg: Adresse direkt unter "Bestellung" / "Bestell-
+    Nr." / "Order" als Käufer interpretieren.
+
+VERBOTEN:
+- "Filapen" / "Filapen GmbH" / "Filapen Handels GmbH" → niemals ins customer.
+- Adressen die "filapen.de" als Domain enthalten → niemals ins customer.
+- EORI-/WEEE-Nummern die zu Filapen gehören → niemals ins customer.
+- Wenn nur Filapen im Dokument erkennbar ist und KEINE andere Firma → setze
+  customer.companyName = null statt zu raten.
+
+PLAUSIBILITÄTS-CHECK:
+- Wenn die einzige Firma die du gefunden hast "Filapen" enthält → STOPP.
+  Das ist der Verkäufer. Setze customer auf null und beschreibe in einem
+  unsichtbaren Kommentar nichts — gib einfach nulls zurück.
+- Wenn customer = "Filapen GmbH" und billingAddress.company = "Amazon EU SARL"
+  → die Reihenfolge ist falsch, die Firmen vertauschen.
+
+EXTRAS:
+- Bestellnummer (externalOrderNumber) ist die Nummer des KUNDEN, nicht
+  unsere interne (z.B. "Bestellnummer 4500183634" = PO-Nummer des Kunden).
 
 WICHTIG — Zahlen-Regeln:
 - Beträge als reine Zahl mit Punkt als Dezimalzeichen (keine Währungszeichen, kein Tausender-Trennzeichen).
@@ -195,23 +234,22 @@ export class SalesImportService {
     const extracted = this.normalizeExtracted(parsed);
 
     // Guardrail: Falls Claude den Absender (uns selbst) als Kunde extrahiert,
-    // soft-fixen statt hart abzuweisen — User soll trotzdem importieren können
-    // und den Kunden manuell anlegen. Vorher = hard reject = User musste neu
-    // hochladen, was dem Workflow im Weg stand.
+    // markieren wir das nur als Soft-Warning. Customer-Felder bleiben wie
+    // extrahiert damit der User sieht WAS die KI gesehen hat — Frontend
+    // zwingt aber ein "ist das wirklich Filapen?" Bestaetigungs-Flow,
+    // standardmaessig ist die "Bestehenden Kunden waehlen"-Option aktiv.
     const ownCompanyPatterns = /filapen|buchhaltung@filapen/i;
     const companyName = (extracted.customer?.companyName ?? '').trim();
     const email = (extracted.customer?.email ?? '').trim();
+    let suspectedSelfMatch = false;
     let warning: string | undefined;
     if (ownCompanyPatterns.test(companyName) || ownCompanyPatterns.test(email)) {
       this.logger.warn(
-        `Import: KI hat Absender als Kunden extrahiert, Customer-Felder werden zurückgesetzt (company="${companyName}", email="${email}")`,
+        `Import: KI hat moeglicherweise Filapen als Kunden extrahiert (company="${companyName}", email="${email}") — User-Bestaetigung erforderlich`,
       );
-      // Customer-Felder leeren — Frontend zeigt dann "Neuer Kunde" Form
-      extracted.customer = { companyName: null, email: null, phone: null };
-      // billingAddress vorsichtig: könnte auch falsch sein, aber wir behalten
-      // sie damit der User sie als Vorlage editieren kann statt von Null.
+      suspectedSelfMatch = true;
       warning =
-        'Die KI hat den Absender (Filapen) als Kunden erkannt. Die Kunden-Felder wurden geleert — bitte den richtigen Kunden manuell wählen oder neu anlegen.';
+        'Die KI hat "Filapen" als Kunden erkannt. Das ist normalerweise unsere eigene Firma, nicht der Kunde. Bitte aus der Liste den richtigen Kunden auswählen — falls noch nicht vorhanden, einen neuen anlegen.';
     }
 
     // Auto-match customer — Priorität: easybill-Nummer, dann externe Nr,
@@ -260,14 +298,18 @@ export class SalesImportService {
     // Persist original file as "pending" document — we need a SalesOrder to
     // attach it to, so we store the raw upload result for now and defer the
     // SalesOrderDocument row creation to the confirm step.
+    // Bei suspectedSelfMatch nullen wir matchedCustomerId — sonst koennte ein
+    // versehentlich angelegter "Filapen GmbH" Customer-Record als Match
+    // durchgehen. User muss dann aktiv auswaehlen.
     return {
       extracted,
       confidence,
-      matchedCustomerId: matched?.id ?? null,
+      matchedCustomerId: suspectedSelfMatch ? null : (matched?.id ?? null),
       matchedLineItems,
       rawModel: 'claude-sonnet-4-5',
       sourceDocumentId: storedUrl, // transient handle — the R2 key stored below
       warning,
+      suspectedSelfMatch: suspectedSelfMatch || undefined,
     };
   }
 

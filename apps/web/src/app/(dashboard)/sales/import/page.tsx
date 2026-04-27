@@ -36,7 +36,13 @@ export default function SalesImportPage() {
       const r = await salesApi.importOrder(f);
       setResult(r);
       setEx(r.extracted);
-      if (r.matchedCustomerId) {
+      if (r.suspectedSelfMatch) {
+        // KI hat Filapen als Kunden erkannt → User muss aktiv auswaehlen.
+        // "Bestehenden Kunden waehlen" wird forciert (kein Pre-Fill der
+        // Neu-Anlegen Form mit Filapen-Daten — sonst hat User Unsinn drin).
+        setCreateNewCustomer(false);
+        setCustomerId('');
+      } else if (r.matchedCustomerId) {
         setCustomerId(r.matchedCustomerId);
         setCreateNewCustomer(false);
       } else {

@@ -125,6 +125,7 @@ export const salesApi = {
       rawModel: string;
       sourceDocumentId: string;
       warning?: string;
+      suspectedSelfMatch?: boolean;
     }>;
   },
   confirmImport: (data: any) => call<any>('/orders/import/confirm', { method: 'POST', body: JSON.stringify(data) }),
