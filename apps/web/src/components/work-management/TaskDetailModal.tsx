@@ -490,9 +490,9 @@ export function TaskDetailModal({
                     value={editDesc}
                     onChange={(e) => setEditDesc(e.target.value)}
                     onBlur={() => setDescEditing(false)}
-                    rows={10}
+                    rows={15}
                     placeholder="Beschreibung hinzufügen..."
-                    className="w-full rounded-lg border border-primary-300 dark:border-primary-500/40 bg-white dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-y min-h-[10rem]"
+                    className="w-full rounded-lg border border-primary-300 dark:border-primary-500/40 bg-white dark:bg-white/[0.03] px-3 py-2 text-sm text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-y min-h-[15rem]"
                   />
                 ) : (
                   <div
@@ -502,7 +502,7 @@ export function TaskDetailModal({
                       requestAnimationFrame(() => descTextareaRef.current?.focus());
                     }}
                     className={cn(
-                      'w-full min-h-[10rem] rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-3 py-2 text-sm cursor-text whitespace-pre-wrap break-words',
+                      'w-full min-h-[15rem] rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-3 py-2 text-sm cursor-text whitespace-pre-wrap break-words',
                       editDesc
                         ? 'text-gray-700 dark:text-gray-300'
                         : 'text-gray-400 italic',
