@@ -210,8 +210,28 @@ export interface PhylloSearchParams {
 
 import { getAuthHeaders } from '@/stores/auth';
 
+/**
+ * Phyllo-Search-Hook mit Quota-Schutz auf Frontend-Seite:
+ * - retry: false → ein 400/429-Error wird NICHT in Schleifen wiederholt
+ *   (das würde Phyllo-Credits verbrennen)
+ * - structuredError gibt 429-Quota-Errors als typed Error zurück damit UI
+ *   eine spezifische Meldung zeigen kann
+ *
+ * Das Backend cached + dedupliziert + rate-limitet bereits — der Hook
+ * fügt nur die Frontend-Seite des Schutzes hinzu (kein Auto-Retry).
+ */
+export class PhylloSearchError extends Error {
+  status: number;
+  isQuotaError: boolean;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.isQuotaError = status === 429;
+  }
+}
+
 export function usePhylloSearch() {
-  return useMutation<{ data: PhylloProfile[]; metadata?: any }, Error, PhylloSearchParams>({
+  return useMutation<{ data: PhylloProfile[]; metadata?: any }, PhylloSearchError, PhylloSearchParams>({
     mutationFn: async (params) => {
       const res = await fetch(`${API_BASE}/influencers/discovery/search`, {
         method: 'POST',
@@ -219,10 +239,19 @@ export function usePhylloSearch() {
         body: JSON.stringify(params),
       });
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Discovery-Search fehlgeschlagen (${res.status}): ${text.slice(0, 200)}`);
+        let msg = `Discovery-Search fehlgeschlagen (${res.status})`;
+        try {
+          const j = await res.json();
+          if (j?.message) msg = j.message;
+        } catch {
+          // body wasn't JSON — fall through
+        }
+        throw new PhylloSearchError(msg, res.status);
       }
       return res.json();
     },
+    // Niemals automatisch wiederholen — bei einem 429/400 würden Retries
+    // weitere Phyllo-Credits verbrennen. Nutzer triggert manuell neu.
+    retry: false,
   });
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   Search,
   SlidersHorizontal,
@@ -368,6 +368,14 @@ export default function InfluencerDiscoveryPage() {
   const [offset, setOffset] = useState(0);
   const search = usePhylloSearch();
 
+  // Frontend-Dedup: speichert den Hash des zuletzt erfolgreich gefeuerten
+  // Payloads. Wenn der User mit identischem Filter nochmal "Suchen" klickt
+  // (oder Doppelklick), unterdrücken wir den Re-Fire — Backend cached
+  // sowieso, aber ein lokaler Kurzschluss spart sogar den Roundtrip.
+  const lastFiredHash = useRef<string | null>(null);
+  const lastFiredAt = useRef<number>(0);
+  const DEDUP_WINDOW_MS = 2000;
+
   // Baut die typisierte Filter-Eingabe aus dem UI-State. Backend
   // transformiert das in Phyllos verschachteltes Schema. Hier strikt:
   // nur Felder setzen die wirklich Werte haben — keine leeren Objekte,
@@ -403,23 +411,39 @@ export default function InfluencerDiscoveryPage() {
     };
   }, []);
 
+  // Zentrale Trigger-Funktion mit Dedup-Check. Alle Suchen (Apply, Pagination,
+  // Enter-Taste) gehen hier durch.
+  const triggerSearch = useCallback((params: PhylloSearchParams) => {
+    if (search.isPending) return;            // schon eine Suche unterwegs
+    const hash = JSON.stringify(params);
+    const sinceLastFire = Date.now() - lastFiredAt.current;
+    if (hash === lastFiredHash.current && sinceLastFire < DEDUP_WINDOW_MS) {
+      // Identische Anfrage in <2s → ignorieren (typisch bei Doppelklick)
+      return;
+    }
+    lastFiredHash.current = hash;
+    lastFiredAt.current = Date.now();
+    search.mutate(params);
+  }, [search]);
+
   const handleApply = useCallback(() => {
     setOffset(0);
-    search.mutate(buildPhylloFilters(0, filters, searchQuery));
-  }, [buildPhylloFilters, filters, searchQuery, search]);
+    triggerSearch(buildPhylloFilters(0, filters, searchQuery));
+  }, [buildPhylloFilters, filters, searchQuery, triggerSearch]);
 
   const handleClear = useCallback(() => {
     setFilters(DEFAULT_FILTERS);
     setSearchQuery('');
     setOffset(0);
+    lastFiredHash.current = null;
     search.reset();
   }, [search]);
 
   const handlePage = useCallback((delta: number) => {
     const nextOffset = Math.max(0, offset + delta * PAGE_SIZE);
     setOffset(nextOffset);
-    search.mutate(buildPhylloFilters(nextOffset, filters, searchQuery));
-  }, [offset, buildPhylloFilters, filters, searchQuery, search]);
+    triggerSearch(buildPhylloFilters(nextOffset, filters, searchQuery));
+  }, [offset, buildPhylloFilters, filters, searchQuery, triggerSearch]);
 
   const results = search.data?.data ?? [];
   const hasResults = results.length > 0;
@@ -471,8 +495,18 @@ export default function InfluencerDiscoveryPage() {
         />
 
         <div className="flex-1 min-w-0">
-          {/* Error */}
-          {search.isError && (
+          {/* Error — Quota-Errors bekommen eigene Optik damit User sofort
+              sieht dass es kein Code-Bug ist sondern Limit. */}
+          {search.isError && search.error?.isQuotaError && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm text-amber-800 dark:text-amber-200 mb-4 flex items-start gap-3">
+              <span className="flex-shrink-0 mt-0.5">⏱</span>
+              <div>
+                <strong>Phyllo-Limit erreicht.</strong>
+                <p className="mt-1 leading-relaxed">{search.error.message}</p>
+              </div>
+            </div>
+          )}
+          {search.isError && !search.error?.isQuotaError && (
             <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 p-4 text-sm text-red-700 dark:text-red-300 mb-4">
               <strong>Fehler bei der Suche:</strong> {search.error?.message}
             </div>
