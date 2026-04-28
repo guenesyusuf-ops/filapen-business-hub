@@ -14,7 +14,7 @@ import {
 import { InfluencerService } from './influencer.service';
 import { WatchlistService } from './watchlist.service';
 import { BrandService, CreateBrandDto } from './brand.service';
-import { PhylloService } from './phyllo.service';
+import { PhylloService, PhylloDiscoveryFilters } from './phyllo.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -51,7 +51,7 @@ export class InfluencerController {
     sortOrder?: 'asc' | 'desc';
     limit?: number;
     offset?: number;
-    filters?: Record<string, unknown>;
+    filters?: PhylloDiscoveryFilters;
   }) {
     const platformId = body.platform === 'tiktok'
       ? PhylloService.TIKTOK_ID

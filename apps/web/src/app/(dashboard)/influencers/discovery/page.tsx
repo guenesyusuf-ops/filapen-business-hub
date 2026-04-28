@@ -18,7 +18,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber } from '@filapen/shared/src/utils/money';
-import { usePhylloSearch, type PhylloProfile, type PhylloSearchParams } from '@/hooks/influencers/useInfluencers';
+import {
+  usePhylloSearch,
+  type PhylloProfile,
+  type PhylloSearchParams,
+  type PhylloDiscoveryFilters,
+} from '@/hooks/influencers/useInfluencers';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -363,38 +368,29 @@ export default function InfluencerDiscoveryPage() {
   const [offset, setOffset] = useState(0);
   const search = usePhylloSearch();
 
-  // Baut den Phyllo-Filter-Body aus dem UI-State.
+  // Baut die typisierte Filter-Eingabe aus dem UI-State. Backend
+  // transformiert das in Phyllos verschachteltes Schema. Hier strikt:
+  // nur Felder setzen die wirklich Werte haben — keine leeren Objekte,
+  // keine undefined-Wrapper.
   const buildPhylloFilters = useCallback((withOffset: number, fs: FilterState, query: string): PhylloSearchParams => {
-    const phylloFilters: Record<string, unknown> = {};
+    const filters: PhylloDiscoveryFilters = {};
 
     const fr = FOLLOWER_RANGES[fs.followerRangeIdx];
-    if (fr.min !== undefined || fr.max !== undefined) {
-      phylloFilters.follower_count = {
-        ...(fr.min !== undefined ? { min: fr.min } : {}),
-        ...(fr.max !== undefined ? { max: fr.max } : {}),
-      };
-    }
+    if (fr.min !== undefined) filters.followerMin = fr.min;
+    if (fr.max !== undefined) filters.followerMax = fr.max;
+
     const er = ENGAGEMENT_RANGES[fs.engagementRangeIdx];
-    if (er.min !== undefined || er.max !== undefined) {
-      phylloFilters.engagement_rate = {
-        ...(er.min !== undefined ? { min: er.min } : {}),
-        ...(er.max !== undefined ? { max: er.max } : {}),
-      };
-    }
-    if (fs.brandSponsors.trim()) {
-      phylloFilters.brand_sponsors = fs.brandSponsors
-        .split(',').map((s) => s.trim()).filter(Boolean);
-    }
-    if (fs.countries.trim()) {
-      phylloFilters.creator_locations = fs.countries
-        .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
-    }
-    if (query.trim()) {
-      // Phyllo-Suche nach Username/Name geht über description_keywords
-      // bzw. bio_phrase je nach Plattform — wir nutzen description_keywords
-      // als robusten Standard.
-      phylloFilters.description_keywords = query.trim();
-    }
+    if (er.min !== undefined) filters.engagementMin = er.min;
+    if (er.max !== undefined) filters.engagementMax = er.max;
+
+    const brands = fs.brandSponsors.split(',').map((s) => s.trim()).filter(Boolean);
+    if (brands.length > 0) filters.brandSponsors = brands;
+
+    const countries = fs.countries.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+    if (countries.length > 0) filters.countries = countries;
+
+    const keywords = query.trim();
+    if (keywords) filters.keywords = keywords;
 
     return {
       platform: fs.platform,
@@ -402,7 +398,8 @@ export default function InfluencerDiscoveryPage() {
       sortOrder: fs.sortOrder,
       limit: PAGE_SIZE,
       offset: withOffset,
-      filters: phylloFilters,
+      // Nur senden wenn mindestens ein Filter aktiv ist — sonst weglassen
+      ...(Object.keys(filters).length > 0 ? { filters } : {}),
     };
   }, []);
 

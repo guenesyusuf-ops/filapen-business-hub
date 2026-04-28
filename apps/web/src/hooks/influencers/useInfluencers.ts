@@ -183,13 +183,29 @@ export interface PhylloProfile {
   contact_details: { type: string; value: string }[] | null;
 }
 
+/**
+ * Flache typisierte Filter — Backend transformiert in Phyllo-Schema.
+ * Frontend MUSS NICHT wissen wie z.B. engagement_rate.percentage_value
+ * verschachtelt sein soll. Felder weglassen wenn nicht aktiv (kein null,
+ * kein undefined explizit setzen — Backend ignoriert sowieso).
+ */
+export interface PhylloDiscoveryFilters {
+  followerMin?: number;
+  followerMax?: number;
+  engagementMin?: number;
+  engagementMax?: number;
+  brandSponsors?: string[];
+  countries?: string[];
+  keywords?: string;
+}
+
 export interface PhylloSearchParams {
   platform?: 'instagram' | 'tiktok';
   sort?: 'followers' | 'engagement' | 'avg_likes';
   sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
-  filters?: Record<string, unknown>;
+  filters?: PhylloDiscoveryFilters;
 }
 
 import { getAuthHeaders } from '@/stores/auth';
