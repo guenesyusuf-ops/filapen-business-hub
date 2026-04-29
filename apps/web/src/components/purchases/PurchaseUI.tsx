@@ -17,7 +17,7 @@ export function Badge({ color, children }: { color?: string; children: ReactNode
 }
 
 export function KpiCard({
-  label, value, sublabel, accent, icon, onClick,
+  label, value, sublabel, accent, icon, onClick, className,
 }: {
   label: string;
   value: string | ReactNode;
@@ -25,6 +25,9 @@ export function KpiCard({
   accent?: 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'indigo' | 'gray';
   icon?: ReactNode;
   onClick?: () => void;
+  /** Optional extra Klassen — z.B. fuer Grid-col-span um Kacheln unterschiedlich
+   *  breit zu machen (Einkauf-Uebersicht: 4 schmale + 1 breite Kachel). */
+  className?: string;
 }) {
   // Farb-Map fürs Icon-Ring + Gradient-Tint. Mappt 7 Accent-Varianten auf die
   // 4 Theme-Rollen, sodass alle Dashboards (Einkauf, Versand, Email-Marketing)
@@ -50,6 +53,7 @@ export function KpiCard({
         'text-left transition-all duration-300',
         'px-4 py-4 sm:px-5 sm:py-5',
         onClick && 'hover:-translate-y-0.5 cursor-pointer active:scale-[0.99]',
+        className,
       )}
     >
       {/* Dezenter Farb-Tint im Hintergrund — Modul-Farbe sichtbar ohne zu dominieren */}

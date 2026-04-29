@@ -78,17 +78,15 @@ export default function PurchasesDashboardPage() {
   const top: any[] = data?.topSuppliers || [];
 
   // KPI-Anzeige nur in USD (Hauptwährung der Lieferanten-Bestellungen).
-  // Andere Währungen werden ignoriert damit die Kachel klar lesbar bleibt
-  // und nicht "13.250 € · 10.205 $" verwirrend ineinander steht. Cents
-  // weggelassen damit die Zahl auch bei 6stelligen Beträgen in eine Reihe
-  // passt. Detail-Page zeigt weiter die volle Genauigkeit.
+  // Andere Währungen werden ignoriert damit die Kachel klar lesbar bleibt.
+  // Cents zurück da die "Bezahlt in Zeitraum"-Kachel jetzt 3 Spalten breit
+  // ist (col-span-3) und damit Platz für volle Genauigkeit hat.
   const sumCurrencies = (rows: { currency: string; amount: string }[], target = 'USD') => {
     const row = rows.find((r) => (r.currency || 'EUR').toUpperCase() === target);
     const value = row ? Number(row.amount) : 0;
     return new Intl.NumberFormat('de-DE', {
       style: 'currency',
       currency: target,
-      maximumFractionDigits: 0,
     }).format(value);
   };
 
@@ -168,9 +166,11 @@ export default function PurchasesDashboardPage() {
         </button>
       </div>
 
-      {/* KPI cards — 5 Kacheln wie vom User gewuenscht. lg:grid-cols-5 damit
-          jede Kachel breit genug ist fuer Currency-Werte (kein Truncation). */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* KPI cards — 7-Spalten-Grid auf lg+: erste 4 Kacheln je 1 Spalte
+          (~1/3 schmaler als vorher mit 5 gleichen Spalten), letzte Kachel
+          col-span-3 damit Currency-Werte mit Cents komplett reinpassen.
+          Auf md+ noch 4-Cols (3 schmal + 1 breit). Auf Mobile alles 1-Col. */}
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <KpiCard
           label="Bestellungen Gesamt"
           value={loadingKpi ? '…' : counts.total ?? 0}
@@ -202,6 +202,7 @@ export default function PurchasesDashboardPage() {
           onClick={() => goToOrders({ paymentStatus: 'paid', from: range.from, to: range.to })}
         />
         <KpiCard
+          className="md:col-span-4 lg:col-span-3"
           label="Bezahlt in Zeitraum"
           value={loadingKpi ? '…' : sumCurrencies(paidThisMonth)}
           sublabel={`Σ offen: ${sumCurrencies(openByCurrency)}`}
