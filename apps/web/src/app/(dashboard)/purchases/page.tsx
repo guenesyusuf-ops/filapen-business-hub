@@ -166,11 +166,12 @@ export default function PurchasesDashboardPage() {
         </button>
       </div>
 
-      {/* KPI cards — 7-Spalten-Grid auf lg+: erste 4 Kacheln je 1 Spalte
-          (~1/3 schmaler als vorher mit 5 gleichen Spalten), letzte Kachel
-          col-span-3 damit Currency-Werte mit Cents komplett reinpassen.
+      {/* KPI cards — 6-Spalten-Grid auf lg+: erste 4 Kacheln je 1 Spalte,
+          letzte Kachel col-span-2 (vorher col-span-3, jetzt 1/3 schmaler
+          weil sie zu dominant war). Die freie Spalte verteilt sich auf
+          alle Kacheln (1/6 statt 1/7 = ~17% breiter pro kleine Kachel).
           Auf md+ noch 4-Cols (3 schmal + 1 breit). Auf Mobile alles 1-Col. */}
-      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-3">
         <KpiCard
           label="Bestellungen Gesamt"
           value={loadingKpi ? '…' : counts.total ?? 0}
@@ -202,7 +203,7 @@ export default function PurchasesDashboardPage() {
           onClick={() => goToOrders({ paymentStatus: 'paid', from: range.from, to: range.to })}
         />
         <KpiCard
-          className="md:col-span-4 lg:col-span-3"
+          className="md:col-span-4 lg:col-span-2"
           label="Bezahlt in Zeitraum"
           value={loadingKpi ? '…' : sumCurrencies(paidThisMonth)}
           sublabel={`Σ offen: ${sumCurrencies(openByCurrency)}`}
