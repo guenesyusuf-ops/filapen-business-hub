@@ -11,6 +11,7 @@ import {
   useDocFolders, useDocFiles, useCreateDocFolder, useUploadDocFile,
   useTrashDocFolder, useTrashDocFile, useToggleFavorite,
   useLockDocFolder, useUnlockDocFolder, useDocSearch,
+  useUpdateDocFolder,
   type DocFolder, type DocFile,
 } from '@/hooks/useDocuments';
 import { useAuthStore } from '@/stores/auth';
@@ -58,6 +59,7 @@ export default function DocumentsPage() {
   const { data: searchResults } = useDocSearch(searchQuery);
 
   const createFolder = useCreateDocFolder();
+  const updateFolder = useUpdateDocFolder();
   const uploadFile = useUploadDocFile();
   const trashFolder = useTrashDocFolder();
   const trashFile = useTrashDocFile();
@@ -66,10 +68,17 @@ export default function DocumentsPage() {
   const unlockFolder = useUnlockDocFolder();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadFileName, setUploadFileName] = useState('');
   const [dragOver, setDragOver] = useState(false);
+
+  function handleRenameFolder(folder: DocFolder) {
+    const newName = window.prompt('Neuen Ordnernamen eingeben:', folder.name);
+    if (!newName || !newName.trim() || newName.trim() === folder.name) return;
+    updateFolder.mutate({ id: folder.id, name: newName.trim() });
+  }
 
   function navigateToFolder(id: string | null, name: string, locked?: boolean) {
     if (id === currentFolderId) return;
@@ -126,6 +135,78 @@ export default function DocumentsPage() {
     if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files);
   }
 
+  /**
+   * Folder-Upload: webkitdirectory liefert FileList wo jede Datei einen
+   * webkitRelativePath hat ("MyFolder/sub/file.pdf"). Wir rekonstruieren
+   * die Ordnerstruktur indem wir entlang des Pfades fehlende Ordner anlegen
+   * und die Datei dann in den Blatt-Ordner uploaden.
+   *
+   * Sortierung nach Pfad-Tiefe damit Eltern vor Kindern erstellt werden.
+   * Folder-Cache verhindert dass derselbe Ordner mehrfach angelegt wird.
+   */
+  async function handleFolderUpload(fileList: FileList) {
+    const files = Array.from(fileList).filter((f) => (f as any).webkitRelativePath);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    // Pfad-String → Folder-ID damit wir nicht denselben Ordner doppelt anlegen
+    const folderCache = new Map<string, string>();
+
+    // Sortieren nach Pfad-Tiefe (kürzere Pfade zuerst → Eltern vor Kindern)
+    files.sort((a, b) =>
+      ((a as any).webkitRelativePath as string).split('/').length -
+      ((b as any).webkitRelativePath as string).split('/').length,
+    );
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fullPath = (file as any).webkitRelativePath as string;
+        const parts = fullPath.split('/');
+        const fileName = parts.pop() ?? file.name;
+        const folderParts = parts; // alles ohne Filename
+
+        setUploadFileName(`${fileName} (${i + 1}/${files.length})`);
+        setUploadProgress(0);
+
+        // Pfad-Komponenten durchlaufen, fehlende Ordner anlegen
+        let parentId: string | undefined = currentFolderId || undefined;
+        let acc = '';
+        for (const part of folderParts) {
+          acc = acc ? `${acc}/${part}` : part;
+          let folderId = folderCache.get(acc);
+          if (!folderId) {
+            const newFolder = await createFolder.mutateAsync({
+              name: part,
+              parentId,
+            });
+            folderId = newFolder.id;
+            folderCache.set(acc, folderId);
+          }
+          parentId = folderId;
+        }
+
+        // Datei im finalen Folder uploaden
+        await uploadFile.mutateAsync({
+          folderId: parentId,
+          file,
+          onProgress: (pct) => setUploadProgress(pct),
+        });
+      }
+      setUploadFileName(`${files.length} Datei${files.length === 1 ? '' : 'en'} mit Ordnerstruktur hochgeladen ✓`);
+      setUploadProgress(100);
+      refetchFiles();
+      await new Promise((r) => setTimeout(r, 1500));
+    } catch (err: any) {
+      alert(`Folder-Upload fehlgeschlagen: ${err?.message || 'Unbekannter Fehler'}`);
+    }
+    setUploading(false);
+    setUploadProgress(0);
+    setUploadFileName('');
+  }
+
   function handleCreateFolder() {
     if (!newFolderName.trim()) return;
     createFolder.mutate({ name: newFolderName.trim(), parentId: currentFolderId || undefined });
@@ -172,6 +253,15 @@ export default function DocumentsPage() {
             <span className="hidden sm:inline">Ordner</span>
           </button>
           <button
+            onClick={() => folderInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+            title="Ganzen Ordner mit Inhalten hochladen (Struktur bleibt erhalten)"
+          >
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Ordner</span>
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
@@ -185,6 +275,19 @@ export default function DocumentsPage() {
             multiple
             className="hidden"
             onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+          />
+          {/* webkitdirectory-Input fuer Folder-Upload — nicht-standard aber
+              in Chrome/Edge/Firefox/Safari unterstuetzt. Auf Mobile fehlt's
+              meist, dort wird der Button keinen File-Picker oeffnen. */}
+          <input
+            ref={folderInputRef}
+            type="file"
+            // @ts-expect-error — webkitdirectory ist non-standard, react kennt's nicht
+            webkitdirectory=""
+            directory=""
+            multiple
+            className="hidden"
+            onChange={(e) => e.target.files && handleFolderUpload(e.target.files)}
           />
         </div>
       </div>
@@ -332,13 +435,21 @@ export default function DocumentsPage() {
                     <span className="text-xs font-medium text-gray-900 dark:text-white truncate w-full">{folder.name}</span>
                     <span className="text-[10px] text-gray-400">{folder.childCount} Ordner · {folder.fileCount} Dateien</span>
 
-                    {/* Quick actions on hover */}
+                    {/* Quick actions on hover — Star, Edit (Rename), Lock, Trash */}
                     <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleFav.mutate({ folderId: folder.id }); }}
                         className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-amber-500"
+                        title="Favorit"
                       >
                         <Star className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRenameFolder(folder); }}
+                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-primary-600"
+                        title="Ordner bearbeiten / umbenennen"
+                      >
+                        <Edit3 className="h-3 w-3" />
                       </button>
                       {isAdmin && (
                         <button
@@ -347,6 +458,7 @@ export default function DocumentsPage() {
                             folder.locked ? unlockFolder.mutate(folder.id) : lockFolder.mutate(folder.id);
                           }}
                           className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-amber-500"
+                          title={folder.locked ? 'Entsperren' : 'Sperren'}
                         >
                           {folder.locked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
                         </button>
@@ -354,6 +466,7 @@ export default function DocumentsPage() {
                       <button
                         onClick={(e) => { e.stopPropagation(); if (confirm(`"${folder.name}" in Papierkorb?`)) trashFolder.mutate(folder.id); }}
                         className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500"
+                        title="In Papierkorb"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -433,18 +546,39 @@ export default function DocumentsPage() {
           </div>
           <div className="divide-y divide-gray-100 dark:divide-white/5">
             {displayFolders.map((folder) => (
-              <button
+              <div
                 key={folder.id}
-                onClick={() => navigateToFolder(folder.id, folder.name, folder.locked)}
-                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors text-left"
+                className="group flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors"
               >
-                <Folder className="h-5 w-5 flex-shrink-0" style={{ color: folder.color || '#6366f1' }} />
-                <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white truncate">{folder.name}</span>
-                {folder.locked && <Lock className="h-3 w-3 text-amber-500 flex-shrink-0" />}
-                <span className="text-xs text-gray-400 hidden sm:block w-24">{folder.childCount + folder.fileCount} Eintraege</span>
-                <span className="text-xs text-gray-400 hidden sm:block w-24">{formatDate(folder.createdAt)}</span>
+                <button
+                  onClick={() => navigateToFolder(folder.id, folder.name, folder.locked)}
+                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                >
+                  <Folder className="h-5 w-5 flex-shrink-0" style={{ color: folder.color || '#6366f1' }} />
+                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white truncate">{folder.name}</span>
+                  {folder.locked && <Lock className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+                  <span className="text-xs text-gray-400 hidden sm:block w-24">{folder.childCount + folder.fileCount} Eintraege</span>
+                  <span className="text-xs text-gray-400 hidden sm:block w-24">{formatDate(folder.createdAt)}</span>
+                </button>
+                {/* Hover-Actions in der Listenansicht — Edit + Trash */}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <button
+                    onClick={() => handleRenameFolder(folder)}
+                    className="p-1 rounded text-gray-400 hover:text-primary-500"
+                    title="Ordner bearbeiten"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`"${folder.name}" in Papierkorb?`)) trashFolder.mutate(folder.id); }}
+                    className="p-1 rounded text-gray-400 hover:text-red-500"
+                    title="In Papierkorb"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
                 <ChevronRight className="h-4 w-4 text-gray-300 flex-shrink-0" />
-              </button>
+              </div>
             ))}
             {displayFiles.map((file) => (
               <div
