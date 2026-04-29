@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, FileText, Plus, X, Trash2, Upload, Download, Receipt,
   CheckCircle2, AlertCircle, Truck as TruckIcon, Ban, History, Plane, Package as PackageIcon,
+  PackageCheck, Pencil,
 } from 'lucide-react';
 import {
   purchasesApi, fmtDate, fmtDateTime,
@@ -13,6 +14,7 @@ import {
   type PurchaseOrder, type PaymentMethod, type DocumentType,
 } from '@/lib/purchases';
 import { Badge, btn, input, label, Money, PageHeader } from '@/components/purchases/PurchaseUI';
+import { useAuthStore } from '@/stores/auth';
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -28,6 +30,11 @@ export default function OrderDetailPage() {
   const [shipmentForm, setShipmentForm] = useState(false);
   const [markReceivedFor, setMarkReceivedFor] = useState<string | null>(null);
   const [showAudit, setShowAudit] = useState(false);
+  // Order-level Ankunftsdatum-Modal (unabhaengig von Shipments —
+  // User-Wunsch: separater Button "Bestellung angekommen" auf der Order)
+  const [orderArrivalForm, setOrderArrivalForm] = useState(false);
+
+  const { user } = useAuthStore();
 
   const reload = () => {
     purchasesApi.getOrder(id)
@@ -58,6 +65,15 @@ export default function OrderDetailPage() {
     } catch (e: any) { alert(e.message); }
   };
 
+  // Permission-Check fuer Edit-Button: nur Ersteller oder Admin/Owner.
+  // Frontend-Check ist Convenience — Backend muesste bei harter Sicherheit
+  // selbst checken (existiert noch nicht, separates Stueck).
+  const canEdit = !!user && (
+    user.id === order.createdById ||
+    user.role === 'admin' ||
+    user.role === 'owner'
+  );
+
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
       <PageHeader
@@ -83,13 +99,27 @@ export default function OrderDetailPage() {
             {order.expectedDelivery && order.status !== 'received' && order.status !== 'completed' && (
               <span className="text-xs text-gray-500">Erwartet: {fmtDate(order.expectedDelivery)}</span>
             )}
+            {order.receivedAt && (
+              <Badge color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                Angekommen am {fmtDate(order.receivedAt)}
+              </Badge>
+            )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {canEdit && (
+              <Link href={`/purchases/orders/${order.id}/edit`} className={btn('secondary')}>
+                <Pencil className="h-4 w-4" /> Bearbeiten
+              </Link>
+            )}
             {order.status === 'draft' && (
               <button onClick={() => setOrderStatus('ordered')} className={btn('primary')}>
                 <CheckCircle2 className="h-4 w-4" /> Bestellung aufgegeben
               </button>
             )}
+            <button onClick={() => setOrderArrivalForm(true)} className={btn('secondary')}>
+              <PackageCheck className="h-4 w-4" />
+              {order.receivedAt ? 'Ankunftsdatum ändern' : 'Bestellung angekommen'}
+            </button>
             {order.status !== 'cancelled' && order.status !== 'completed' && (
               <button onClick={() => setOrderStatus('cancelled')} className={btn('danger')}>
                 <Ban className="h-4 w-4" /> Stornieren
@@ -335,6 +365,83 @@ export default function OrderDetailPage() {
           onSaved={() => { setMarkReceivedFor(null); reload(); }}
         />
       )}
+      {orderArrivalForm && (
+        <OrderArrivalModal
+          orderId={id}
+          currentArrival={order.receivedAt}
+          onClose={() => setOrderArrivalForm(false)}
+          onSaved={() => { setOrderArrivalForm(false); reload(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Modal fuer "Bestellung angekommen". Setzt receivedAt auf der Order
+ * (nicht auf einer einzelnen Sendung — das ist die separate Shipment-Logik).
+ * Erlaubt auch das Datum zu aendern oder zu entfernen.
+ */
+function OrderArrivalModal({
+  orderId, currentArrival, onClose, onSaved,
+}: {
+  orderId: string;
+  currentArrival?: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const initial = currentArrival ? currentArrival.split('T')[0] : today;
+  const [date, setDate] = useState(initial);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (clear = false) => {
+    setBusy(true);
+    try {
+      await purchasesApi.setOrderReceived(orderId, clear ? null : date);
+      onSaved();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-2xl p-6 space-y-4 border border-gray-200 dark:border-white/10">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Ankunftsdatum setzen</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+        </div>
+        <div>
+          <label className={label()}>Bestellung angekommen am</label>
+          <input
+            type="date"
+            className={input()}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            max={today}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2 pt-2">
+          {currentArrival ? (
+            <button
+              onClick={() => submit(true)}
+              disabled={busy}
+              className="text-xs text-red-600 hover:underline"
+            >
+              Datum entfernen
+            </button>
+          ) : <span />}
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} disabled={busy} className={btn('ghost')}>Abbrechen</button>
+            <button onClick={() => submit(false)} disabled={busy || !date} className={btn('primary')}>
+              {busy ? '…' : 'Speichern'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

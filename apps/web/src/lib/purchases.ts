@@ -149,6 +149,8 @@ export const purchasesApi = {
   createOrder: (data: any) => call<PurchaseOrder>('/orders', { method: 'POST', body: JSON.stringify(data) }),
   updateOrder: (id: string, data: any) => call(`/orders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   setOrderStatus: (id: string, status: PoStatus) => call(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  setOrderReceived: (id: string, receivedAt: string | null) =>
+    call(`/orders/${id}/received`, { method: 'PATCH', body: JSON.stringify({ receivedAt }) }),
   deleteOrder: (id: string) => call(`/orders/${id}`, { method: 'DELETE' }),
   orderAudit: (id: string) => call(`/orders/${id}/audit`),
 

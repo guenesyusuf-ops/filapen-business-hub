@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Search, FileText, Paperclip, Filter as FilterIcon, ChevronDown, ChevronLeft, ChevronRight, X, Download, Archive } from 'lucide-react';
+import { Plus, Search, FileText, Paperclip, Filter as FilterIcon, ChevronDown, ChevronLeft, ChevronRight, X, Download, Archive, MessageSquare, Pencil } from 'lucide-react';
 import {
   purchasesApi, fmtDate, STATUS_LABELS, PAYMENT_STATUS_LABELS,
   type PurchaseOrder,
@@ -224,6 +224,7 @@ export default function PurchaseOrdersPage() {
                   <Th hideOn="lg" align="right">Bezahlt</Th>
                   <Th hideOn="lg" onClick={() => toggleSort('open')} active={sort === 'open'} dir={dir} align="right">Offen</Th>
                   <Th hideOn="sm">Status</Th>
+                  <Th align="center">{' '}</Th>
                   <Th align="center">Doc</Th>
                 </tr>
               </thead>
@@ -272,6 +273,19 @@ export default function PurchaseOrdersPage() {
                         </span>
                       </td>
                       <td className="px-3 py-3 hidden sm:table-cell"><Badge color={ps.color}>{ps.label}</Badge></td>
+                      {/* Notiz-Indikator zwischen Status und Doc — Hover zeigt
+                          die "wichtige Infos"-Notiz die der User bei Bestell-
+                          Anlage eingetragen hat. */}
+                      <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        {o.notes && o.notes.trim() ? (
+                          <span
+                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-help"
+                            title={o.notes}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                          </span>
+                        ) : <span className="text-xs text-gray-300">—</span>}
+                      </td>
                       <td className="px-3 py-3 text-center">
                         {(o._count?.documents ?? 0) > 0 ? (
                           <button

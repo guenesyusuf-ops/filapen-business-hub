@@ -239,8 +239,17 @@ export default function NewOrderPage() {
                 <input type="number" step="0.01" min="0" className={input()} value={customsCost} onChange={(e) => setCustomsCost(e.target.value)} />
               </div>
               <div className="col-span-2">
-                <label className={label()}>Notiz für Lieferanten</label>
-                <textarea rows={2} className={input()} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <label className={label()}>Wichtige Infos / Notiz</label>
+                <textarea
+                  rows={2}
+                  className={input()}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="z.B. Lieferung in 2 Tranchen, Sonderkonditionen, Rückfragen…"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Wird in der Bestell-Übersicht als Kommentar-Icon angezeigt — Hover zeigt den Text.
+                </p>
               </div>
               <div className="col-span-2">
                 <label className={label()}>Interne Notiz</label>

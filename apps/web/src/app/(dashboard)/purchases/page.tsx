@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   ShoppingCart, AlertCircle, Wallet, CheckCircle2, Calendar,
   TrendingUp, FileText, Plus, Truck, Download, Plane,
-  ChevronLeft, ChevronRight, Paperclip, X,
+  ChevronLeft, ChevronRight, Paperclip, X, MessageSquare,
 } from 'lucide-react';
 import {
   purchasesApi, fmtDate,
@@ -236,6 +236,7 @@ export default function PurchasesDashboardPage() {
                     <th className="px-3 py-2.5 text-right">Offener Betrag</th>
                     <th className="px-3 py-2.5 text-left">Rechnungsnr.</th>
                     <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5 text-center w-8" title="Notiz"></th>
                     <th className="px-3 py-2.5 text-center">Doc</th>
                   </tr>
                 </thead>
@@ -287,6 +288,21 @@ export default function PurchasesDashboardPage() {
                             <Badge color={ss.color}>{ss.label}</Badge>
                             {hasShipment && o.status !== 'shipped' && <Badge color="bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">Unterwegs</Badge>}
                           </div>
+                        </td>
+                        {/* Notiz-Indikator: erscheint zwischen Status und Doc wenn
+                            o.notes nicht leer ist. Hover ueber den Tooltip-Span
+                            zeigt den Text (HTML title als Standard-Hover, klein
+                            gehalten weil Notes lang sein können — Detail-Page
+                            zeigt den vollen Text). */}
+                        <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          {o.notes && o.notes.trim() ? (
+                            <span
+                              className="inline-flex items-center justify-center h-6 w-6 rounded-md text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 cursor-help"
+                              title={o.notes}
+                            >
+                              <MessageSquare className="h-3.5 w-3.5" />
+                            </span>
+                          ) : <span className="text-xs text-gray-300">—</span>}
                         </td>
                         <td className="px-3 py-3 text-center">
                           {docCount > 0 ? (

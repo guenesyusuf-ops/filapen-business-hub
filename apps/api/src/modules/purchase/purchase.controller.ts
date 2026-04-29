@@ -292,6 +292,22 @@ export class PurchaseController {
     return this.orders.setStatus(orgId, userId, id, body.status);
   }
 
+  /**
+   * Ankunftsdatum setzen oder zuruecksetzen. User klickt "Bestellung
+   * angekommen", waehlt Datum aus Kalender — wird als receivedAt auf der
+   * Order gespeichert. Auf null setzen entzieht den Status wieder.
+   */
+  @Patch('orders/:id/received')
+  async markOrderReceived(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { receivedAt: string | null },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.orders.setReceivedAt(orgId, userId, id, body.receivedAt);
+  }
+
   @Delete('orders/:id')
   async deleteOrder(@Headers('authorization') authHeader: string, @Param('id') id: string) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);

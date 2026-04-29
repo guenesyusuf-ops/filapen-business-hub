@@ -399,6 +399,28 @@ export class PurchaseOrderService {
     return updated;
   }
 
+  /**
+   * Setzt das Ankunftsdatum (receivedAt) auf der Bestellung. null entfernt
+   * den Status wieder. Wird vom "Bestellung angekommen"-Button getriggert.
+   */
+  async setReceivedAt(orgId: string, userId: string, id: string, receivedAt: string | null) {
+    const existing = await this.prisma.purchaseOrder.findFirst({ where: { id, orgId } });
+    if (!existing) throw new NotFoundException('Bestellung nicht gefunden');
+    const newDate = receivedAt ? new Date(receivedAt) : null;
+    if (newDate && Number.isNaN(newDate.getTime())) {
+      throw new BadRequestException('Ungültiges Datum');
+    }
+    const updated = await this.prisma.purchaseOrder.update({
+      where: { id },
+      data: { receivedAt: newDate },
+    });
+    await this.audit.log(orgId, userId, 'order', id, 'received_at', {
+      from: existing.receivedAt?.toISOString() ?? null,
+      to: newDate?.toISOString() ?? null,
+    });
+    return updated;
+  }
+
   async remove(orgId: string, userId: string, id: string) {
     const existing = await this.prisma.purchaseOrder.findFirst({ where: { id, orgId } });
     if (!existing) throw new NotFoundException('Bestellung nicht gefunden');
