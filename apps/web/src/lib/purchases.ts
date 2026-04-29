@@ -113,8 +113,14 @@ async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const purchasesApi = {
-  // Dashboard
-  dashboard: () => call('/dashboard'),
+  // Dashboard — optional from/to (YYYY-MM-DD) zum Filtern auf orderDate
+  dashboard: (range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (range?.from) params.set('from', range.from);
+    if (range?.to) params.set('to', range.to);
+    const qs = params.toString();
+    return call(`/dashboard${qs ? `?${qs}` : ''}`);
+  },
 
   // Suppliers
   listSuppliers: (q?: { search?: string; status?: string }) => {

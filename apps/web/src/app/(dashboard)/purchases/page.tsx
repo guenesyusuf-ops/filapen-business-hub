@@ -17,11 +17,28 @@ import { KpiCard, PageHeader, btn, Money, Empty, Badge } from '@/components/purc
 
 const PAGE_SIZE = 5;
 
+// Default-Range = aktueller Monat. Datums-Strings im YYYY-MM-DD-Format.
+function defaultRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return {
+    from: fmt(new Date(y, m, 1)),
+    // 1. des Folgemonats (Backend macht "lt:")
+    to: fmt(new Date(y, m + 1, 1)),
+  };
+}
+
 export default function PurchasesDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loadingKpi, setLoadingKpi] = useState(true);
   const [kpiError, setKpiError] = useState<string | null>(null);
+
+  // Datums-Range fuer KPIs + Bestellungs-Liste. User-Wunsch: gefiltert auf
+  // orderDate (das Datum an dem die Bestellung aufgegeben wurde).
+  const [range, setRange] = useState(defaultRange);
 
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [total, setTotal] = useState(0);
@@ -32,19 +49,27 @@ export default function PurchasesDashboardPage() {
   const [previewDoc, setPreviewDoc] = useState<{ fileName: string; fileUrl: string; mimeType: string } | null>(null);
 
   useEffect(() => {
-    purchasesApi.dashboard()
+    setLoadingKpi(true);
+    purchasesApi.dashboard({ from: range.from, to: range.to })
       .then((d) => { setData(d); setKpiError(null); })
       .catch((e) => setKpiError(e.message))
       .finally(() => setLoadingKpi(false));
-  }, []);
+  }, [range.from, range.to]);
 
   useEffect(() => {
     setLoadingOrders(true);
-    purchasesApi.listOrders({ limit: String(PAGE_SIZE), offset: String(offset), sort: 'orderDate', dir: 'desc' })
+    purchasesApi.listOrders({
+      limit: String(PAGE_SIZE),
+      offset: String(offset),
+      sort: 'orderDate',
+      dir: 'desc',
+      from: range.from,
+      to: range.to,
+    })
       .then((d) => { setOrders(d.items); setTotal(d.total); })
       .catch(() => {})
       .finally(() => setLoadingOrders(false));
-  }, [offset]);
+  }, [offset, range.from, range.to]);
 
   const counts = data?.counts || {};
   const openByCurrency: Array<{ currency: string; amount: string }> = data?.openByCurrency || [];
@@ -96,15 +121,57 @@ export default function PurchasesDashboardPage() {
 
       {kpiError && <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3 text-sm text-red-700 dark:text-red-300">KPIs konnten nicht geladen werden: {kpiError}</div>}
 
-      {/* KPI cards — Reihenfolge wie vom User gewünscht */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      {/* Datums-Range-Picker — filtert KPIs UND Bestell-Liste auf orderDate.
+          Quick-Buttons fuer typische Zeitraeume + manuelle Eingabe. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03] p-3">
+        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-1">
+          Zeitraum (Bestelldatum):
+        </span>
+        <input
+          type="date"
+          value={range.from}
+          onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+          className="rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-2 py-1 text-sm"
+        />
+        <span className="text-xs text-gray-400">bis</span>
+        <input
+          type="date"
+          value={range.to}
+          onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+          className="rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-2 py-1 text-sm"
+        />
+        <div className="flex-1" />
+        <button
+          onClick={() => setRange(defaultRange())}
+          className="rounded-md px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
+        >
+          Aktueller Monat
+        </button>
+        <button
+          onClick={() => {
+            const now = new Date();
+            const fmt = (d: Date) => d.toISOString().slice(0, 10);
+            setRange({
+              from: fmt(new Date(now.getFullYear(), 0, 1)),
+              to: fmt(new Date(now.getFullYear() + 1, 0, 1)),
+            });
+          }}
+          className="rounded-md px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
+        >
+          Aktuelles Jahr
+        </button>
+      </div>
+
+      {/* KPI cards — 5 Kacheln wie vom User gewuenscht. lg:grid-cols-5 damit
+          jede Kachel breit genug ist fuer Currency-Werte (kein Truncation). */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <KpiCard
-          label="Bestellungen gesamt"
+          label="Bestellungen Gesamt"
           value={loadingKpi ? '…' : counts.total ?? 0}
-          sublabel="ohne stornierte"
+          sublabel="im Zeitraum"
           accent="blue"
           icon={<ShoppingCart className="h-5 w-5" />}
-          onClick={() => goToOrders({})}
+          onClick={() => goToOrders({ from: range.from, to: range.to })}
         />
         <KpiCard
           label="Offene Bestellungen"
@@ -112,45 +179,29 @@ export default function PurchasesDashboardPage() {
           sublabel="noch nicht angekommen"
           accent="amber"
           icon={<Wallet className="h-5 w-5" />}
-          onClick={() => goToOrders({ status: 'ordered' })}
+          onClick={() => goToOrders({ status: 'ordered', from: range.from, to: range.to })}
         />
         <KpiCard
-          label="Unterwegs"
-          value={loadingKpi ? '…' : counts.onTheWay ?? 0}
-          sublabel="mit Sendungsnummer"
-          accent="indigo"
-          icon={<Plane className="h-5 w-5" />}
-          onClick={() => goToOrders({ onTheWay: '1' })}
-        />
-        <KpiCard
-          label="Teilweise bezahlt"
+          label="Teilweise Bezahlt"
           value={loadingKpi ? '…' : counts.partiallyPaid ?? 0}
           accent="purple"
           icon={<TrendingUp className="h-5 w-5" />}
-          onClick={() => goToOrders({ paymentStatus: 'partially_paid' })}
+          onClick={() => goToOrders({ paymentStatus: 'partially_paid', from: range.from, to: range.to })}
         />
         <KpiCard
-          label="Vollständig bezahlt"
+          label="Vollständig Bezahlt"
           value={loadingKpi ? '…' : counts.fullyPaid ?? 0}
           accent="green"
           icon={<CheckCircle2 className="h-5 w-5" />}
-          onClick={() => goToOrders({ paymentStatus: 'paid' })}
+          onClick={() => goToOrders({ paymentStatus: 'paid', from: range.from, to: range.to })}
         />
         <KpiCard
-          label="Überfällige Rechnungen"
-          value={loadingKpi ? '…' : counts.overdue ?? 0}
-          sublabel={counts.overdue ? 'Aktion erforderlich' : 'alles im Zeitplan'}
-          accent="red"
-          icon={<AlertCircle className="h-5 w-5" />}
-          onClick={() => goToOrders({ paymentStatus: 'unpaid' })}
-        />
-        <KpiCard
-          label="Bezahlt diesen Monat"
+          label="Bezahlt in Zeitraum"
           value={loadingKpi ? '…' : sumCurrencies(paidThisMonth)}
           sublabel={`Σ offen: ${sumCurrencies(openByCurrency)}`}
           accent="green"
           icon={<Calendar className="h-5 w-5" />}
-          onClick={() => goToOrders({ paymentStatus: 'paid' })}
+          onClick={() => goToOrders({ paymentStatus: 'paid', from: range.from, to: range.to })}
         />
       </div>
 

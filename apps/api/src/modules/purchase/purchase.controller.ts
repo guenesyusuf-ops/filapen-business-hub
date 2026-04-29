@@ -38,11 +38,20 @@ export class PurchaseController {
   // ============================================================
 
   @Get('dashboard')
-  async dashboard(@Headers('authorization') authHeader: string) {
+  async dashboard(
+    @Headers('authorization') authHeader: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
 
+    // Datums-Range fuer KPIs + "Bezahlt in Zeitraum". Default = aktueller Monat
+    // wenn keine Range mitgegeben wird (rueckwaertskompatibel mit alten Calls).
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const rangeFrom = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const rangeTo = to ? new Date(to) : new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    // Daten-Filter via orderDate (User-Wunsch: "entscheidend ist immer das bestelldatum")
+    const orderDateRange = { gte: rangeFrom, lt: rangeTo };
 
     // Status-Gruppen
     const openStatuses = ['draft', 'ordered', 'shipped', 'invoiced', 'partially_received']; // "noch nicht angekommen"
@@ -50,48 +59,43 @@ export class PurchaseController {
 
     const [
       totalOrders, openOrders, partiallyPaidOrders, fullyPaidOrders,
-      onTheWayOrders, overdueInvoices, openSums, paidThisMonth,
+      paidInRange,
     ] = await Promise.all([
-      // Bestellungen gesamt (ohne stornierte)
-      this.prisma.purchaseOrder.count({ where: { orgId, status: notCancelled } }),
-      // Offene Bestellungen = noch nicht angekommen (ohne completed/received/cancelled)
-      this.prisma.purchaseOrder.count({ where: { orgId, status: { in: openStatuses as any } } }),
-      // Teilweise bezahlt
-      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'partially_paid', status: notCancelled } }),
-      // Vollständig bezahlt
-      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'paid', status: notCancelled } }),
-      // Unterwegs = mindestens eine Sendung mit trackingNumber, noch nicht angekommen
-      this.prisma.purchaseOrder.count({
-        where: {
-          orgId,
-          status: notCancelled,
-          shipments: { some: { trackingNumber: { not: null }, receivedAt: null } },
-        },
-      }),
-      // Überfällige Rechnungen
-      this.prisma.purchaseInvoice.findMany({
-        where: {
-          orgId,
-          dueDate: { lt: now },
-          purchaseOrder: { paymentStatus: { in: ['unpaid', 'partially_paid'] }, status: notCancelled },
-        },
-        include: { purchaseOrder: { select: { id: true, orderNumber: true, openAmount: true, currency: true, supplier: { select: { companyName: true } } } } },
-        orderBy: { dueDate: 'asc' },
-        take: 20,
-      }),
-      // Σ offene Beträge
-      this.prisma.purchaseOrder.groupBy({
-        by: ['currency'],
-        where: { orgId, paymentStatus: { in: ['unpaid', 'partially_paid'] }, status: notCancelled },
-        _sum: { openAmount: true },
-      }),
-      // Σ bezahlt diesen Monat
+      // Bestellungen gesamt im Zeitraum (ohne stornierte)
+      this.prisma.purchaseOrder.count({ where: { orgId, status: notCancelled, orderDate: orderDateRange } }),
+      // Offene Bestellungen im Zeitraum (= noch nicht angekommen)
+      this.prisma.purchaseOrder.count({ where: { orgId, status: { in: openStatuses as any }, orderDate: orderDateRange } }),
+      // Teilweise bezahlt im Zeitraum
+      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'partially_paid', status: notCancelled, orderDate: orderDateRange } }),
+      // Vollständig bezahlt im Zeitraum
+      this.prisma.purchaseOrder.count({ where: { orgId, paymentStatus: 'paid', status: notCancelled, orderDate: orderDateRange } }),
+      // Σ Zahlungen die sich auf Bestellungen IM ZEITRAUM beziehen
       this.prisma.payment.groupBy({
         by: ['currency'],
-        where: { orgId, paymentDate: { gte: startOfMonth } },
+        where: {
+          orgId,
+          purchaseOrder: { orderDate: orderDateRange, status: notCancelled },
+        },
         _sum: { amount: true },
       }),
+      // Σ offene Beträge im Zeitraum (für sublabel)
     ]);
+    const openSums = await this.prisma.purchaseOrder.groupBy({
+      by: ['currency'],
+      where: { orgId, paymentStatus: { in: ['unpaid', 'partially_paid'] }, status: notCancelled, orderDate: orderDateRange },
+      _sum: { openAmount: true },
+    });
+    // Überfällige (kein Range — ist immer relevant)
+    const overdueInvoices = await this.prisma.purchaseInvoice.findMany({
+      where: {
+        orgId,
+        dueDate: { lt: now },
+        purchaseOrder: { paymentStatus: { in: ['unpaid', 'partially_paid'] }, status: notCancelled },
+      },
+      include: { purchaseOrder: { select: { id: true, orderNumber: true, openAmount: true, currency: true, supplier: { select: { companyName: true } } } } },
+      orderBy: { dueDate: 'asc' },
+      take: 20,
+    });
 
     const topSuppliers = await this.prisma.purchaseOrder.groupBy({
       by: ['supplierId'],
@@ -118,13 +122,15 @@ export class PurchaseController {
       counts: {
         total: totalOrders,
         open: openOrders,
-        onTheWay: onTheWayOrders,
         partiallyPaid: partiallyPaidOrders,
         fullyPaid: fullyPaidOrders,
         overdue: overdueInvoices.length,
       },
       openByCurrency: openSums.map(s => ({ currency: s.currency, amount: s._sum.openAmount })),
-      paidThisMonthByCurrency: paidThisMonth.map(s => ({ currency: s.currency, amount: s._sum.amount })),
+      paidInRangeByCurrency: paidInRange.map(s => ({ currency: s.currency, amount: s._sum.amount })),
+      // backward-compat alias: alte Frontend-Calls die paidThisMonth lesen kriegen denselben Wert
+      paidThisMonthByCurrency: paidInRange.map(s => ({ currency: s.currency, amount: s._sum.amount })),
+      range: { from: rangeFrom.toISOString(), to: rangeTo.toISOString() },
       overdueInvoices,
       topSuppliers: topSuppliersResolved,
     };

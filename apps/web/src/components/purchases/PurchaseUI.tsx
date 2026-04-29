@@ -57,14 +57,16 @@ export function KpiCard({
 
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400 truncate">
+          <div className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400 break-words">
             {label}
           </div>
-          {/* Fraunces-Serif für Premium-Report-Feeling */}
-          <div className="mt-2 sm:mt-2.5 font-display-serif text-3xl sm:text-[2.75rem] font-medium tracking-tight leading-none text-gray-900 dark:text-white tabular-nums truncate">
+          {/* Fraunces-Serif fuer Premium-Report-Feeling. KEIN truncate damit
+              lange Currency-Werte ("12.345,67 EUR") nicht abgeschnitten werden.
+              Font shrinkt auf kleinen Screens — break-words als letzter Anker. */}
+          <div className="mt-2 sm:mt-2.5 font-display-serif text-2xl sm:text-3xl lg:text-[2.25rem] font-medium tracking-tight leading-tight text-gray-900 dark:text-white tabular-nums break-words">
             {value}
           </div>
-          {sublabel && <div className="mt-1.5 text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">{sublabel}</div>}
+          {sublabel && <div className="mt-1.5 text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 break-words">{sublabel}</div>}
         </div>
         {icon && (
           <div className={cn(
