@@ -77,13 +77,19 @@ export default function PurchasesDashboardPage() {
   const overdue: any[] = data?.overdueInvoices || [];
   const top: any[] = data?.topSuppliers || [];
 
-  const sumCurrencies = (rows: { currency: string; amount: string }[]) => {
-    if (!rows.length) return '0,00 EUR';
-    const formatted = rows
-      .filter(r => Number(r.amount) > 0)
-      .map(r => new Intl.NumberFormat('de-DE', { style: 'currency', currency: r.currency || 'EUR' }).format(Number(r.amount)))
-      .join(' · ');
-    return formatted || '0,00 EUR';
+  // KPI-Anzeige nur in USD (Hauptwährung der Lieferanten-Bestellungen).
+  // Andere Währungen werden ignoriert damit die Kachel klar lesbar bleibt
+  // und nicht "13.250 € · 10.205 $" verwirrend ineinander steht. Cents
+  // weggelassen damit die Zahl auch bei 6stelligen Beträgen in eine Reihe
+  // passt. Detail-Page zeigt weiter die volle Genauigkeit.
+  const sumCurrencies = (rows: { currency: string; amount: string }[], target = 'USD') => {
+    const row = rows.find((r) => (r.currency || 'EUR').toUpperCase() === target);
+    const value = row ? Number(row.amount) : 0;
+    return new Intl.NumberFormat('de-DE', {
+      style: 'currency',
+      currency: target,
+      maximumFractionDigits: 0,
+    }).format(value);
   };
 
   const goToOrders = (q: Record<string, string>) => {

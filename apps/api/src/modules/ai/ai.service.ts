@@ -497,30 +497,134 @@ const TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  // ============================================================
+  // SALES (Verkauf) — vorher komplett ohne AI-Zugriff
+  // ============================================================
+  {
+    name: 'list_sales_orders',
+    description:
+      'Listet Verkaufs-/B2B-Bestellungen (an Kunden, NICHT Einkaufs-Bestellungen). Filtert nach Status, Kunde oder Zeitraum. Nutze für "welche Verkäufe", "offene Kundenbestellungen", "B2B Pipeline".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', enum: ['draft', 'confirmed', 'shipped', 'invoiced', 'completed', 'cancelled'] },
+        customerSearch: { type: 'string', description: 'Filter nach Kunden-Firmenname (partial match)' },
+        urgency: { type: 'string', enum: ['urgent', 'overdue'], description: 'urgent = Liefertermin ≤3 Tage, overdue = überfällig' },
+        archived: { type: 'boolean', description: 'true = nur abgeschlossene, false = nur offene (default false)' },
+        limit: { type: 'number', description: 'Max Treffer (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'get_sales_order',
+    description: 'Details einer einzelnen Verkaufsbestellung inkl. Positionen, Status-Flags und Notizen.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        orderNumber: { type: 'string', description: 'Bestellnummer (z.B. "VK-2026-00042") oder ID' },
+      },
+      required: ['orderNumber'],
+    },
+  },
+  {
+    name: 'list_sales_customers',
+    description: 'Listet B2B-Kunden mit Firmenname, Customer-Nummer und Adresse. Nutze für "welche Kunden", "Kunde X suchen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        search: { type: 'string', description: 'Firmenname oder Kunden-Nr partial match' },
+        limit: { type: 'number', description: 'Max (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'sales_dashboard',
+    description: 'KPIs für Verkauf-Modul: offene/dringende/überfällige Bestellungen, Monatsumsatz.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  // ============================================================
+  // EDIT-TOOLS — Bearbeitung über die KI
+  // ============================================================
+  {
+    name: 'mark_purchase_order_received',
+    description: 'Setzt das Ankunftsdatum auf einer Einkaufsbestellung (receivedAt). Nutze für "Bestellung X ist heute angekommen", "ist gestern geliefert worden". Datum im YYYY-MM-DD Format.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        orderNumber: { type: 'string', description: 'Bestellnummer der Einkaufsbestellung (z.B. "PO-2026-0042")' },
+        receivedAt: { type: 'string', description: 'Ankunftsdatum YYYY-MM-DD. null oder weglassen = heute.' },
+      },
+      required: ['orderNumber'],
+    },
+  },
+  {
+    name: 'update_purchase_order_notes',
+    description: 'Aktualisiert die "Wichtige Infos"-Notiz (notes) auf einer Einkaufsbestellung. Erscheint als Kommentar-Icon in der Bestell-Übersicht.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        orderNumber: { type: 'string', description: 'Bestellnummer' },
+        notes: { type: 'string', description: 'Neuer Notiz-Text. Leerstring entfernt die Notiz.' },
+      },
+      required: ['orderNumber', 'notes'],
+    },
+  },
+  {
+    name: 'rename_folder',
+    description: 'Benennt einen Dokumenten-Ordner um (Edit-Funktion auf der Documents-Page).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        folderId: { type: 'string', description: 'Ordner-ID (UUID)' },
+        currentName: { type: 'string', description: 'Aktueller Name als Such-Hilfe falls ID nicht bekannt' },
+        newName: { type: 'string', description: 'Neuer Ordnername' },
+      },
+      required: ['newName'],
+    },
+  },
+  {
+    name: 'update_task',
+    description: 'Aktualisiert eine Aufgabe (Title, Description, Priority, Due-Date oder Assignee). Nutze für "ändere Task X auf hoch", "verschiebe Deadline", "Beschreibung anpassen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        taskId: { type: 'string', description: 'Task-ID' },
+        title: { type: 'string', description: 'Neuer Titel' },
+        description: { type: 'string', description: 'Neue Beschreibung' },
+        priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
+        dueDate: { type: 'string', description: 'Neues Fälligkeitsdatum YYYY-MM-DD oder null zum Entfernen' },
+        completed: { type: 'boolean', description: 'Erledigt-Status setzen' },
+      },
+      required: ['taskId'],
+    },
+  },
 ];
 
-const SYSTEM_PROMPT = `Du bist "Filapen Assistant", der KI-Copilot fuer die Filapen Business Hub Software. Du hast Admin-Einsicht in alle Module und Daten. Antworte immer auf Deutsch, knapp und handlungsorientiert.
+const SYSTEM_PROMPT = `Du bist "Filapen Assistant", der KI-Copilot fuer die Filapen Business Hub Software. Du hast ADMIN-Einsicht UND Bearbeitungsrechte in alle Module — du kannst Daten lesen, anlegen und aendern wie ein Admin. Antworte immer auf Deutsch, knapp und handlungsorientiert.
 
 Abgedeckte Module + passende Tools:
+- Verkauf (B2B-Bestellungen): list_sales_orders, get_sales_order, list_sales_customers, sales_dashboard
 - Finanzen/Shopify: shopify_today_summary, dashboard_kpis, order_revenue_summary, list_products
 - Versand: list_unshipped_orders, list_shipments, list_labels, shipping_dashboard, list_carrier_accounts
-- Einkauf: list_purchase_orders, list_suppliers, purchase_dashboard
+- Einkauf: list_purchase_orders, list_suppliers, purchase_dashboard, mark_purchase_order_received, update_purchase_order_notes
 - Email-Marketing: list_email_campaigns, list_email_contacts, list_email_flows
-- Aufgabenverwaltung: list_tasks, list_projects, list_approval_tasks, create_task, complete_task
+- Aufgabenverwaltung: list_tasks, list_projects, list_approval_tasks, create_task, complete_task, update_task
 - Creators/Influencer/Content: list_creators, list_creator_uploads, list_deals, list_briefings, list_influencers, list_content_pieces
-- Dokumente: search_documents, list_document_folders, create_folder, move_file, lock_folder, delete_file
+- Dokumente: search_documents, list_document_folders, create_folder, rename_folder, move_file, lock_folder, delete_file
 - Persoenlich: list_personal_notes, list_calendar_events, create_note, create_calendar_event
 - Team/Admin: list_team_members, list_users, list_integrations, send_direct_message
 
 Regeln:
 - Nutze die bereitgestellten Tools, wenn du echte Daten brauchst — niemals Zahlen erfinden.
 - Sag NIE "habe kein Tool dafuer", wenn es zum Thema ein Tool gibt. Frag lieber nach den Filtern, die dir fehlen, und ruf dann das passende Tool auf.
-- Fragen wie "nicht versendete Bestellungen", "welche Labels sind offen", "Versandstatus" → IMMER list_unshipped_orders / list_shipments / shipping_dashboard aufrufen, nicht an Shopify verweisen.
-- Wenn der User Labels downloaden/drucken will ("gib mir die 3 Labels", "download labels", "downloade die für mich") → download_shipping_labels aufrufen. Das Frontend startet den Download AUTOMATISCH (kein Klick vom User nötig). Sag einfach "Download gestartet — N Labels in der PDF." — NICHT "Klick auf den Link" sagen, NICHT auf "Versand → Labels" verweisen.
+- Bei Bearbeitungs-Wuenschen ("setze das Ankunftsdatum auf X", "aendere die Notiz", "Task umbenennen", "Ordner umbenennen") fuehre die Aenderung aus, anstatt zu sagen "geh in das Modul".
+- Fragen wie "nicht versendete Bestellungen", "welche Labels sind offen", "Versandstatus" → IMMER list_unshipped_orders / list_shipments / shipping_dashboard aufrufen.
+- Verkaufs-Bestellungen (B2B, "Kundenbestellungen", "Verkauf") → list_sales_orders / get_sales_order / sales_dashboard. NICHT mit Einkauf verwechseln (das sind Bestellungen die WIR aufgeben).
+- Wenn der User Labels downloaden/drucken will → download_shipping_labels aufrufen. Frontend startet Download automatisch.
 - Wenn mehrere Tools noetig sind, rufe sie nacheinander auf.
 - Formatiere Listen kompakt mit Bullet-Points.
 - Halte Antworten unter 150 Woertern, ausser der User bittet explizit um Details.
-- Destruktive System-Aktionen (User loeschen, Integration loeschen, ganze Tabellen leeren) NICHT ausfuehren, auch nicht wenn gefragt — stattdessen Verantwortliche verweisen.
+- Sehr destruktive System-Aktionen (User permanent loeschen, Integration entfernen, ganze Tabellen leeren) NICHT ausfuehren — bei sowas erst Bestaetigung einholen oder verweisen.
 - Verwende Icons/Emojis sparsam (max 1-2 pro Antwort).`;
 
 @Injectable()
@@ -682,8 +786,12 @@ export class AiService {
         tools: ['list_products', 'order_revenue_summary'],
       },
       {
+        patterns: ['verkauf', 'verkäufe', 'verkaeufe', 'kunde', 'kunden', 'b2b', 'kundenbestellung', 'auftrag', 'sales', 'rechnungsempfänger', 'angekommen', 'ankunftsdatum'],
+        tools: ['list_sales_orders', 'get_sales_order', 'list_sales_customers', 'sales_dashboard', 'mark_purchase_order_received'],
+      },
+      {
         patterns: ['einkauf', 'einkäufe', 'einkaeufe', 'lieferant', 'supplier', 'po ', 'purchase', 'beschaffung', 'unbezahlt', 'rechnung'],
-        tools: ['list_purchase_orders', 'list_suppliers', 'purchase_dashboard'],
+        tools: ['list_purchase_orders', 'list_suppliers', 'purchase_dashboard', 'mark_purchase_order_received', 'update_purchase_order_notes'],
       },
       {
         patterns: ['email', 'mail', 'kampagne', 'kampagnen', 'campaign', 'newsletter', 'subscriber', 'abonnent', 'kontakt', 'flow', 'flows'],
@@ -691,7 +799,7 @@ export class AiService {
       },
       {
         patterns: ['aufgabe', 'aufgaben', 'task', 'tasks', 'todo', 'projekt', 'projekte', 'überfällig', 'ueberfaellig', 'fällig', 'faellig', 'erledigt'],
-        tools: ['list_tasks', 'list_projects', 'list_approval_tasks', 'create_task', 'complete_task', 'dashboard_kpis'],
+        tools: ['list_tasks', 'list_projects', 'list_approval_tasks', 'create_task', 'complete_task', 'update_task', 'dashboard_kpis'],
       },
       {
         patterns: ['abnahme', 'approval', 'freigabe', 'genehmig'],
@@ -715,7 +823,7 @@ export class AiService {
       },
       {
         patterns: ['dokument', 'dokumente', 'datei', 'dateien', 'ordner', 'file', 'folder', 'pdf'],
-        tools: ['search_documents', 'list_document_folders', 'create_folder', 'move_file', 'lock_folder', 'delete_file'],
+        tools: ['search_documents', 'list_document_folders', 'create_folder', 'rename_folder', 'move_file', 'lock_folder', 'delete_file'],
       },
       {
         patterns: ['notiz', 'notizen', 'merke', 'notieren'],
@@ -855,6 +963,24 @@ export class AiService {
           return this.action_deleteFile(input);
         case 'send_direct_message':
           return this.action_sendDirectMessage(input, userId);
+        // Sales (Verkauf)
+        case 'list_sales_orders':
+          return this.tool_listSalesOrders(input);
+        case 'get_sales_order':
+          return this.tool_getSalesOrder(input);
+        case 'list_sales_customers':
+          return this.tool_listSalesCustomers(input);
+        case 'sales_dashboard':
+          return this.tool_salesDashboard();
+        // Edit/Update tools
+        case 'mark_purchase_order_received':
+          return this.action_markPurchaseOrderReceived(input, userId);
+        case 'update_purchase_order_notes':
+          return this.action_updatePurchaseOrderNotes(input, userId);
+        case 'rename_folder':
+          return this.action_renameFolder(input);
+        case 'update_task':
+          return this.action_updateTask(input, userId);
         default:
           return { error: `Unknown tool: ${name}` };
       }
@@ -1991,5 +2117,195 @@ export class AiService {
       take: 100,
     });
     return { count: users.length, filter: { status }, users };
+  }
+
+  // ==========================================================================
+  // SALES (Verkauf) — B2B-Kundenbestellungen
+  // ==========================================================================
+
+  private async tool_listSalesOrders(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.status) where.status = input.status;
+    if (input?.archived === true) where.shippedAt = { not: null };
+    else if (input?.archived === false) where.shippedAt = null;
+    if (input?.customerSearch) {
+      where.customer = { companyName: { contains: input.customerSearch, mode: 'insensitive' as const } };
+    }
+    if (input?.urgency === 'overdue') {
+      where.shippedAt = null;
+      where.requiredDeliveryDate = { lt: new Date() };
+    } else if (input?.urgency === 'urgent') {
+      const in3 = new Date(); in3.setDate(in3.getDate() + 3);
+      where.shippedAt = null;
+      where.requiredDeliveryDate = { gte: new Date(), lte: in3 };
+    }
+    const orders = await this.prisma.salesOrder.findMany({
+      where,
+      select: {
+        id: true,
+        orderNumber: true,
+        externalOrderNumber: true,
+        status: true,
+        orderDate: true,
+        requiredDeliveryDate: true,
+        shippedAt: true,
+        invoiceSentAt: true,
+        paidAt: true,
+        totalNet: true,
+        currency: true,
+        customer: { select: { companyName: true, customerNumber: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(input?.limit || 20, 50),
+    });
+    return { count: orders.length, orders };
+  }
+
+  private async tool_getSalesOrder(input: any): Promise<unknown> {
+    const idOrNumber = String(input?.orderNumber ?? '').trim();
+    if (!idOrNumber) return { error: 'orderNumber required' };
+    const where = idOrNumber.startsWith('VK-')
+      ? { orgId: DEV_ORG_ID, orderNumber: idOrNumber }
+      : { id: idOrNumber, orgId: DEV_ORG_ID };
+    const order = await this.prisma.salesOrder.findFirst({
+      where,
+      include: {
+        customer: { select: { companyName: true, customerNumber: true, email: true } },
+        lineItems: {
+          select: { id: true, title: true, quantity: true, unitPriceNet: true, lineNet: true, ean: true, supplierArticleNumber: true },
+        },
+      },
+    });
+    return order ?? { error: `Bestellung ${idOrNumber} nicht gefunden` };
+  }
+
+  private async tool_listSalesCustomers(input: any): Promise<unknown> {
+    const where: any = { orgId: DEV_ORG_ID };
+    if (input?.search) {
+      where.OR = [
+        { companyName: { contains: input.search, mode: 'insensitive' as const } },
+        { customerNumber: { contains: input.search, mode: 'insensitive' as const } },
+        { externalCustomerNumber: { contains: input.search, mode: 'insensitive' as const } },
+      ];
+    }
+    const customers = await this.prisma.salesCustomer.findMany({
+      where,
+      select: {
+        id: true, companyName: true, customerNumber: true, externalCustomerNumber: true,
+        contactPerson: true, email: true, phone: true,
+      },
+      orderBy: { companyName: 'asc' },
+      take: Math.min(input?.limit || 20, 100),
+    });
+    return { count: customers.length, customers };
+  }
+
+  private async tool_salesDashboard(): Promise<unknown> {
+    const now = new Date();
+    const in3 = new Date(); in3.setDate(in3.getDate() + 3);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const [open, urgent, overdue, monthRevenueRaw] = await Promise.all([
+      this.prisma.salesOrder.count({ where: { orgId: DEV_ORG_ID, shippedAt: null, status: { notIn: ['cancelled', 'completed'] } } }),
+      this.prisma.salesOrder.count({
+        where: { orgId: DEV_ORG_ID, shippedAt: null, requiredDeliveryDate: { gte: now, lte: in3 } },
+      }),
+      this.prisma.salesOrder.count({
+        where: { orgId: DEV_ORG_ID, shippedAt: null, requiredDeliveryDate: { lt: now } },
+      }),
+      this.prisma.salesOrder.aggregate({
+        where: { orgId: DEV_ORG_ID, createdAt: { gte: monthStart } },
+        _sum: { totalNet: true },
+      }),
+    ]);
+    return {
+      openOrders: open,
+      urgent: urgent,
+      overdue: overdue,
+      monthRevenueEur: Number(monthRevenueRaw._sum.totalNet ?? 0),
+    };
+  }
+
+  // ==========================================================================
+  // EDIT/UPDATE TOOLS
+  // ==========================================================================
+
+  private async action_markPurchaseOrderReceived(input: any, userId: string): Promise<unknown> {
+    const orderNumber = String(input?.orderNumber ?? '').trim();
+    if (!orderNumber) return { error: 'orderNumber required' };
+    const order = await this.prisma.purchaseOrder.findFirst({
+      where: { orgId: DEV_ORG_ID, orderNumber },
+    });
+    if (!order) return { error: `Bestellung ${orderNumber} nicht gefunden` };
+    const dateStr = input?.receivedAt as string | undefined;
+    const receivedAt = dateStr ? new Date(dateStr) : new Date();
+    if (Number.isNaN(receivedAt.getTime())) return { error: 'Ungültiges Datum' };
+    const updated = await this.prisma.purchaseOrder.update({
+      where: { id: order.id },
+      data: { receivedAt },
+      select: { id: true, orderNumber: true, receivedAt: true },
+    });
+    this.logger.log(`AI: ${userId} markierte ${orderNumber} angekommen am ${updated.receivedAt?.toISOString()}`);
+    return { ok: true, orderNumber: updated.orderNumber, receivedAt: updated.receivedAt };
+  }
+
+  private async action_updatePurchaseOrderNotes(input: any, userId: string): Promise<unknown> {
+    const orderNumber = String(input?.orderNumber ?? '').trim();
+    if (!orderNumber) return { error: 'orderNumber required' };
+    const newNotes = String(input?.notes ?? '').trim();
+    const order = await this.prisma.purchaseOrder.findFirst({
+      where: { orgId: DEV_ORG_ID, orderNumber },
+    });
+    if (!order) return { error: `Bestellung ${orderNumber} nicht gefunden` };
+    await this.prisma.purchaseOrder.update({
+      where: { id: order.id },
+      data: { notes: newNotes || null },
+    });
+    this.logger.log(`AI: ${userId} aktualisierte Notes auf ${orderNumber}: "${newNotes.slice(0, 50)}…"`);
+    return { ok: true, orderNumber, notes: newNotes };
+  }
+
+  private async action_renameFolder(input: any): Promise<unknown> {
+    const newName = String(input?.newName ?? '').trim();
+    if (!newName) return { error: 'newName required' };
+    let folderId = input?.folderId as string | undefined;
+
+    // Wenn keine ID, suche nach Name (currentName-Hint)
+    if (!folderId && input?.currentName) {
+      const found = await this.prisma.docFolder.findFirst({
+        where: { orgId: DEV_ORG_ID, name: input.currentName, trashedAt: null },
+        select: { id: true },
+      });
+      folderId = found?.id;
+    }
+    if (!folderId) return { error: 'Ordner nicht gefunden — bitte folderId oder currentName angeben' };
+
+    const updated = await this.prisma.docFolder.update({
+      where: { id: folderId },
+      data: { name: newName },
+      select: { id: true, name: true },
+    });
+    return { ok: true, folder: updated };
+  }
+
+  private async action_updateTask(input: any, userId: string): Promise<unknown> {
+    const taskId = String(input?.taskId ?? '').trim();
+    if (!taskId) return { error: 'taskId required' };
+    const data: any = {};
+    if (input?.title !== undefined) data.title = String(input.title);
+    if (input?.description !== undefined) data.description = input.description ? String(input.description) : null;
+    if (input?.priority) data.priority = input.priority;
+    if (input?.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
+    if (input?.completed !== undefined) {
+      data.completed = !!input.completed;
+      if (input.completed) data.completedAt = new Date();
+    }
+    if (Object.keys(data).length === 0) return { error: 'Mindestens ein Feld zum Ändern erforderlich' };
+    const updated = await this.prisma.wmTask.update({
+      where: { id: taskId },
+      data,
+      select: { id: true, title: true, priority: true, dueDate: true, completed: true },
+    });
+    this.logger.log(`AI: ${userId} updated task ${taskId} fields=${Object.keys(data).join(',')}`);
+    return { ok: true, task: updated };
   }
 }
