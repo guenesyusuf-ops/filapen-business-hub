@@ -90,6 +90,15 @@ export function TaskDetailModal({
   // an incoming task prop update should overwrite the editor.
   const lastCommittedDescRef = useRef<string>(task.description ?? '');
 
+  // Refs für den Unmount-Flush damit wir an den AKTUELLEN editDesc/task.id/onUpdate
+  // kommen wenn der useEffect-Cleanup feuert. Sonst hätten wir Stale-Closure-Werte.
+  const editDescRef = useRef(editDesc);
+  const taskIdRef = useRef(task.id);
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => { editDescRef.current = editDesc; }, [editDesc]);
+  useEffect(() => { taskIdRef.current = task.id; }, [task.id]);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+
   // Auto-save description after 1.5s of inactivity
   useEffect(() => {
     if (editDesc === lastCommittedDescRef.current) return; // no unsaved change
@@ -110,6 +119,30 @@ export function TaskDetailModal({
     }, 1500);
     return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
   }, [editDesc]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // KRITISCH: Wenn die Modal-Komponente unmountet OHNE dass handleClose
+  // gelaufen ist (z.B. User wechselt schnell zu einem anderen Task, navigiert
+  // zur Projekt-Liste, oder Parent rerendered selectedTask=null) — dann muss
+  // der pending Auto-Save trotzdem feuern. Sonst geht eine gerade getippte/
+  // gepastete Description verloren — vor allem bei Links wo der User gerne
+  // paste-und-sofort-zu macht.
+  //
+  // Fire-and-forget mit Refs damit wir die aktuellsten Werte ohne stale-
+  // closure haben. Promise.catch verhindert unhandled-rejection-Warnings.
+  useEffect(() => {
+    return () => {
+      if (editDescRef.current !== lastCommittedDescRef.current) {
+        try {
+          Promise.resolve(onUpdateRef.current({
+            id: taskIdRef.current,
+            description: editDescRef.current,
+          } as any)).catch(() => {});
+        } catch {
+          // last-line defense — silently ignore
+        }
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<WmAttachment | null>(null);
