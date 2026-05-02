@@ -310,7 +310,11 @@ export class AmazonService {
     let pages = 0;
     let nextToken: string | undefined;
     const start = Date.now();
-    const FEE_PAGE_LIMIT = 20;
+    // Knappe Budgets — Finance darf NIE den 90s-Controller-Timeout erschöpfen,
+    // sonst zeigt das Dashboard gar keine Zahlen mehr. Lieber partielle
+    // Aggregate als komplettes Endpoint-Failure.
+    const FEE_PAGE_LIMIT = 12;
+    const FEE_BUDGET_MS = 40_000;
 
     const collectFees = (feeList: any[] | undefined) => {
       if (!Array.isArray(feeList)) return;
@@ -330,8 +334,8 @@ export class AmazonService {
 
     try {
       for (let page = 0; page < FEE_PAGE_LIMIT; page++) {
-        if (Date.now() - start > 60_000) {
-          this.logger.warn(`getFinancialAggregates: 60s budget reached at page ${page}, returning partial`);
+        if (Date.now() - start > FEE_BUDGET_MS) {
+          this.logger.warn(`getFinancialAggregates: ${FEE_BUDGET_MS}ms budget reached at page ${page}, returning partial`);
           break;
         }
 
@@ -670,14 +674,18 @@ export class AmazonService {
   }> {
     const createdAfter = getCreatedAfterISO(Math.max(daysBack, 0));
 
-    // Parallel fetch:
-    //  1) Per-marketplace order metrics (Sales API — exact Seller Central data)
-    //  2) Avg COGS from product_variants
-    //  3) Real Selling/FBA Fees + Refunds from Finances API
-    const [perMarketMetrics, avgCogs, finAgg] = await Promise.all([
+    // Alles parallel — Controller hat 90s Hard-Timeout. Wenn Fees-Aggregation
+    // sequentiell vor getOrders läuft, addieren sich die Budgets (60s + 50s
+    // > 90s) und das ganze Endpoint timed out → Frontend zeigt nichts.
+    //   1) Per-marketplace order metrics (Sales API — Seller-Central-genau)
+    //   2) Avg COGS from product_variants
+    //   3) Real Selling/FBA Fees + Refunds from Finances API
+    //   4) Orders API — for the order list / details table
+    const [perMarketMetrics, avgCogs, finAgg, orders] = await Promise.all([
       this.getOrderMetricsByMarketplace(daysBack),
       this.getAverageCogs(),
       this.getFinancialAggregates(daysBack),
+      this.getOrders(daysBack),
     ]);
 
     // Build legacy `salesMetrics` shape from per-market data — the rest of
@@ -719,8 +727,6 @@ export class AmazonService {
       this.logger.log(`getOrderMetrics lieferte ${payloadArr.length} payload-Einträge — summiert zu ${metricsData?.totalSales?.amount}`);
     }
 
-    // 3) Orders API — for the order list / details table
-    const orders = await this.getOrders(daysBack);
     this.logger.log(`getDashboardSummary: ${orders.length} orders from Orders API, sales metrics: ${metricsData ? 'yes' : 'no'}`);
 
     // Use Berlin date for "today" comparison
