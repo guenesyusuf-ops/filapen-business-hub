@@ -62,16 +62,20 @@ const CATEGORIES: { label: string; value: CostCategory }[] = [
   { label: 'Lager / Miete', value: 'warehouse' },
   { label: 'Agentur', value: 'agency' },
   { label: 'Creator', value: 'creator' },
+  { label: 'Kredit', value: 'loan' },
+  { label: 'Steuerberater', value: 'tax_advisor' },
   { label: 'Sonstiges', value: 'other' },
 ];
 
 const CATEGORY_COLORS: Record<CostCategory, string> = {
-  software:  'bg-blue-50 text-blue-700',
-  salary:    'bg-green-50 text-green-700',
-  warehouse: 'bg-amber-50 text-amber-700',
-  agency:    'bg-orange-50 text-orange-700',
-  creator:   'bg-purple-50 text-purple-700',
-  other:     'bg-gray-50 text-gray-600',
+  software:    'bg-blue-50 text-blue-700',
+  salary:      'bg-green-50 text-green-700',
+  warehouse:   'bg-amber-50 text-amber-700',
+  agency:      'bg-orange-50 text-orange-700',
+  creator:     'bg-purple-50 text-purple-700',
+  loan:        'bg-rose-50 text-rose-700',
+  tax_advisor: 'bg-indigo-50 text-indigo-700',
+  other:       'bg-gray-50 text-gray-600',
 };
 
 // ---------------------------------------------------------------------------

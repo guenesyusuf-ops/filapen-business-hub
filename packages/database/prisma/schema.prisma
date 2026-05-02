@@ -209,6 +209,8 @@ enum FixedCostCategory {
   warehouse
   agency
   creator
+  loan
+  tax_advisor
   other
 
   @@map("fixed_cost_category")
