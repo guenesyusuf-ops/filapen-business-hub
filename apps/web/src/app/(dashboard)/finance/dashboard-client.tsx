@@ -87,15 +87,21 @@ export function FinanceDashboard() {
   const waterfall = dashboardQuery.data?.waterfall ?? [];
   const timeSeries = dashboardQuery.data?.timeSeries;
 
-  // Merge Amazon data into KPIs (Shopify + Amazon combined)
+  // Merge Amazon data into KPIs (Shopify + Amazon combined).
+  // Fees/refunds come from Amazon Finances API (real values, not %-guesses).
   const amazon = amazonQuery.data;
   const amzRevenue = amazon?.totalRevenue ?? 0;
   const amzOrders = amazon?.totalOrders ?? 0;
   const amzCogs = amazon?.cogs ?? 0;
   const amzVat = amzRevenue * 0.19 / 1.19;
-  const amzFees = amzRevenue * 0.15;
-  const amzShipping = amzRevenue * 0.08;
-  const amzNetProfit = amzRevenue - amzVat - amzCogs - amzFees - amzShipping;
+  // SP-API liefert Fees/Refunds bereits negativ — Math.abs() fuer das Aufaddieren
+  // als Kostenposten. Wenn Finances-API mal nichts liefert (z.B. neue Region,
+  // noch keine Settlement-Periode), bleiben die Werte einfach 0 — KEINE
+  // hardcoded %-Schätzung mehr, sonst sind die Zahlen sofort wieder falsch.
+  const amzFees = Math.abs(amazon?.totalFees ?? 0);
+  const amzRefunds = Math.abs(amazon?.refundAmount ?? 0);
+  const amzShipping = 0; // FBA-Versand steckt bereits in totalFees
+  const amzNetProfit = amzRevenue - amzVat - amzCogs - amzFees - amzRefunds;
 
   const correctedKpis = kpis ? {
     ...kpis,
@@ -170,7 +176,18 @@ export function FinanceDashboard() {
               newCustomerRate: (dashboardQuery.data.kpis as any)?.newCustomerRate?.value ?? 0,
             } : undefined}
             loading={dashboardQuery.isLoading}
-            amazonData={amazon ? { totalRevenue: amzRevenue, totalOrders: amzOrders, cogs: amzCogs } : null}
+            amazonData={amazon ? {
+              totalRevenue: amzRevenue,
+              totalOrders: amzOrders,
+              cogs: amzCogs,
+              fbaFees: amazon.fbaFees ?? 0,
+              sellingFees: amazon.sellingFees ?? 0,
+              totalFees: amazon.totalFees ?? 0,
+              refundAmount: amazon.refundAmount ?? 0,
+              refundCount: amazon.refundCount ?? 0,
+              estPayout: amazon.estPayout ?? 0,
+              marketplaceBreakdown: amazon.marketplaceBreakdown ?? {},
+            } : null}
           />
         ),
       },

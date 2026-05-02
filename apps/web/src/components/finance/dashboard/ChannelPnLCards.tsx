@@ -17,10 +17,12 @@ interface ChannelPnL {
   adSpend: number;       // Werbekosten
   cogs: number;          // Produktkosten
   shippingCosts: number; // Versandkosten
-  platformFees: number;  // Plattformkosten
+  platformFees: number;  // Plattformkosten (Selling + FBA)
+  refunds?: number;      // Retouren (positive Zahl, abgezogen vom Umsatz)
   netProfit: number;     // Nettogewinn
   orderCount: number;    // Bestellungen
   avgOrderValue: number; // Ø Warenkorb (grossRevenue / orderCount)
+  estPayout?: number;    // Est. Payout (nur Amazon — Sellerboard-Style)
 }
 
 interface OverviewKPIs {
@@ -47,14 +49,24 @@ function pct(val: number): string {
 // ---------------------------------------------------------------------------
 
 function ChannelCard({ channel, dragHandleProps }: { channel: ChannelPnL; dragHandleProps?: any }) {
-  const rows = [
+  // Rows werden bedingt zusammengebaut — Versandkosten z.B. sind bei FBA
+  // bereits in den Plattformkosten enthalten, daher unterdrueckt wenn 0.
+  // Refunds nur einblenden wenn vorhanden (Amazon hat sie, Shopify aktuell nicht).
+  const rows: { label: string; value: number; positive?: boolean; negative?: boolean }[] = [
     { label: 'Bruttoumsatz', value: channel.grossRevenue, positive: true },
+  ];
+  if (channel.refunds && channel.refunds > 0) {
+    rows.push({ label: 'Retouren', value: -channel.refunds, negative: true });
+  }
+  rows.push(
     { label: 'USt.', value: -channel.vat, negative: true },
     { label: 'Werbekosten', value: -channel.adSpend, negative: true },
     { label: 'Produktkosten', value: -channel.cogs, negative: true },
-    { label: 'Versandkosten', value: -channel.shippingCosts, negative: true },
-    { label: 'Plattformkosten', value: -channel.platformFees, negative: true },
-  ];
+  );
+  if (channel.shippingCosts > 0) {
+    rows.push({ label: 'Versandkosten', value: -channel.shippingCosts, negative: true });
+  }
+  rows.push({ label: 'Plattformkosten', value: -channel.platformFees, negative: true });
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
@@ -172,7 +184,19 @@ function OverviewCard({ kpis, dragHandleProps }: { kpis: OverviewKPIs; dragHandl
 interface ChannelPnLCardsProps {
   pnl?: any; // PnLResult from backend
   loading?: boolean;
-  amazonData?: { totalRevenue: number; totalOrders: number; cogs?: number; unitCount?: number } | null;
+  amazonData?: {
+    totalRevenue: number;
+    totalOrders: number;
+    cogs?: number;
+    unitCount?: number;
+    fbaFees?: number;       // negativ aus SP-API — Math.abs() im Component
+    sellingFees?: number;   // negativ aus SP-API
+    totalFees?: number;     // negativ aus SP-API
+    refundAmount?: number;  // negativ aus SP-API
+    refundCount?: number;
+    estPayout?: number;     // bereits final (revenue + fees + refunds)
+    marketplaceBreakdown?: Record<string, { totalSales: number; orderCount: number; unitCount: number }>;
+  } | null;
 }
 
 export function ChannelPnLCards({ pnl, loading, amazonData }: ChannelPnLCardsProps) {
@@ -203,13 +227,18 @@ export function ChannelPnLCards({ pnl, loading, amazonData }: ChannelPnLCardsPro
   const shopifyNetProfit = pnl.netProfit ?? (grossRevShopify - vatShopify - (pnl.adSpend ?? 0) - (pnl.cogs ?? 0) - (pnl.shippingCosts ?? 0) - (pnl.paymentFees ?? 0));
 
   // ---- Amazon P&L ----
+  // Fees + Refunds kommen jetzt aus der SP-API Finances-Endpoint (real, nicht
+  // %-geschätzt). SP-API liefert beides als negative Zahlen — wir konvertieren
+  // mit Math.abs() in Kostenposten fuer die Anzeige. FBA-Versand ist bereits
+  // in totalFees enthalten → kein separates shipping mehr.
   const amzRevenue = amazon?.totalRevenue ?? 0;
   const amzOrders = amazon?.totalOrders ?? 0;
   const amzCogs = amazon?.cogs ?? 0;
   const amzVat = amzRevenue * 0.19 / 1.19;
-  const amzPlatformFees = amzRevenue * 0.15;
-  const amzShipping = amzRevenue * 0.08;
-  const amzNetProfit = amzRevenue - amzVat - amzCogs - amzPlatformFees - amzShipping;
+  const amzPlatformFees = Math.abs(amazon?.totalFees ?? 0);
+  const amzRefunds = Math.abs(amazon?.refundAmount ?? 0);
+  const amzShipping = 0;
+  const amzNetProfit = amzRevenue - amzVat - amzCogs - amzPlatformFees - amzRefunds;
   const amzAvgOrder = amzOrders > 0 ? amzRevenue / amzOrders : 0;
 
   const channels: ChannelPnL[] = [
@@ -237,9 +266,11 @@ export function ChannelPnLCards({ pnl, loading, amazonData }: ChannelPnLCardsPro
       cogs: amzCogs,
       shippingCosts: amzShipping,
       platformFees: amzPlatformFees,
+      refunds: amzRefunds,
       netProfit: amzNetProfit,
       orderCount: amzOrders,
       avgOrderValue: amzAvgOrder,
+      estPayout: amazon?.estPayout ?? amzNetProfit,
     },
     {
       name: 'TikTok',

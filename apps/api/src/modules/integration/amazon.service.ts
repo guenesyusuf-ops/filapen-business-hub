@@ -263,6 +263,207 @@ export class AmazonService {
     }
   }
 
+  /**
+   * Paginated FinancialEvents aggregation — sums real Selling Fees,
+   * FBA Fees, and Refunds across all events in the window. Matches what
+   * SellerBoard / Helium10 etc. show as Est. Payout components.
+   *
+   * Each ShipmentEvent contains ItemFeeList[] with FeeType:
+   *   - "Commission"            → Selling Fee (referral fee, ~15%)
+   *   - "FBAPerUnitFulfillmentFee" → FBA fulfilment fee
+   *   - "FBAWeightBasedFee"     → FBA fee variant
+   *   - others (closing fees, variable closing) → bucketed as "other"
+   *
+   * Each RefundEvent contains ShipmentItemAdjustmentList[] with:
+   *   - ItemChargeAdjustmentList[] — money refunded to buyer (Principal/Tax/Shipping)
+   *   - ItemFeeAdjustmentList[]    — fee credits Amazon returns (RefundCommission)
+   *
+   * SP-API convention: fees + refunds are returned as **negative** numbers
+   * (money the seller pays / loses). We preserve sign so totals add up
+   * correctly in `est_payout = revenue + fees + refunds`.
+   */
+  async getFinancialAggregates(daysBack = 30): Promise<{
+    fbaFees: number;
+    sellingFees: number;
+    otherFees: number;
+    totalFees: number;
+    refundAmount: number;
+    refundCount: number;
+    shipmentCount: number;
+    pages: number;
+  }> {
+    const empty = {
+      fbaFees: 0, sellingFees: 0, otherFees: 0, totalFees: 0,
+      refundAmount: 0, refundCount: 0, shipmentCount: 0, pages: 0,
+    };
+    if (!this.sp) return empty;
+
+    const after = new Date();
+    after.setDate(after.getDate() - daysBack);
+
+    let fbaFees = 0;
+    let sellingFees = 0;
+    let otherFees = 0;
+    let refundAmount = 0;
+    let refundCount = 0;
+    let shipmentCount = 0;
+    let pages = 0;
+    let nextToken: string | undefined;
+    const start = Date.now();
+    const FEE_PAGE_LIMIT = 20;
+
+    const collectFees = (feeList: any[] | undefined) => {
+      if (!Array.isArray(feeList)) return;
+      for (const fee of feeList) {
+        const amt = parseFloat(fee?.FeeAmount?.CurrencyAmount ?? '0');
+        if (!Number.isFinite(amt) || amt === 0) continue;
+        const type = String(fee?.FeeType ?? '');
+        if (type.startsWith('FBA')) {
+          fbaFees += amt;
+        } else if (type === 'Commission' || type === 'RefundCommission' || type === 'VariableClosingFee' || type === 'FixedClosingFee') {
+          sellingFees += amt;
+        } else {
+          otherFees += amt;
+        }
+      }
+    };
+
+    try {
+      for (let page = 0; page < FEE_PAGE_LIMIT; page++) {
+        if (Date.now() - start > 60_000) {
+          this.logger.warn(`getFinancialAggregates: 60s budget reached at page ${page}, returning partial`);
+          break;
+        }
+
+        const query: any = nextToken
+          ? { NextToken: nextToken }
+          : { PostedAfter: after.toISOString() };
+
+        let res: any;
+        try {
+          res = await this.callWithRetry({
+            operation: 'listFinancialEvents',
+            endpoint: 'finances',
+            query,
+          });
+        } catch (err: any) {
+          this.logger.warn(`getFinancialAggregates: page ${page + 1} failed: ${err.message}`);
+          break;
+        }
+
+        pages++;
+        const events = res?.FinancialEvents ?? {};
+
+        for (const evt of events.ShipmentEventList ?? []) {
+          shipmentCount++;
+          for (const item of evt?.ShipmentItemList ?? []) {
+            collectFees(item?.ItemFeeList);
+          }
+        }
+
+        for (const evt of events.RefundEventList ?? []) {
+          refundCount++;
+          for (const item of evt?.ShipmentItemAdjustmentList ?? []) {
+            for (const ch of item?.ItemChargeAdjustmentList ?? []) {
+              const amt = parseFloat(ch?.ChargeAmount?.CurrencyAmount ?? '0');
+              if (!Number.isFinite(amt) || amt === 0) continue;
+              const t = String(ch?.ChargeType ?? '');
+              // Only count money returned to buyer — Principal/Tax/Shipping.
+              // Fee adjustments belong in sellingFees as a credit.
+              if (t === 'Principal' || t === 'Tax' || t === 'Shipping' ||
+                  t === 'ShippingTax' || t === 'GiftWrap' || t === 'GiftWrapTax') {
+                refundAmount += amt;
+              }
+            }
+            collectFees(item?.ItemFeeAdjustmentList);
+          }
+        }
+
+        nextToken = res?.NextToken;
+        if (!nextToken) break;
+        await sleep(600);
+      }
+
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const totalFees = round2(fbaFees + sellingFees + otherFees);
+
+      this.logger.log(
+        `[FIN_AGG] pages=${pages} shipments=${shipmentCount} refunds=${refundCount} ` +
+        `fba=${round2(fbaFees)} selling=${round2(sellingFees)} other=${round2(otherFees)} ` +
+        `total_fees=${totalFees} refunds=${round2(refundAmount)}`,
+      );
+
+      return {
+        fbaFees: round2(fbaFees),
+        sellingFees: round2(sellingFees),
+        otherFees: round2(otherFees),
+        totalFees,
+        refundAmount: round2(refundAmount),
+        refundCount,
+        shipmentCount,
+        pages,
+      };
+    } catch (err: any) {
+      this.logger.error(`getFinancialAggregates failed: ${err.message}`);
+      return empty;
+    }
+  }
+
+  /**
+   * Per-marketplace order metrics. Exposes the same per-market call
+   * `getOrderMetrics` does internally, but as a Record<marketplaceId, …>
+   * so the dashboard can show DE/FR/IT/ES separately.
+   */
+  async getOrderMetricsByMarketplace(daysBack = 0): Promise<Record<string, {
+    totalSales: number;
+    orderCount: number;
+    unitCount: number;
+  }>> {
+    if (!this.sp) return {};
+    const now = new Date();
+    const berlinDateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Berlin',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(now);
+    const endParts = berlinDateParts.split('-').map(Number);
+    const startDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2] - daysBack));
+    const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2] + 1));
+    const interval = `${startDate.toISOString().split('T')[0]}T00:00:00-00:00--${endDate.toISOString().split('T')[0]}T00:00:00-00:00`;
+
+    const out: Record<string, { totalSales: number; orderCount: number; unitCount: number }> = {};
+    await Promise.all(
+      this.marketplaceIds.map(async (mid) => {
+        try {
+          const res: any = await this.callWithRetry({
+            operation: 'getOrderMetrics',
+            endpoint: 'sales',
+            query: {
+              marketplaceIds: [mid],
+              interval,
+              granularity: 'Total',
+            },
+          });
+          const payload = Array.isArray(res?.payload) ? res.payload : [];
+          const totalSales = payload.reduce(
+            (s: number, e: any) => s + parseFloat(e?.totalSales?.amount ?? '0'),
+            0,
+          );
+          const orderCount = payload.reduce((s: number, e: any) => s + (e?.orderCount ?? 0), 0);
+          const unitCount = payload.reduce((s: number, e: any) => s + (e?.unitCount ?? 0), 0);
+          out[mid] = {
+            totalSales: Math.round(totalSales * 100) / 100,
+            orderCount,
+            unitCount,
+          };
+        } catch (err: any) {
+          this.logger.warn(`getOrderMetricsByMarketplace ${mid} failed: ${err.message}`);
+          out[mid] = { totalSales: 0, orderCount: 0, unitCount: 0 };
+        }
+      }),
+    );
+    return out;
+  }
+
   // =========================================================================
   // CATALOG / PRODUCTS
   // =========================================================================
@@ -438,12 +639,24 @@ export class AmazonService {
     unitCount: number;
     cogs: number;
     avgCogs: number;
+    fbaFees: number;
+    sellingFees: number;
+    otherFees: number;
+    totalFees: number;
+    refundAmount: number;
+    refundCount: number;
+    estPayout: number;
     todayOrders: number;
     todayRevenue: number;
     avgOrderValue: number;
     currency: string;
     orders: any[];
     marketplaces: Record<string, number>;
+    marketplaceBreakdown: Record<string, {
+      totalSales: number;
+      orderCount: number;
+      unitCount: number;
+    }>;
     activeMarketplaces: string[];
     debug: {
       statusBreakdown: Record<string, { count: number; revenue: number }>;
@@ -451,16 +664,34 @@ export class AmazonService {
       paginationPages: number;
       shippedCount: number;
       pendingCount: number;
+      financePages: number;
+      shipmentEvents: number;
     };
   }> {
     const createdAfter = getCreatedAfterISO(Math.max(daysBack, 0));
 
-    // 1) Sales API — single call, exact Seller Central data (revenue + orders)
-    // 2) Average COGS from product_variants
-    const [salesMetrics, avgCogs] = await Promise.all([
-      this.getOrderMetrics(daysBack, 'Total'),
+    // Parallel fetch:
+    //  1) Per-marketplace order metrics (Sales API — exact Seller Central data)
+    //  2) Avg COGS from product_variants
+    //  3) Real Selling/FBA Fees + Refunds from Finances API
+    const [perMarketMetrics, avgCogs, finAgg] = await Promise.all([
+      this.getOrderMetricsByMarketplace(daysBack),
       this.getAverageCogs(),
+      this.getFinancialAggregates(daysBack),
     ]);
+
+    // Build legacy `salesMetrics` shape from per-market data — the rest of
+    // this method already consumes that shape, so we keep the contract.
+    const perMarketEntries = Object.values(perMarketMetrics);
+    const salesMetrics = perMarketEntries.length
+      ? {
+          payload: perMarketEntries.map((e) => ({
+            totalSales: { amount: String(e.totalSales) },
+            orderCount: e.orderCount,
+            unitCount: e.unitCount,
+          })),
+        }
+      : null;
     // Die SP-Sales-API kann je nach Marketplace-Kombination MEHRERE
     // payload-Einträge liefern (einer pro Marketplace oder pro buyerType).
     // Wir summieren alle Einträge, damit der Gesamtwert stimmt — nicht nur
@@ -562,6 +793,15 @@ export class AmazonService {
     this.logger.log(`Final: ${finalOrderCount} orders, ${finalRevenue}€ (source: ${salesRevenue != null ? 'Sales API' : 'Orders API estimate'})`);
     this.logger.log(`Status: ${JSON.stringify(statusBreakdown)}`);
 
+    // Est. Payout = revenue + fees + refunds  (fees & refunds are negative).
+    // Mirrors what SellerBoard / Helium10 show.
+    const estPayout = Math.round(
+      (finalRevenue + finAgg.totalFees + finAgg.refundAmount) * 100,
+    ) / 100;
+    this.logger.log(
+      `[PAYOUT] revenue=${finalRevenue} + fees=${finAgg.totalFees} + refunds=${finAgg.refundAmount} = ${estPayout}`,
+    );
+
     return {
       totalOrders: finalOrderCount,
       totalRevenue: Math.round(finalRevenue * 100) / 100,
@@ -570,6 +810,13 @@ export class AmazonService {
       unitCount,
       cogs: totalCogs,
       avgCogs: Math.round(avgCogs * 100) / 100,
+      fbaFees: finAgg.fbaFees,
+      sellingFees: finAgg.sellingFees,
+      otherFees: finAgg.otherFees,
+      totalFees: finAgg.totalFees,
+      refundAmount: finAgg.refundAmount,
+      refundCount: finAgg.refundCount,
+      estPayout,
       todayOrders: salesOrderCount ?? todayOrdersList.length,
       todayRevenue: salesRevenue != null ? Math.round(salesRevenue * 100) / 100 : todayEstimate.revenue,
       avgOrderValue: finalOrderCount > 0 ? Math.round((finalRevenue / finalOrderCount) * 100) / 100 : 0,
@@ -584,6 +831,7 @@ export class AmazonService {
         marketplace: o.MarketplaceId,
       })),
       marketplaces,
+      marketplaceBreakdown: perMarketMetrics,
       activeMarketplaces: this.marketplaceIds,
       debug: {
         statusBreakdown,
@@ -591,6 +839,8 @@ export class AmazonService {
         paginationPages: Math.ceil(orders.length / 100),
         shippedCount: totalEstimate.shippedCount,
         pendingCount: totalEstimate.pendingCount,
+        financePages: finAgg.pages,
+        shipmentEvents: finAgg.shipmentCount,
       },
     };
   }
