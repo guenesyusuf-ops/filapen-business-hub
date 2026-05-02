@@ -47,31 +47,31 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
+// Werte muessen 1:1 zu den Prisma-Enums (Recurrence + FixedCostCategory) passen.
 const FREQUENCIES: { label: string; value: CostFrequency }[] = [
-  { label: 'One-time', value: 'one-time' },
-  { label: 'Daily', value: 'daily' },
-  { label: 'Weekly', value: 'weekly' },
-  { label: 'Monthly', value: 'monthly' },
-  { label: 'Quarterly', value: 'quarterly' },
-  { label: 'Yearly', value: 'yearly' },
+  { label: 'Monatlich', value: 'monthly' },
+  { label: 'Wöchentlich', value: 'weekly' },
+  { label: 'Quartalsweise', value: 'quarterly' },
+  { label: 'Jährlich', value: 'annual' },
+  { label: 'Einmalig', value: 'one_time' },
 ];
 
 const CATEGORIES: { label: string; value: CostCategory }[] = [
   { label: 'Software', value: 'software' },
-  { label: 'Payroll', value: 'payroll' },
-  { label: 'Rent', value: 'rent' },
-  { label: 'Marketing', value: 'marketing' },
-  { label: 'Shipping', value: 'shipping' },
-  { label: 'Other', value: 'other' },
+  { label: 'Gehalt', value: 'salary' },
+  { label: 'Lager / Miete', value: 'warehouse' },
+  { label: 'Agentur', value: 'agency' },
+  { label: 'Creator', value: 'creator' },
+  { label: 'Sonstiges', value: 'other' },
 ];
 
 const CATEGORY_COLORS: Record<CostCategory, string> = {
-  software: 'bg-blue-50 text-blue-700',
-  payroll: 'bg-green-50 text-green-700',
-  rent: 'bg-amber-50 text-amber-700',
-  marketing: 'bg-orange-50 text-orange-700',
-  shipping: 'bg-yellow-50 text-yellow-700',
-  other: 'bg-gray-50 text-gray-600',
+  software:  'bg-blue-50 text-blue-700',
+  salary:    'bg-green-50 text-green-700',
+  warehouse: 'bg-amber-50 text-amber-700',
+  agency:    'bg-orange-50 text-orange-700',
+  creator:   'bg-purple-50 text-purple-700',
+  other:     'bg-gray-50 text-gray-600',
 };
 
 // ---------------------------------------------------------------------------
@@ -129,10 +129,10 @@ const selectClass = cn(
 // ---------------------------------------------------------------------------
 
 const paymentMethodSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  fixedFeePerTransaction: z.coerce.number().min(0, 'Must be >= 0'),
-  percentageFee: z.coerce.number().min(0, 'Must be >= 0').max(100, 'Must be <= 100'),
-  currency: z.string().min(3, 'Required'),
+  name: z.string().min(1, 'Name ist erforderlich'),
+  fixedFeePerTransaction: z.coerce.number().min(0, 'Muss >= 0 sein'),
+  percentageFee: z.coerce.number().min(0, 'Muss >= 0 sein').max(100, 'Muss <= 100 sein'),
+  currency: z.string().min(3, 'Pflichtfeld'),
 });
 
 type PaymentMethodForm = z.infer<typeof paymentMethodSchema>;
@@ -165,7 +165,7 @@ function PaymentMethodModal({
           name: '',
           fixedFeePerTransaction: 0,
           percentageFee: 0,
-          currency: 'USD',
+          currency: 'EUR',
         },
   });
 
@@ -183,7 +183,7 @@ function PaymentMethodModal({
           { id: existingMethod.id, ...payload },
           {
             onSuccess: () => {
-              toast.success('Payment method updated');
+              toast.success('Zahlungsmethode aktualisiert');
               onClose();
             },
             onError: (err) => toast.error(err.message),
@@ -192,7 +192,7 @@ function PaymentMethodModal({
       } else {
         createMutation.mutate(payload, {
           onSuccess: () => {
-            toast.success('Payment method added');
+            toast.success('Zahlungsmethode hinzugefügt');
             onClose();
           },
           onError: (err) => toast.error(err.message),
@@ -206,37 +206,37 @@ function PaymentMethodModal({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <FormField label="Gateway Name" error={errors.name?.message}>
-        <input {...register('name')} placeholder="e.g. Shopify Payments" className={inputClass} />
+      <FormField label="Anbieter / Gateway" error={errors.name?.message}>
+        <input {...register('name')} placeholder="z.B. Shopify Payments" className={inputClass} />
       </FormField>
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Percentage Fee (%)" error={errors.percentageFee?.message}>
+        <FormField label="Prozentuale Gebühr (%)" error={errors.percentageFee?.message}>
           <input
             {...register('percentageFee')}
             type="number"
             step="0.01"
             min="0"
-            placeholder="2.9"
+            placeholder="2,9"
             className={inputClass}
           />
         </FormField>
-        <FormField label="Fixed Fee (per txn)" error={errors.fixedFeePerTransaction?.message}>
+        <FormField label="Fixe Gebühr (pro Transaktion)" error={errors.fixedFeePerTransaction?.message}>
           <input
             {...register('fixedFeePerTransaction')}
             type="number"
             step="0.01"
             min="0"
-            placeholder="0.30"
+            placeholder="0,30"
             className={inputClass}
           />
         </FormField>
       </div>
-      <FormField label="Currency" error={errors.currency?.message}>
+      <FormField label="Währung" error={errors.currency?.message}>
         <select {...register('currency')} className={selectClass}>
-          <option value="USD">USD</option>
           <option value="EUR">EUR</option>
+          <option value="USD">USD</option>
           <option value="GBP">GBP</option>
-          <option value="CAD">CAD</option>
+          <option value="CHF">CHF</option>
         </select>
       </FormField>
       <div className="flex justify-end gap-2 pt-2">
@@ -245,7 +245,7 @@ function PaymentMethodModal({
           onClick={onClose}
           className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-surface-secondary transition-colors"
         >
-          Cancel
+          Abbrechen
         </button>
         <button
           type="submit"
@@ -257,7 +257,7 @@ function PaymentMethodModal({
           )}
         >
           {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {isEdit ? 'Update' : 'Add'} Payment Method
+          {isEdit ? 'Aktualisieren' : 'Hinzufügen'}
         </button>
       </div>
     </form>
@@ -279,9 +279,9 @@ function PaymentMethodsTab() {
 
   const handleDelete = useCallback(
     (method: PaymentMethod) => {
-      if (!confirm(`Delete "${method.name}"?`)) return;
+      if (!confirm(`"${method.name}" wirklich löschen?`)) return;
       deleteMutation.mutate(method.id, {
-        onSuccess: () => toast.success(`"${method.name}" deleted`),
+        onSuccess: () => toast.success(`"${method.name}" gelöscht`),
         onError: (err) => toast.error(err.message),
       });
     },
@@ -299,7 +299,7 @@ function PaymentMethodsTab() {
         accessorKey: 'name',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Gateway
+            Anbieter
           </span>
         ),
         cell: ({ getValue }) => (
@@ -313,18 +313,20 @@ function PaymentMethodsTab() {
         accessorKey: 'percentageFee',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Percentage Fee
+            Prozentuale Gebühr
           </span>
         ),
         cell: ({ getValue }) => (
-          <span className="text-gray-700">{getValue<number>().toFixed(2)}%</span>
+          <span className="text-gray-700">
+            {getValue<number>().toFixed(2).replace('.', ',')}%
+          </span>
         ),
       },
       {
         accessorKey: 'fixedFeePerTransaction',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Fixed Fee
+            Fixe Gebühr
           </span>
         ),
         cell: ({ row }) => (
@@ -337,7 +339,7 @@ function PaymentMethodsTab() {
         accessorKey: 'currency',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Currency
+            Währung
           </span>
         ),
         cell: ({ getValue }) => (
@@ -354,14 +356,14 @@ function PaymentMethodsTab() {
             <button
               onClick={() => handleEdit(row.original)}
               className="rounded-md p-1.5 text-gray-400 hover:bg-surface-secondary hover:text-gray-600 transition-colors"
-              title="Edit"
+              title="Bearbeiten"
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => handleDelete(row.original)}
               className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-semantic-error transition-colors"
-              title="Delete"
+              title="Löschen"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -385,7 +387,7 @@ function PaymentMethodsTab() {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <span className="text-xs text-gray-400">
-          {methods.length} payment method{methods.length !== 1 ? 's' : ''}
+          {methods.length} {methods.length === 1 ? 'Zahlungsmethode' : 'Zahlungsmethoden'}
         </span>
         <Dialog.Root open={modalOpen} onOpenChange={(open) => { if (!open) handleCloseModal(); else setModalOpen(true); }}>
           <Dialog.Trigger asChild>
@@ -396,7 +398,7 @@ function PaymentMethodsTab() {
               )}
             >
               <Plus className="h-4 w-4" />
-              Add Payment Method
+              Zahlungsmethode hinzufügen
             </button>
           </Dialog.Trigger>
           <Dialog.Portal>
@@ -409,7 +411,7 @@ function PaymentMethodsTab() {
             >
               <div className="flex items-center justify-between mb-4">
                 <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {editingMethod ? 'Edit' : 'Add'} Payment Method
+                  {editingMethod ? 'Zahlungsmethode bearbeiten' : 'Zahlungsmethode hinzufügen'}
                 </Dialog.Title>
                 <Dialog.Close asChild>
                   <button className="rounded-md p-1 text-gray-400 hover:bg-surface-secondary hover:text-gray-600 transition-colors">
@@ -430,9 +432,9 @@ function PaymentMethodsTab() {
       {methods.length === 0 ? (
         <div className="py-16 text-center">
           <CreditCard className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">No payment methods configured</p>
+          <p className="text-sm text-gray-500">Keine Zahlungsmethoden hinterlegt</p>
           <p className="text-xs text-gray-400 mt-1">
-            Add your payment gateways to track processing fees
+            Lege deine Payment-Gateways an, um Transaktionsgebühren in der Marge zu erfassen
           </p>
         </div>
       ) : (
@@ -480,12 +482,12 @@ function PaymentMethodsTab() {
 // ---------------------------------------------------------------------------
 
 const fixedCostSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  amount: z.coerce.number().min(0.01, 'Amount must be > 0'),
+  name: z.string().min(1, 'Name ist erforderlich'),
+  amount: z.coerce.number().min(0.01, 'Betrag muss > 0 sein'),
   currency: z.string().min(3),
-  frequency: z.string().min(1, 'Frequency is required'),
-  category: z.string().min(1, 'Category is required'),
-  startDate: z.string().min(1, 'Start date is required'),
+  frequency: z.string().min(1, 'Häufigkeit ist erforderlich'),
+  category: z.string().min(1, 'Kategorie ist erforderlich'),
+  startDate: z.string().min(1, 'Startdatum ist erforderlich'),
   endDate: z.string().optional(),
 });
 
@@ -521,7 +523,7 @@ function FixedCostModal({
       : {
           name: '',
           amount: 0,
-          currency: 'USD',
+          currency: 'EUR',
           frequency: 'monthly',
           category: 'software',
           startDate: new Date().toISOString().split('T')[0],
@@ -546,7 +548,7 @@ function FixedCostModal({
           { id: existingCost.id, ...payload },
           {
             onSuccess: () => {
-              toast.success('Fixed cost updated');
+              toast.success('Fixkosten aktualisiert');
               onClose();
             },
             onError: (err) => toast.error(err.message),
@@ -555,7 +557,7 @@ function FixedCostModal({
       } else {
         createMutation.mutate(payload, {
           onSuccess: () => {
-            toast.success('Fixed cost added');
+            toast.success('Fixkosten hinzugefügt');
             onClose();
           },
           onError: (err) => toast.error(err.message),
@@ -570,37 +572,37 @@ function FixedCostModal({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <FormField label="Name" error={errors.name?.message}>
-        <input {...register('name')} placeholder="e.g. Shopify subscription" className={inputClass} />
+        <input {...register('name')} placeholder="z.B. Shopify-Abo" className={inputClass} />
       </FormField>
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Amount ($)" error={errors.amount?.message}>
+        <FormField label="Betrag (€)" error={errors.amount?.message}>
           <input
             {...register('amount')}
             type="number"
             step="0.01"
             min="0"
-            placeholder="29.99"
+            placeholder="29,99"
             className={inputClass}
           />
         </FormField>
-        <FormField label="Currency" error={errors.currency?.message}>
+        <FormField label="Währung" error={errors.currency?.message}>
           <select {...register('currency')} className={selectClass}>
-            <option value="USD">USD</option>
             <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
             <option value="GBP">GBP</option>
-            <option value="CAD">CAD</option>
+            <option value="CHF">CHF</option>
           </select>
         </FormField>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Frequency" error={errors.frequency?.message}>
+        <FormField label="Häufigkeit" error={errors.frequency?.message}>
           <select {...register('frequency')} className={selectClass}>
             {FREQUENCIES.map((f) => (
               <option key={f.value} value={f.value}>{f.label}</option>
             ))}
           </select>
         </FormField>
-        <FormField label="Category" error={errors.category?.message}>
+        <FormField label="Kategorie" error={errors.category?.message}>
           <select {...register('category')} className={selectClass}>
             {CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
@@ -609,10 +611,10 @@ function FixedCostModal({
         </FormField>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Start Date" error={errors.startDate?.message}>
+        <FormField label="Startdatum" error={errors.startDate?.message}>
           <input {...register('startDate')} type="date" className={inputClass} />
         </FormField>
-        <FormField label="End Date (optional)" error={errors.endDate?.message}>
+        <FormField label="Enddatum (optional)" error={errors.endDate?.message}>
           <input {...register('endDate')} type="date" className={inputClass} />
         </FormField>
       </div>
@@ -622,7 +624,7 @@ function FixedCostModal({
           onClick={onClose}
           className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-surface-secondary transition-colors"
         >
-          Cancel
+          Abbrechen
         </button>
         <button
           type="submit"
@@ -634,7 +636,7 @@ function FixedCostModal({
           )}
         >
           {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {isEdit ? 'Update' : 'Add'} Fixed Cost
+          {isEdit ? 'Aktualisieren' : 'Hinzufügen'}
         </button>
       </div>
     </form>
@@ -656,9 +658,9 @@ function FixedCostsTab() {
 
   const handleDelete = useCallback(
     (cost: FixedCost) => {
-      if (!confirm(`Delete "${cost.name}"?`)) return;
+      if (!confirm(`"${cost.name}" wirklich löschen?`)) return;
       deleteMutation.mutate(cost.id, {
-        onSuccess: () => toast.success(`"${cost.name}" deleted`),
+        onSuccess: () => toast.success(`"${cost.name}" gelöscht`),
         onError: (err) => toast.error(err.message),
       });
     },
@@ -675,12 +677,11 @@ function FixedCostsTab() {
     return costs.reduce((sum, cost) => {
       const amount = cost.amount;
       switch (cost.frequency) {
-        case 'daily': return sum + amount * 30;
         case 'weekly': return sum + amount * 4.33;
         case 'monthly': return sum + amount;
         case 'quarterly': return sum + amount / 3;
-        case 'yearly': return sum + amount / 12;
-        case 'one-time': return sum; // don't include one-time in monthly
+        case 'annual': return sum + amount / 12;
+        case 'one_time': return sum; // einmalige Kosten zaehlen nicht in Monatsschnitt
         default: return sum;
       }
     }, 0);
@@ -703,7 +704,7 @@ function FixedCostsTab() {
         accessorKey: 'amount',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Amount
+            Betrag
           </span>
         ),
         cell: ({ row }) => (
@@ -716,7 +717,7 @@ function FixedCostsTab() {
         accessorKey: 'frequency',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Frequency
+            Häufigkeit
           </span>
         ),
         cell: ({ getValue }) => {
@@ -733,7 +734,7 @@ function FixedCostsTab() {
         accessorKey: 'category',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Category
+            Kategorie
           </span>
         ),
         cell: ({ getValue }) => {
@@ -751,12 +752,12 @@ function FixedCostsTab() {
         accessorKey: 'startDate',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            Start Date
+            Startdatum
           </span>
         ),
         cell: ({ getValue }) => (
           <span className="text-gray-600 text-xs">
-            {new Date(getValue<string>()).toLocaleDateString('en-US', {
+            {new Date(getValue<string>()).toLocaleDateString('de-DE', {
               year: 'numeric',
               month: 'short',
               day: 'numeric',
@@ -768,21 +769,21 @@ function FixedCostsTab() {
         accessorKey: 'endDate',
         header: () => (
           <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
-            End Date
+            Enddatum
           </span>
         ),
         cell: ({ getValue }) => {
           const val = getValue<string | null>();
           return val ? (
             <span className="text-gray-600 text-xs">
-              {new Date(val).toLocaleDateString('en-US', {
+              {new Date(val).toLocaleDateString('de-DE', {
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric',
               })}
             </span>
           ) : (
-            <span className="text-gray-300 text-xs">Ongoing</span>
+            <span className="text-gray-300 text-xs">Laufend</span>
           );
         },
       },
@@ -794,14 +795,14 @@ function FixedCostsTab() {
             <button
               onClick={() => handleEdit(row.original)}
               className="rounded-md p-1.5 text-gray-400 hover:bg-surface-secondary hover:text-gray-600 transition-colors"
-              title="Edit"
+              title="Bearbeiten"
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => handleDelete(row.original)}
               className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-semantic-error transition-colors"
-              title="Delete"
+              title="Löschen"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -826,11 +827,11 @@ function FixedCostsTab() {
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-4">
           <span className="text-xs text-gray-400">
-            {costs.length} fixed cost{costs.length !== 1 ? 's' : ''}
+            {costs.length} {costs.length === 1 ? 'Fixkosten-Position' : 'Fixkosten-Positionen'}
           </span>
           {monthlyTotal > 0 && (
             <span className="text-xs text-gray-500">
-              Monthly total:{' '}
+              Monatliche Summe:{' '}
               <span className="font-medium text-gray-700">
                 {formatCurrency(Math.round(monthlyTotal))}
               </span>
@@ -846,7 +847,7 @@ function FixedCostsTab() {
               )}
             >
               <Plus className="h-4 w-4" />
-              Add Fixed Cost
+              Fixkosten hinzufügen
             </button>
           </Dialog.Trigger>
           <Dialog.Portal>
@@ -859,7 +860,7 @@ function FixedCostsTab() {
             >
               <div className="flex items-center justify-between mb-4">
                 <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {editingCost ? 'Edit' : 'Add'} Fixed Cost
+                  {editingCost ? 'Fixkosten bearbeiten' : 'Fixkosten hinzufügen'}
                 </Dialog.Title>
                 <Dialog.Close asChild>
                   <button className="rounded-md p-1 text-gray-400 hover:bg-surface-secondary hover:text-gray-600 transition-colors">
@@ -880,9 +881,9 @@ function FixedCostsTab() {
       {costs.length === 0 ? (
         <div className="py-16 text-center">
           <Receipt className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">No fixed costs configured</p>
+          <p className="text-sm text-gray-500">Keine Fixkosten hinterlegt</p>
           <p className="text-xs text-gray-400 mt-1">
-            Track recurring expenses like software subscriptions, payroll, and rent
+            Erfasse wiederkehrende Ausgaben wie Software-Abos, Gehälter und Miete
           </p>
         </div>
       ) : (
@@ -933,11 +934,11 @@ function ShippingRulesTab() {
   return (
     <div className="py-16 text-center">
       <Truck className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-      <p className="text-sm font-medium text-gray-700">Shipping Rules</p>
-      <p className="text-sm text-gray-400 mt-1">Coming soon</p>
+      <p className="text-sm font-medium text-gray-700">Versandregeln</p>
+      <p className="text-sm text-gray-400 mt-1">Demnächst verfügbar</p>
       <p className="text-xs text-gray-400 mt-3 max-w-sm mx-auto">
-        Configure shipping cost rules by zone, weight, and carrier to accurately
-        track fulfillment expenses in your P&L.
+        Hinterlege Versandkosten-Regeln nach Zone, Gewicht und Carrier, damit
+        Fulfillment-Ausgaben in der Gewinn-/Verlustrechnung exakt abgebildet werden.
       </p>
     </div>
   );
@@ -952,9 +953,9 @@ export default function CostsPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Cost Management</h1>
+        <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Kostenverwaltung</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Configure payment fees, fixed costs, and shipping rules
+          Zahlungs­gebühren, Fixkosten und Versandregeln konfigurieren
         </p>
       </div>
 
@@ -963,7 +964,7 @@ export default function CostsPage() {
         <div className="rounded-lg bg-white shadow-card overflow-hidden">
           <Tabs.List
             className="flex border-b border-border px-5"
-            aria-label="Cost categories"
+            aria-label="Kostenkategorien"
           >
             <Tabs.Trigger
               value="payment-methods"
@@ -978,7 +979,7 @@ export default function CostsPage() {
             >
               <span className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4" />
-                Payment Methods
+                Zahlungsmethoden
               </span>
             </Tabs.Trigger>
             <Tabs.Trigger
@@ -994,7 +995,7 @@ export default function CostsPage() {
             >
               <span className="flex items-center gap-2">
                 <Receipt className="h-4 w-4" />
-                Fixed Costs
+                Fixkosten
               </span>
             </Tabs.Trigger>
             <Tabs.Trigger
@@ -1010,7 +1011,7 @@ export default function CostsPage() {
             >
               <span className="flex items-center gap-2">
                 <Truck className="h-4 w-4" />
-                Shipping Rules
+                Versandregeln
               </span>
             </Tabs.Trigger>
           </Tabs.List>

@@ -6,6 +6,7 @@ import type {
   FixedCost,
 } from '@filapen/shared/src/types/finance';
 import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 
 // ---------------------------------------------------------------------------
 // Generic fetch helpers
@@ -13,26 +14,31 @@ import { API_URL } from '@/lib/api';
 
 const API_BASE = `${API_URL}/api/finance/costs`;
 
-async function fetchApi<T>(path: string): Promise<T> {
-  const res = await fetch(new URL(path, window.location.origin).toString());
+async function fetchApi<T>(url: string): Promise<T> {
+  const res = await fetch(url, { headers: getAuthHeaders() });
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+    throw new Error(`API-Fehler ${res.status}: ${res.statusText}`);
   }
   return res.json();
 }
 
 async function mutateApi<T>(
-  path: string,
+  url: string,
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   body?: unknown,
 ): Promise<T> {
-  const res = await fetch(new URL(path, window.location.origin).toString(), {
+  const res = await fetch(url, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      ...getAuthHeaders(),
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+    let detail = res.statusText;
+    try { const j = await res.json(); detail = j?.message ?? detail; } catch { /* ignore */ }
+    throw new Error(`API-Fehler ${res.status}: ${detail}`);
   }
   // DELETE may return 204
   if (res.status === 204) return undefined as T;

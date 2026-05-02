@@ -2,11 +2,14 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Patch,
   Query,
   Param,
   Body,
   Logger,
+  HttpCode,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -446,58 +449,171 @@ export class DashboardController {
   }
 
   // =========================================================================
-  // GET /api/finance/costs/payment-methods
+  // COSTS — Mapping zwischen Frontend-Shape und Service-DTO
   // =========================================================================
+  //
+  // Das Frontend (Form + TanStack Query Hooks) verwendet User-freundliche
+  // Feldnamen + Cents fuer Geld:
+  //   PaymentMethod: { name, fixedFeePerTransaction (cents), percentageFee, currency }
+  //   FixedCost:     { name, amount (cents), currency, frequency, category, startDate, endDate }
+  //
+  // Das DB-Schema (PaymentMethodConfig + FixedCost) verwendet:
+  //   { gatewayName, feeFixedAmount (Decimal EUR), feePercentage, feeCurrency }
+  //   { name, amount (Decimal EUR), currency, recurrence, category }
+  //
+  // Diese Block kuemmert sich um die Konvertierung in beide Richtungen +
+  // fuegt PUT/DELETE hinzu (vorher fehlten — daher 404→500 bei Edit/Delete).
+
+  private mapPaymentMethodOut(row: any) {
+    return {
+      id: row.id,
+      name: row.gatewayName,
+      fixedFeePerTransaction: Math.round(Number(row.feeFixedAmount) * 100),
+      percentageFee: Number(row.feePercentage),
+      currency: row.feeCurrency,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private mapPaymentMethodIn(body: any): CreatePaymentMethodDto {
+    return {
+      gatewayName: body.name,
+      feePercentage: Number(body.percentageFee ?? 0),
+      feeFixedAmount: Number(body.fixedFeePerTransaction ?? 0) / 100,
+      feeCurrency: body.currency ?? 'EUR',
+      isActive: body.isActive ?? true,
+    };
+  }
+
+  private mapFixedCostOut(row: any) {
+    return {
+      id: row.id,
+      name: row.name,
+      amount: Math.round(Number(row.amount) * 100),
+      currency: row.currency,
+      frequency: row.recurrence,
+      category: row.category,
+      startDate: row.startDate instanceof Date ? row.startDate.toISOString() : row.startDate,
+      endDate: row.endDate
+        ? (row.endDate instanceof Date ? row.endDate.toISOString() : row.endDate)
+        : null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private mapFixedCostIn(body: any): CreateFixedCostDto {
+    return {
+      name: body.name,
+      category: body.category,
+      amount: Number(body.amount ?? 0) / 100,
+      currency: body.currency ?? 'EUR',
+      recurrence: body.frequency,
+      startDate: new Date(body.startDate),
+      endDate: body.endDate ? new Date(body.endDate) : null,
+      notes: body.notes ?? null,
+    };
+  }
 
   @Get('costs/payment-methods')
   async getPaymentMethods() {
     try {
-      return await this.costService.listPaymentMethods(DEV_ORG_ID);
+      const rows = await this.costService.listPaymentMethods(DEV_ORG_ID);
+      return rows.map((r) => this.mapPaymentMethodOut(r));
     } catch (error) {
       this.logger.error('Failed to get payment methods', error);
       throw new HttpException('Failed to load payment methods', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  // =========================================================================
-  // POST /api/finance/costs/payment-methods
-  // =========================================================================
-
   @Post('costs/payment-methods')
-  async upsertPaymentMethod(@Body() body: CreatePaymentMethodDto) {
+  async upsertPaymentMethod(@Body() body: any) {
     try {
-      return await this.costService.upsertPaymentMethod(DEV_ORG_ID, body);
-    } catch (error) {
-      this.logger.error('Failed to upsert payment method', error);
-      throw new HttpException('Failed to save payment method', HttpStatus.INTERNAL_SERVER_ERROR);
+      const dto = this.mapPaymentMethodIn(body);
+      const row = await this.costService.upsertPaymentMethod(DEV_ORG_ID, dto);
+      return this.mapPaymentMethodOut(row);
+    } catch (error: any) {
+      this.logger.error('Failed to upsert payment method', error?.message ?? error);
+      throw new HttpException(
+        error?.message ?? 'Failed to save payment method',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
-  // =========================================================================
-  // GET /api/finance/costs/fixed
-  // =========================================================================
+  @Put('costs/payment-methods/:id')
+  async updatePaymentMethod(@Param('id') _id: string, @Body() body: any) {
+    // Service nutzt upsert via @@unique([orgId, gatewayName]) — gleicher Pfad wie POST.
+    return this.upsertPaymentMethod(body);
+  }
+
+  @Delete('costs/payment-methods/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deletePaymentMethod(@Param('id') id: string): Promise<void> {
+    try {
+      await this.costService.deletePaymentMethod(DEV_ORG_ID, id);
+    } catch (error: any) {
+      this.logger.error(`Failed to delete payment method ${id}`, error?.message ?? error);
+      throw new HttpException(
+        error?.message ?? 'Failed to delete payment method',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 
   @Get('costs/fixed')
   async getFixedCosts() {
     try {
-      return await this.costService.listFixedCosts(DEV_ORG_ID);
+      const rows = await this.costService.listFixedCosts(DEV_ORG_ID);
+      return rows.map((r) => this.mapFixedCostOut(r));
     } catch (error) {
       this.logger.error('Failed to get fixed costs', error);
       throw new HttpException('Failed to load fixed costs', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  // =========================================================================
-  // POST /api/finance/costs/fixed
-  // =========================================================================
-
   @Post('costs/fixed')
-  async createFixedCost(@Body() body: CreateFixedCostDto) {
+  async createFixedCost(@Body() body: any) {
     try {
-      return await this.costService.createFixedCost(DEV_ORG_ID, body);
-    } catch (error) {
-      this.logger.error('Failed to create fixed cost', error);
-      throw new HttpException('Failed to save fixed cost', HttpStatus.INTERNAL_SERVER_ERROR);
+      const dto = this.mapFixedCostIn(body);
+      const row = await this.costService.createFixedCost(DEV_ORG_ID, dto);
+      return this.mapFixedCostOut(row);
+    } catch (error: any) {
+      this.logger.error('Failed to create fixed cost', error?.message ?? error);
+      throw new HttpException(
+        error?.message ?? 'Failed to save fixed cost',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Put('costs/fixed/:id')
+  async updateFixedCost(@Param('id') id: string, @Body() body: any) {
+    try {
+      const dto = this.mapFixedCostIn(body);
+      const row = await this.costService.updateFixedCost(DEV_ORG_ID, id, dto);
+      return this.mapFixedCostOut(row);
+    } catch (error: any) {
+      this.logger.error(`Failed to update fixed cost ${id}`, error?.message ?? error);
+      throw new HttpException(
+        error?.message ?? 'Failed to update fixed cost',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Delete('costs/fixed/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteFixedCost(@Param('id') id: string): Promise<void> {
+    try {
+      await this.costService.deleteFixedCost(DEV_ORG_ID, id);
+    } catch (error: any) {
+      this.logger.error(`Failed to delete fixed cost ${id}`, error?.message ?? error);
+      throw new HttpException(
+        error?.message ?? 'Failed to delete fixed cost',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 

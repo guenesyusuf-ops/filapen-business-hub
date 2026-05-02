@@ -145,8 +145,10 @@ export interface ProductProfitability {
 // Cost Management
 // ---------------------------------------------------------------------------
 
-export type CostFrequency = 'one-time' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-export type CostCategory = 'software' | 'payroll' | 'rent' | 'marketing' | 'shipping' | 'other';
+// Werte muessen zum Prisma-Enum (Recurrence + FixedCostCategory) passen,
+// damit der DB-Insert nicht mit "invalid enum value" failed.
+export type CostFrequency = 'monthly' | 'weekly' | 'quarterly' | 'annual' | 'one_time';
+export type CostCategory = 'software' | 'salary' | 'warehouse' | 'agency' | 'creator' | 'other';
 
 export interface PaymentMethod {
   id: string;
