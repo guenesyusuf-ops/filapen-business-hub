@@ -184,12 +184,12 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     // Whiteboard — kollaboratives Canvas (Miro-aehnlich, tldraw + Liveblocks)
-    // Ist bewusst Top-Level-Eintrag, NICHT unter Aufgaben — Use-Case ist
-    // breiter (Brainstorm, Roadmaps, Customer-Journey).
+    // Eigene Permission damit man Whiteboard separat von Work-Management
+    // freigeben kann (z.B. fuer Workshops mit externen Mitwirkenden).
     labelKey: 'nav.whiteboard',
     href: '/whiteboard',
     icon: PencilRuler,
-    permissionKey: 'work-management',
+    permissionKey: 'whiteboard',
     accent: 'text-accent-work',
   },
   {
