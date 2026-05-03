@@ -652,8 +652,14 @@ function FixedCostsTab() {
   const deleteMutation = useDeleteFixedCost();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCost, setEditingCost] = useState<FixedCost | null>(null);
+  // 'all' = alle Kategorien anzeigen, sonst eine konkrete Kategorie filtern.
+  const [categoryFilter, setCategoryFilter] = useState<'all' | CostCategory>('all');
 
-  const costs = data ?? [];
+  const allCosts = data ?? [];
+  const costs = useMemo(
+    () => (categoryFilter === 'all' ? allCosts : allCosts.filter((c) => c.category === categoryFilter)),
+    [allCosts, categoryFilter],
+  );
 
   const handleEdit = useCallback((cost: FixedCost) => {
     setEditingCost(cost);
@@ -828,10 +834,13 @@ function FixedCostsTab() {
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-border flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
           <span className="text-xs text-gray-400">
             {costs.length} {costs.length === 1 ? 'Fixkosten-Position' : 'Fixkosten-Positionen'}
+            {categoryFilter !== 'all' && allCosts.length !== costs.length && (
+              <span className="text-gray-300"> / {allCosts.length} gesamt</span>
+            )}
           </span>
           {monthlyTotal > 0 && (
             <span className="text-xs text-gray-500">
@@ -841,6 +850,24 @@ function FixedCostsTab() {
               </span>
             </span>
           )}
+          {/* Kategorie-Filter — bleibt links neben den Stats damit die
+              "Hinzufuegen"-Action rechts isoliert + prominent bleibt. */}
+          <label className="flex items-center gap-2 text-xs text-gray-500">
+            <span>Kategorie:</span>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as 'all' | CostCategory)}
+              className={cn(
+                'rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700',
+                'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary',
+              )}
+            >
+              <option value="all">Alle</option>
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <Dialog.Root open={modalOpen} onOpenChange={(open) => { if (!open) handleCloseModal(); else setModalOpen(true); }}>
           <Dialog.Trigger asChild>
