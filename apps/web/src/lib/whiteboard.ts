@@ -46,4 +46,21 @@ export const whiteboardApi = {
   /** Liveblocks-Auth-Token holen — null wenn LIVEBLOCKS_SECRET_KEY nicht gesetzt */
   liveblocksAuth: (id: string) =>
     call<{ token: string | null; reason?: string }>(`/boards/${id}/liveblocks-auth`, { method: 'POST' }),
+
+  // Drag-Panel: leichtgewichtige Suche in den drei Filapen-Domains
+  searchTasks: (q: string) => call<Array<{
+    id: string; title: string; priority: string; completed: boolean;
+    dueDate: string | null; columnName: string | null;
+    projectId: string | null; projectName: string | null; projectColor: string | null;
+  }>>(`/search/tasks${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  searchOrders: (q: string) => call<Array<{
+    id: string; orderNumber: string; status: string;
+    totalNet: number; currency: string;
+    paidAt: string | null; shippedAt: string | null;
+    customerName: string | null;
+  }>>(`/search/orders${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  searchProducts: (q: string) => call<Array<{
+    id: string; sku: string | null; productTitle: string; variantTitle: string;
+    imageUrl: string | null; price: number | null; cogs: number | null;
+  }>>(`/search/products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
 };
