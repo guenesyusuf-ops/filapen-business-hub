@@ -29,6 +29,7 @@ export function pathToPermission(pathname: string): MenuPermissionKey | null {
   if (pathname.startsWith('/influencers')) return 'influencers';
   if (pathname.startsWith('/content')) return 'content';
   if (pathname.startsWith('/work-management')) return 'work-management';
+  if (pathname.startsWith('/whiteboard')) return 'work-management';
   if (pathname.startsWith('/purchases')) return 'purchases';
   if (pathname.startsWith('/email-marketing')) return 'email-marketing';
   if (pathname.startsWith('/shipping')) return 'shipping';

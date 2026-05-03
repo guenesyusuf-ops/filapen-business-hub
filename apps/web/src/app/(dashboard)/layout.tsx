@@ -69,6 +69,7 @@ import {
   MailPlus,
   Boxes,
   Plug as PlugIcon,
+  PencilRuler,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -180,6 +181,16 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.wmMyTasks', href: '/work-management/my-tasks', icon: ClipboardList },
       { labelKey: 'nav.wmWorkload', href: '/work-management/workload', icon: BarChart },
     ],
+  },
+  {
+    // Whiteboard — kollaboratives Canvas (Miro-aehnlich, tldraw + Liveblocks)
+    // Ist bewusst Top-Level-Eintrag, NICHT unter Aufgaben — Use-Case ist
+    // breiter (Brainstorm, Roadmaps, Customer-Journey).
+    labelKey: 'nav.whiteboard',
+    href: '/whiteboard',
+    icon: PencilRuler,
+    permissionKey: 'work-management',
+    accent: 'text-accent-work',
   },
   {
     labelKey: 'nav.purchases',

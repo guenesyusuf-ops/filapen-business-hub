@@ -338,6 +338,7 @@ model Organization {
   brandVoices              BrandVoice[]
   contentTemplates         ContentTemplate[]
   contentPieces            ContentPiece[]
+  whiteboards              Whiteboard[]
   teamInvites              TeamInvite[]
   invitations              ProjectInvitation[]
   suppliers                Supplier[]
@@ -1751,6 +1752,76 @@ model WmNotification {
 // =============================================================================
 
 // DocFile.status uses varchar: draft | approved | archived
+
+// =============================================================================
+// MODELS — Whiteboard (Miro-aehnliches kollaboratives Canvas)
+// =============================================================================
+// tldraw als Canvas-Engine. Dokument-State wird in `state` als Json gespeichert
+// (tldraw's serialisiertes Document — Nodes, Verbindungen, Farben, Positionen).
+// Live-Collaboration laeuft via Liveblocks (Phase 2), die Persistenz in unsere
+// DB ist Snapshot-basiert (alle ~30s + on-leave) damit auch ohne Liveblocks-
+// Verbindung der letzte Stand wiederhergestellt werden kann.
+
+model Whiteboard {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  /// Vorschau-Bild (PNG) als R2-URL — fuer die Liste-Ansicht
+  thumbnailUrl String? @map("thumbnail_url") @db.Text
+  /// Aktueller tldraw-Snapshot. Gross (mehrere MB bei vielen Nodes), daher
+  /// nicht in eigene Tabelle ausgelagert — pro Board nur EINE active row.
+  state       Json     @default("{}") @db.JsonB
+  /// liveblocks Room-ID. Format "wb-{boardId}". Vorab generiert damit der
+  /// Frontend-Client direkt joinen kann ohne extra API-Call.
+  liveblocksRoomId String? @map("liveblocks_room_id") @db.VarChar(100)
+  createdById String   @map("created_by_id") @db.Uuid
+  /// Wer zuletzt am Board war (User-ID) — fuer "Letzter Edit von …" in der Liste
+  lastEditedById String? @map("last_edited_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  snapshots    WhiteboardSnapshot[]
+  members      WhiteboardMember[]
+
+  @@index([orgId])
+  @@index([orgId, updatedAt])
+  @@map("whiteboards")
+}
+
+/// Versions-History — eine Zeile pro Auto-Save. Erlaubt Rollback auf
+/// frueheren Stand bei "oh nein, alles geloescht"-Momenten.
+model WhiteboardSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  whiteboardId String   @map("whiteboard_id") @db.Uuid
+  state        Json     @db.JsonB
+  capturedById String   @map("captured_by_id") @db.Uuid
+  capturedAt   DateTime @default(now()) @map("captured_at") @db.Timestamptz
+
+  whiteboard Whiteboard @relation(fields: [whiteboardId], references: [id], onDelete: Cascade)
+
+  @@index([whiteboardId, capturedAt(sort: Desc)])
+  @@map("whiteboard_snapshots")
+}
+
+/// Per-Board Permissions. Owner > Editor > Viewer. Wenn keine Member-Zeile
+/// fuer einen User existiert, hat er nur Org-weite Read-only-Sicht (oder
+/// gar keine — abhaengig von Whiteboard.visibility, das wir Phase 4 einbauen).
+model WhiteboardMember {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  whiteboardId String   @map("whiteboard_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  /// "owner" | "editor" | "viewer"
+  role         String   @default("editor") @db.VarChar(20)
+  addedAt      DateTime @default(now()) @map("added_at") @db.Timestamptz
+
+  whiteboard Whiteboard @relation(fields: [whiteboardId], references: [id], onDelete: Cascade)
+
+  @@unique([whiteboardId, userId])
+  @@index([userId])
+  @@map("whiteboard_members")
+}
 
 // =============================================================================
 // MODELS — Documents Hub
