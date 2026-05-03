@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../common/storage/storage.service';
 import * as crypto from 'crypto';
 
-type DocKind = 'original' | 'confirmation' | 'invoice' | 'other';
+type DocKind = 'original' | 'confirmation' | 'invoice' | 'delivery_note' | 'other';
 
 @Injectable()
 export class SalesDocumentService {

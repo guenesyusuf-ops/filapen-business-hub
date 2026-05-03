@@ -290,7 +290,7 @@ export class SalesController {
     @Headers('authorization') authHeader: string,
     @Param('id') id: string,
     @UploadedFile() file: any,
-    @Body('kind') kind: 'original' | 'confirmation' | 'invoice' | 'other',
+    @Body('kind') kind: 'original' | 'confirmation' | 'invoice' | 'delivery_note' | 'other',
   ) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
@@ -465,5 +465,12 @@ export class SalesController {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     return this.easybill.sendInvoice(orgId, userId, id);
+  }
+
+  @Post('orders/:id/easybill/create-delivery-note')
+  async createDeliveryNote(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.easybill.createDeliveryNote(orgId, userId, id);
   }
 }

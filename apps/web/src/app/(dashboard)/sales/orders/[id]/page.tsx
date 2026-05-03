@@ -388,6 +388,7 @@ export default function SalesOrderDetailPage() {
               <UploadButton label="Original-Bestellung" kind="original" onChange={uploadDoc} />
               <UploadButton label="Auftragsbestätigung" kind="confirmation" onChange={uploadDoc} />
               <UploadButton label="Rechnung" kind="invoice" onChange={uploadDoc} />
+              <UploadButton label="Lieferschein" kind="delivery_note" onChange={uploadDoc} />
               <UploadButton label="Sonstiges" kind="other" onChange={uploadDoc} />
             </div>
           </Section>
@@ -602,6 +603,7 @@ function ShippingForm({ order, onSaved }: { order: any; onSaved: () => void }) {
 function EasybillPanel({ order, saving, onAction }: { order: any; saving: boolean; onAction: (fn: () => Promise<any>, label: string) => Promise<void> }) {
   const hasConf = !!order.easybillConfirmationId;
   const hasInv = !!order.easybillInvoiceId;
+  const hasDelivery = !!order.easybillDeliveryNoteId;
   return (
     <div className="space-y-2 text-xs">
       <div className="space-y-1.5">
@@ -660,6 +662,30 @@ function EasybillPanel({ order, saving, onAction }: { order: any; saving: boolea
           </div>
         </div>
       </div>
+      <div className="space-y-1.5 pt-2 border-t border-gray-200/60 dark:border-white/5">
+        <div className="flex items-center justify-between gap-2">
+          <span className={hasDelivery ? 'text-green-600 font-medium' : 'text-gray-500'}>
+            {hasDelivery ? '✓ Lieferschein in easybill' : 'Lieferschein noch nicht in easybill'}
+          </span>
+          <div className="flex gap-1">
+            {!hasDelivery && (
+              <button
+                onClick={() => onAction(() => salesApi.createDeliveryNote(order.id), 'Lieferschein erstellt')}
+                disabled={saving}
+                className={btn('primary', 'text-[11px]')}
+                title="Erstellt einen Lieferschein in easybill und legt ihn als PDF unter Dokumente ab."
+              >
+                <FilePlus className="h-3 w-3" /> Lieferschein
+              </button>
+            )}
+            {hasDelivery && order.easybillDeliveryNotePdfUrl && (
+              <a href={order.easybillDeliveryNotePdfUrl} target="_blank" rel="noopener" className={btn('ghost', 'text-[11px]')}>
+                <Download className="h-3 w-3" /> PDF
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -677,6 +703,7 @@ function kindLabel(k: string) {
   if (k === 'original') return 'Original-Bestellung';
   if (k === 'confirmation') return 'Auftragsbestätigung';
   if (k === 'invoice') return 'Rechnung';
+  if (k === 'delivery_note') return 'Lieferschein';
   return 'Sonstiges';
 }
 

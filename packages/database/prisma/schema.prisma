@@ -2877,6 +2877,7 @@ enum SalesDocumentKind {
   original       // uploaded PDF/image of the incoming order
   confirmation   // Auftragsbestätigung (easybill PDF)
   invoice        // Rechnung (easybill PDF)
+  delivery_note  // Lieferschein (easybill PDF)
   other          // anything else the user attaches
 
   @@map("sales_document_kind")
@@ -2966,6 +2967,8 @@ model SalesOrder {
   easybillConfirmationPdfUrl String?       @map("easybill_confirmation_pdf_url") @db.Text
   easybillInvoiceId       String?          @map("easybill_invoice_id") @db.VarChar(100)
   easybillInvoicePdfUrl   String?          @map("easybill_invoice_pdf_url") @db.Text
+  easybillDeliveryNoteId  String?          @map("easybill_delivery_note_id") @db.VarChar(100)
+  easybillDeliveryNotePdfUrl String?       @map("easybill_delivery_note_pdf_url") @db.Text
   // Versand-Info (free-form carrier + tracking numbers[])
   shippingCarrierNote     String?          @map("shipping_carrier_note") @db.VarChar(255)
   trackingNumbers         String[]         @default([]) @map("tracking_numbers")

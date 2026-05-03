@@ -2,7 +2,7 @@ import { API_URL } from './api';
 import { getAuthHeaders } from '@/stores/auth';
 
 export type SalesOrderStatus = 'draft' | 'confirmed' | 'shipped' | 'invoiced' | 'completed' | 'cancelled';
-export type SalesDocumentKind = 'original' | 'confirmation' | 'invoice' | 'other';
+export type SalesDocumentKind = 'original' | 'confirmation' | 'invoice' | 'delivery_note' | 'other';
 
 const headers = () => ({ 'Content-Type': 'application/json', ...getAuthHeaders() });
 
@@ -150,6 +150,7 @@ export const salesApi = {
   sendConfirmation: (id: string) => call<any>(`/orders/${id}/easybill/send-confirmation`, { method: 'POST' }),
   createInvoice: (id: string) => call<any>(`/orders/${id}/easybill/create-invoice`, { method: 'POST' }),
   sendInvoice: (id: string) => call<any>(`/orders/${id}/easybill/send-invoice`, { method: 'POST' }),
+  createDeliveryNote: (id: string) => call<any>(`/orders/${id}/easybill/create-delivery-note`, { method: 'POST' }),
 };
 
 export const STATUS_LABELS: Record<SalesOrderStatus, { label: string; color: string }> = {

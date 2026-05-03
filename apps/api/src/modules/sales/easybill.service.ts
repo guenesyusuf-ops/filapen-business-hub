@@ -204,7 +204,7 @@ export class EasybillService {
     return match?.id ? String(match.id) : null;
   }
 
-  private orderPayload(order: any, easybillCustomerId: string, type: 'CHARGE_CONFIRM' | 'INVOICE') {
+  private orderPayload(order: any, easybillCustomerId: string, type: 'CHARGE_CONFIRM' | 'INVOICE' | 'DELIVERY') {
     // EMPIRISCHER FIX: easybill interpretiert `single_price_net` offensichtlich
     // als Cent-Integer und NICHT als EUR-Float (12.06 in → 0.1206 €). Wir
     // multiplizieren daher × 100 und runden auf Integer.
@@ -447,6 +447,57 @@ export class EasybillService {
       },
     });
     return { ok: true };
+  }
+
+  /**
+   * Lieferschein generieren = easybill Document-Typ "DELIVERY".
+   * Gleicher Flow wie Auftragsbestaetigung + Rechnung:
+   *   1. POST /documents mit type=DELIVERY + Customer + Items
+   *   2. PUT /documents/{id}/done → aus Entwurf holen
+   *   3. PDF runterladen, in R2 mirroren, als SalesOrderDocument
+   *      (kind=delivery_note) anhaengen → erscheint sofort in der
+   *      Dokumente-Liste der Bestellung.
+   */
+  async createDeliveryNote(orgId: string, userId: string, orderId: string) {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: orderId, orgId },
+      include: { customer: true, lineItems: { orderBy: { position: 'asc' } } },
+    });
+    if (!order) throw new BadRequestException('Bestellung nicht gefunden');
+    if (order.easybillDeliveryNoteId) {
+      throw new BadRequestException('Lieferschein existiert bereits.');
+    }
+
+    const easybillCustomerId = await this.upsertCustomer(orgId, order.customerId);
+    const body = this.orderPayload(order, easybillCustomerId, 'DELIVERY');
+    console.error('[easybill] REQUEST delivery note:', JSON.stringify(body));
+    const doc = await this.call<any>(orgId, '/documents', { method: 'POST', body });
+    const docId = String(doc.id);
+    console.error(`[easybill] delivery created: id=${docId} type=${doc.type} document_number=${doc.document_number ?? doc.number ?? '—'}`);
+
+    // Aus Entwurf holen — gleicher Schritt wie bei AB/Rechnung
+    try {
+      await this.call(orgId, `/documents/${docId}/done`, { method: 'PUT' });
+    } catch (err: any) {
+      console.error(`[easybill] delivery /done fehlgeschlagen (non-fatal): ${err.message}`);
+    }
+
+    const pdfBuffer = await this.downloadPdf(orgId, docId);
+    const attached = await this.documents.attachBuffer(
+      orgId, userId, orderId, pdfBuffer,
+      `lieferschein-${order.orderNumber}.pdf`,
+      'application/pdf', 'delivery_note',
+    );
+
+    await this.prisma.salesOrder.update({
+      where: { id: orderId },
+      data: {
+        easybillDeliveryNoteId: docId,
+        easybillDeliveryNotePdfUrl: attached.url,
+        events: { create: { orgId, type: 'note', actorId: userId, note: `easybill Lieferschein erstellt (${docId})` } },
+      },
+    });
+    return { easybillId: docId, pdfUrl: attached.url };
   }
 
   private async downloadPdf(orgId: string, documentId: string): Promise<Buffer> {
