@@ -5,6 +5,10 @@ export interface ProfileInput {
   productVariantId?: string | null;
   sku?: string | null;
   title?: string | null;
+  /** EAN/Barcode — schreibt direkt auf productVariant.barcode (sofern verlinkt).
+   *  Gepflegt damit der COGS- + Sales-Importer-Match auf product_variants.barcode
+   *  greift, falls Shopify keine EAN syncrt oder eine alte falsch gepflegte. */
+  variantBarcode?: string | null;
   weightG: number;
   /** Optional override fuer Master-Karton-Gewicht in g. Wenn gesetzt, gewinnt
    *  dieser Wert im Sales-DHL-Bulk-Label-Workflow. Sonst rechnet das System
@@ -59,6 +63,10 @@ export class ShippingProductProfileService {
       productImage: v.product.imageUrl,
       variantTitle: v.title,
       sku: v.sku,
+      // EAN/Barcode auf der Variant — Source-of-Truth fuer COGS-+Sales-Match.
+      // Frontend rendert + editierbar, Speichern via variantBarcode-Feld in
+      // ProfileInput → updated diesen Wert auf productVariant.
+      barcode: v.barcode ?? null,
       price: v.price,
       shippingProfile: v.shippingProfile,
     }));
@@ -86,6 +94,18 @@ export class ShippingProductProfileService {
     });
     if (!variant) throw new BadRequestException('Produktvariante nicht gefunden');
     this.validateNumbers(data);
+
+    // Wenn der User die EAN editiert hat → schreibt direkt auf productVariant.
+    // Das ist KEIN ShippingProductProfile-Feld sondern lebt auf der Variante,
+    // damit Shopify-Sync und COGS-/Sales-Importer-Match denselben Wert sehen.
+    // Leerer String wird zu null normalisiert.
+    if (data.variantBarcode !== undefined) {
+      const newBarcode = data.variantBarcode?.trim() || null;
+      await this.prisma.productVariant.update({
+        where: { id: productVariantId },
+        data: { barcode: newBarcode },
+      });
+    }
 
     const existing = await this.prisma.shippingProductProfile.findUnique({
       where: { productVariantId },

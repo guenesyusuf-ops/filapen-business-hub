@@ -12,6 +12,7 @@ interface Row {
   productImage: string | null;
   variantTitle: string;
   sku: string | null;
+  barcode: string | null;
   price: string;
   shippingProfile: null | {
     id: string;
@@ -53,7 +54,11 @@ export default function ShippingProductsPage() {
     if (!patch) return;
     setSaving(row.variantId);
     try {
-      // Merge with existing
+      // EAN-Edit liegt unter dem Schluessel "barcode" (matcht Column),
+      // Backend erwartet aber "variantBarcode" weil das Feld direkt auf
+      // product_variant.barcode geschrieben wird. Hier umbenennen + aus
+      // patch entfernen damit keine doppelten Felder im Body landen.
+      const { barcode: editedBarcode, ...patchRest } = patch as { barcode?: string | null } & Record<string, any>;
       const body = {
         weightG: row.shippingProfile?.weightG ?? 0,
         weightPerCartonG: row.shippingProfile?.weightPerCartonG ?? null,
@@ -63,7 +68,8 @@ export default function ShippingProductsPage() {
         hsCode: row.shippingProfile?.hsCode ?? null,
         countryOfOrigin: row.shippingProfile?.countryOfOrigin ?? null,
         excludeFromShipping: row.shippingProfile?.excludeFromShipping ?? false,
-        ...patch,
+        ...patchRest,
+        ...(editedBarcode !== undefined ? { variantBarcode: editedBarcode } : {}),
       };
       await shippingApi.upsertVariantProfile(row.variantId, body);
       setEdits((prev) => { const next = { ...prev }; delete next[row.variantId]; return next; });
@@ -102,6 +108,7 @@ export default function ShippingProductsPage() {
                 <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   <th className="px-3 py-2.5 text-left">Produkt / Variante</th>
                   <th className="px-3 py-2.5 text-left">SKU</th>
+                  <th className="px-3 py-2.5 text-left" title="EAN/Barcode — Source of Truth für COGS- und Sales-Importer-Match. Wenn Shopify keinen EAN syncrt, hier eintragen damit das System Bestellpositionen automatisch zuordnet.">EAN</th>
                   <th className="px-3 py-2.5 text-right" title="Gewicht einer einzelnen Einheit in Gramm — wird im Versand-Modul für B2C-Sendungen genutzt und im Sales-Modul als Default ×VKE verrechnet">Gewicht/Stk (g)</th>
                   <th className="px-3 py-2.5 text-right" title="Optional: Gewicht eines fertig gepackten Master-Kartons in Gramm. Wenn gesetzt, gewinnt der Wert beim DHL-Bulk-Label-Versand. Sonst rechnet das System Gewicht/Stk × VKE.">Karton (g)</th>
                   <th className="px-3 py-2.5 text-right">L×B×H (mm)</th>
@@ -124,6 +131,16 @@ export default function ShippingProductsPage() {
                         <div className="text-xs text-gray-500 truncate max-w-[280px]">{row.variantTitle}</div>
                       </td>
                       <td className="px-3 py-3 text-xs text-gray-500 font-mono">{row.sku || '—'}</td>
+                      <td className="px-3 py-3">
+                        <input
+                          className={inputCls('w-36 text-xs font-mono')}
+                          value={(edit.barcode !== undefined ? edit.barcode : row.barcode) ?? ''}
+                          onChange={(e) => setField(row.variantId, 'barcode', e.target.value || null)}
+                          placeholder="—"
+                          maxLength={50}
+                          title="EAN/Barcode — wird direkt auf der Produktvariante gespeichert. Match-Source für COGS + Sales-Importer."
+                        />
+                      </td>
                       <td className="px-3 py-3 text-right">
                         <input type="number" min="0" className={inputCls('w-24 text-right')} value={val('weightG', '')} onChange={(e) => setField(row.variantId, 'weightG', Number(e.target.value))} placeholder="0" />
                       </td>
