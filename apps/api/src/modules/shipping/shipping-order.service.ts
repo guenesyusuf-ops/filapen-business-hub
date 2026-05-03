@@ -46,8 +46,17 @@ export class ShippingOrderService {
   async list(orgId: string, filters: ListFilters = {}) {
     const where: any = {
       orgId,
-      status: { not: 'cancelled' as const },
+      // status: 'open' bedeutet Bestellung lebt noch (nicht cancelled, nicht
+      // automatisch closed). closed kommt z.B. wenn Shopify selbst nach
+      // Fulfillment+Refund "abschliesst" — solche Bestellungen wollen wir
+      // im Versand-Modul nicht mehr sehen, auch wenn fulfillment irgendwie
+      // partial oder unfulfilled stehengeblieben ist.
+      status: 'open' as const,
       fulfillmentStatus: { in: ['unfulfilled', 'partial'] as const },
+      // Refunded (komplett oder teilweise) wird nicht mehr versendet —
+      // raus aus der Liste, damit der Versand-Mitarbeiter keine Etiketten
+      // fuer rueckerstattete Bestellungen mehr druckt.
+      financialStatus: { notIn: ['refunded', 'partially_refunded'] as const },
     };
     if (filters.shopId) where.shopId = filters.shopId;
     if (filters.fromDate || filters.toDate) {
@@ -307,8 +316,9 @@ export class ShippingOrderService {
     const orders = await this.prisma.order.findMany({
       where: {
         orgId,
-        status: { not: 'cancelled' as const },
+        status: 'open' as const,
         fulfillmentStatus: { in: ['unfulfilled', 'partial'] as const },
+        financialStatus: { notIn: ['refunded', 'partially_refunded'] as const },
         shipments: { none: {} },
       },
       select: { shippingAddress: true },

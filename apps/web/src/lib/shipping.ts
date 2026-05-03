@@ -26,6 +26,13 @@ export const shippingApi = {
 
   // Orders
   refreshOrdersFromShopify: () => call('/orders/refresh-from-shopify', { method: 'POST' }),
+  /** Schneller Versand-Sync: zieht NUR die aktuell unfulfilled Orders frisch
+   *  von Shopify und entdeckt Cancel/Refund/Fulfilled-Drift. Laeuft in
+   *  Sekunden, sicher als Auto-Trigger beim Oeffnen der Versand-Liste. */
+  reconcileShipping: () => call<{ checked: number; fixed: number; skipped: number; note?: string }>(
+    '/orders/reconcile-shipping',
+    { method: 'POST' },
+  ),
   listOrders: (q: Record<string, string | undefined> = {}) => {
     const p = new URLSearchParams();
     Object.entries(q).forEach(([k, v]) => { if (v) p.set(k, v); });

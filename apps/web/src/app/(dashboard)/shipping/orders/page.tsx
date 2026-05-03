@@ -111,6 +111,33 @@ export default function ShippingOrdersPage() {
       .finally(() => setLoading(false));
   }, [params]);
 
+  // Beim ersten Mount einen schnellen Versand-Sync triggern, damit Drift
+  // (Bestellungen die in Shopify schon fulfilled/cancelled/refunded sind,
+  // bei uns aber noch als "offen" stehen) automatisch entdeckt wird.
+  // Laeuft im Hintergrund — die Liste laedt sofort, refresht aber wenn
+  // der Reconcile fertig ist und etwas korrigiert hat.
+  const [reconciling, setReconciling] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setReconciling(true);
+    shippingApi.reconcileShipping()
+      .then((r) => {
+        if (cancelled) return;
+        if (r.fixed > 0) {
+          // Liste neu laden mit aktuellen Filtern
+          shippingApi.listOrders(params)
+            .then((d) => { if (!cancelled) { setItems(d.items); setTotal(d.total); } })
+            .catch(() => {});
+        }
+      })
+      .catch(() => { /* still kein blocker — die normale Liste ist eh schon da */ })
+      .finally(() => { if (!cancelled) setReconciling(false); });
+    return () => { cancelled = true; };
+    // Nur einmal beim Mount — params-Referenz aendert sich oft, das wuerde
+    // sonst pro Filter-Klick einen Reconcile-Call ausloesen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleAll = () => {
     if (selectedIds.size === items.length) setSelectedIds(new Set());
     else setSelectedIds(new Set(items.map((o) => o.id)));

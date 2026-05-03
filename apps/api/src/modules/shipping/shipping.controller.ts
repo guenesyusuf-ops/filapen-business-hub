@@ -1,5 +1,6 @@
 import {
   Controller, Get, Post, Put, Delete, Param, Body, Query, Headers, Logger, BadRequestException,
+  HttpException, HttpStatus,
   StreamableFile, Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -166,6 +167,36 @@ export class ShippingController {
       started: true,
       note: 'Backfill läuft im Hintergrund. Aktualisiere die Seite in 3-5 Minuten.',
     };
+  }
+
+  /**
+   * Versand-spezifischer Sync: holt nur die Orders frisch die aktuell als
+   * "noch zu versenden" gelten und checkt ob sie in Shopify inzwischen
+   * fulfilled/cancelled/refunded sind. Schnell (~10s fuer ~100 Orders),
+   * sicher als blockierender Call vor dem Listen aufrufbar.
+   */
+  @Post('orders/reconcile-shipping')
+  async reconcileShippingOrders(@Headers('authorization') authHeader: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const integration = await this.prisma.integration.findFirst({
+      where: { orgId, type: 'shopify', status: 'connected' },
+    });
+    if (!integration) {
+      // Kein Shopify? Dann ist nichts zu syncen. Kein Fehler — UI nutzt
+      // diesen Endpoint auch automatisch beim Oeffnen der Liste.
+      return { checked: 0, fixed: 0, skipped: 0, note: 'Kein Shopify verbunden' };
+    }
+    try {
+      const result = await this.shopify.reconcileShippingOrders(integration.id);
+      return result;
+    } catch (err: any) {
+      this.logger.error(`reconcileShippingOrders failed: ${err?.message ?? err}`);
+      throw new HttpException(
+        'Versand-Sync fehlgeschlagen — bitte erneut versuchen',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   // ============================================================

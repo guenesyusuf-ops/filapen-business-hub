@@ -1003,17 +1003,29 @@ export class ShopifyService {
             select: {
               totalPrice: true,
               financialStatus: true,
+              fulfillmentStatus: true,
               status: true,
               updatedAt: true,
             },
           });
 
-          // Upsert if missing or if key fields differ
+          // Mehr Felder pruefen — sonst werden fulfilled/cancelled Updates
+          // verschluckt und Orders bleiben im Versand-Modul kleben.
+          const expectedStatus = shopifyOrder.cancelled_at
+            ? 'cancelled'
+            : shopifyOrder.closed_at
+              ? 'closed'
+              : 'open';
+          const expectedFulfillment =
+            shopifyOrder.fulfillment_status === 'fulfilled' ? 'fulfilled'
+            : shopifyOrder.fulfillment_status === 'partial' ? 'partial'
+            : 'unfulfilled';
           const needsUpdate =
             !localOrder ||
-            Number(localOrder.totalPrice) !==
-              parseFloat(shopifyOrder.total_price) ||
-            localOrder.financialStatus !== shopifyOrder.financial_status;
+            Number(localOrder.totalPrice) !== parseFloat(shopifyOrder.total_price) ||
+            localOrder.financialStatus !== shopifyOrder.financial_status ||
+            localOrder.status !== expectedStatus ||
+            localOrder.fulfillmentStatus !== expectedFulfillment;
 
           if (needsUpdate) {
             await this.upsertOrder(orgId, integrationId, shopifyOrder);
@@ -1061,6 +1073,105 @@ export class ShopifyService {
 
       throw error;
     }
+  }
+
+  /**
+   * Gezielter Resync fuer das Versand-Modul:
+   * Holt ALLE lokal-noch-unfulfilled-und-open Orders by-ID frisch von Shopify
+   * und upsertet sie. Faengt alle Drift-Faelle ab in denen wir Webhooks
+   * verpasst haben oder Reconciliation auf Felder/Fenster nicht reagiert.
+   *
+   * Strategie:
+   *   1. Hole alle lokalen Orders mit status='open' UND fulfillmentStatus IN
+   *      ('unfulfilled','partial') — das sind die Bestellungen, die im
+   *      Versand-Modul auftauchen und potenziell stale sind
+   *   2. Batches a 50 IDs an Shopify (ids=… Query Parameter, max 250)
+   *   3. Upsert jede Order — entdeckt Cancel/Refund/Fulfillment-Drift
+   *
+   * Idempotent + sicher als Hintergrund-Job aufrufbar (z.B. beim Oeffnen
+   * der Versand-Liste).
+   */
+  async reconcileShippingOrders(integrationId: string): Promise<{
+    checked: number;
+    fixed: number;
+    skipped: number;
+  }> {
+    const integration = await this.prisma.integration.findUnique({
+      where: { id: integrationId },
+    });
+    if (!integration || integration.type !== 'shopify' || integration.status !== 'connected') {
+      return { checked: 0, fixed: 0, skipped: 0 };
+    }
+    const orgId = integration.orgId;
+    const { accessToken, shopDomain } = this.decryptCredentials(
+      integration.credentials as Record<string, string>,
+    );
+    const rateLimiter = this.getRateLimiter(shopDomain);
+
+    // 1) Kandidaten holen — die im Versand-Modul derzeit angezeigt werden
+    const local = await this.prisma.order.findMany({
+      where: {
+        orgId,
+        status: 'open',
+        fulfillmentStatus: { in: ['unfulfilled', 'partial'] },
+      },
+      select: {
+        externalId: true,
+        fulfillmentStatus: true,
+        status: true,
+        financialStatus: true,
+      },
+    });
+
+    if (local.length === 0) return { checked: 0, fixed: 0, skipped: 0 };
+
+    let checked = 0;
+    let fixed = 0;
+    let skipped = 0;
+    const BATCH = 50;
+
+    // 2) Batchweise per ids=… ziehen — Shopify-Limit 250 pro Request, wir
+    //    bleiben bei 50 fuer entspannte Rate-Limits.
+    for (let i = 0; i < local.length; i += BATCH) {
+      const batch = local.slice(i, i + BATCH);
+      const ids = batch.map((o) => o.externalId).join(',');
+      try {
+        await rateLimiter.waitIfNeeded();
+        const url = `/admin/api/2024-01/orders.json?ids=${encodeURIComponent(ids)}&status=any&limit=${BATCH}`;
+        const res = await this.shopifyApiGet<{ orders: ShopifyOrder[] }>(
+          shopDomain,
+          accessToken,
+          url,
+        );
+        for (const so of res.orders ?? []) {
+          checked++;
+          const localCopy = batch.find((o) => o.externalId === String(so.id));
+          const expectedStatus = so.cancelled_at ? 'cancelled' : so.closed_at ? 'closed' : 'open';
+          const expectedFulfillment =
+            so.fulfillment_status === 'fulfilled' ? 'fulfilled'
+            : so.fulfillment_status === 'partial' ? 'partial'
+            : 'unfulfilled';
+          const drift =
+            !localCopy ||
+            localCopy.status !== expectedStatus ||
+            localCopy.fulfillmentStatus !== expectedFulfillment ||
+            localCopy.financialStatus !== so.financial_status;
+          if (drift) {
+            await this.upsertOrder(orgId, integrationId, so);
+            fixed++;
+          } else {
+            skipped++;
+          }
+        }
+      } catch (err: any) {
+        this.logger.error(`reconcileShippingOrders batch failed: ${err?.message ?? err}`);
+        // Weitermachen mit naechstem Batch — partielle Reconciliation
+        // ist besser als kompletter Abbruch.
+      }
+    }
+
+    this.logger.log(`reconcileShippingOrders: checked=${checked} fixed=${fixed} skipped=${skipped} (of ${local.length} local)`);
+    return { checked, fixed, skipped };
   }
 
   /**
