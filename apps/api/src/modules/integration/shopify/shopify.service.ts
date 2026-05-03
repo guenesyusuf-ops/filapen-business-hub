@@ -1129,11 +1129,18 @@ export class ShopifyService {
     let fixed = 0;
     let skipped = 0;
     const BATCH = 50;
+    const PARALLEL = 4; // Wieviele Batches gleichzeitig — Shopify-Rate-Limit ~2 calls/s, RateLimiter regelt
 
-    // 2) Batchweise per ids=… ziehen — Shopify-Limit 250 pro Request, wir
-    //    bleiben bei 50 fuer entspannte Rate-Limits.
+    // 2) Batches parallel pullen — der RateLimiter selbst sequenzialisiert
+    //    intern wenn noetig, aber wir koennen das fetch+upsert pro Batch
+    //    nebeneinander laufen lassen. Bei ~100 Orders kommt das von ~10s
+    //    sequenziell auf ~3s parallel runter.
+    const batches: typeof local[] = [];
     for (let i = 0; i < local.length; i += BATCH) {
-      const batch = local.slice(i, i + BATCH);
+      batches.push(local.slice(i, i + BATCH));
+    }
+
+    const processBatch = async (batch: typeof local) => {
       const ids = batch.map((o) => o.externalId).join(',');
       try {
         await rateLimiter.waitIfNeeded();
@@ -1143,8 +1150,9 @@ export class ShopifyService {
           accessToken,
           url,
         );
-        for (const so of res.orders ?? []) {
-          checked++;
+        // Inner fan-out: upserts can run in parallel (each is its own
+        // transaction).
+        const upserts = (res.orders ?? []).map(async (so) => {
           const localCopy = batch.find((o) => o.externalId === String(so.id));
           const expectedStatus = so.cancelled_at ? 'cancelled' : so.closed_at ? 'closed' : 'open';
           const expectedFulfillment =
@@ -1156,19 +1164,29 @@ export class ShopifyService {
             localCopy.status !== expectedStatus ||
             localCopy.fulfillmentStatus !== expectedFulfillment ||
             localCopy.financialStatus !== so.financial_status;
+          checked++;
           if (drift) {
             await this.upsertOrder(orgId, integrationId, so);
             fixed++;
           } else {
             skipped++;
           }
-        }
+        });
+        await Promise.all(upserts);
       } catch (err: any) {
         this.logger.error(`reconcileShippingOrders batch failed: ${err?.message ?? err}`);
-        // Weitermachen mit naechstem Batch — partielle Reconciliation
-        // ist besser als kompletter Abbruch.
       }
-    }
+    };
+
+    // Worker-Pool: PARALLEL batches gleichzeitig
+    const queue = [...batches];
+    const workers = Array.from({ length: Math.min(PARALLEL, queue.length) }, async () => {
+      while (queue.length > 0) {
+        const next = queue.shift();
+        if (next) await processBatch(next);
+      }
+    });
+    await Promise.all(workers);
 
     this.logger.log(`reconcileShippingOrders: checked=${checked} fixed=${fixed} skipped=${skipped} (of ${local.length} local)`);
     return { checked, fixed, skipped };

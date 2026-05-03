@@ -39,6 +39,7 @@ export default function ShippingOrdersPage() {
   const [tab, setTab] = useState<OrdersTab>('pending');
   const [search, setSearch] = useState('');
   const [hasShipment, setHasShipment] = useState<'' | 'yes' | 'no'>('no');
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<'all' | 'unfulfilled' | 'partial'>('all');
   const [offset, setOffset] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -61,7 +62,7 @@ export default function ShippingOrdersPage() {
   // Address-Correction-Modal
   const [correctingOrder, setCorrectingOrder] = useState<any | null>(null);
 
-  useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment, filterMode, selectedVariantIds, exclusiveVariantId, exclusiveOp, exclusiveQuantity, tab]);
+  useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment, fulfillmentFilter, filterMode, selectedVariantIds, exclusiveVariantId, exclusiveOp, exclusiveQuantity, tab]);
 
   // Address-Error-Count regelmäßig laden (für Badge)
   useEffect(() => {
@@ -92,6 +93,7 @@ export default function ShippingOrdersPage() {
     return {
       search: search || undefined,
       hasShipment: hasShipment || undefined,
+      fulfillmentStatus: fulfillmentFilter === 'all' ? undefined : fulfillmentFilter,
       included: filterMode === 'include' && ids.length ? ids.join(',') : undefined,
       excluded: filterMode === 'exclude' && ids.length ? ids.join(',') : undefined,
       exclusiveVariantId: exclusiveVariantId || undefined,
@@ -101,7 +103,7 @@ export default function ShippingOrdersPage() {
       limit: String(PAGE_SIZE),
       offset: String(offset),
     };
-  }, [search, hasShipment, offset, filterMode, selectedVariantIds, exclusiveVariantId, exclusiveOp, exclusiveQuantity, tab]);
+  }, [search, hasShipment, fulfillmentFilter, offset, filterMode, selectedVariantIds, exclusiveVariantId, exclusiveOp, exclusiveQuantity, tab]);
 
   useEffect(() => {
     setLoading(true);
@@ -111,30 +113,39 @@ export default function ShippingOrdersPage() {
       .finally(() => setLoading(false));
   }, [params]);
 
-  // Beim ersten Mount einen schnellen Versand-Sync triggern, damit Drift
-  // (Bestellungen die in Shopify schon fulfilled/cancelled/refunded sind,
-  // bei uns aber noch als "offen" stehen) automatisch entdeckt wird.
-  // Laeuft im Hintergrund — die Liste laedt sofort, refresht aber wenn
-  // der Reconcile fertig ist und etwas korrigiert hat.
+  // Versand-Sync State — wird auch fuer den manuellen "Aus Shopify
+  // nachladen"-Button genutzt, daher beide Pfade teilen sich Spinner +
+  // Statustext, damit der User immer weiss was los ist.
   const [reconciling, setReconciling] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
+  const [reconcileResult, setReconcileResult] = useState<{ checked: number; fixed: number } | null>(null);
+
+  async function runReconcile(): Promise<void> {
     setReconciling(true);
-    shippingApi.reconcileShipping()
-      .then((r) => {
-        if (cancelled) return;
-        if (r.fixed > 0) {
-          // Liste neu laden mit aktuellen Filtern
-          shippingApi.listOrders(params)
-            .then((d) => { if (!cancelled) { setItems(d.items); setTotal(d.total); } })
-            .catch(() => {});
-        }
-      })
-      .catch(() => { /* still kein blocker — die normale Liste ist eh schon da */ })
-      .finally(() => { if (!cancelled) setReconciling(false); });
-    return () => { cancelled = true; };
-    // Nur einmal beim Mount — params-Referenz aendert sich oft, das wuerde
-    // sonst pro Filter-Klick einen Reconcile-Call ausloesen.
+    setReconcileResult(null);
+    try {
+      const r = await shippingApi.reconcileShipping();
+      setReconcileResult({ checked: r.checked, fixed: r.fixed });
+      // Immer Liste neu laden (auch wenn fixed=0) — der User soll sehen
+      // dass der Sync fertig ist und die Zahlen aktuell sind.
+      const fresh = await shippingApi.listOrders(params);
+      setItems(fresh.items);
+      setTotal(fresh.total);
+    } catch (e: any) {
+      setReconcileResult({ checked: 0, fixed: 0 });
+      console.error('reconcile failed', e);
+    } finally {
+      setReconciling(false);
+      // Result-Banner nach 6s ausblenden
+      setTimeout(() => setReconcileResult(null), 6000);
+    }
+  }
+
+  // Beim ersten Mount automatisch einen Sync — User sieht innerhalb
+  // weniger Sekunden eine bereinigte Liste ohne extra Klick.
+  useEffect(() => {
+    runReconcile();
+    // Nur einmal — params aendert sich pro Filterklick und wuerde sonst
+    // jedesmal einen Sync ausloesen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -155,20 +166,17 @@ export default function ShippingOrdersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Bestellungen"
-        subtitle={`${total} offen${total !== 1 ? 'e' : ''} · nur open/unfulfilled · stornierte ausgeschlossen`}
+        subtitle={`${total} offen${total !== 1 ? 'e' : ''} · nur open/unfulfilled · stornierte + rückerstattete ausgeschlossen`}
         actions={
           <>
             <button
-              onClick={async () => {
-                if (!confirm('Bestehende Bestellungen frisch aus Shopify laden? Dauert 3-5 Minuten. Dadurch werden fehlende Adressen/Namen nachgeladen.')) return;
-                try {
-                  await shippingApi.refreshOrdersFromShopify();
-                  alert('Refresh läuft im Hintergrund. Lade die Seite in 3-5 Min neu.');
-                } catch (e: any) { alert(e.message); }
-              }}
+              onClick={runReconcile}
+              disabled={reconciling}
               className={btn('secondary')}
+              title="Holt alle offenen Bestellungen frisch aus Shopify und entfernt versandte/stornierte/rückerstattete aus der Liste."
             >
-              <RefreshCw className="h-4 w-4" /> Aus Shopify nachladen
+              <RefreshCw className={`h-4 w-4 ${reconciling ? 'animate-spin' : ''}`} />
+              {reconciling ? 'Synchronisiere…' : 'Aus Shopify nachladen'}
             </button>
             {selectedIds.size > 0 && (
               <button
@@ -205,6 +213,47 @@ export default function ShippingOrdersPage() {
           </>
         }
       />
+
+      {/* Sync-Statusleiste — sichtbar wahrend reconcile laeuft + 6s nach Abschluss */}
+      {(reconciling || reconcileResult) && (
+        <div className={`rounded-xl border p-3 flex items-center gap-3 text-sm ${
+          reconciling
+            ? 'border-blue-200 bg-blue-50 dark:border-blue-900/40 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300'
+            : (reconcileResult?.fixed ?? 0) > 0
+              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-300'
+              : 'border-gray-200 bg-gray-50 dark:border-white/8 dark:bg-white/[0.03] text-gray-600 dark:text-gray-400'
+        }`}>
+          {reconciling ? (
+            <>
+              <RefreshCw className="h-4 w-4 animate-spin flex-shrink-0" />
+              <div className="flex-1">
+                <div className="font-medium">Synchronisiere mit Shopify…</div>
+                <div className="text-xs opacity-80 mt-0.5">
+                  Versandte, stornierte und rückerstattete Bestellungen werden automatisch aus der Liste entfernt. Das dauert ein paar Sekunden.
+                </div>
+                {/* Indeterminate-Bar — wir kennen kein Total/Done, aber der
+                    Spinner-Balken zeigt deutlich dass etwas laeuft. */}
+                <div className="mt-2 h-1 bg-blue-200/40 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 animate-pulse" style={{ width: '60%' }} />
+                </div>
+              </div>
+            </>
+          ) : reconcileResult ? (
+            <>
+              <RefreshCw className="h-4 w-4 flex-shrink-0" />
+              <div className="flex-1">
+                <span className="font-medium">Sync fertig.</span>{' '}
+                <span className="opacity-80">
+                  {reconcileResult.checked} Bestellung{reconcileResult.checked !== 1 ? 'en' : ''} geprüft,{' '}
+                  {reconcileResult.fixed > 0
+                    ? `${reconcileResult.fixed} aktualisiert (versandt/storniert/rückerstattet entfernt).`
+                    : 'alles aktuell.'}
+                </span>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
 
       {/* Tabs — Offene Bestellungen vs. Adressfehler */}
       <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-1.5 inline-flex gap-1">
@@ -253,6 +302,18 @@ export default function ShippingOrdersPage() {
               <option value="no">Ohne Label/Sendung</option>
               <option value="yes">Mit Sendung</option>
               <option value="">Alle</option>
+            </select>
+            {/* Versand-Status: alle (default) / nur unfulfilled / nur partial.
+                Stornierte + rückerstattete sind eh systemweit ausgeschlossen. */}
+            <select
+              value={fulfillmentFilter}
+              onChange={(e) => setFulfillmentFilter(e.target.value as any)}
+              className={inputCls('flex-1 sm:flex-none sm:w-auto')}
+              title="Versand-Status"
+            >
+              <option value="all">Alle (offen + teilversand)</option>
+              <option value="unfulfilled">Nur offen (unfulfilled)</option>
+              <option value="partial">Nur teilversand (partial)</option>
             </select>
             <button
               onClick={() => setProductFilterOpen((v) => !v)}

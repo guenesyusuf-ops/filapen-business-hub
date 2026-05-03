@@ -16,6 +16,8 @@ interface ListFilters {
   exclusiveQuantity?: number;
   /** Nur Bestellungen mit fehlerhafter / unvollständiger Lieferadresse */
   addressStatus?: 'error' | 'ok' | 'all';
+  /** Versand-Status-Filter: alle (default), nur unfulfilled oder nur partial */
+  fulfillmentStatus?: 'all' | 'unfulfilled' | 'partial';
   limit?: number;
   offset?: number;
 }
@@ -52,7 +54,12 @@ export class ShippingOrderService {
       // im Versand-Modul nicht mehr sehen, auch wenn fulfillment irgendwie
       // partial oder unfulfilled stehengeblieben ist.
       status: 'open' as const,
-      fulfillmentStatus: { in: ['unfulfilled', 'partial'] as const },
+      fulfillmentStatus:
+        filters.fulfillmentStatus === 'unfulfilled'
+          ? ('unfulfilled' as const)
+          : filters.fulfillmentStatus === 'partial'
+            ? ('partial' as const)
+            : { in: ['unfulfilled', 'partial'] as const },
       // Refunded (komplett oder teilweise) wird nicht mehr versendet —
       // raus aus der Liste, damit der Versand-Mitarbeiter keine Etiketten
       // fuer rueckerstattete Bestellungen mehr druckt.

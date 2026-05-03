@@ -89,6 +89,7 @@ export class ShippingController {
     @Query('exclusiveQuantityOp') exclusiveQuantityOp?: 'eq' | 'gte' | 'lte' | 'gt' | 'lt',
     @Query('exclusiveQuantity') exclusiveQuantity?: string,
     @Query('addressStatus') addressStatus?: 'error' | 'ok' | 'all',
+    @Query('fulfillmentStatus') fulfillmentStatus?: 'all' | 'unfulfilled' | 'partial',
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -103,6 +104,7 @@ export class ShippingController {
       exclusiveQuantityOp,
       exclusiveQuantity: exclusiveQuantity ? parseInt(exclusiveQuantity, 10) : undefined,
       addressStatus,
+      fulfillmentStatus,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
