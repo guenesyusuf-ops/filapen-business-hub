@@ -276,21 +276,27 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const lastSavedJsonRef = useRef<string>('');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Verhindert double-mount-Initialisierung in React Strict Mode
+  // (effect/onMount feuert dort 2x — sonst landen Templates doppelt im Canvas
+  // oder loadSnapshot kollidiert mit sich selbst und das Board wird weiss).
+  const mountedOnceRef = useRef(false);
 
   // tldraw-Snapshot beim Mount laden falls vorhanden
   const handleMount = useCallback((ed: Editor) => {
     setEditor(ed);
-    if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
-      try {
+    if (mountedOnceRef.current) return;
+    mountedOnceRef.current = true;
+    try {
+      if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
         loadSnapshot(ed.store, board.state as TLEditorSnapshot);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn('Snapshot load failed (corrupted state?):', e);
+      } else if (board.state?.__template) {
+        // Fresh-Board mit Template-Marker: Initial-Shapes erzeugen.
+        // Beim ersten Auto-Save wird der Marker durch den echten Snapshot ersetzt.
+        applyTemplate(ed, board.state.__template);
       }
-    } else if (board.state?.__template) {
-      // Fresh-Board mit Template-Marker: Initial-Shapes erzeugen.
-      // Beim ersten Auto-Save wird der Marker durch den echten Snapshot ersetzt.
-      try { applyTemplate(ed, board.state.__template); } catch { /* ignore */ }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Whiteboard mount init failed:', e);
     }
     lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
   }, [board.state]);
@@ -368,6 +374,7 @@ function MultiplayerCanvas({ board }: { board: WhiteboardDetail }) {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const lastSavedJsonRef = useRef<string>('');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedOnceRef = useRef(false);
 
   // Yjs-Doc fuer CRDT-Sync. tldraw kennt von sich aus kein Yjs — wir
   // syncen manuell: Yjs-Map haelt das tldraw-Snapshot, jeder lokale Edit
@@ -378,14 +385,21 @@ function MultiplayerCanvas({ board }: { board: WhiteboardDetail }) {
 
   const handleMount = useCallback((ed: Editor) => {
     setEditor(ed);
-    // Initial-Load: bevorzuge Yjs-Map (live state), fallback auf DB-Snapshot
-    const yStateValue = yState.get('snapshot') as TLEditorSnapshot | undefined;
-    if (yStateValue) {
-      try { loadSnapshot(ed.store, yStateValue); } catch { /* ignore */ }
-    } else if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
-      try { loadSnapshot(ed.store, board.state as TLEditorSnapshot); } catch { /* ignore */ }
-    } else if (board.state?.__template) {
-      try { applyTemplate(ed, board.state.__template); } catch { /* ignore */ }
+    if (mountedOnceRef.current) return;
+    mountedOnceRef.current = true;
+    try {
+      // Initial-Load: bevorzuge Yjs-Map (live state), fallback auf DB-Snapshot
+      const yStateValue = yState.get('snapshot') as TLEditorSnapshot | undefined;
+      if (yStateValue) {
+        loadSnapshot(ed.store, yStateValue);
+      } else if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
+        loadSnapshot(ed.store, board.state as TLEditorSnapshot);
+      } else if (board.state?.__template) {
+        applyTemplate(ed, board.state.__template);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Whiteboard mount init failed:', e);
     }
     lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
 
@@ -572,6 +586,13 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  // Tab-Switch sofort die Treffer leeren — sonst rendern wir
+  // weiter Task-Daten in der Order-View → undefined-Access-Crash.
+  const handleTabChange = (newTab: 'task' | 'order' | 'product') => {
+    setTab(newTab);
+    setQuery('');
+    setResults([]);
+  };
 
   // Debounced search
   useEffect(() => {
@@ -598,7 +619,9 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="absolute bottom-4 right-4 z-10 flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-primary-500/30 hover:shadow-primary-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
+        // Bewusst LINKS unten — rechts unten sitzt das tldraw-Help-/Chat-Icon,
+        // dort hatten wir Z-Index-Konflikte. Links bleibt frei und klickbar.
+        className="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-primary-500/30 hover:shadow-primary-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
         title="Filapen-Daten einfuegen"
       >
         <Sparkles className="h-4 w-4" />
@@ -608,7 +631,7 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
   }
 
   return (
-    <div className="absolute bottom-4 right-4 z-10 w-[380px] max-h-[75vh] flex flex-col rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden animate-fade-in">
+    <div className="absolute bottom-4 left-4 z-20 w-[380px] max-h-[75vh] flex flex-col rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
@@ -635,7 +658,7 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
           return (
             <button
               key={t.v}
-              onClick={() => { setTab(t.v); setQuery(''); }}
+              onClick={() => handleTabChange(t.v)}
               className={cn(
                 'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-t-lg transition-colors',
                 active
@@ -681,29 +704,29 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
                 className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors"
                 title="Aufs Whiteboard ziehen"
               >
-                {tab === 'task' && (
+                {tab === 'task' && e.title && (
                   <div>
                     <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{e.title}</div>
                     <div className="flex items-center gap-2 text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
                       {e.projectName && <span>{e.projectName}</span>}
-                      <span>· {e.priority}</span>
+                      {e.priority && <span>· {e.priority}</span>}
                       {e.columnName && <span>· {e.columnName}</span>}
                     </div>
                   </div>
                 )}
-                {tab === 'order' && (
+                {tab === 'order' && e.orderNumber && (
                   <div>
                     <div className="text-xs font-medium text-gray-900 dark:text-white truncate">
                       {e.orderNumber} · {e.customerName || '—'}
                     </div>
                     <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
-                      {e.totalNet.toLocaleString('de-DE', { style: 'currency', currency: e.currency || 'EUR' })}
+                      {Number(e.totalNet ?? 0).toLocaleString('de-DE', { style: 'currency', currency: e.currency || 'EUR' })}
                       {' · '}
-                      {e.shippedAt ? 'versendet' : e.paidAt ? 'bezahlt' : e.status}
+                      {e.shippedAt ? 'versendet' : e.paidAt ? 'bezahlt' : (e.status ?? '—')}
                     </div>
                   </div>
                 )}
-                {tab === 'product' && (
+                {tab === 'product' && e.productTitle && (
                   <div className="flex items-center gap-2">
                     {e.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element

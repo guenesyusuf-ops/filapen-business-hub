@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
+import { WhiteboardErrorBoundary } from './WhiteboardErrorBoundary';
 
 // tldraw + Liveblocks bringen viel Code mit (Canvas-Engine, Yjs, …) — und sie
 // brauchen window/document. Daher dynamisch importieren mit ssr:false damit
@@ -22,9 +23,19 @@ export default function WhiteboardDetailPage() {
 
   useEffect(() => {
     if (!params.id) return;
+    let cancelled = false;
+    // 15s Hard-Timeout damit der Spinner nicht ewig dreht wenn die API
+    // hangt oder das dynamic chunk nicht laedt.
+    const timeoutId = setTimeout(() => {
+      if (!cancelled && !error) {
+        setError('Whiteboard konnte nicht geladen werden (Timeout). Lade die Seite neu.');
+      }
+    }, 15000);
     whiteboardApi.get(params.id)
-      .then(setBoard)
-      .catch((e) => setError(e.message));
+      .then((b) => { if (!cancelled) { clearTimeout(timeoutId); setBoard(b); } })
+      .catch((e) => { if (!cancelled) { clearTimeout(timeoutId); setError(e.message); } });
+    return () => { cancelled = true; clearTimeout(timeoutId); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
   if (error) {
@@ -47,7 +58,11 @@ export default function WhiteboardDetailPage() {
     return <CanvasSkeleton />;
   }
 
-  return <WhiteboardCanvas board={board} />;
+  return (
+    <WhiteboardErrorBoundary>
+      <WhiteboardCanvas board={board} />
+    </WhiteboardErrorBoundary>
+  );
 }
 
 function CanvasSkeleton() {
