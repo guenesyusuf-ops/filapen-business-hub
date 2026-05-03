@@ -643,8 +643,10 @@ export function useCreateWmLabel() {
 export function useAddLabelToTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { taskId: string; labelId: string; projectId: string }) =>
-      wmFetch(`/tasks/${data.taskId}/labels/${data.labelId}`, { method: 'POST' }),
+    mutationFn: async (data: { taskId: string; labelId: string; projectId: string }) => {
+      const realId = await resolveTaskId(data.taskId);
+      return wmFetch(`/tasks/${realId}/labels/${data.labelId}`, { method: 'POST' });
+    },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
       qc.invalidateQueries({ queryKey: ['wm', 'task', vars.taskId] });
@@ -655,11 +657,119 @@ export function useAddLabelToTask() {
 export function useRemoveLabelFromTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { taskId: string; labelId: string; projectId: string }) =>
-      wmFetch(`/tasks/${data.taskId}/labels/${data.labelId}`, { method: 'DELETE' }),
+    mutationFn: async (data: { taskId: string; labelId: string; projectId: string }) => {
+      const realId = await resolveTaskId(data.taskId);
+      return wmFetch(`/tasks/${realId}/labels/${data.labelId}`, { method: 'DELETE' });
+    },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
       qc.invalidateQueries({ queryKey: ['wm', 'task', vars.taskId] });
+    },
+  });
+}
+
+// =============================================================================
+// SUBTASKS — eigene Endpoints! Vorher wurden Subtasks via PUT /tasks/:id mit
+// `body.subtasks` geschickt, das Backend hat das Feld aber komplett ignoriert
+// → silent data loss. Ab jetzt nur noch ueber diese Hooks.
+// =============================================================================
+
+export function useCreateWmSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { taskId: string; title: string; projectId: string; assigneeId?: string }) => {
+      const realId = await resolveTaskId(data.taskId);
+      return wmFetch<WmSubtask>(`/tasks/${realId}/subtasks`, {
+        method: 'POST',
+        body: JSON.stringify({ title: data.title, assigneeId: data.assigneeId }),
+      });
+    },
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
+      const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
+      const optimistic: WmSubtask = {
+        id: `temp-sub-${Date.now()}`,
+        title: vars.title,
+        completed: false,
+      };
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: (old.tasks ?? []).map((t: any) =>
+            t.id === vars.taskId
+              ? { ...t, subtasks: [...(t.subtasks ?? []), optimistic] }
+              : t,
+          ),
+        };
+      });
+      return { prev, optimisticId: optimistic.id };
+    },
+    onError: (_, vars, ctx: any) => {
+      if (ctx?.prev) qc.setQueryData(['wm', 'project', vars.projectId], ctx.prev);
+    },
+    onSuccess: (real, vars, ctx: any) => {
+      // Replace optimistic temp-sub-... mit echter ID, damit Toggle danach klappt.
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: (old.tasks ?? []).map((t: any) => {
+            if (t.id !== vars.taskId) return t;
+            return {
+              ...t,
+              subtasks: (t.subtasks ?? []).map((s: any) =>
+                s.id === ctx?.optimisticId ? { ...s, ...real } : s,
+              ),
+            };
+          }),
+        };
+      });
+    },
+    onSettled: (_, __, vars) => {
+      qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
+    },
+  });
+}
+
+export function useToggleWmSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { subtaskId: string; taskId: string; projectId: string }) => {
+      // Subtask muss bereits den echten Server-UUID haben — wenn der CREATE
+      // noch nicht zurueck ist, hat der User auch noch nichts zum togglen.
+      // Trotzdem defensive: temp-sub-... blockieren statt 500 zu werfen.
+      if (data.subtaskId.startsWith('temp-')) {
+        return Promise.reject(new Error('Subtask wird noch gespeichert — bitte gleich nochmal versuchen.'));
+      }
+      return wmFetch<WmSubtask>(`/subtasks/${data.subtaskId}/toggle`, { method: 'PATCH' });
+    },
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
+      const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: (old.tasks ?? []).map((t: any) =>
+            t.id === vars.taskId
+              ? {
+                  ...t,
+                  subtasks: (t.subtasks ?? []).map((s: any) =>
+                    s.id === vars.subtaskId ? { ...s, completed: !s.completed } : s,
+                  ),
+                }
+              : t,
+          ),
+        };
+      });
+      return { prev };
+    },
+    onError: (_, vars, ctx: any) => {
+      if (ctx?.prev) qc.setQueryData(['wm', 'project', vars.projectId], ctx.prev);
+    },
+    onSettled: (_, __, vars) => {
+      qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
     },
   });
 }

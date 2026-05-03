@@ -51,6 +51,8 @@ interface TaskDetailModalProps {
   onAddLabel?: (taskId: string, labelId: string) => void;
   onRemoveLabel?: (taskId: string, labelId: string) => void;
   onCreateLabel?: (name: string, color: string) => void;
+  onAddSubtask?: (taskId: string, title: string) => void;
+  onToggleSubtask?: (taskId: string, subtaskId: string) => void;
   onDeleteTask?: (taskId: string) => void;
   isApprovalProject?: boolean;
 }
@@ -58,7 +60,8 @@ interface TaskDetailModalProps {
 export function TaskDetailModal({
   task, columns, members, labels, comments, activities = [], open, onClose,
   onUpdate, onAddComment, onUploadAttachment, onDeleteAttachment,
-  onAddLabel, onRemoveLabel, onCreateLabel, onDeleteTask, isApprovalProject,
+  onAddLabel, onRemoveLabel, onCreateLabel, onAddSubtask, onToggleSubtask,
+  onDeleteTask, isApprovalProject,
 }: TaskDetailModalProps) {
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDesc, setEditDesc] = useState(task.description ?? '');
@@ -98,6 +101,71 @@ export function TaskDetailModal({
   useEffect(() => { editDescRef.current = editDesc; }, [editDesc]);
   useEffect(() => { taskIdRef.current = task.id; }, [task.id]);
   useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+
+  // ===========================================================================
+  // localStorage-Backup fuer die Description — Defense-in-Depth
+  // ===========================================================================
+  // Falls der Browser crashed / der Tab geschlossen wird BEVOR der 1.5s-Auto-
+  // Save oder der Unmount-Flush feuern: schreiben wir den editDesc bei jeder
+  // Aenderung in localStorage. Beim naechsten Open des Tasks pruefen wir ob
+  // ein Backup vorhanden ist, das vom server-Wert abweicht — dann fragen wir
+  // den User ob er den lokalen Stand wiederherstellen will.
+  // Storage-Key: filapen-wm-desc-backup:{taskId}
+  // Gecleared sobald der echte Save commited ist.
+  const descBackupKey = useMemo(() => `filapen-wm-desc-backup:${task.id}`, [task.id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (editDesc === lastCommittedDescRef.current) {
+      // Kein Drift mehr — Backup obsolet.
+      try { window.localStorage.removeItem(descBackupKey); } catch { /* quota etc. */ }
+      return;
+    }
+    try {
+      window.localStorage.setItem(descBackupKey, JSON.stringify({
+        text: editDesc,
+        savedAt: Date.now(),
+      }));
+    } catch {
+      // Quota voll oder Storage disabled — gracefully ignorieren, der primaere
+      // Save-Pfad (Auto-Save + Unmount-Flush + Bridge) ist immer noch aktiv.
+    }
+  }, [editDesc, descBackupKey]);
+
+  // Recovery-Check beim Mount: wenn lokal mehr Text liegt als auf dem Server,
+  // den User fragen. Lauft nur einmal pro Task-ID.
+  const recoveryCheckedRef = useRef<string>('');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (recoveryCheckedRef.current === task.id) return;
+    recoveryCheckedRef.current = task.id;
+    try {
+      const raw = window.localStorage.getItem(descBackupKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { text: string; savedAt: number };
+      const serverDesc = task.description ?? '';
+      if (!parsed?.text || parsed.text === serverDesc) {
+        window.localStorage.removeItem(descBackupKey);
+        return;
+      }
+      // Ungespeicherter lokaler Stand existiert — Wiederherstellung anbieten.
+      const ageMin = Math.round((Date.now() - parsed.savedAt) / 60000);
+      const msg =
+        `Es gibt eine ungespeicherte Beschreibung von vor ${ageMin}min ` +
+        `(${parsed.text.length} Zeichen).\n\nWiederherstellen?`;
+      // eslint-disable-next-line no-alert
+      if (window.confirm(msg)) {
+        setEditDesc(parsed.text);
+        // Sofort einen Save ausloesen (Auto-Save uebernimmt 1.5s spaeter sowieso,
+        // aber falls der User direkt schliesst flusht der Unmount-Effect).
+      } else {
+        window.localStorage.removeItem(descBackupKey);
+      }
+    } catch {
+      // Korrupte Daten — wegwerfen.
+      try { window.localStorage.removeItem(descBackupKey); } catch { /* nope */ }
+    }
+  }, [task.id, task.description, descBackupKey]);
 
   // Auto-save description after 1.5s of inactivity
   useEffect(() => {
@@ -237,17 +305,35 @@ export function TaskDetailModal({
   }
 
   function handleAddSubtask() {
-    if (!newSubtask.trim()) return;
-    const updated = [...(task.subtasks ?? []), { id: `temp-${Date.now()}`, title: newSubtask.trim(), completed: false }];
-    onUpdate({ id: task.id, subtasks: updated });
+    const title = newSubtask.trim();
+    if (!title) return;
+    if (onAddSubtask) {
+      // Eigener Endpoint — der einzige Weg der den Subtask wirklich persistiert.
+      // Generic onUpdate({ subtasks }) wuerde das Backend ignorieren.
+      onAddSubtask(task.id, title);
+    } else {
+      // Defensive Fallback: optimistic-only. Logging damit das im Dev auffaellt.
+      // eslint-disable-next-line no-console
+      console.warn('[TaskDetailModal] onAddSubtask prop fehlt — Subtask wird NICHT auf dem Server gespeichert');
+      const updated = [...(task.subtasks ?? []), { id: `temp-sub-${Date.now()}`, title, completed: false }];
+      onUpdate({ id: task.id, subtasks: updated as any });
+    }
     setNewSubtask('');
   }
 
   function toggleSubtask(idx: number) {
-    const updated = (task.subtasks ?? []).map((s, i) =>
-      i === idx ? { ...s, completed: !s.completed } : s,
-    );
-    onUpdate({ id: task.id, subtasks: updated });
+    const subtask = (task.subtasks ?? [])[idx];
+    if (!subtask) return;
+    if (onToggleSubtask) {
+      onToggleSubtask(task.id, subtask.id);
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('[TaskDetailModal] onToggleSubtask prop fehlt — Toggle wird NICHT persistiert');
+      const updated = (task.subtasks ?? []).map((s, i) =>
+        i === idx ? { ...s, completed: !s.completed } : s,
+      );
+      onUpdate({ id: task.id, subtasks: updated as any });
+    }
   }
 
   async function handleComment() {

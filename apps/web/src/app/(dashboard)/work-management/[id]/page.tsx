@@ -25,6 +25,8 @@ import {
   useAddLabelToTask,
   useRemoveLabelFromTask,
   useWmActivities,
+  useCreateWmSubtask,
+  useToggleWmSubtask,
 } from '@/hooks/work-management/useWm';
 import { useCreateApprovalTask } from '@/hooks/work-management/useWmApproval';
 import type { WmTask, WmColumn } from '@/hooks/work-management/useWm';
@@ -143,6 +145,8 @@ export default function ProjectDetailPage() {
   const createLabel = useCreateWmLabel();
   const addLabelToTask = useAddLabelToTask();
   const removeLabelFromTask = useRemoveLabelFromTask();
+  const createSubtask = useCreateWmSubtask();
+  const toggleSubtaskMutation = useToggleWmSubtask();
 
   const [activeTab, setActiveTab] = useState<ViewTab>('board');
   const [selectedTask, setSelectedTask] = useState<WmTask | null>(null);
@@ -489,6 +493,8 @@ export default function ProjectDetailPage() {
           onAddLabel={(taskId, labelId) => addLabelToTask.mutate({ taskId, labelId, projectId })}
           onRemoveLabel={(taskId, labelId) => removeLabelFromTask.mutate({ taskId, labelId, projectId })}
           onCreateLabel={(name, color) => createLabel.mutate({ projectId, name, color })}
+          onAddSubtask={(taskId, title) => createSubtask.mutate({ taskId, title, projectId })}
+          onToggleSubtask={(taskId, subtaskId) => toggleSubtaskMutation.mutate({ taskId, subtaskId, projectId })}
           onDeleteTask={(taskId) => {
             deleteTask.mutate({ id: taskId, projectId });
             setSelectedTask(null);
