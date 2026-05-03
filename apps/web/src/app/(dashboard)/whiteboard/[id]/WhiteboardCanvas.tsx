@@ -20,7 +20,10 @@ import {
   toRichText,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
-import { LiveblocksProvider, RoomProvider, useRoom, useOthers } from '@liveblocks/react/suspense';
+// Non-suspense Liveblocks API — sonst suspendieren useRoom/useOthers ohne
+// passenden Suspense-Boundary in der Auth-Phase und der ganze Canvas zeigt
+// permanent den dynamic-Loading-Spinner.
+import { LiveblocksProvider, RoomProvider, useRoom, useOthers } from '@liveblocks/react';
 import * as Y from 'yjs';
 import { LiveblocksYjsProvider } from '@liveblocks/yjs';
 import { cn } from '@/lib/utils';
@@ -216,17 +219,40 @@ function applyTemplate(editor: Editor, template: string) {
  * User auftauchen.
  */
 export function WhiteboardCanvas({ board }: Props) {
-  const publicKey = process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY;
-  // Wenn kein Liveblocks-Key konfiguriert ist → Single-User-Mode.
-  // Praktisch fuer lokale Dev-Umgebung und als Fallback.
-  if (!publicKey) {
+  // Multiplayer-Decision: Wir testen einmal pro Mount ob unser Backend ein
+  // Liveblocks-Auth-Token zurueckliefert. Solange das laeuft → Single-User
+  // (das User-Erlebnis wird trotzdem instant geladen). Sobald das Token da
+  // ist, wechseln wir auf Multiplayer-Modus. Wenn das Token nie kommt
+  // (LIVEBLOCKS_SECRET fehlt, Liveblocks down, Auth fail) bleiben wir
+  // dauerhaft Single-User.
+  const publicKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY : undefined;
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!publicKey) {
+      setAuthChecked(true);
+      return;
+    }
+    whiteboardApi.liveblocksAuth(board.id)
+      .then((r) => {
+        if (cancelled) return;
+        if (r.token) setAuthToken(r.token);
+        setAuthChecked(true);
+      })
+      .catch(() => { if (!cancelled) setAuthChecked(true); });
+    return () => { cancelled = true; };
+  }, [publicKey, board.id]);
+
+  // Solange Auth-Check laeuft → Single-User-Canvas zeigen (ladet sofort,
+  // bricht nicht). Wenn Auth-Check done und kein Token: bleibt Single-User.
+  if (!authChecked || !authToken) {
     return <SingleUserCanvas board={board} />;
   }
+
   return (
     <LiveblocksProvider
-      // Auth via unseren Backend-Endpoint — Backend nutzt LIVEBLOCKS_SECRET_KEY
-      // und liefert ein room-scoped Token mit User-Identity (Name, Avatar) zurueck.
-      // Liveblocks API verlangt entweder publicApiKey ODER authEndpoint, nicht beide.
       authEndpoint={async (room?: string) => {
         if (!room) throw new Error('No room provided');
         const r = await whiteboardApi.liveblocksAuth(board.id);
