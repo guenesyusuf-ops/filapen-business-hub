@@ -2,6 +2,13 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_URL } from '@/lib/api';
+import {
+  isTempId,
+  registerTempTask,
+  resolveTempTask,
+  rejectTempTask,
+  resolveTaskId,
+} from './temp-task-bridge';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -238,11 +245,15 @@ export function useCreateWmTask() {
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
       const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
+      const tempId = `temp-${Date.now()}`;
+      // Bruecke registrieren — alle Folge-Calls (Description, Comment,
+      // Attachment) blocken auf dieser Promise bis die echte ID da ist.
+      registerTempTask(tempId);
       qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
         if (!old) return old;
         const tasks = [...(old.tasks ?? [])];
         const optimisticTask: Partial<WmTask> = {
-          id: `temp-${Date.now()}`,
+          id: tempId,
           projectId: vars.projectId,
           columnId: vars.columnId,
           title: vars.title,
@@ -258,9 +269,43 @@ export function useCreateWmTask() {
         tasks.push(optimisticTask);
         return { ...old, tasks };
       });
-      return { prev };
+      return { prev, tempId };
     },
-    onError: (_, vars, context) => {
+    onSuccess: (realTask, vars, ctx: any) => {
+      // Server-Antwort: echte ID ist da. Bruecke resolven, damit alle
+      // gequeueten Update/Comment/Attachment-Calls jetzt durchlaufen.
+      if (ctx?.tempId) {
+        resolveTempTask(ctx.tempId, realTask.id);
+      }
+      // Sofort den Cache patchen (tempId → realId), damit die offene
+      // TaskDetailModal nahtlos die echte ID sieht und kuenftige Calls
+      // auch ohne Bruecke direkt richtig adressiert sind.
+      // WICHTIG: Lokale Edits (Beschreibung, Titel, Labels etc.) die der
+      // User waehrend der temp-Phase getippt hat MUESSEN gewinnen — die
+      // gequeueten Update-Calls schicken sie eh gleich an den Server, aber
+      // bis dahin darf die UI nicht "leer" flackern.
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: (old.tasks ?? []).map((t: any) => {
+            if (t.id !== ctx?.tempId) return t;
+            return {
+              ...realTask,
+              description: t.description ?? realTask.description,
+              title: t.title ?? realTask.title,
+              labels: (t.labels && t.labels.length > 0) ? t.labels : (realTask.labels ?? []),
+              attachments: t.attachments ?? (realTask as any).attachments ?? [],
+              subtasks: t.subtasks ?? (realTask as any).subtasks ?? [],
+            };
+          }),
+        };
+      });
+    },
+    onError: (err, vars, context: any) => {
+      if (context?.tempId) {
+        rejectTempTask(context.tempId, err);
+      }
       if (context?.prev) {
         qc.setQueryData(['wm', 'project', vars.projectId], context.prev);
       }
@@ -275,15 +320,12 @@ export function useCreateWmTask() {
 export function useUpdateWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: Partial<WmTask> & { id: string; assigneeIds?: string[] }) => {
-      // Guard: optimistic Tasks haben "temp-..." IDs. Ein Update-Call würde
-      // beim Backend zu einer Prisma-UUID-Validation-Exception führen (500).
-      // Besser: Noop zurückgeben und warten bis die Create-Mutation settled —
-      // danach invalidiert der Cache sowieso und der echte Task erscheint.
-      if (!id || id.startsWith('temp-')) {
-        return Promise.resolve(data as unknown as WmTask);
-      }
-      return wmFetch<WmTask>(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    mutationFn: async ({ id, ...data }: Partial<WmTask> & { id: string; assigneeIds?: string[] }) => {
+      // Wenn es eine temp-ID ist, warten wir bis der CREATE-Call resolvt —
+      // dann gehen die Updates auf die echte ID statt im Noop zu landen
+      // (sonst geht z.B. eine getippte Beschreibung verloren).
+      const realId = await resolveTaskId(id);
+      return wmFetch<WmTask>(`/tasks/${realId}`, { method: 'PUT', body: JSON.stringify(data) });
     },
     onMutate: async (vars) => {
       // We need projectId to update the cache — try to find it from existing data
@@ -363,14 +405,9 @@ export function useUpdateWmTask() {
 export function useDeleteWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, projectId }: { id: string; projectId: string }) => {
-      // Gleiche temp-ID-Guard wie bei Update: optimistic-Tasks nicht ans
-      // Backend schicken. Wenn ein temp-Task gelöscht werden soll, reicht
-      // es ihn aus dem Cache zu entfernen — das macht onSettled.
-      if (!id || id.startsWith('temp-')) {
-        return Promise.resolve({ deleted: true });
-      }
-      return wmFetch(`/tasks/${id}`, { method: 'DELETE' });
+    mutationFn: async ({ id }: { id: string; projectId: string }) => {
+      const realId = await resolveTaskId(id);
+      return wmFetch(`/tasks/${realId}`, { method: 'DELETE' });
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
@@ -381,11 +418,9 @@ export function useDeleteWmTask() {
 export function useMoveWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { taskId: string; projectId: string; columnId: string; position: number }) => {
-      if (!data.taskId || data.taskId.startsWith('temp-')) {
-        return Promise.resolve({} as any);
-      }
-      return wmFetch(`/tasks/${data.taskId}/move`, { method: 'PATCH', body: JSON.stringify(data) });
+    mutationFn: async (data: { taskId: string; projectId: string; columnId: string; position: number }) => {
+      const realId = await resolveTaskId(data.taskId);
+      return wmFetch(`/tasks/${realId}/move`, { method: 'PATCH', body: JSON.stringify({ ...data, taskId: realId }) });
     },
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
@@ -454,15 +489,22 @@ export function useWmComments(taskId: string) {
   return useQuery<WmComment[]>({
     queryKey: ['wm', 'comments', taskId],
     queryFn: () => wmFetch(`/tasks/${taskId}/comments`),
-    enabled: !!taskId,
+    // temp-IDs koennen wir nicht abfragen — Task existiert in der DB noch
+    // gar nicht. Liste ist eh leer, daher disabled.
+    enabled: !!taskId && !isTempId(taskId),
   });
 }
 
 export function useCreateWmComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { taskId: string; content: string }) =>
-      wmFetch<WmComment>(`/tasks/${data.taskId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
+    mutationFn: async (data: { taskId: string; content: string }) => {
+      const realId = await resolveTaskId(data.taskId);
+      return wmFetch<WmComment>(`/tasks/${realId}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ ...data, taskId: realId }),
+      });
+    },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'comments', vars.taskId] });
     },
@@ -477,11 +519,15 @@ export function useUploadWmAttachment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data: { taskId: string; file: File }) => {
+      // Wenn Task gerade erst optimistisch angelegt wurde: warten bis CREATE
+      // den realen UUID liefert. Sonst kommt der POST mit "temp-XXX" und
+      // das Backend antwortet 500 ("Failed to upload attachment").
+      const realId = await resolveTaskId(data.taskId);
       const formData = new FormData();
       formData.append('file', data.file);
       const hdrs = authHeaders();
       delete (hdrs as Record<string, string>)['Content-Type'];
-      const res = await fetch(`${API_URL}/api/wm/tasks/${data.taskId}/attachments`, {
+      const res = await fetch(`${API_URL}/api/wm/tasks/${realId}/attachments`, {
         method: 'POST',
         headers: hdrs,
         body: formData,

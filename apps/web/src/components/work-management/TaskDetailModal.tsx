@@ -899,50 +899,59 @@ export function TaskDetailModal({
                   <Tag className="h-3 w-3" /> Labels
                 </label>
 
-                {/* Assigned labels */}
-                {task.labels && task.labels.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {task.labels.map((label) => (
-                      <span
-                        key={label.id}
-                        className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: `${label.color}20`, color: label.color, border: `1px solid ${label.color}40` }}
-                      >
-                        {label.name}
-                        {onRemoveLabel && (
-                          <button
-                            onClick={() => onRemoveLabel(task.id, label.id)}
-                            className="ml-0.5 hover:opacity-70 transition-opacity"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Available labels to add */}
+                {/* EIN Label-Streifen — aktive sind voll eingefaerbt, inaktive
+                    nur als Outline. Klick toggelt — keine separate "+ Name"-Reihe
+                    mehr, damit der User sofort sieht welches Label am Task haengt. */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {labels
-                    .filter((label) => !task.labels?.some((l) => l.id === label.id))
-                    .map((label) => (
+                  {labels.map((label) => {
+                    const isActive = !!task.labels?.some((l) => l.id === label.id);
+                    return (
                       <button
                         key={label.id}
+                        type="button"
                         onClick={() => {
-                          if (onAddLabel) {
-                            onAddLabel(task.id, label.id);
+                          if (isActive) {
+                            if (onRemoveLabel) {
+                              onRemoveLabel(task.id, label.id);
+                            } else {
+                              onUpdate({ id: task.id, labels: (task.labels ?? []).filter((l) => l.id !== label.id) });
+                            }
                           } else {
-                            const newLabels = [...(task.labels ?? []), label];
-                            onUpdate({ id: task.id, labels: newLabels });
+                            if (onAddLabel) {
+                              onAddLabel(task.id, label.id);
+                            } else {
+                              onUpdate({ id: task.id, labels: [...(task.labels ?? []), label] });
+                            }
                           }
                         }}
-                        className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200 dark:border-white/10 opacity-50 hover:opacity-100 transition-opacity"
-                        style={{ color: label.color }}
+                        title={isActive ? `${label.name} entfernen` : `${label.name} hinzufügen`}
+                        aria-pressed={isActive}
+                        className={cn(
+                          'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full transition-all',
+                          isActive
+                            ? 'shadow-sm ring-2 ring-offset-1 dark:ring-offset-[var(--card-bg)]'
+                            : 'opacity-60 hover:opacity-100',
+                        )}
+                        style={
+                          isActive
+                            ? {
+                                backgroundColor: `${label.color}25`,
+                                color: label.color,
+                                // Tailwind ring color via box-shadow inset, color fix:
+                                boxShadow: `0 0 0 2px ${label.color}80`,
+                              }
+                            : {
+                                backgroundColor: 'transparent',
+                                color: label.color,
+                                border: `1px solid ${label.color}55`,
+                              }
+                        }
                       >
-                        + {label.name}
+                        {isActive && <span aria-hidden>✓</span>}
+                        {label.name}
                       </button>
-                    ))}
+                    );
+                  })}
                 </div>
 
                 {/* New label */}
