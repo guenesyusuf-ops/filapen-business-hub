@@ -17,6 +17,7 @@
     "@hookform/resolvers": "^3.3.0",
     "@liveblocks/client": "^3.18.5",
     "@liveblocks/react": "^3.18.5",
+    "@liveblocks/react-ui": "^3.18.5",
     "@liveblocks/yjs": "^3.18.5",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-dialog": "^1.0.5",

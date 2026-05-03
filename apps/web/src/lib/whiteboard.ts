@@ -43,9 +43,10 @@ export const whiteboardApi = {
   restoreSnapshot: (id: string, snapshotId: string) =>
     call<WhiteboardDetail>(`/boards/${id}/snapshots/${snapshotId}/restore`, { method: 'POST' }),
 
-  /** Liveblocks-Auth-Token holen — null wenn LIVEBLOCKS_SECRET_KEY nicht gesetzt */
+  /** Liveblocks-Auth-Token holen — null wenn LIVEBLOCKS_SECRET_KEY nicht gesetzt.
+   *  tier='pro' aktiviert clientseitig Pro-Features (Comments, Notifications). */
   liveblocksAuth: (id: string) =>
-    call<{ token: string | null; reason?: string }>(`/boards/${id}/liveblocks-auth`, { method: 'POST' }),
+    call<{ token: string | null; reason?: string; tier?: 'free' | 'pro' }>(`/boards/${id}/liveblocks-auth`, { method: 'POST' }),
 
   // Drag-Panel: leichtgewichtige Suche in den drei Filapen-Domains
   searchTasks: (q: string) => call<Array<{

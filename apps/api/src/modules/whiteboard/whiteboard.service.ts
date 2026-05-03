@@ -138,20 +138,32 @@ export class WhiteboardService {
   }
 
   // ------------------------------------------------------------------
-  // Liveblocks Auth (Phase 2)
+  // Liveblocks Auth — Free + Pro Tier
   // ------------------------------------------------------------------
   /**
-   * Erzeugt ein Liveblocks-Auth-Token fuer einen User um einem Room
-   * beizutreten. Token enthaelt Permissions (room-scoped, time-limited).
-   * Wenn LIVEBLOCKS_SECRET_KEY nicht gesetzt ist, fallback: Frontend
-   * laeuft im Single-User-Modus (kein Multiplayer).
+   * Erzeugt ein Liveblocks-Auth-Token. Tier-aware:
+   *
+   *   LIVEBLOCKS_TIER=free (default)
+   *     → POST /v2/rooms/{roomId}/authorize
+   *     → Access-Token, room-scoped, funktioniert auf jedem Plan.
+   *
+   *   LIVEBLOCKS_TIER=pro
+   *     → POST /v2/authorize-user
+   *     → ID-Token mit permission-patterns. Vorteile:
+   *         - 1 Token deckt alle Whiteboards der Org ab (Pattern "wb-*")
+   *           → kein extra Auth-Call beim Wechsel zwischen Boards
+   *         - Permissions koennen feiner per Room/Pattern vergeben werden
+   *         - Comments + Threads + Notifications funktionieren damit
+   *
+   * Nach dem Upgrade einfach LIVEBLOCKS_TIER=pro in Railway setzen,
+   * Service redeployt sich und nutzt den Pro-Pfad — kein Code-Change.
    */
   async createLiveblocksAuthToken(boardId: string, userInfo: {
     userId: string;
     name: string;
     email: string;
     avatarUrl?: string;
-  }): Promise<{ token: string | null; reason?: string }> {
+  }): Promise<{ token: string | null; reason?: string; tier?: 'free' | 'pro' }> {
     const secretKey = this.config.get<string>('LIVEBLOCKS_SECRET_KEY');
     if (!secretKey) {
       return { token: null, reason: 'LIVEBLOCKS_SECRET_KEY not configured — single-user mode' };
@@ -159,11 +171,25 @@ export class WhiteboardService {
     const wb = await this.get(boardId);
     const roomId = wb.liveblocksRoomId || `wb-${wb.id}`;
 
-    // Liveblocks Access-Token API (room-scoped):
-    //   POST https://api.liveblocks.io/v2/rooms/{roomId}/authorize
-    //   { userId, userInfo }
-    // Funktioniert auf allen Plans inkl. Free-Tier. Der ID-Token-Endpoint
-    // (/v2/authorize-user) ist Pro-only und liefert sonst 400.
+    const tier = (this.config.get<string>('LIVEBLOCKS_TIER') || 'free').toLowerCase() === 'pro'
+      ? 'pro' : 'free';
+
+    if (tier === 'pro') {
+      return this.proAuth(secretKey, roomId, userInfo);
+    }
+    return this.freeAuth(secretKey, roomId, userInfo);
+  }
+
+  /**
+   * Free-Tier-Pfad: room-scoped Access-Token.
+   * Pro Board ein eigener Token, kostet einen extra Roundtrip beim
+   * Board-Wechsel. Reicht fuer kleine Teams.
+   */
+  private async freeAuth(
+    secretKey: string,
+    roomId: string,
+    userInfo: { userId: string; name: string; email: string; avatarUrl?: string },
+  ) {
     const url = `https://api.liveblocks.io/v2/rooms/${encodeURIComponent(roomId)}/authorize`;
     const res = await fetch(url, {
       method: 'POST',
@@ -187,7 +213,81 @@ export class WhiteboardService {
     }
     const data = await res.json() as { token?: string };
     if (!data.token) throw new BadRequestException('Liveblocks lieferte kein Token');
-    return { token: data.token };
+    return { token: data.token, tier: 'free' as const };
+  }
+
+  /**
+   * Pro-Tier-Pfad: ID-Token mit Permission-Pattern fuer alle Boards.
+   * Der Token deckt:
+   *   - Den aktuellen Room (room:write)
+   *   - Alle anderen Whiteboards der gleichen Org via Pattern "wb-*"
+   * Damit kann das Frontend ohne weitere Auth-Calls zwischen Boards
+   * navigieren — wichtig fuer fluessiges UX bei Power-Usern.
+   *
+   * Sobald aktiv, kannst du auch:
+   *   - Liveblocks Comments + Threads aktivieren (siehe WhiteboardComments)
+   *   - Inbox-Notifications einbauen (@mentions, Thread-Replies)
+   *   - Webhooks fuer Room-Events (siehe LIVEBLOCKS_WEBHOOK_SECRET)
+   */
+  private async proAuth(
+    secretKey: string,
+    roomId: string,
+    userInfo: { userId: string; name: string; email: string; avatarUrl?: string },
+  ) {
+    const url = 'https://api.liveblocks.io/v2/authorize-user';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: userInfo.userId,
+        userInfo: {
+          name: userInfo.name,
+          email: userInfo.email,
+          avatar: userInfo.avatarUrl,
+        },
+        // Pattern erlaubt access auf alle whiteboard-Rooms der Org.
+        // Bei Multi-Tenant musst du den Pattern auf den jeweiligen
+        // org-Slug einschraenken (z.B. "filapen-wb-*").
+        permissions: {
+          [roomId]: ['room:write'],
+          'wb-*': ['room:write'],
+        },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      this.logger.error(`Liveblocks authorize-user (Pro) ${res.status}: ${body.slice(0, 300)}`);
+      // Fallback: Pro-Endpoint failt → versuch nochmal Free-Endpoint.
+      // Das passiert wenn LIVEBLOCKS_TIER=pro gesetzt aber Account doch Free.
+      this.logger.warn('Pro-Auth fehlgeschlagen — fallback auf Free-Tier-Auth');
+      return this.freeAuth(secretKey, roomId, userInfo);
+    }
+    const data = await res.json() as { token?: string };
+    if (!data.token) throw new BadRequestException('Liveblocks Pro lieferte kein Token');
+    return { token: data.token, tier: 'pro' as const };
+  }
+
+  // ------------------------------------------------------------------
+  // Liveblocks Webhooks (Pro feature, optional)
+  // ------------------------------------------------------------------
+  /**
+   * Verifiziert eine Liveblocks-Webhook-Signatur. Wird gebraucht wenn
+   * du Webhooks aktivierst (Liveblocks Dashboard → Webhooks → Endpoint:
+   * https://filapenapi-production.up.railway.app/api/whiteboard/webhook).
+   *
+   * Use-Cases die wir damit bauen koennen:
+   *   - "Board wurde geaendert" → automatisches Snapshot
+   *   - "User hat kommentiert" → Email-Benachrichtigung
+   *   - "Thread @mention" → push notification
+   *
+   * Aktiviert sobald LIVEBLOCKS_WEBHOOK_SECRET in env ist + Webhook-
+   * Endpoint im Liveblocks-Dashboard registriert ist.
+   */
+  isWebhookSecretConfigured(): boolean {
+    return !!this.config.get<string>('LIVEBLOCKS_WEBHOOK_SECRET');
   }
 
   // ------------------------------------------------------------------

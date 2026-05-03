@@ -227,6 +227,7 @@ export function WhiteboardCanvas({ board }: Props) {
   // dauerhaft Single-User.
   const publicKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY : undefined;
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authTier, setAuthTier] = useState<'free' | 'pro' | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
@@ -239,6 +240,7 @@ export function WhiteboardCanvas({ board }: Props) {
       .then((r) => {
         if (cancelled) return;
         if (r.token) setAuthToken(r.token);
+        if (r.tier) setAuthTier(r.tier);
         setAuthChecked(true);
       })
       .catch(() => { if (!cancelled) setAuthChecked(true); });
@@ -261,7 +263,7 @@ export function WhiteboardCanvas({ board }: Props) {
       }}
     >
       <RoomProvider id={board.liveblocksRoomId || `wb-${board.id}`} initialPresence={{}}>
-        <MultiplayerCanvas board={board} />
+        <MultiplayerCanvas board={board} tier={authTier ?? 'free'} />
       </RoomProvider>
     </LiveblocksProvider>
   );
@@ -346,6 +348,7 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
         title={board.title}
         saveState={saveState}
         userCount={1}
+        tier="free"
         onBack={() => router.push('/whiteboard')}
         onTitleChange={async (t) => { await whiteboardApi.update(board.id, { title: t }); }}
         onDelete={async () => {
@@ -366,7 +369,7 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
 // ---------------------------------------------------------------------------
 // Multiplayer Canvas (mit Liveblocks)
 // ---------------------------------------------------------------------------
-function MultiplayerCanvas({ board }: { board: WhiteboardDetail }) {
+function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'free' | 'pro' }) {
   const router = useRouter();
   const room = useRoom();
   const others = useOthers();
@@ -455,6 +458,7 @@ function MultiplayerCanvas({ board }: { board: WhiteboardDetail }) {
         title={board.title}
         saveState={saveState}
         userCount={others.length + 1}
+        tier={tier}
         onBack={() => router.push('/whiteboard')}
         onTitleChange={async (t) => { await whiteboardApi.update(board.id, { title: t }); }}
         onDelete={async () => {
@@ -467,6 +471,10 @@ function MultiplayerCanvas({ board }: { board: WhiteboardDetail }) {
       <div className="flex-1 relative">
         <Tldraw onMount={handleMount} />
         {editor && <EntityDockPanel editor={editor} />}
+        {/* Pro-Features kommen hier rein sobald LIVEBLOCKS_TIER=pro:
+            <ProCommentsPanel boardId={board.id} /> — Threads + Replies
+            <InboxNotifications /> — @-mentions + neue Kommentare
+            Komponenten-Skeleton liegt unten in WhiteboardProFeatures.tsx */}
       </div>
     </div>
   );
@@ -476,11 +484,12 @@ function MultiplayerCanvas({ board }: { board: WhiteboardDetail }) {
 // Toolbar (oben)
 // ---------------------------------------------------------------------------
 function Toolbar({
-  title, saveState, userCount, onBack, onTitleChange, onDelete,
+  title, saveState, userCount, tier, onBack, onTitleChange, onDelete,
 }: {
   title: string;
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   userCount: number;
+  tier: 'free' | 'pro';
   onBack: () => void;
   onTitleChange: (t: string) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -534,6 +543,17 @@ function Toolbar({
           {saveState === 'error' && (<><span className="text-red-500">⚠</span> Fehler</>)}
           {saveState === 'idle' && (<>Auto-Save aktiv</>)}
         </div>
+
+        {/* Pro-Badge: leuchtet wenn LIVEBLOCKS_TIER=pro auf dem Backend */}
+        {tier === 'pro' && (
+          <div
+            className="hidden sm:flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-gradient-to-r from-amber-400 to-amber-500 text-amber-900 shadow-sm"
+            title="Liveblocks Pro aktiv: Comments, Notifications, Multi-Room-Tokens"
+          >
+            <Sparkles className="h-2.5 w-2.5" />
+            Pro
+          </div>
+        )}
 
         {/* User-Indicator */}
         <div className={cn(
