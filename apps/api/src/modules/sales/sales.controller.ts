@@ -13,6 +13,7 @@ import { SalesDocumentService } from './sales-document.service';
 import { SalesImportService } from './sales-import.service';
 import { EasybillService } from './easybill.service';
 import { SalesExportService } from './sales-export.service';
+import { SalesShippingService } from './sales-shipping.service';
 
 @Controller('sales')
 export class SalesController {
@@ -26,6 +27,7 @@ export class SalesController {
     private readonly importer: SalesImportService,
     private readonly easybill: EasybillService,
     private readonly exporter: SalesExportService,
+    private readonly salesShipping: SalesShippingService,
   ) {}
 
   // ==========================================================
@@ -290,7 +292,7 @@ export class SalesController {
     @Headers('authorization') authHeader: string,
     @Param('id') id: string,
     @UploadedFile() file: any,
-    @Body('kind') kind: 'original' | 'confirmation' | 'invoice' | 'delivery_note' | 'other',
+    @Body('kind') kind: 'original' | 'confirmation' | 'invoice' | 'delivery_note' | 'shipping_label' | 'other',
   ) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
@@ -472,5 +474,21 @@ export class SalesController {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     return this.easybill.createDeliveryNote(orgId, userId, id);
+  }
+
+  // ==========================================================
+  // DHL — Versandlabels aus der Sales-Bestellung
+  // ==========================================================
+  /**
+   * Berechnet ceil(quantity / VKE) Karton-Labels pro Bestell-Position,
+   * holt die DHL-Labels via Carrier-Adapter und legt jedes PDF als
+   * SalesOrderDocument(kind=shipping_label) an.
+   * Reference auf jedem Label = orderNumber [+ Karton-Index].
+   */
+  @Post('orders/:id/dhl/create-labels')
+  async createDhlLabels(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.salesShipping.createDhlLabels(orgId, userId, id);
   }
 }

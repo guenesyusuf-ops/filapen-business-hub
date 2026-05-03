@@ -343,10 +343,20 @@ export default function SalesOrderDetailPage() {
           </Section>
         </div>
 
-        {/* Rechte Spalte: Dokumente + easybill */}
+        {/* Rechte Spalte: Dokumente + easybill + DHL */}
         <div className="space-y-4">
           <Section title="easybill">
             <EasybillPanel order={order} saving={saving} onAction={easybillAction} />
+          </Section>
+
+          <Section title="DHL Versandlabels">
+            <DhlLabelsPanel
+              order={order}
+              items={items}
+              saving={saving}
+              onAction={easybillAction}
+              onReload={load}
+            />
           </Section>
 
           <Section title="Dokumente">
@@ -690,6 +700,79 @@ function EasybillPanel({ order, saving, onAction }: { order: any; saving: boolea
   );
 }
 
+function DhlLabelsPanel({
+  order, items, saving, onAction, onReload,
+}: {
+  order: any;
+  items: any[];
+  saving: boolean;
+  onAction: (fn: () => Promise<any>, label: string) => Promise<void>;
+  onReload: () => Promise<void> | void;
+}) {
+  // Karton-Plan = Vorschau: pro Line ceil(qty / VKE). Falls keine VKE: 1 Karton.
+  const plan = (items ?? [])
+    .filter((li) => Number(li.quantity) > 0)
+    .map((li) => {
+      const qty = Number(li.quantity) || 0;
+      const vke = li.unitsPerCarton ? Number(li.unitsPerCarton) : null;
+      const cartons = vke && vke > 0 ? Math.ceil(qty / vke) : 1;
+      return { title: li.title || '—', qty, vke, cartons };
+    });
+  const totalCartons = plan.reduce((s, p) => s + p.cartons, 0);
+
+  const existingLabelsCount = (order.documents ?? []).filter((d: any) => d.kind === 'shipping_label').length;
+
+  return (
+    <div className="space-y-2 text-xs">
+      {/* Karton-Plan */}
+      <div className="rounded-lg border border-gray-200/60 dark:border-white/5 p-2 space-y-1">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-gray-500">
+          <span>Karton-Plan</span>
+          <span className="font-semibold text-gray-700 dark:text-gray-300">
+            {totalCartons} Karton{totalCartons !== 1 ? 's' : ''}
+          </span>
+        </div>
+        {plan.length === 0 && (
+          <div className="text-gray-400 italic py-1">Keine Positionen.</div>
+        )}
+        {plan.map((p, i) => (
+          <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
+            <span className="truncate text-gray-700 dark:text-gray-300">{p.title}</span>
+            <span className="text-gray-500 tabular-nums flex-shrink-0">
+              {p.qty} {p.vke ? `÷ ${p.vke} = ` : '→ '}
+              <span className="font-semibold text-gray-700 dark:text-gray-300">{p.cartons} Karton{p.cartons !== 1 ? 's' : ''}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <span className={existingLabelsCount > 0 ? 'text-green-600 font-medium' : 'text-gray-500'}>
+          {existingLabelsCount > 0
+            ? `✓ ${existingLabelsCount} Label${existingLabelsCount !== 1 ? 's' : ''} erstellt`
+            : 'Noch keine Labels erstellt'}
+        </span>
+        <button
+          onClick={() => onAction(async () => {
+            const r = await salesApi.createDhlLabels(order.id);
+            await onReload();
+            return r;
+          }, `${totalCartons} DHL-Label${totalCartons !== 1 ? 's' : ''} erstellt`)}
+          disabled={saving || totalCartons === 0}
+          className={btn('primary', 'text-[11px]')}
+          title="Erstellt automatisch Labels für alle Master-Kartons. Reference auf jedem Label = Bestellnummer."
+        >
+          <Truck className="h-3 w-3" /> {totalCartons} Label{totalCartons !== 1 ? 's' : ''} erstellen
+        </button>
+      </div>
+      <div className="text-[10px] text-gray-400 leading-snug">
+        Gewicht wird aus der Produkt­datenbank geholt (Versand → Produkte): entweder explizites
+        Karton­gewicht oder Einheits­gewicht × VKE. Reference auf dem Label = {order.orderNumber}.
+      </div>
+    </div>
+  );
+}
+
 function UploadButton({ label, kind, onChange }: { label: string; kind: SalesDocumentKind; onChange: (e: React.ChangeEvent<HTMLInputElement>, kind: SalesDocumentKind) => void }) {
   return (
     <label className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1.5 text-xs hover:border-primary-300 cursor-pointer">
@@ -704,6 +787,7 @@ function kindLabel(k: string) {
   if (k === 'confirmation') return 'Auftragsbestätigung';
   if (k === 'invoice') return 'Rechnung';
   if (k === 'delivery_note') return 'Lieferschein';
+  if (k === 'shipping_label') return 'DHL-Versandlabel';
   return 'Sonstiges';
 }
 

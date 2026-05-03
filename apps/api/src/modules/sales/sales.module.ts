@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { StorageModule } from '../../common/storage/storage.module';
+import { ShippingModule } from '../shipping/shipping.module';
 import { SalesController } from './sales.controller';
 import { SalesCustomerService } from './sales-customer.service';
 import { SalesOrderService } from './sales-order.service';
@@ -9,9 +10,10 @@ import { SalesImportService } from './sales-import.service';
 import { EasybillService } from './easybill.service';
 import { SalesReminderService } from './sales-reminder.service';
 import { SalesExportService } from './sales-export.service';
+import { SalesShippingService } from './sales-shipping.service';
 
 @Module({
-  imports: [AuthModule, StorageModule],
+  imports: [AuthModule, StorageModule, ShippingModule],
   controllers: [SalesController],
   providers: [
     SalesCustomerService,
@@ -21,6 +23,7 @@ import { SalesExportService } from './sales-export.service';
     EasybillService,
     SalesReminderService,
     SalesExportService,
+    SalesShippingService,
   ],
   exports: [SalesOrderService, SalesCustomerService],
 })

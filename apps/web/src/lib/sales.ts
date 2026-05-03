@@ -2,7 +2,7 @@ import { API_URL } from './api';
 import { getAuthHeaders } from '@/stores/auth';
 
 export type SalesOrderStatus = 'draft' | 'confirmed' | 'shipped' | 'invoiced' | 'completed' | 'cancelled';
-export type SalesDocumentKind = 'original' | 'confirmation' | 'invoice' | 'delivery_note' | 'other';
+export type SalesDocumentKind = 'original' | 'confirmation' | 'invoice' | 'delivery_note' | 'shipping_label' | 'other';
 
 const headers = () => ({ 'Content-Type': 'application/json', ...getAuthHeaders() });
 
@@ -151,6 +151,12 @@ export const salesApi = {
   createInvoice: (id: string) => call<any>(`/orders/${id}/easybill/create-invoice`, { method: 'POST' }),
   sendInvoice: (id: string) => call<any>(`/orders/${id}/easybill/send-invoice`, { method: 'POST' }),
   createDeliveryNote: (id: string) => call<any>(`/orders/${id}/easybill/create-delivery-note`, { method: 'POST' }),
+  createDhlLabels: (id: string) => call<{
+    cartons: number;
+    labelsCreated: number;
+    documentIds: string[];
+    trackingNumbers: string[];
+  }>(`/orders/${id}/dhl/create-labels`, { method: 'POST' }),
 };
 
 export const STATUS_LABELS: Record<SalesOrderStatus, { label: string; color: string }> = {

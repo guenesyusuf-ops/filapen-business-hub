@@ -2705,6 +2705,10 @@ model ShippingProductProfile {
   sku                 String?  @db.VarChar(255)
   title               String?  @db.VarChar(500)
   weightG             Int      @default(0) @map("weight_g")
+  // Optionales Override-Karton-Gewicht (z.B. fuer fertig vorgepackte Master-
+  // kartons mit besonderer Verpackung). Wenn null, rechnet das System
+  // weightG × VKE = Karton-Gewicht (ohne Verpackungs-Aufschlag).
+  weightPerCartonG    Int?     @map("weight_per_carton_g")
   lengthMm            Int?     @map("length_mm")
   widthMm             Int?     @map("width_mm")
   heightMm            Int?     @map("height_mm")
@@ -2874,11 +2878,12 @@ enum SalesOrderStatus {
 }
 
 enum SalesDocumentKind {
-  original       // uploaded PDF/image of the incoming order
-  confirmation   // Auftragsbestätigung (easybill PDF)
-  invoice        // Rechnung (easybill PDF)
-  delivery_note  // Lieferschein (easybill PDF)
-  other          // anything else the user attaches
+  original        // uploaded PDF/image of the incoming order
+  confirmation    // Auftragsbestätigung (easybill PDF)
+  invoice         // Rechnung (easybill PDF)
+  delivery_note   // Lieferschein (easybill PDF)
+  shipping_label  // DHL-Versandlabel (PDF pro Karton)
+  other           // anything else the user attaches
 
   @@map("sales_document_kind")
 }
