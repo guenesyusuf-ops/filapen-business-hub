@@ -619,9 +619,10 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        // Bewusst LINKS unten — rechts unten sitzt das tldraw-Help-/Chat-Icon,
-        // dort hatten wir Z-Index-Konflikte. Links bleibt frei und klickbar.
-        className="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-primary-500/30 hover:shadow-primary-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
+        // BOTTOM-CENTER: bewusst weg von links (Sidebar) und rechts
+        // (tldraw Chat/Share Icons). Mittig im Canvas-Bereich →
+        // immer sichtbar, kollidiert nirgends.
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-primary-500/30 hover:shadow-primary-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
         title="Filapen-Daten einfuegen"
       >
         <Sparkles className="h-4 w-4" />
@@ -631,7 +632,7 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
   }
 
   return (
-    <div className="absolute bottom-4 left-4 z-20 w-[380px] max-h-[75vh] flex flex-col rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden animate-fade-in">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 w-[380px] max-h-[75vh] flex flex-col rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">

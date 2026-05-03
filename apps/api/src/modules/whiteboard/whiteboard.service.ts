@@ -159,10 +159,13 @@ export class WhiteboardService {
     const wb = await this.get(boardId);
     const roomId = wb.liveblocksRoomId || `wb-${wb.id}`;
 
-    // Liveblocks v2 ID-Token API:
-    //   POST https://api.liveblocks.io/v2/authorize-user
-    //   { userId, userInfo, permissions: { [roomId]: ["room:write"] } }
-    const res = await fetch('https://api.liveblocks.io/v2/authorize-user', {
+    // Liveblocks Access-Token API (room-scoped):
+    //   POST https://api.liveblocks.io/v2/rooms/{roomId}/authorize
+    //   { userId, userInfo }
+    // Funktioniert auf allen Plans inkl. Free-Tier. Der ID-Token-Endpoint
+    // (/v2/authorize-user) ist Pro-only und liefert sonst 400.
+    const url = `https://api.liveblocks.io/v2/rooms/${encodeURIComponent(roomId)}/authorize`;
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${secretKey}`,
@@ -175,14 +178,11 @@ export class WhiteboardService {
           email: userInfo.email,
           avatar: userInfo.avatarUrl,
         },
-        permissions: {
-          [roomId]: ['room:write'],
-        },
       }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      this.logger.error(`Liveblocks authorize-user ${res.status}: ${body.slice(0, 300)}`);
+      this.logger.error(`Liveblocks room-authorize ${res.status}: ${body.slice(0, 300)}`);
       throw new BadRequestException(`Liveblocks-Auth fehlgeschlagen (${res.status})`);
     }
     const data = await res.json() as { token?: string };
