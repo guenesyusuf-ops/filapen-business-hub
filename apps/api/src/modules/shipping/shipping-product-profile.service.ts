@@ -6,6 +6,10 @@ export interface ProfileInput {
   sku?: string | null;
   title?: string | null;
   weightG: number;
+  /** Optional override fuer Master-Karton-Gewicht in g. Wenn gesetzt, gewinnt
+   *  dieser Wert im Sales-DHL-Bulk-Label-Workflow. Sonst rechnet das System
+   *  weightG × VKE (siehe SalesShippingService). */
+  weightPerCartonG?: number | null;
   lengthMm?: number | null;
   widthMm?: number | null;
   heightMm?: number | null;
@@ -135,6 +139,9 @@ export class ShippingProductProfileService {
     if (data.weightG != null && (!Number.isFinite(data.weightG) || data.weightG < 0)) {
       throw new BadRequestException('Gewicht muss ≥ 0 sein');
     }
+    if (data.weightPerCartonG != null && (!Number.isFinite(data.weightPerCartonG) || data.weightPerCartonG < 0)) {
+      throw new BadRequestException('Karton-Gewicht muss ≥ 0 sein');
+    }
     for (const k of ['lengthMm', 'widthMm', 'heightMm'] as const) {
       const v = data[k];
       if (v != null && (!Number.isFinite(v) || v < 0)) {
@@ -148,6 +155,7 @@ export class ShippingProductProfileService {
     if (!partial || data.sku !== undefined) out.sku = data.sku?.trim() || variant?.sku || null;
     if (!partial || data.title !== undefined) out.title = data.title?.trim() || variant?.title || null;
     if (!partial || data.weightG !== undefined) out.weightG = data.weightG ?? 0;
+    if (!partial || data.weightPerCartonG !== undefined) out.weightPerCartonG = data.weightPerCartonG ?? null;
     if (!partial || data.lengthMm !== undefined) out.lengthMm = data.lengthMm ?? null;
     if (!partial || data.widthMm !== undefined) out.widthMm = data.widthMm ?? null;
     if (!partial || data.heightMm !== undefined) out.heightMm = data.heightMm ?? null;

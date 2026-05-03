@@ -16,6 +16,7 @@ interface Row {
   shippingProfile: null | {
     id: string;
     weightG: number;
+    weightPerCartonG: number | null;
     lengthMm: number | null;
     widthMm: number | null;
     heightMm: number | null;
@@ -55,6 +56,7 @@ export default function ShippingProductsPage() {
       // Merge with existing
       const body = {
         weightG: row.shippingProfile?.weightG ?? 0,
+        weightPerCartonG: row.shippingProfile?.weightPerCartonG ?? null,
         lengthMm: row.shippingProfile?.lengthMm ?? null,
         widthMm: row.shippingProfile?.widthMm ?? null,
         heightMm: row.shippingProfile?.heightMm ?? null,
@@ -100,7 +102,8 @@ export default function ShippingProductsPage() {
                 <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   <th className="px-3 py-2.5 text-left">Produkt / Variante</th>
                   <th className="px-3 py-2.5 text-left">SKU</th>
-                  <th className="px-3 py-2.5 text-right">Gewicht (g)</th>
+                  <th className="px-3 py-2.5 text-right" title="Gewicht einer einzelnen Einheit in Gramm — wird im Versand-Modul für B2C-Sendungen genutzt und im Sales-Modul als Default ×VKE verrechnet">Gewicht/Stk (g)</th>
+                  <th className="px-3 py-2.5 text-right" title="Optional: Gewicht eines fertig gepackten Master-Kartons in Gramm. Wenn gesetzt, gewinnt der Wert beim DHL-Bulk-Label-Versand. Sonst rechnet das System Gewicht/Stk × VKE.">Karton (g)</th>
                   <th className="px-3 py-2.5 text-right">L×B×H (mm)</th>
                   <th className="px-3 py-2.5 text-left">HS-Code</th>
                   <th className="px-3 py-2.5 text-left">Herkunft</th>
@@ -123,6 +126,17 @@ export default function ShippingProductsPage() {
                       <td className="px-3 py-3 text-xs text-gray-500 font-mono">{row.sku || '—'}</td>
                       <td className="px-3 py-3 text-right">
                         <input type="number" min="0" className={inputCls('w-24 text-right')} value={val('weightG', '')} onChange={(e) => setField(row.variantId, 'weightG', Number(e.target.value))} placeholder="0" />
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          className={inputCls('w-24 text-right')}
+                          value={(val('weightPerCartonG', '') as any) ?? ''}
+                          onChange={(e) => setField(row.variantId, 'weightPerCartonG', e.target.value ? Number(e.target.value) : null)}
+                          placeholder="auto"
+                          title="Leer lassen = automatisch (Gewicht/Stk × VKE)"
+                        />
                       </td>
                       <td className="px-3 py-3 text-right">
                         <div className="flex gap-1 justify-end">
