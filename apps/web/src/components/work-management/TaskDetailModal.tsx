@@ -1014,17 +1014,17 @@ export function TaskDetailModal({
                         aria-pressed={isActive}
                         className={cn(
                           'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full transition-all',
-                          isActive
-                            ? 'shadow-sm ring-2 ring-offset-1 dark:ring-offset-[var(--card-bg)]'
-                            : 'opacity-60 hover:opacity-100',
+                          isActive ? 'shadow-sm' : 'opacity-60 hover:opacity-100',
                         )}
                         style={
                           isActive
                             ? {
                                 backgroundColor: `${label.color}25`,
                                 color: label.color,
-                                // Tailwind ring color via box-shadow inset, color fix:
-                                boxShadow: `0 0 0 2px ${label.color}80`,
+                                // Gruener Ring zeigt sofort: dieses Label ist aktiv.
+                                // Bewusst nicht die Label-Farbe — sonst geht der
+                                // Active-State bei farbintensiven Labels visuell unter.
+                                boxShadow: '0 0 0 2px #22c55e',
                               }
                             : {
                                 backgroundColor: 'transparent',
@@ -1033,7 +1033,7 @@ export function TaskDetailModal({
                               }
                         }
                       >
-                        {isActive && <span aria-hidden>✓</span>}
+                        {isActive && <span aria-hidden style={{ color: '#22c55e' }}>✓</span>}
                         {label.name}
                       </button>
                     );

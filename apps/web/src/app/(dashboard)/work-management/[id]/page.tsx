@@ -162,23 +162,43 @@ export default function ProjectDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTaskParam, project?.id]);
 
-  // Anhang-Resync: selectedTask wird beim Task-Klick gesnapshotted und friert
-  // ein. Wenn das Project frisch von Server kommt (anderes Browser-Tab, andere
-  // Mutation) hat es eventuell andere attachments. Ohne diesen Effect zeigt
-  // das Modal stale Daten — Anhänge "verschwinden" obwohl sie in DB sind.
-  // Wir syncen NUR attachments, nicht die ganze Task — sonst werden User-
-  // Eingaben (Titel, etc.) während dem Tippen überschrieben.
+  // Resync vom Project-Cache → selectedTask. Wir syncen gezielt jene Felder,
+  // die NICHT vom User in der Modal-Maske live editiert werden — sonst wuerden
+  // optimistische Cache-Updates lokale User-Eingaben (Titel, Description)
+  // ueberschreiben.
+  // Aktuell synchronisierte Felder:
+  //   - attachments  (anderes Browser-Tab oder anderer Upload)
+  //   - labels       (klick-zu-toggle, optimistic in der useAddLabel-Mutation)
+  //   - subtasks     (eigene Endpoints, optimistic)
   useEffect(() => {
     if (!selectedTask || !project?.tasks) return;
     const fresh = (project.tasks as any[]).find((t) => t.id === selectedTask.id);
     if (!fresh) return;
+
+    const updates: any = {};
+
     const freshAttachments = fresh.attachments ?? [];
     const currentAttachments = selectedTask.attachments ?? [];
-    // Cheap diff: compare length + IDs
-    const sameLength = freshAttachments.length === currentAttachments.length;
-    const sameIds = sameLength && freshAttachments.every((a: any, i: number) => a.id === currentAttachments[i]?.id);
-    if (!sameIds) {
-      setSelectedTask((prev) => (prev ? { ...prev, attachments: freshAttachments } : prev));
+    const aSameLength = freshAttachments.length === currentAttachments.length;
+    const aSameIds = aSameLength && freshAttachments.every((a: any, i: number) => a.id === currentAttachments[i]?.id);
+    if (!aSameIds) updates.attachments = freshAttachments;
+
+    const freshLabels = fresh.labels ?? [];
+    const currentLabels = selectedTask.labels ?? [];
+    const lSameLength = freshLabels.length === currentLabels.length;
+    const lSameIds = lSameLength && freshLabels.every((l: any, i: number) => l.id === currentLabels[i]?.id);
+    if (!lSameIds) updates.labels = freshLabels;
+
+    const freshSubs = fresh.subtasks ?? [];
+    const currentSubs = selectedTask.subtasks ?? [];
+    const sSameLength = freshSubs.length === currentSubs.length;
+    const sSameAll = sSameLength && freshSubs.every((s: any, i: number) =>
+      s.id === currentSubs[i]?.id && s.completed === currentSubs[i]?.completed,
+    );
+    if (!sSameAll) updates.subtasks = freshSubs;
+
+    if (Object.keys(updates).length > 0) {
+      setSelectedTask((prev) => (prev ? { ...prev, ...updates } : prev));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, selectedTask?.id]);

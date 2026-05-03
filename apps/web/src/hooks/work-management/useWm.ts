@@ -647,7 +647,38 @@ export function useAddLabelToTask() {
       const realId = await resolveTaskId(data.taskId);
       return wmFetch(`/tasks/${realId}/labels/${data.labelId}`, { method: 'POST' });
     },
-    onSuccess: (_, vars) => {
+    onMutate: async (vars) => {
+      // Optimistic: Label sofort an die labels[]-Liste der Task pinnen, damit
+      // die UI auf Klick reagiert und nicht erst nach dem Network-Roundtrip.
+      await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
+      const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
+      // Echte Label-Daten (Name + Farbe) aus dem Project-Cache pulle, sonst
+      // wuerde das Label nur als nackte ID erscheinen.
+      const projectData = prev as any;
+      const labelObj = projectData?.labels?.find((l: any) => l.id === vars.labelId)
+        ?? { id: vars.labelId, name: '', color: '#999' };
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: (old.tasks ?? []).map((t: any) =>
+            t.id === vars.taskId
+              ? {
+                  ...t,
+                  labels: t.labels?.some((l: any) => l.id === vars.labelId)
+                    ? t.labels
+                    : [...(t.labels ?? []), labelObj],
+                }
+              : t,
+          ),
+        };
+      });
+      return { prev };
+    },
+    onError: (_, vars, ctx: any) => {
+      if (ctx?.prev) qc.setQueryData(['wm', 'project', vars.projectId], ctx.prev);
+    },
+    onSettled: (_, __, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
       qc.invalidateQueries({ queryKey: ['wm', 'task', vars.taskId] });
     },
@@ -661,7 +692,27 @@ export function useRemoveLabelFromTask() {
       const realId = await resolveTaskId(data.taskId);
       return wmFetch(`/tasks/${realId}/labels/${data.labelId}`, { method: 'DELETE' });
     },
-    onSuccess: (_, vars) => {
+    onMutate: async (vars) => {
+      // Optimistic-Remove — selber Pfad wie Add, nur in die andere Richtung.
+      await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
+      const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
+      qc.setQueryData(['wm', 'project', vars.projectId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          tasks: (old.tasks ?? []).map((t: any) =>
+            t.id === vars.taskId
+              ? { ...t, labels: (t.labels ?? []).filter((l: any) => l.id !== vars.labelId) }
+              : t,
+          ),
+        };
+      });
+      return { prev };
+    },
+    onError: (_, vars, ctx: any) => {
+      if (ctx?.prev) qc.setQueryData(['wm', 'project', vars.projectId], ctx.prev);
+    },
+    onSettled: (_, __, vars) => {
       qc.invalidateQueries({ queryKey: ['wm', 'project', vars.projectId] });
       qc.invalidateQueries({ queryKey: ['wm', 'task', vars.taskId] });
     },
