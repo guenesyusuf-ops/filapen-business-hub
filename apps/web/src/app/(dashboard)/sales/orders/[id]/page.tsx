@@ -332,23 +332,13 @@ export default function SalesOrderDetailPage() {
             </div>
           </Section>
 
-          <Section title="Sendungen" actions={
-            (order.lineItems ?? []).some((li: any) => !li.shipmentId) && (
-              <button onClick={() => setShipModal(true)} className={btn('primary', 'text-xs')}>
-                <Truck className="h-3 w-3" /> Neue Sendung
-              </button>
-            )
-          }>
-            <ShipmentsList order={order} onChanged={load} />
-          </Section>
-        </div>
-
-        {/* Rechte Spalte: Dokumente + easybill + DHL */}
-        <div className="space-y-4">
-          <Section title="easybill">
-            <EasybillPanel order={order} saving={saving} onAction={easybillAction} />
-          </Section>
-
+          {/* DHL Versandlabels war vorher rechts neben easybill — jetzt
+              unten breit, an der Stelle der ehemaligen "Sendungen"-Section.
+              Die alte Sendungen-Section war doppelt: ihr "Neue Sendung"-
+              Button machte genau dasselbe wie der Versenden-Button in den
+              Positionen. Mit dem DHL-Bulk-Label-Workflow brauchen wir die
+              alte Liste nicht mehr — Sendungen sind jetzt einfach PDFs
+              unter Dokumente. */}
           <Section title="DHL Versandlabels">
             <DhlLabelsPanel
               order={order}
@@ -357,6 +347,13 @@ export default function SalesOrderDetailPage() {
               onAction={easybillAction}
               onReload={load}
             />
+          </Section>
+        </div>
+
+        {/* Rechte Spalte: easybill + Dokumente */}
+        <div className="space-y-4">
+          <Section title="easybill">
+            <EasybillPanel order={order} saving={saving} onAction={easybillAction} />
           </Section>
 
           <Section title="Dokumente">
