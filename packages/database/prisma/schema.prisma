@@ -2974,6 +2974,11 @@ model SalesOrder {
   easybillInvoicePdfUrl   String?          @map("easybill_invoice_pdf_url") @db.Text
   easybillDeliveryNoteId  String?          @map("easybill_delivery_note_id") @db.VarChar(100)
   easybillDeliveryNotePdfUrl String?       @map("easybill_delivery_note_pdf_url") @db.Text
+  // Wann die Versandlabels (+ Lieferschein) per E-Mail an das Lager
+  // verschickt wurden. Frontend zeigt darauf basierend "Labels ans Lager
+  // versendet am DD.MM.YYYY" — sodass der User auf einen Blick sieht ob
+  // das Lager schon Bescheid weiss.
+  labelsSentToWarehouseAt DateTime?        @map("labels_sent_to_warehouse_at") @db.Timestamptz
   // Versand-Info (free-form carrier + tracking numbers[])
   shippingCarrierNote     String?          @map("shipping_carrier_note") @db.VarChar(255)
   trackingNumbers         String[]         @default([]) @map("tracking_numbers")

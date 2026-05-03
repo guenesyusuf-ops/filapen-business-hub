@@ -491,4 +491,16 @@ export class SalesController {
     assertCanWrite(role);
     return this.salesShipping.createDhlLabels(orgId, userId, id);
   }
+
+  /**
+   * Schickt alle bereits erstellten Versandlabels + den Lieferschein als
+   * E-Mail-Anhang ans Lager (lager@filapen.de) + CC an User (yusuf@filapen.de).
+   * Setzt labels_sent_to_warehouse_at = NOW() — Frontend zeigt das danach.
+   */
+  @Post('orders/:id/dhl/email-labels-to-warehouse')
+  async emailLabelsToWarehouse(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.salesShipping.sendLabelsToWarehouse(orgId, userId, id);
+  }
 }

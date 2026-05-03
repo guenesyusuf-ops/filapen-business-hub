@@ -718,6 +718,45 @@ function DhlLabelsPanel({
   const totalCartons = plan.reduce((s, p) => s + p.cartons, 0);
 
   const existingLabelsCount = (order.documents ?? []).filter((d: any) => d.kind === 'shipping_label').length;
+  const hasDeliveryNote = (order.documents ?? []).some((d: any) => d.kind === 'delivery_note');
+  const sentAt = order.labelsSentToWarehouseAt ? new Date(order.labelsSentToWarehouseAt) : null;
+
+  // Email-an-Lager-Flow: kann manuell ausgeloest werden, wird zusaetzlich
+  // direkt nach erfolgreicher Label-Erstellung per confirm() angeboten.
+  async function sendToWarehouse() {
+    return onAction(async () => {
+      const r = await salesApi.emailLabelsToWarehouse(order.id);
+      await onReload();
+      return r;
+    }, 'Email ans Lager versendet');
+  }
+
+  async function createAndOfferEmail() {
+    return onAction(async () => {
+      const r = await salesApi.createDhlLabels(order.id);
+      await onReload();
+      // Direkt nach Erstellung den User fragen ob die Mail raus soll.
+      // confirm() blockiert, kein extra Modal noetig.
+      // eslint-disable-next-line no-alert
+      const wantSend = window.confirm(
+        `${r.labelsCreated} Label${r.labelsCreated !== 1 ? 's' : ''} erstellt.\n\n` +
+        `Email an das Lager senden?\n\n` +
+        `Empfänger: lager@filapen.de + yusuf@filapen.de\n` +
+        `Anhang: alle Versandlabels${hasDeliveryNote ? ' + Lieferschein' : ''}`,
+      );
+      if (wantSend) {
+        try {
+          await salesApi.emailLabelsToWarehouse(order.id);
+          await onReload();
+        } catch (e: any) {
+          // Nicht-fatal: Labels sind erstellt, Mail kann manuell nochmal getriggert werden.
+          // eslint-disable-next-line no-alert
+          window.alert(`Labels wurden erstellt, aber Email-Versand fehlgeschlagen:\n${e.message}\n\nDu kannst die Mail unten manuell erneut anstoßen.`);
+        }
+      }
+      return r;
+    }, `${totalCartons} DHL-Label${totalCartons !== 1 ? 's' : ''} erstellt`);
+  }
 
   return (
     <div className="space-y-2 text-xs">
@@ -750,11 +789,7 @@ function DhlLabelsPanel({
             : 'Noch keine Labels erstellt'}
         </span>
         <button
-          onClick={() => onAction(async () => {
-            const r = await salesApi.createDhlLabels(order.id);
-            await onReload();
-            return r;
-          }, `${totalCartons} DHL-Label${totalCartons !== 1 ? 's' : ''} erstellt`)}
+          onClick={createAndOfferEmail}
           disabled={saving || totalCartons === 0}
           className={btn('primary', 'text-[11px]')}
           title="Erstellt automatisch Labels für alle Master-Kartons. Reference auf jedem Label = Bestellnummer."
@@ -762,6 +797,26 @@ function DhlLabelsPanel({
           <Truck className="h-3 w-3" /> {totalCartons} Label{totalCartons !== 1 ? 's' : ''} erstellen
         </button>
       </div>
+
+      {/* Lager-Mail Status + Manueller Re-Send */}
+      {existingLabelsCount > 0 && (
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200/60 dark:border-white/5">
+          <span className={sentAt ? 'text-green-600 font-medium' : 'text-gray-500'}>
+            {sentAt
+              ? `✓ Labels ans Lager versendet ${sentAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${sentAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+              : 'Lager noch nicht informiert'}
+          </span>
+          <button
+            onClick={sendToWarehouse}
+            disabled={saving}
+            className={btn(sentAt ? 'ghost' : 'secondary', 'text-[11px]')}
+            title="Schickt alle Labels + Lieferschein per Mail an lager@filapen.de und yusuf@filapen.de"
+          >
+            <Send className="h-3 w-3" /> {sentAt ? 'Erneut senden' : 'Ans Lager senden'}
+          </button>
+        </div>
+      )}
+
       <div className="text-[10px] text-gray-400 leading-snug">
         Gewicht wird aus der Produkt­datenbank geholt (Versand → Produkte): entweder explizites
         Karton­gewicht oder Einheits­gewicht × VKE. Reference auf dem Label = {order.orderNumber}.

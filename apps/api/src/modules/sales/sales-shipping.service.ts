@@ -1,9 +1,14 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SalesDocumentService } from './sales-document.service';
 import { CarrierAccountService } from '../shipping/carrier-account.service';
 import { CarrierRegistry } from '../shipping/carriers/carrier-registry.service';
 import type { ShipmentCreateInput } from '../shipping/carriers/carrier-adapter.interface';
+
+// Empfaenger fuer den Lager-Mailing-Workflow. User-Vorgabe.
+const WAREHOUSE_EMAIL = 'lager@filapen.de';
+const COPY_EMAIL = 'yusuf@filapen.de';
 
 /**
  * Versandlabel-Erstellung aus dem Verkauf-Modul.
@@ -28,6 +33,7 @@ export class SalesShippingService {
     private readonly documents: SalesDocumentService,
     private readonly accounts: CarrierAccountService,
     private readonly registry: CarrierRegistry,
+    private readonly config: ConfigService,
   ) {}
 
   async createDhlLabels(orgId: string, userId: string, salesOrderId: string): Promise<{
@@ -226,6 +232,131 @@ export class SalesShippingService {
       labelsCreated: createdDocIds.length,
       documentIds: createdDocIds,
       trackingNumbers: createdTrackings,
+    };
+  }
+
+  /**
+   * Schickt alle Versandlabels (kind=shipping_label) + den Lieferschein
+   * (kind=delivery_note) per E-Mail ans Lager. PDFs werden aus R2 gepullt
+   * und base64 als Resend-Attachments mitgeliefert.
+   *
+   * Empfaenger:
+   *   - lager@filapen.de (Lager — soll versenden)
+   *   - yusuf@filapen.de (Kopie an User)
+   *
+   * Setzt nach Erfolg labelsSentToWarehouseAt — Frontend zeigt das als
+   * "Labels ans Lager versendet am DD.MM.YYYY" Hinweis.
+   */
+  async sendLabelsToWarehouse(orgId: string, userId: string, salesOrderId: string): Promise<{
+    sent: boolean;
+    labelCount: number;
+    hasDeliveryNote: boolean;
+    sentAt: string;
+  }> {
+    const order = await this.prisma.salesOrder.findFirst({
+      where: { id: salesOrderId, orgId },
+      include: { customer: true },
+    });
+    if (!order) throw new BadRequestException('Bestellung nicht gefunden');
+
+    // Alle Versandlabels + Lieferschein als Anhang sammeln
+    const docs = await this.prisma.salesOrderDocument.findMany({
+      where: { orgId, orderId: salesOrderId, kind: { in: ['shipping_label', 'delivery_note'] } },
+      orderBy: { uploadedAt: 'asc' },
+    });
+    const labels = docs.filter((d) => d.kind === 'shipping_label');
+    const deliveryNote = docs.find((d) => d.kind === 'delivery_note') ?? null;
+    if (labels.length === 0) {
+      throw new BadRequestException('Keine Versandlabels vorhanden — erst über "Labels erstellen" anlegen.');
+    }
+
+    // PDFs herunterladen — die url ist die public R2-URL, einfach via fetch.
+    // Hinweis: Resend akzeptiert max ~40MB pro Mail; bei sehr vielen Kartons
+    // packen wir die einzeln, ZIP wuerde Lager-User mehr nerven.
+    const fetchPdf = async (url: string): Promise<string> => {
+      const res = await fetch(url);
+      if (!res.ok) throw new BadRequestException(`PDF-Download fehlgeschlagen (${res.status}): ${url}`);
+      const ab = await res.arrayBuffer();
+      return Buffer.from(ab).toString('base64');
+    };
+
+    const attachments: { filename: string; content: string }[] = [];
+    if (deliveryNote) {
+      attachments.push({
+        filename: deliveryNote.fileName,
+        content: await fetchPdf(deliveryNote.url),
+      });
+    }
+    for (const lbl of labels) {
+      attachments.push({
+        filename: lbl.fileName,
+        content: await fetchPdf(lbl.url),
+      });
+    }
+
+    const customerName = order.customer?.companyName
+      || order.customer?.contactPerson
+      || 'Kunde';
+    const subject = 'Bitte versenden';
+    const text =
+      `Hallo,\n\n` +
+      `bitte versende die Bestellung von ${customerName} mit der Bestellnummer ${order.orderNumber}.\n` +
+      `Anbei die ${labels.length} Versandlabel${labels.length !== 1 ? 's' : ''}` +
+      (deliveryNote ? ' und der Lieferschein.' : '.') +
+      `\n\nViele Gruesse\nFilapen Business Hub`;
+    const html =
+      `<p>Hallo,</p>` +
+      `<p>bitte versende die Bestellung von <strong>${customerName}</strong> mit der Bestellnummer <strong>${order.orderNumber}</strong>.</p>` +
+      `<p>Anbei die ${labels.length} Versandlabel${labels.length !== 1 ? 's' : ''}` +
+      (deliveryNote ? ' und der Lieferschein.' : '.') +
+      `</p>` +
+      `<p>Viele Grüße<br/>Filapen Business Hub</p>`;
+
+    const apiKey = this.config.get<string>('RESEND_API_KEY');
+    if (!apiKey) throw new BadRequestException('RESEND_API_KEY nicht konfiguriert.');
+    // Absender muss eine in Resend verifizierte Domain sein. Default
+    // "noreply@filapen.de" — falls dein Resend-Account einen anderen
+    // Verifizierungsstand hat, lieber via Env-Var ueberschreibbar.
+    const from = this.config.get<string>('SALES_WAREHOUSE_FROM') || 'Filapen Business Hub <noreply@filapen.de>';
+
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [WAREHOUSE_EMAIL, COPY_EMAIL],
+        subject,
+        text,
+        html,
+        attachments,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new BadRequestException(`Email-Versand fehlgeschlagen (${res.status}): ${body.slice(0, 400)}`);
+    }
+
+    // Zeitstempel persistieren + Event loggen
+    const now = new Date();
+    await this.prisma.salesOrder.update({
+      where: { id: salesOrderId },
+      data: {
+        labelsSentToWarehouseAt: now,
+        events: { create: {
+          orgId, type: 'note', actorId: userId,
+          note: `Labels ans Lager versendet (${labels.length} Label${labels.length !== 1 ? 's' : ''}${deliveryNote ? ' + Lieferschein' : ''})`,
+        } },
+      },
+    });
+
+    return {
+      sent: true,
+      labelCount: labels.length,
+      hasDeliveryNote: !!deliveryNote,
+      sentAt: now.toISOString(),
     };
   }
 }

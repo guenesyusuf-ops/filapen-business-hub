@@ -157,6 +157,12 @@ export const salesApi = {
     documentIds: string[];
     trackingNumbers: string[];
   }>(`/orders/${id}/dhl/create-labels`, { method: 'POST' }),
+  emailLabelsToWarehouse: (id: string) => call<{
+    sent: boolean;
+    labelCount: number;
+    hasDeliveryNote: boolean;
+    sentAt: string;
+  }>(`/orders/${id}/dhl/email-labels-to-warehouse`, { method: 'POST' }),
 };
 
 export const STATUS_LABELS: Record<SalesOrderStatus, { label: string; color: string }> = {
