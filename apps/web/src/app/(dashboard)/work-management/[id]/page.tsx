@@ -341,10 +341,15 @@ export default function ProjectDetailPage() {
   }
 
   // Map tasks into their columns (API returns tasks separately)
-  // Map API tasks to frontend shape (taskLabels → labels, subtask mapping)
+  // Tasks kommen schon normalisiert aus useWmProject (labels flach gemappt).
+  // Falls aber eine Task aus einem anderen Pfad direkt ins Cache geschrieben
+  // wurde und nur taskLabels hat, fallen wir darauf zurueck. WICHTIG: erst
+  // t.labels pruefen, sonst wird der optimistic Add/Remove ueberschrieben.
   const allTasks = (project.tasks ?? []).map((t: any) => ({
     ...t,
-    labels: (t.taskLabels ?? []).map((tl: any) => tl.label).filter(Boolean),
+    labels: Array.isArray(t.labels)
+      ? t.labels
+      : (t.taskLabels ?? []).map((tl: any) => tl.label).filter(Boolean),
     subtasks: t.subtasks ?? [],
     attachments: t.attachments ?? [],
     assignees: t.assignees ?? [],

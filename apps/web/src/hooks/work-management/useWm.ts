@@ -40,6 +40,27 @@ async function wmFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/**
+ * Normalisiert eine WmTask vom Server (raw Prisma-Shape mit
+ * `taskLabels: [{ label: {...} }]`) auf das Frontend-Schema (`labels: WmLabel[]`).
+ * Wenn die Task schon flach kommt, ist das ein no-op.
+ *
+ * WICHTIG: Wird ueberall aufgerufen wo eine Task vom Server in den Cache
+ * oder ins selectedTask-State geschrieben wird — sonst sieht das TaskDetail
+ * Modal die Labels nicht und der "active"-Highlight bleibt aus.
+ */
+export function normalizeWmTask(t: any): any {
+  if (!t || typeof t !== 'object') return t;
+  // Wenn nur taskLabels vorhanden ist, daraus labels bauen.
+  if (Array.isArray(t.taskLabels) && !Array.isArray(t.labels)) {
+    return {
+      ...t,
+      labels: t.taskLabels.map((tl: any) => tl.label).filter(Boolean),
+    };
+  }
+  return t;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -183,7 +204,16 @@ export interface WmProjectDetail extends WmProject {
 export function useWmProject(id: string) {
   return useQuery<WmProjectDetail>({
     queryKey: ['wm', 'project', id],
-    queryFn: () => wmFetch(`/projects/${id}`),
+    queryFn: async () => {
+      const data = await wmFetch<any>(`/projects/${id}`);
+      // Tasks gleich beim Cache-Eintritt normalisieren — sonst muss jeder
+      // Consumer (Page-Render, Resync-Effect, optimistic Mutations)
+      // taskLabels → labels selbst mappen, was zu Inkonsistenzen fuehrt.
+      if (data?.tasks) {
+        data.tasks = data.tasks.map((t: any) => normalizeWmTask(t));
+      }
+      return data;
+    },
     enabled: !!id,
   });
 }
@@ -240,8 +270,10 @@ export function useWmTask(id: string) {
 export function useCreateWmTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { projectId: string; columnId: string; title: string; assigneeId?: string; assigneeIds?: string[]; priority?: string; position?: number }) =>
-      wmFetch<WmTask>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    mutationFn: async (data: { projectId: string; columnId: string; title: string; assigneeId?: string; assigneeIds?: string[]; priority?: string; position?: number }) => {
+      const raw = await wmFetch<WmTask>('/tasks', { method: 'POST', body: JSON.stringify(data) });
+      return normalizeWmTask(raw) as WmTask;
+    },
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: ['wm', 'project', vars.projectId] });
       const prev = qc.getQueryData(['wm', 'project', vars.projectId]);
@@ -325,7 +357,12 @@ export function useUpdateWmTask() {
       // dann gehen die Updates auf die echte ID statt im Noop zu landen
       // (sonst geht z.B. eine getippte Beschreibung verloren).
       const realId = await resolveTaskId(id);
-      return wmFetch<WmTask>(`/tasks/${realId}`, { method: 'PUT', body: JSON.stringify(data) });
+      const raw = await wmFetch<WmTask>(`/tasks/${realId}`, { method: 'PUT', body: JSON.stringify(data) });
+      // Normalize taskLabels → labels schon hier, dann sehen alle Consumer
+      // (mutation onSuccess, handleUpdateTask, mutateAsync-callers) die
+      // korrekte Frontend-Shape. Sonst zeigt die Modal beim naechsten Open
+      // keine aktiven Labels mehr (siehe Bug-Report).
+      return normalizeWmTask(raw) as WmTask;
     },
     onMutate: async (vars) => {
       // We need projectId to update the cache — try to find it from existing data
@@ -378,10 +415,11 @@ export function useUpdateWmTask() {
         qc.setQueryData(['wm', 'project', context.projectId], context.prev);
       }
     },
-    onSuccess: (task, vars) => {
-      // Write the server response straight into the cache so the UI reflects
-      // the final enriched state (assignees + assigneeName) without waiting
-      // for the invalidation refetch.
+    onSuccess: (rawTask, vars) => {
+      // Server liefert taskLabels[]; das Frontend braucht labels[]. Normalize
+      // bevor wir das Ergebnis in den Cache (oder spaeter ins selectedTask-
+      // State) schreiben, sonst verschwindet der Active-Highlight im Modal.
+      const task = normalizeWmTask(rawTask);
       if (task?.projectId) {
         qc.setQueryData(['wm', 'project', task.projectId], (old: any) => {
           if (!old) return old;
