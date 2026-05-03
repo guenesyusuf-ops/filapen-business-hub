@@ -63,9 +63,12 @@ export class SalesOrderService {
       customerId?: string;
       search?: string;
       urgency?: 'urgent' | 'overdue';
-      // archived=false → nur offene (shippedAt IS NULL), default Tab "Offen"
-      // archived=true  → nur versendete (shippedAt IS NOT NULL), Tab "Abgeschlossen"
+      // archived=false → nur offene (paidAt IS NULL), default Tab "Offen"
+      // archived=true  → nur bezahlte (paidAt IS NOT NULL), Tab "Abgeschlossen"
       // undefined     → kein Filter (alle)
+      // ÄNDERUNG: vorher entschied shippedAt — d.h. eine versendete aber noch
+      // nicht bezahlte Bestellung landete im Abgeschlossen-Tab. Das war
+      // falsch: "abgeschlossen" = Geld eingegangen. Jetzt entscheidet paidAt.
       archived?: boolean;
       limit?: number;
       offset?: number;
@@ -81,25 +84,22 @@ export class SalesOrderService {
         { customer: { companyName: { contains: filters.search, mode: 'insensitive' as const } } },
       ];
     }
-    // Archive-Tab: Offen vs. Abgeschlossen via shippedAt. Wird ZUERST gesetzt
-    // damit urgency-Filter (die nur für offene Bestellungen sinnvoll sind)
-    // nichts überschreiben wenn archive=true.
+    // Archive-Tab: Offen vs. Abgeschlossen via paidAt.
     if (filters.archived === true) {
-      where.shippedAt = { not: null };
+      where.paidAt = { not: null };
     } else if (filters.archived === false) {
-      where.shippedAt = null;
+      where.paidAt = null;
     }
-    // Urgency filters: in-verzug = past due + not shipped; urgent = within 3d + not shipped.
-    // Nur anwenden wenn nicht im Abgeschlossen-Tab (dort macht "dringend"
-    // keinen Sinn, alles ist schon versendet).
+    // Urgency filters: in-verzug = past due + not paid; urgent = within 3d + not paid.
+    // Nur anwenden wenn nicht im Abgeschlossen-Tab.
     if (filters.urgency === 'overdue' && filters.archived !== true) {
-      where.shippedAt = null;
+      where.paidAt = null;
       where.requiredDeliveryDate = { lt: new Date() };
     }
     if (filters.urgency === 'urgent' && filters.archived !== true) {
       const threeDaysOut = new Date();
       threeDaysOut.setDate(threeDaysOut.getDate() + 3);
-      where.shippedAt = null;
+      where.paidAt = null;
       where.requiredDeliveryDate = { gte: new Date(), lte: threeDaysOut };
     }
 
@@ -734,15 +734,17 @@ export class SalesOrderService {
     const in3Days = new Date(); in3Days.setDate(in3Days.getDate() + 3);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const [open, urgent, overdue, monthRevenueRaw] = await Promise.all([
-      this.prisma.salesOrder.count({ where: { orgId, shippedAt: null, status: { notIn: ['cancelled', 'completed'] } } }),
+      // "Offen" auf dem Dashboard zaehlt jetzt = unbezahlt (paidAt IS NULL)
+      // statt unversendet — konsistent mit dem neuen Tab-Verhalten.
+      this.prisma.salesOrder.count({ where: { orgId, paidAt: null, status: { notIn: ['cancelled', 'completed'] } } }),
       this.prisma.salesOrder.count({
         where: {
-          orgId, shippedAt: null,
+          orgId, paidAt: null,
           requiredDeliveryDate: { gte: now, lte: in3Days },
         },
       }),
       this.prisma.salesOrder.count({
-        where: { orgId, shippedAt: null, requiredDeliveryDate: { lt: now } },
+        where: { orgId, paidAt: null, requiredDeliveryDate: { lt: now } },
       }),
       this.prisma.salesOrder.aggregate({
         where: { orgId, createdAt: { gte: monthStart } },
