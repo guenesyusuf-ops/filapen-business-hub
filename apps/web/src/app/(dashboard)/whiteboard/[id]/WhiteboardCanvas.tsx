@@ -308,31 +308,43 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
     return () => logUnmount('SingleUserCanvas');
   }, []);
 
-  // STEP 5: Visibility-Recovery.
-  // Bei `visible` zwingen wir tldraw zu einem Repaint:
-  //   1. updateViewportScreenBounds() liest Container-Dimensionen frisch
-  //      → behebt den Fall wo ResizeObserver waehrend hidden→visible
-  //        Stale width=0 lieferte und tldraw die Render-Surface auf 0
-  //        gepinned hat.
-  //   2. setCamera(getCamera()) re-setzt die identische Kamera. tldraw
-  //      behandelt das als State-Change → schedult ein rAF → Render
-  //      laeuft wieder. Im rAF-Throttling/Sleep-Szenario bricht das die
-  //      Pause auf.
-  // requestAnimationFrame umrahmt den Call damit das ERST nach dem
-  // browser-internen Tab-Restore (DPR, Layout, Paint-Queue) feuert.
+  // STEP 5 (v2): Visibility-Recovery.
+  //
+  // Diagnose hat gezeigt: nach Tab-Switch verschwinden die gerenderten
+  // Shapes aus dem DOM (302 → 43 descendants), aber Editor-State + camera
+  // + 7 shapes sind intakt. setCamera(identical) triggert keinen Render-
+  // Pass weil tldraw bei identischen Werten bailed.
+  //
+  // ECHTE Heilung in zwei Schritten:
+  //   1. updateViewportScreenBounds(getContainer()) zwingt tldraw die
+  //      Container-Dimensionen frisch aus dem DOM zu lesen — repariert
+  //      die internen viewportScreenBounds die durch ResizeObserver-
+  //      width=0-Reports im hidden-Tab korrumpiert wurden.
+  //   2. echter Camera-Tick (+0.5px → zurueck) statt identical-set
+  //      → tldraw sieht eine ECHTE State-Change → re-rendert die
+  //      Shape-Komponenten in den DOM.
+  //
+  // requestAnimationFrame umrahmt den Call damit Browser-Tab-Restore
+  // (DPR, Layout, Paint-Queue) erst durch ist.
   useEffect(() => {
     if (!editor) return;
     const onVis = () => {
       if (document.visibilityState !== 'visible') return;
       requestAnimationFrame(() => {
         try {
-          // setCamera mit identischer Kamera ist tldraw's idiomatische
-          // Variante einen Render-Pass zu erzwingen — Editor sieht es als
-          // State-Change → rAF-Loop wird re-armed. Falls STEP-3-Logs
-          // anschliessend rect=0x0 zeigen, kommt updateViewportScreenBounds
-          // (mit Container-Element als Arg) als zweiter Schritt dazu.
-          editor.setCamera(editor.getCamera());
-          logDiag('info', 'vis-recover: camera nudged');
+          const container = editor.getContainer();
+          const beforeBounds = editor.getViewportScreenBounds();
+          editor.updateViewportScreenBounds(container);
+          const afterBounds = editor.getViewportScreenBounds();
+          const cam = editor.getCamera();
+          // Echter Camera-Tick: 0.5px raus, zurueck. Identical-set wuerde
+          // tldraw als no-op behandeln und keinen Re-Render schedulen.
+          editor.setCamera({ x: cam.x + 0.5, y: cam.y, z: cam.z });
+          editor.setCamera(cam);
+          logDiag(
+            'info',
+            `vis-recover: bounds ${Math.round(beforeBounds.w)}x${Math.round(beforeBounds.h)} → ${Math.round(afterBounds.w)}x${Math.round(afterBounds.h)}, camera kicked`,
+          );
         } catch (e: any) {
           logDiag('error', `vis-recover failed: ${e?.message ?? e}`);
         }
