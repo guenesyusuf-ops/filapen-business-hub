@@ -220,40 +220,47 @@ function applyTemplate(editor: Editor, template: string) {
  * User auftauchen.
  */
 export function WhiteboardCanvas({ board }: Props) {
-  // Multiplayer-Decision: Wir testen einmal pro Mount ob unser Backend ein
-  // Liveblocks-Auth-Token zurueckliefert. Solange das laeuft → Single-User
-  // (das User-Erlebnis wird trotzdem instant geladen). Sobald das Token da
-  // ist, wechseln wir auf Multiplayer-Modus. Wenn das Token nie kommt
-  // (LIVEBLOCKS_SECRET fehlt, Liveblocks down, Auth fail) bleiben wir
-  // dauerhaft Single-User.
+  // Multiplayer-Decision: WICHTIG — wir muessen die Entscheidung
+  // "Single-User vs. Multiplayer" EINMAL beim Initial-Mount treffen
+  // und dabei bleiben. Vorher wurde Single-User waehrend des Auth-
+  // Checks gerendert und nach ~5s auf Multiplayer geswitched — das
+  // unmountete die laufende Tldraw-Instanz und der Canvas wurde weiss.
+  //
+  // Jetzt: Skelett anzeigen bis Auth fertig ist, dann einmalig die
+  // richtige Variante. Kein Mid-Session-Switch mehr.
   const publicKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY : undefined;
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [authTier, setAuthTier] = useState<'free' | 'pro' | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const [authResult, setAuthResult] = useState<{ token: string | null; tier: 'free' | 'pro' | null } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     if (!publicKey) {
-      setAuthChecked(true);
+      setAuthResult({ token: null, tier: null });
       return;
     }
     whiteboardApi.liveblocksAuth(board.id)
-      .then((r) => {
-        if (cancelled) return;
-        if (r.token) setAuthToken(r.token);
-        if (r.tier) setAuthTier(r.tier);
-        setAuthChecked(true);
-      })
-      .catch(() => { if (!cancelled) setAuthChecked(true); });
+      .then((r) => { if (!cancelled) setAuthResult({ token: r.token ?? null, tier: r.tier ?? null }); })
+      .catch(() => { if (!cancelled) setAuthResult({ token: null, tier: null }); });
     return () => { cancelled = true; };
   }, [publicKey, board.id]);
 
-  // Solange Auth-Check laeuft → Single-User-Canvas zeigen (ladet sofort,
-  // bricht nicht). Wenn Auth-Check done und kein Token: bleibt Single-User.
-  if (!authChecked || !authToken) {
+  // Phase 1: Auth check noch nicht durch → Skelett (KEIN tldraw)
+  if (!authResult) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-[#fafafa] dark:bg-[#0c0e1c]">
+        <div className="flex flex-col items-center gap-3 text-gray-500 dark:text-gray-400">
+          <div className="h-8 w-8 rounded-full border-2 border-gray-300 border-t-primary-500 animate-spin" />
+          <p className="text-sm">Whiteboard wird vorbereitet…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Phase 2: kein Multiplayer-Token → permanent Single-User-Canvas
+  if (!authResult.token) {
     return <SingleUserCanvas board={board} />;
   }
 
+  // Phase 3: Multiplayer aktiv — bleibt fuer die ganze Session
   return (
     <LiveblocksProvider
       authEndpoint={async (room?: string) => {
@@ -264,7 +271,7 @@ export function WhiteboardCanvas({ board }: Props) {
       }}
     >
       <RoomProvider id={board.liveblocksRoomId || `wb-${board.id}`} initialPresence={{}}>
-        <MultiplayerCanvas board={board} tier={authTier ?? 'free'} />
+        <MultiplayerCanvas board={board} tier={authResult.tier ?? 'free'} />
       </RoomProvider>
     </LiveblocksProvider>
   );
