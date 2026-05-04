@@ -346,6 +346,7 @@ export default function SalesOrderDetailPage() {
               saving={saving}
               onAction={easybillAction}
               onReload={load}
+              onPreviewDoc={(d) => setPreviewDoc(d)}
             />
           </Section>
         </div>
@@ -358,7 +359,10 @@ export default function SalesOrderDetailPage() {
 
           <Section title="Dokumente">
             <div className="space-y-2">
-              {(order.documents ?? []).map((d: any) => (
+              {/* DHL-Versandlabels werden separat unten unter "DHL Versandlabels"
+                  angezeigt — hier rausfiltern damit der Dokumente-Bereich nicht
+                  mit Versandlabels zugespammt wird. */}
+              {(order.documents ?? []).filter((d: any) => d.kind !== 'shipping_label').map((d: any) => (
                 <div
                   key={d.id}
                   className="group flex items-center justify-between gap-2 rounded-lg border border-gray-200/60 dark:border-white/5 p-2 hover:border-primary-300 dark:hover:border-primary-500/40 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
@@ -387,9 +391,12 @@ export default function SalesOrderDetailPage() {
                   </div>
                 </div>
               ))}
-              {(!order.documents || order.documents.length === 0) && (
-                <div className="text-xs text-gray-500 py-2">Noch keine Dokumente.</div>
-              )}
+              {(() => {
+                const visible = (order.documents ?? []).filter((d: any) => d.kind !== 'shipping_label');
+                return visible.length === 0
+                  ? <div className="text-xs text-gray-500 py-2">Noch keine Dokumente.</div>
+                  : null;
+              })()}
             </div>
             <div className="mt-3 grid gap-1.5">
               <UploadButton label="Original-Bestellung" kind="original" onChange={uploadDoc} />
@@ -698,13 +705,14 @@ function EasybillPanel({ order, saving, onAction }: { order: any; saving: boolea
 }
 
 function DhlLabelsPanel({
-  order, items, saving, onAction, onReload,
+  order, items, saving, onAction, onReload, onPreviewDoc,
 }: {
   order: any;
   items: any[];
   saving: boolean;
   onAction: (fn: () => Promise<any>, label: string) => Promise<void>;
   onReload: () => Promise<void> | void;
+  onPreviewDoc: (d: { url: string; fileName: string; mimeType: string }) => void;
 }) {
   // Karton-Plan = Vorschau: pro Line ceil(qty / VKE). Falls keine VKE: 1 Karton.
   const plan = (items ?? [])
@@ -785,18 +793,51 @@ function DhlLabelsPanel({
       <div className="flex items-center justify-between gap-2 pt-1">
         <span className={existingLabelsCount > 0 ? 'text-green-600 font-medium' : 'text-gray-500'}>
           {existingLabelsCount > 0
-            ? `✓ ${existingLabelsCount} Label${existingLabelsCount !== 1 ? 's' : ''} erstellt`
+            ? `✓ ${existingLabelsCount} Datei${existingLabelsCount !== 1 ? 'en' : ''} erstellt`
             : 'Noch keine Labels erstellt'}
         </span>
         <button
           onClick={createAndOfferEmail}
           disabled={saving || totalCartons === 0}
           className={btn('primary', 'text-[11px]')}
-          title="Erstellt automatisch Labels für alle Master-Kartons. Reference auf jedem Label = Bestellnummer."
+          title="Erstellt eine PDF pro Produkt mit je einer Seite pro Karton. Reference auf jedem Label = Bestellnummer."
         >
-          <Truck className="h-3 w-3" /> {totalCartons} Label{totalCartons !== 1 ? 's' : ''} erstellen
+          <Truck className="h-3 w-3" /> Labels erstellen
         </button>
       </div>
+
+      {/* Liste der erzeugten Label-Dateien (eine pro Produkt mit n Seiten).
+          Klick auf Datei → Vorschau im Preview-Modal mit Blaettern. */}
+      {existingLabelsCount > 0 && (
+        <div className="space-y-1.5 pt-2 border-t border-gray-200/60 dark:border-white/5">
+          {(order.documents ?? [])
+            .filter((d: any) => d.kind === 'shipping_label')
+            .map((d: any) => (
+              <div
+                key={d.id}
+                onClick={() => onPreviewDoc({ url: d.url, fileName: d.fileName, mimeType: d.mimeType || '' })}
+                className="group flex items-center justify-between gap-2 rounded-lg border border-gray-200/60 dark:border-white/5 p-2 hover:border-primary-300 dark:hover:border-primary-500/40 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
+                title="Vorschau öffnen (durchblätterbar)"
+              >
+                <div className="min-w-0 flex-1 flex items-center gap-2">
+                  <Eye className="h-3 w-3 text-gray-400 group-hover:text-primary-500 flex-shrink-0" />
+                  <span className="truncate text-[11px] font-medium">{d.fileName}</span>
+                </div>
+                <a
+                  href={d.url}
+                  download={d.fileName}
+                  target="_blank"
+                  rel="noopener"
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/5 flex-shrink-0"
+                  title="Herunterladen"
+                >
+                  <Download className="h-3 w-3" />
+                </a>
+              </div>
+            ))}
+        </div>
+      )}
 
       {/* Lager-Mail Status + Manueller Re-Send */}
       {existingLabelsCount > 0 && (

@@ -234,14 +234,25 @@ export class EasybillService {
     // berechnen wir Ihnen …" + Zahlungsbedingungen).
     const fmt = (d: any) => d ? new Date(d).toLocaleDateString('de-DE') : '';
     const isConfirmation = type === 'CHARGE_CONFIRM';
+    const isDelivery = type === 'DELIVERY';
 
     const orderDateStr = fmt(order.orderDate);
+    // Vom Kunden vergebene Bestellnummer (z.B. "VEDES-12345"). Auf den
+    // Dokumenten zeigen wir DIESE statt unserer internen orderNumber an
+    // damit der Kunde die Bestellung sofort wiederfindet.
     const externalNum = order.externalOrderNumber || '';
-    const introText = !isConfirmation
-      ? undefined
-      : externalNum && orderDateStr
+
+    let introText: string | undefined;
+    if (isConfirmation) {
+      introText = externalNum && orderDateStr
         ? `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung vom ${orderDateStr} mit der Bestellnummer ${externalNum} erbringen wir im einzelnen folgende Leistungen.`
         : `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung erbringen wir im einzelnen folgende Leistungen.`;
+    } else if (isDelivery) {
+      // Lieferschein: ebenfalls externalOrderNumber prominent oben.
+      introText = externalNum
+        ? `Sehr geehrte Damen und Herren,\n\nzu Ihrer Bestellung mit der Bestellnummer ${externalNum} liefern wir Ihnen folgende Artikel.`
+        : `Sehr geehrte Damen und Herren,\n\nzu Ihrer Bestellung liefern wir Ihnen folgende Artikel.`;
+    }
 
     const deliveryStr = fmt(order.requiredDeliveryDate);
     const footerText = !isConfirmation

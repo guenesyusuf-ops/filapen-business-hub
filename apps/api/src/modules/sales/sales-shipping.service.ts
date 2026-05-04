@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PDFDocument } from 'pdf-lib';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SalesDocumentService } from './sales-document.service';
 import { CarrierAccountService } from '../shipping/carrier-account.service';
@@ -153,19 +154,31 @@ export class SalesShippingService {
     const createdDocIds: string[] = [];
     const createdTrackings: string[] = [];
     let cartonIndex = 0;
+    // Reference auf dem DHL-Label = vom-Kunden-vergebene externe Nummer.
+    // Unsere interne VK-... ist fuer Kunden bedeutungslos. Wenn keine
+    // externe Nummer → fallback auf VK-Nummer (besser als gar nichts).
+    const refBase = order.externalOrderNumber || order.orderNumber;
 
-    for (const plan of plans) {
+    // Pro Line-Item alle Label-PDFs sammeln und zu EINEM PDF mergen.
+    // Wenn der User 8 Kartons fuer Produkt A und 4 fuer Produkt B hat,
+    // bekommt er 2 Dateien: "...Produkt-A.pdf" mit 8 Seiten + "...Produkt-B.pdf"
+    // mit 4 Seiten. Vorschau im Browser laesst durchblaettern.
+    for (let p = 0; p < plans.length; p++) {
+      const plan = plans[p];
+      const labelBuffers: Buffer[] = [];
+      const lineTrackings: string[] = [];
+
       for (let i = 0; i < plan.cartons; i++) {
         cartonIndex++;
-        // Reference auf dem DHL-Label = unsere Bestellnummer + Karton-Index
-        // (z.B. "VK-2026-00006 (3/12)") — User-Wunsch
-        const reference = totalCartons > 1
-          ? `${order.orderNumber} (${cartonIndex}/${totalCartons})`
-          : order.orderNumber;
+        const labelOfLine = i + 1;
+        // Reference: "{externalOrderNumber} – {Produkt} ({karton-in-line}/{total-fuer-line})"
+        const reference = plan.cartons > 1
+          ? `${refBase} – ${plan.title.slice(0, 30)} (${labelOfLine}/${plan.cartons})`
+          : `${refBase} – ${plan.title.slice(0, 30)}`;
 
         const input: ShipmentCreateInput = {
           orgId,
-          orderId: order.id, // wir verwenden hier salesOrder.id — nicht Order.id
+          orderId: order.id,
           recipient: {
             name: recipientName,
             email: order.customer.email,
@@ -190,27 +203,45 @@ export class SalesShippingService {
           result = await adapter.createShipment(input, credentials);
         } catch (err: any) {
           throw new BadRequestException(
-            `DHL-Label-Erstellung fehlgeschlagen bei Karton ${cartonIndex}/${totalCartons} (${plan.title}): ${err?.message ?? err}.\n\n` +
-            `Bisher erstellt: ${createdDocIds.length} Label(s).`,
+            `DHL-Label-Erstellung fehlgeschlagen bei Karton ${labelOfLine}/${plan.cartons} (${plan.title}): ${err?.message ?? err}.\n\n` +
+            `Bisher erstellt: ${createdDocIds.length} Datei(en).`,
           );
         }
 
-        // PDF in Storage + als SalesOrderDocument anhaengen
         if (!result.labelPdfBase64) {
           throw new BadRequestException(
-            `DHL hat kein PDF zurueckgegeben fuer Karton ${cartonIndex}. Adapter liefert nur ${result.labelFormat}.`,
+            `DHL hat kein PDF zurueckgegeben fuer Karton ${labelOfLine}/${plan.cartons}. Adapter liefert nur ${result.labelFormat}.`,
           );
         }
-        const pdfBuffer = Buffer.from(result.labelPdfBase64, 'base64');
-        const fileName = totalCartons > 1
-          ? `dhl-label-${order.orderNumber}-${cartonIndex}-von-${totalCartons}.pdf`
-          : `dhl-label-${order.orderNumber}.pdf`;
-        const attached = await this.documents.attachBuffer(
-          orgId, userId, salesOrderId, pdfBuffer, fileName, 'application/pdf', 'shipping_label',
-        );
-        createdDocIds.push(attached.id);
-        createdTrackings.push(result.trackingNumber);
+        labelBuffers.push(Buffer.from(result.labelPdfBase64, 'base64'));
+        lineTrackings.push(result.trackingNumber);
       }
+
+      // Alle PDFs dieser Line zu einer Mehrseiten-PDF mergen
+      const merged = await PDFDocument.create();
+      for (const buf of labelBuffers) {
+        try {
+          const src = await PDFDocument.load(buf);
+          const pages = await merged.copyPages(src, src.getPageIndices());
+          for (const page of pages) merged.addPage(page);
+        } catch (err: any) {
+          this.logger.warn(`PDF merge failed for one label of "${plan.title}": ${err.message}`);
+        }
+      }
+      const mergedBytes = await merged.save();
+
+      // Datei-Name: dhl-labels-{externalOrderNumber}-{produkt-slug}.pdf
+      const slug = plan.title
+        .replace(/[^a-zA-Z0-9äöüÄÖÜß-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 50) || 'produkt';
+      const fileName = `dhl-labels-${refBase}-${slug}.pdf`;
+
+      const attached = await this.documents.attachBuffer(
+        orgId, userId, salesOrderId, Buffer.from(mergedBytes), fileName, 'application/pdf', 'shipping_label',
+      );
+      createdDocIds.push(attached.id);
+      createdTrackings.push(...lineTrackings);
     }
 
     // 7) Tracking-Nummern auf der Order persistieren + Versand-Event
@@ -222,7 +253,7 @@ export class SalesShippingService {
           orgId,
           type: 'note',
           actorId: userId,
-          note: `${createdDocIds.length} DHL-Label(s) erstellt (${totalCartons} Karton/s)`,
+          note: `${createdDocIds.length} Label-Datei${createdDocIds.length !== 1 ? 'en' : ''} erstellt (${totalCartons} Karton/s gesamt)`,
         } },
       },
     });
@@ -297,16 +328,20 @@ export class SalesShippingService {
     const customerName = order.customer?.companyName
       || order.customer?.contactPerson
       || 'Kunde';
+    // "Bestellnummer" = die vom Kunden vergebene externe Nummer. Wenn der
+    // Kunde keine geliefert hat, fallback auf unsere interne VK-... Nummer
+    // damit das Lager trotzdem zuordnen kann.
+    const refNumber = order.externalOrderNumber || order.orderNumber;
     const subject = 'Bitte versenden';
     const text =
       `Hallo,\n\n` +
-      `bitte versende die Bestellung von ${customerName} mit der Bestellnummer ${order.orderNumber}.\n` +
+      `bitte versende die Bestellung von ${customerName} mit der Bestellnummer ${refNumber}.\n` +
       `Anbei die ${labels.length} Versandlabel${labels.length !== 1 ? 's' : ''}` +
       (deliveryNote ? ' und der Lieferschein.' : '.') +
       `\n\nViele Gruesse\nFilapen Business Hub`;
     const html =
       `<p>Hallo,</p>` +
-      `<p>bitte versende die Bestellung von <strong>${customerName}</strong> mit der Bestellnummer <strong>${order.orderNumber}</strong>.</p>` +
+      `<p>bitte versende die Bestellung von <strong>${customerName}</strong> mit der Bestellnummer <strong>${refNumber}</strong>.</p>` +
       `<p>Anbei die ${labels.length} Versandlabel${labels.length !== 1 ? 's' : ''}` +
       (deliveryNote ? ' und der Lieferschein.' : '.') +
       `</p>` +

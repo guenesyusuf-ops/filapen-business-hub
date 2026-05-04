@@ -16,6 +16,7 @@
     "@clerk/backend": "^1.2.0",
     "@filapen/database": "*",
     "@filapen/shared": "*",
+    "@liveblocks/node": "^3.18.5",
     "@nestjs/bullmq": "^10.2.0",
     "@nestjs/cli": "^10.3.0",
     "@nestjs/common": "^10.3.0",

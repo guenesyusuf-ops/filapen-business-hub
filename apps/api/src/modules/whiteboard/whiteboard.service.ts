@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Liveblocks } from '@liveblocks/node';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
