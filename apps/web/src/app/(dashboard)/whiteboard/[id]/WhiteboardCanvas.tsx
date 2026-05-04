@@ -313,6 +313,16 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
       } else {
         logDiag('info', 'no template, no state — empty canvas');
       }
+      // KRITISCH: Kamera auf die Shapes zentrieren, sonst sind sie
+      // ausserhalb des Viewports → tldraw cullt sie nach paar Sekunden
+      // → User sieht weisses Canvas. zoomToFit zentriert + scaled passend.
+      // Wenn keine Shapes da sind (leeres Canvas) ist es ein no-op.
+      try {
+        ed.zoomToFit({ animation: { duration: 0 } });
+        logDiag('info', `zoomToFit applied`);
+      } catch (e: any) {
+        logDiag('warn', `zoomToFit failed (no shapes?): ${e?.message ?? e}`);
+      }
     } catch (e: any) {
       logDiag('error', `mount init failed: ${e?.message ?? e}`);
     }
@@ -455,6 +465,14 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
         applyTemplate(ed, board.state.__template);
       } else {
         logDiag('info', 'no template, no state — empty canvas');
+      }
+      // Same as SingleUser: zoomToFit damit die Template-Shapes im
+      // sichtbaren Bereich landen (sonst tldraw-Cull → weiss).
+      try {
+        ed.zoomToFit({ animation: { duration: 0 } });
+        logDiag('info', `zoomToFit applied (multiplayer)`);
+      } catch (e: any) {
+        logDiag('warn', `zoomToFit failed: ${e?.message ?? e}`);
       }
     } catch (e: any) {
       logDiag('error', `mount init failed: ${e?.message ?? e}`);
