@@ -44,7 +44,12 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
   const [, force] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [domHealth, setDomHealth] = useState<{ canvasChildren: number; lastChange: number } | null>(null);
+  const [domHealth, setDomHealth] = useState<{
+    canvasChildren: number;
+    width: number;
+    height: number;
+    descendantCount: number;
+  } | null>(null);
 
   // Subscribe to log changes
   useEffect(() => {
@@ -53,25 +58,50 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
     return () => { subscribers.delete(cb); };
   }, []);
 
-  // DOM-Health: MutationObserver auf den tldraw Container — wenn Children
-  // ploetzlich verschwinden waehrend wir glauben editor ist mounted, ist
-  // das ein Indiz dass tldraw intern den Canvas ueber Bord wirft.
+  // DOM-Health: MutationObserver + Periodic Dimension-Check.
+  //  - Children-Count: zeigt Top-Level Aenderungen (tldraw mount/unmount)
+  //  - Descendant-Count: tiefer Scan, deckt auf wenn tldraw intern leer wird
+  //  - Width/Height: deckt flex-collapse auf — beliebter "weiss"-Trigger
   useEffect(() => {
     if (!canvasContainerRef?.current) return;
     const target = canvasContainerRef.current;
-    const update = () => {
+
+    const measure = () => {
+      const rect = target.getBoundingClientRect();
+      const descendantCount = target.querySelectorAll('*').length;
       setDomHealth({
         canvasChildren: target.children.length,
-        lastChange: Date.now(),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        descendantCount,
       });
     };
-    update();
+
+    measure();
+    logDiag('info', `canvas-init: ${Math.round(target.getBoundingClientRect().width)}×${Math.round(target.getBoundingClientRect().height)}px`);
+
     const observer = new MutationObserver(() => {
-      update();
-      logDiag('info', `tldraw-DOM mutated: ${target.children.length} children`);
+      measure();
+      const desc = target.querySelectorAll('*').length;
+      logDiag('info', `tldraw-DOM mutated: ${target.children.length} children / ${desc} desc`);
     });
-    observer.observe(target, { childList: true, subtree: false });
-    return () => observer.disconnect();
+    observer.observe(target, { childList: true, subtree: true });
+
+    // Periodischer Health-Check alle 3s — fuer stille Zustands-Aenderungen
+    // wo nichts mutated aber Pixels weg sind (z.B. CSS-transitions, GPU-loss).
+    const healthInterval = window.setInterval(() => {
+      const prev = target.getBoundingClientRect();
+      measure();
+      // Loggen wenn die Dimensionen drastisch geschrumpft sind
+      if (prev.width < 50 || prev.height < 50) {
+        logDiag('error', `canvas collapsed: ${Math.round(prev.width)}×${Math.round(prev.height)}px`);
+      }
+    }, 3000);
+
+    return () => {
+      observer.disconnect();
+      window.clearInterval(healthInterval);
+    };
   }, [canvasContainerRef]);
 
   // Page Visibility tracking — falls das Tab in den Hintergrund geht
@@ -123,9 +153,15 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
       </div>
 
       {domHealth && (
-        <div className="px-2 py-1 border-b border-yellow-100 dark:border-yellow-900/50 text-yellow-700 dark:text-yellow-400">
-          tldraw-Container: {domHealth.canvasChildren} children
-          {domHealth.canvasChildren === 0 && <span className="ml-1 text-red-600 dark:text-red-400 font-bold">⚠ LEER</span>}
+        <div className="px-2 py-1 border-b border-yellow-100 dark:border-yellow-900/50 text-yellow-700 dark:text-yellow-400 space-y-0.5">
+          <div>
+            Container: {domHealth.canvasChildren} children · {domHealth.descendantCount} desc
+            {domHealth.canvasChildren === 0 && <span className="ml-1 text-red-600 dark:text-red-400 font-bold">⚠ LEER</span>}
+          </div>
+          <div>
+            Größe: {domHealth.width}×{domHealth.height}px
+            {(domHealth.width < 50 || domHealth.height < 50) && <span className="ml-1 text-red-600 dark:text-red-400 font-bold">⚠ COLLAPSED</span>}
+          </div>
         </div>
       )}
 

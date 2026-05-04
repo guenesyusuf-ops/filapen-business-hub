@@ -387,7 +387,11 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
           router.push('/whiteboard');
         }}
       />
-      <div className="flex-1 relative" ref={canvasContainerRef}>
+      {/* min-h-0 verhindert flex-collapse: ohne das kann der Container in
+          bestimmten flex-Szenarien auf 0px Hoehe schrumpfen, tldraw rendert
+          weiter (mit position:absolute), bleibt aber unsichtbar — User
+          sieht nur den weissen Hintergrund vom Parent. */}
+      <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <Tldraw onMount={handleMount} />
         <DiagnosticsPanel canvasContainerRef={canvasContainerRef} />
         {editor && <EntityDockPanel editor={editor} />}
@@ -499,7 +503,11 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
           router.push('/whiteboard');
         }}
       />
-      <div className="flex-1 relative" ref={canvasContainerRef}>
+      {/* min-h-0 verhindert flex-collapse: ohne das kann der Container in
+          bestimmten flex-Szenarien auf 0px Hoehe schrumpfen, tldraw rendert
+          weiter (mit position:absolute), bleibt aber unsichtbar — User
+          sieht nur den weissen Hintergrund vom Parent. */}
+      <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <Tldraw onMount={handleMount} />
         <DiagnosticsPanel canvasContainerRef={canvasContainerRef} />
         {editor && <EntityDockPanel editor={editor} />}
