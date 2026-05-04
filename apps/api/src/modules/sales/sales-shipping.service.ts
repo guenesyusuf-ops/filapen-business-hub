@@ -315,9 +315,9 @@ export class SalesShippingService {
     const apiKey = this.config.get<string>('RESEND_API_KEY');
     if (!apiKey) throw new BadRequestException('RESEND_API_KEY nicht konfiguriert.');
     // Absender muss eine in Resend verifizierte Domain sein. Default
-    // "noreply@filapen.de" — falls dein Resend-Account einen anderen
+    // "noreply@mail.filapen.de" — falls dein Resend-Account einen anderen
     // Verifizierungsstand hat, lieber via Env-Var ueberschreibbar.
-    const from = this.config.get<string>('SALES_WAREHOUSE_FROM') || 'Filapen Business Hub <noreply@filapen.de>';
+    const from = this.config.get<string>('SALES_WAREHOUSE_FROM') || 'Filapen Business Hub <noreply@mail.filapen.de>';
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
