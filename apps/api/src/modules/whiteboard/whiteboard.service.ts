@@ -182,39 +182,38 @@ export class WhiteboardService {
   }
 
   /**
-   * Free-Tier-Pfad: room-scoped Access-Token.
-   * Pro Board ein eigener Token, kostet einen extra Roundtrip beim
-   * Board-Wechsel. Reicht fuer kleine Teams.
+   * Free-Tier-Pfad: Access-Token via offizielles @liveblocks/node SDK.
+   * Das SDK kennt die richtigen Endpoint-URLs fuer jede Liveblocks-API-
+   * Version — wenn ich die selbst raten waere die 404er nicht weggegangen.
    */
   private async freeAuth(
     secretKey: string,
     roomId: string,
     userInfo: { userId: string; name: string; email: string; avatarUrl?: string },
   ) {
-    const url = `https://api.liveblocks.io/v2/rooms/${encodeURIComponent(roomId)}/authorize`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${secretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: userInfo.userId,
+    try {
+      const liveblocks = new Liveblocks({ secret: secretKey });
+      const session = liveblocks.prepareSession(userInfo.userId, {
         userInfo: {
           name: userInfo.name,
           email: userInfo.email,
           avatar: userInfo.avatarUrl,
-        },
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      this.logger.error(`Liveblocks room-authorize ${res.status}: ${body.slice(0, 300)}`);
-      throw new BadRequestException(`Liveblocks-Auth fehlgeschlagen (${res.status})`);
+        } as any,
+      });
+      session.allow(roomId, session.FULL_ACCESS);
+      const { body, status } = await session.authorize();
+      if (status >= 400) {
+        this.logger.error(`Liveblocks SDK auth status=${status}, body=${body.slice(0, 300)}`);
+        throw new BadRequestException(`Liveblocks-Auth fehlgeschlagen (${status})`);
+      }
+      const parsed = JSON.parse(body) as { token?: string };
+      if (!parsed.token) throw new BadRequestException('Liveblocks lieferte kein Token');
+      return { token: parsed.token, tier: 'free' as const };
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.error(`Liveblocks SDK threw: ${err?.message ?? err}`);
+      throw new BadRequestException(`Liveblocks-Auth fehlgeschlagen: ${err?.message ?? 'unbekannt'}`);
     }
-    const data = await res.json() as { token?: string };
-    if (!data.token) throw new BadRequestException('Liveblocks lieferte kein Token');
-    return { token: data.token, tier: 'free' as const };
   }
 
   /**
@@ -235,40 +234,34 @@ export class WhiteboardService {
     roomId: string,
     userInfo: { userId: string; name: string; email: string; avatarUrl?: string },
   ) {
-    const url = 'https://api.liveblocks.io/v2/authorize-user';
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${secretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: userInfo.userId,
-        userInfo: {
-          name: userInfo.name,
-          email: userInfo.email,
-          avatar: userInfo.avatarUrl,
+    try {
+      const liveblocks = new Liveblocks({ secret: secretKey });
+      const { body, status } = await liveblocks.identifyUser(
+        {
+          userId: userInfo.userId,
+          groupIds: [],
         },
-        // Pattern erlaubt access auf alle whiteboard-Rooms der Org.
-        // Bei Multi-Tenant musst du den Pattern auf den jeweiligen
-        // org-Slug einschraenken (z.B. "filapen-wb-*").
-        permissions: {
-          [roomId]: ['room:write'],
-          'wb-*': ['room:write'],
+        {
+          userInfo: {
+            name: userInfo.name,
+            email: userInfo.email,
+            avatar: userInfo.avatarUrl,
+          } as any,
         },
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      this.logger.error(`Liveblocks authorize-user (Pro) ${res.status}: ${body.slice(0, 300)}`);
-      // Fallback: Pro-Endpoint failt → versuch nochmal Free-Endpoint.
-      // Das passiert wenn LIVEBLOCKS_TIER=pro gesetzt aber Account doch Free.
-      this.logger.warn('Pro-Auth fehlgeschlagen — fallback auf Free-Tier-Auth');
+      );
+      if (status >= 400) {
+        this.logger.warn(`Pro-Auth SDK status=${status} → fallback auf Free`);
+        return this.freeAuth(secretKey, roomId, userInfo);
+      }
+      const parsed = JSON.parse(body) as { token?: string };
+      if (!parsed.token) {
+        return this.freeAuth(secretKey, roomId, userInfo);
+      }
+      return { token: parsed.token, tier: 'pro' as const };
+    } catch (err: any) {
+      this.logger.warn(`Pro-Auth SDK threw (${err?.message}) → fallback auf Free`);
       return this.freeAuth(secretKey, roomId, userInfo);
     }
-    const data = await res.json() as { token?: string };
-    if (!data.token) throw new BadRequestException('Liveblocks Pro lieferte kein Token');
-    return { token: data.token, tier: 'pro' as const };
   }
 
   // ------------------------------------------------------------------

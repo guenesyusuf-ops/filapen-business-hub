@@ -80,12 +80,19 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
     measure();
     logDiag('info', `canvas-init: ${Math.round(target.getBoundingClientRect().width)}×${Math.round(target.getBoundingClientRect().height)}px`);
 
+    // WICHTIG: subtree:false. Mit subtree:true entstand eine Endlos-
+    // schleife — der DiagnosticsPanel lebt selber im observed subtree,
+    // sein setState-Re-Render mutated das DOM, Observer feuert, wieder
+    // setState, Re-Render … Nach ~5s brach React aus und der ganze
+    // Tldraw-Subtree wurde abgeworfen → weisser Bildschirm.
+    // Direct-children-Watch reicht uns: wenn tldraw stirbt aendert sich
+    // die Top-Level Struktur des Containers.
     const observer = new MutationObserver(() => {
       measure();
       const desc = target.querySelectorAll('*').length;
       logDiag('info', `tldraw-DOM mutated: ${target.children.length} children / ${desc} desc`);
     });
-    observer.observe(target, { childList: true, subtree: true });
+    observer.observe(target, { childList: true, subtree: false });
 
     // Periodischer Health-Check alle 3s — fuer stille Zustands-Aenderungen
     // wo nichts mutated aber Pixels weg sind (z.B. CSS-transitions, GPU-loss).
