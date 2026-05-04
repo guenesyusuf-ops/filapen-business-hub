@@ -308,43 +308,72 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
     return () => logUnmount('SingleUserCanvas');
   }, []);
 
-  // STEP 5 (v2): Visibility-Recovery.
+  // STEP 5 (v3): Visibility-Recovery — Multi-Stage-Eskalation.
   //
-  // Diagnose hat gezeigt: nach Tab-Switch verschwinden die gerenderten
-  // Shapes aus dem DOM (302 → 43 descendants), aber Editor-State + camera
-  // + 7 shapes sind intakt. setCamera(identical) triggert keinen Render-
-  // Pass weil tldraw bei identischen Werten bailed.
+  // v2-Diagnose: Bounds waren 1711x833 (nicht 0!), Editor + 7 shapes
+  // intakt, Camera-Kick lief — TROTZDEM bleibt der Render-Layer leer
+  // (47 statt 302 descendants). Das heisst: weder Bounds noch Camera-
+  // State sind das Problem. tldraws interner React-Subscriber ist
+  // entkoppelt und braucht einen STARKEN Trigger um sich neu anzumelden.
   //
-  // ECHTE Heilung in zwei Schritten:
-  //   1. updateViewportScreenBounds(getContainer()) zwingt tldraw die
-  //      Container-Dimensionen frisch aus dem DOM zu lesen — repariert
-  //      die internen viewportScreenBounds die durch ResizeObserver-
-  //      width=0-Reports im hidden-Tab korrumpiert wurden.
-  //   2. echter Camera-Tick (+0.5px → zurueck) statt identical-set
-  //      → tldraw sieht eine ECHTE State-Change → re-rendert die
-  //      Shape-Komponenten in den DOM.
+  // Strategie: drei Eskalationsstufen, zeitlich versetzt:
+  //   Stage 1 (rAF #1): Bounds-Refresh + Camera-Wackler ueber zwei Frames
+  //                     → trennt Camera-Sets in separate Reconciliation-Ticks
+  //   Stage 2 (rAF #3): window resize-Event dispatchen → tldraws ResizeObs
+  //                     UND window-Listener feuern beide neu
+  //   Stage 3 (rAF #4): Verification — wenn descendants immer noch <100,
+  //                     hartes Re-Mount via display:none Toggle
   //
-  // requestAnimationFrame umrahmt den Call damit Browser-Tab-Restore
-  // (DPR, Layout, Paint-Queue) erst durch ist.
+  // Damit decken wir die drei plausiblen Failure-Modi ab:
+  //   - State-Change-Bailout       (Stage 1)
+  //   - Stale Subscription         (Stage 2)
+  //   - React-Tree-Hibernation     (Stage 3)
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !canvasContainerRef.current) return;
+    const containerEl = canvasContainerRef.current;
     const onVis = () => {
       if (document.visibilityState !== 'visible') return;
+
       requestAnimationFrame(() => {
         try {
-          const container = editor.getContainer();
-          const beforeBounds = editor.getViewportScreenBounds();
-          editor.updateViewportScreenBounds(container);
-          const afterBounds = editor.getViewportScreenBounds();
+          // Stage 1a — Bounds refresh + erste Camera-Setzung (echte Bewegung)
+          editor.updateViewportScreenBounds(editor.getContainer());
           const cam = editor.getCamera();
-          // Echter Camera-Tick: 0.5px raus, zurueck. Identical-set wuerde
-          // tldraw als no-op behandeln und keinen Re-Render schedulen.
-          editor.setCamera({ x: cam.x + 0.5, y: cam.y, z: cam.z });
-          editor.setCamera(cam);
-          logDiag(
-            'info',
-            `vis-recover: bounds ${Math.round(beforeBounds.w)}x${Math.round(beforeBounds.h)} → ${Math.round(afterBounds.w)}x${Math.round(afterBounds.h)}, camera kicked`,
-          );
+          editor.setCamera({ x: cam.x + 50, y: cam.y, z: cam.z });
+          logDiag('info', 'vis-recover stage1a: bounds + camera +50px');
+
+          requestAnimationFrame(() => {
+            // Stage 1b — zweiter Frame, Camera zurueck → echtes Round-Trip
+            editor.setCamera(cam);
+            logDiag('info', 'vis-recover stage1b: camera reset');
+
+            requestAnimationFrame(() => {
+              // Stage 2 — globaler Resize-Event triggert tldraws RO + window-Listener
+              window.dispatchEvent(new Event('resize'));
+              logDiag('info', 'vis-recover stage2: window resize dispatched');
+
+              requestAnimationFrame(() => {
+                // Stage 3 — Verifizieren: hat es geholfen?
+                const desc = containerEl.querySelectorAll('*').length;
+                logDiag('info', `vis-recover post-stage2: ${desc} descendants`);
+                if (desc < 100) {
+                  // Render-Layer immer noch tot — harter Re-Layout via display-toggle
+                  const tldrawEl = editor.getContainer();
+                  const oldDisplay = tldrawEl.style.display;
+                  tldrawEl.style.display = 'none';
+                  // Force-Reflow
+                  void tldrawEl.offsetHeight;
+                  tldrawEl.style.display = oldDisplay;
+                  logDiag('warn', 'vis-recover stage3: hard display-toggle reflow');
+
+                  requestAnimationFrame(() => {
+                    const desc2 = containerEl.querySelectorAll('*').length;
+                    logDiag('info', `vis-recover post-stage3: ${desc2} descendants`);
+                  });
+                }
+              });
+            });
+          });
         } catch (e: any) {
           logDiag('error', `vis-recover failed: ${e?.message ?? e}`);
         }
@@ -501,20 +530,42 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
     return () => logUnmount('MultiplayerCanvas');
   }, []);
 
-  // STEP 5: Visibility-Recovery (siehe SingleUserCanvas-Comment).
+  // STEP 5: Visibility-Recovery — siehe SingleUserCanvas fuer Details.
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !canvasContainerRef.current) return;
+    const containerEl = canvasContainerRef.current;
     const onVis = () => {
       if (document.visibilityState !== 'visible') return;
       requestAnimationFrame(() => {
         try {
-          // setCamera mit identischer Kamera ist tldraw's idiomatische
-          // Variante einen Render-Pass zu erzwingen — Editor sieht es als
-          // State-Change → rAF-Loop wird re-armed. Falls STEP-3-Logs
-          // anschliessend rect=0x0 zeigen, kommt updateViewportScreenBounds
-          // (mit Container-Element als Arg) als zweiter Schritt dazu.
-          editor.setCamera(editor.getCamera());
-          logDiag('info', 'vis-recover: camera nudged');
+          editor.updateViewportScreenBounds(editor.getContainer());
+          const cam = editor.getCamera();
+          editor.setCamera({ x: cam.x + 50, y: cam.y, z: cam.z });
+          logDiag('info', 'vis-recover stage1a: bounds + camera +50px');
+          requestAnimationFrame(() => {
+            editor.setCamera(cam);
+            logDiag('info', 'vis-recover stage1b: camera reset');
+            requestAnimationFrame(() => {
+              window.dispatchEvent(new Event('resize'));
+              logDiag('info', 'vis-recover stage2: window resize dispatched');
+              requestAnimationFrame(() => {
+                const desc = containerEl.querySelectorAll('*').length;
+                logDiag('info', `vis-recover post-stage2: ${desc} descendants`);
+                if (desc < 100) {
+                  const tldrawEl = editor.getContainer();
+                  const oldDisplay = tldrawEl.style.display;
+                  tldrawEl.style.display = 'none';
+                  void tldrawEl.offsetHeight;
+                  tldrawEl.style.display = oldDisplay;
+                  logDiag('warn', 'vis-recover stage3: hard display-toggle reflow');
+                  requestAnimationFrame(() => {
+                    const desc2 = containerEl.querySelectorAll('*').length;
+                    logDiag('info', `vis-recover post-stage3: ${desc2} descendants`);
+                  });
+                }
+              });
+            });
+          });
         } catch (e: any) {
           logDiag('error', `vis-recover failed: ${e?.message ?? e}`);
         }
