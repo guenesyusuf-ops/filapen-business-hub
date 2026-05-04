@@ -20,7 +20,7 @@ import {
   toRichText,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
-import { logDiag, DiagnosticsPanel } from './whiteboard-diagnostics';
+import { logDiag, logMount, logUnmount, DiagnosticsPanel } from './whiteboard-diagnostics';
 // Non-suspense Liveblocks API — sonst suspendieren useRoom/useOthers ohne
 // passenden Suspense-Boundary in der Auth-Phase und der ganze Canvas zeigt
 // permanent den dynamic-Loading-Spinner.
@@ -233,6 +233,14 @@ export function WhiteboardCanvas({ board }: Props) {
   const publicKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY : undefined;
   const [authResult, setAuthResult] = useState<{ token: string | null; tier: 'free' | 'pro' | null } | null>(null);
 
+  // STEP 2: Wrapper-Mount/Unmount-Tracing — falls ein Hidden-Remount
+  // den ganzen Wrapper neu aufbaut, sehen wir das hier in den Logs
+  // bevor irgendein anderer Lifecycle-Event feuert.
+  useEffect(() => {
+    logMount('WhiteboardCanvas wrapper');
+    return () => logUnmount('WhiteboardCanvas wrapper');
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     if (!publicKey) {
@@ -293,6 +301,46 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
   // oder loadSnapshot kollidiert mit sich selbst und das Board wird weiss).
   const mountedOnceRef = useRef(false);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  // STEP 2: Mount/Unmount-Tracing
+  useEffect(() => {
+    logMount('SingleUserCanvas');
+    return () => logUnmount('SingleUserCanvas');
+  }, []);
+
+  // STEP 5: Visibility-Recovery.
+  // Bei `visible` zwingen wir tldraw zu einem Repaint:
+  //   1. updateViewportScreenBounds() liest Container-Dimensionen frisch
+  //      → behebt den Fall wo ResizeObserver waehrend hidden→visible
+  //        Stale width=0 lieferte und tldraw die Render-Surface auf 0
+  //        gepinned hat.
+  //   2. setCamera(getCamera()) re-setzt die identische Kamera. tldraw
+  //      behandelt das als State-Change → schedult ein rAF → Render
+  //      laeuft wieder. Im rAF-Throttling/Sleep-Szenario bricht das die
+  //      Pause auf.
+  // requestAnimationFrame umrahmt den Call damit das ERST nach dem
+  // browser-internen Tab-Restore (DPR, Layout, Paint-Queue) feuert.
+  useEffect(() => {
+    if (!editor) return;
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      requestAnimationFrame(() => {
+        try {
+          // setCamera mit identischer Kamera ist tldraw's idiomatische
+          // Variante einen Render-Pass zu erzwingen — Editor sieht es als
+          // State-Change → rAF-Loop wird re-armed. Falls STEP-3-Logs
+          // anschliessend rect=0x0 zeigen, kommt updateViewportScreenBounds
+          // (mit Container-Element als Arg) als zweiter Schritt dazu.
+          editor.setCamera(editor.getCamera());
+          logDiag('info', 'vis-recover: camera nudged');
+        } catch (e: any) {
+          logDiag('error', `vis-recover failed: ${e?.message ?? e}`);
+        }
+      });
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [editor]);
 
   // tldraw-Snapshot beim Mount laden falls vorhanden
   const handleMount = useCallback((ed: Editor) => {
@@ -412,7 +460,7 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
           sieht nur den weissen Hintergrund vom Parent. */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <Tldraw onMount={handleMount} />
-        <DiagnosticsPanel canvasContainerRef={canvasContainerRef} />
+        <DiagnosticsPanel canvasContainerRef={canvasContainerRef} editor={editor} variant="single" />
         {editor && <EntityDockPanel editor={editor} />}
       </div>
     </div>
@@ -432,6 +480,37 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedOnceRef = useRef(false);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  // STEP 2: Mount/Unmount-Tracing — falls Liveblocks-RoomProvider den
+  // ganzen Subtree neu mountet (z.B. bei WebSocket-Reconnect on visibility),
+  // sehen wir das hier sofort.
+  useEffect(() => {
+    logMount('MultiplayerCanvas');
+    return () => logUnmount('MultiplayerCanvas');
+  }, []);
+
+  // STEP 5: Visibility-Recovery (siehe SingleUserCanvas-Comment).
+  useEffect(() => {
+    if (!editor) return;
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      requestAnimationFrame(() => {
+        try {
+          // setCamera mit identischer Kamera ist tldraw's idiomatische
+          // Variante einen Render-Pass zu erzwingen — Editor sieht es als
+          // State-Change → rAF-Loop wird re-armed. Falls STEP-3-Logs
+          // anschliessend rect=0x0 zeigen, kommt updateViewportScreenBounds
+          // (mit Container-Element als Arg) als zweiter Schritt dazu.
+          editor.setCamera(editor.getCamera());
+          logDiag('info', 'vis-recover: camera nudged');
+        } catch (e: any) {
+          logDiag('error', `vis-recover failed: ${e?.message ?? e}`);
+        }
+      });
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [editor]);
 
   // WHITE-SCREEN-FIX: Yjs-State-Sync ENTFERNT.
   //
@@ -531,7 +610,7 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
           sieht nur den weissen Hintergrund vom Parent. */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <Tldraw onMount={handleMount} />
-        <DiagnosticsPanel canvasContainerRef={canvasContainerRef} />
+        <DiagnosticsPanel canvasContainerRef={canvasContainerRef} editor={editor} variant="multi" />
         {editor && <EntityDockPanel editor={editor} />}
         {/* Pro-Features kommen hier rein sobald LIVEBLOCKS_TIER=pro:
             <ProCommentsPanel boardId={board.id} /> — Threads + Replies

@@ -3,43 +3,84 @@
 /**
  * Whiteboard-Diagnose-Layer.
  *
- * Sammelt Logs zu Mount-Status, Auto-Save, Tldraw-DOM-Health und
- * visualisiert sie in einem schwebenden Panel rechts oben. User kann
- * den Status mit einem Klick kopieren und mir schicken — dann sehen
- * wir GENAU welche Sequenz zum White-Screen gefuehrt hat.
+ * WICHTIG: Logs liegen auf `globalThis.__wbLogs` — ueberlebt damit
+ * Component-Unmounts. Wenn ein hidden Remount stattfindet (z.B. durch
+ * Liveblocks-RoomProvider Reconnect) und der Panel-Component selbst
+ * neu montiert wird, sind die alten Logs trotzdem noch da.
  *
- * Das Panel ist immer sichtbar. Sobald wir den Bug haben kann ich es
- * verstecken (?debug-Query oder ganz weg).
+ * MOUNT/UNMOUNT-Events werden ueber logMount(label) / logUnmount(label)
+ * ins gleiche Buffer geschrieben — eine sichtbare Sequenz
+ *   visibility=visible
+ *   UNMOUNT MultiplayerCanvas
+ *   MOUNT MultiplayerCanvas
+ *   tldraw onMount fired (multiplayer)
+ * ist der definitive Beweis fuer einen Hidden-Remount.
  */
 
 import { useEffect, useState } from 'react';
+import type { Editor } from 'tldraw';
 
 type LogEntry = { ts: number; level: 'info' | 'warn' | 'error'; msg: string };
 
-const logs: LogEntry[] = [];
-const subscribers = new Set<() => void>();
+// Persistenter Log-Speicher auf globalThis — ueberlebt Component-Unmounts
+declare global {
+  // eslint-disable-next-line no-var
+  var __wbLogs: LogEntry[] | undefined;
+  // eslint-disable-next-line no-var
+  var __wbSubs: Set<() => void> | undefined;
+}
+
+function getLogs(): LogEntry[] {
+  if (typeof globalThis !== 'undefined') {
+    if (!globalThis.__wbLogs) globalThis.__wbLogs = [];
+    return globalThis.__wbLogs;
+  }
+  return [];
+}
+function getSubs(): Set<() => void> {
+  if (typeof globalThis !== 'undefined') {
+    if (!globalThis.__wbSubs) globalThis.__wbSubs = new Set();
+    return globalThis.__wbSubs;
+  }
+  return new Set();
+}
 
 function notify() {
-  for (const s of subscribers) s();
+  for (const s of getSubs()) s();
 }
 
 export function logDiag(level: 'info' | 'warn' | 'error', msg: string) {
   const entry: LogEntry = { ts: Date.now(), level, msg };
+  const logs = getLogs();
   logs.push(entry);
-  if (logs.length > 100) logs.shift();
+  if (logs.length > 200) logs.shift();
   // eslint-disable-next-line no-console
   console.log(`[wb-diag/${level}]`, msg);
   notify();
 }
 
+/** Kurz-Helper fuer Mount/Unmount-Tracing — eine konsistente Form. */
+export function logMount(label: string) {
+  logDiag('info', `MOUNT ${label}`);
+}
+export function logUnmount(label: string) {
+  logDiag('info', `UNMOUNT ${label}`);
+}
+
 export function getDiagDump(): string {
-  return logs
+  return getLogs()
     .map((l) => `${new Date(l.ts).toISOString().slice(11, 23)} [${l.level}] ${l.msg}`)
     .join('\n');
 }
 
-export function DiagnosticsPanel({ canvasContainerRef }: {
+export function DiagnosticsPanel({
+  canvasContainerRef,
+  editor,
+  variant,
+}: {
   canvasContainerRef?: React.RefObject<HTMLDivElement>;
+  editor?: Editor | null;
+  variant?: string;
 }) {
   const [, force] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
@@ -54,14 +95,11 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
   // Subscribe to log changes
   useEffect(() => {
     const cb = () => force((v) => v + 1);
-    subscribers.add(cb);
-    return () => { subscribers.delete(cb); };
+    getSubs().add(cb);
+    return () => { getSubs().delete(cb); };
   }, []);
 
   // DOM-Health: MutationObserver + Periodic Dimension-Check.
-  //  - Children-Count: zeigt Top-Level Aenderungen (tldraw mount/unmount)
-  //  - Descendant-Count: tiefer Scan, deckt auf wenn tldraw intern leer wird
-  //  - Width/Height: deckt flex-collapse auf — beliebter "weiss"-Trigger
   useEffect(() => {
     if (!canvasContainerRef?.current) return;
     const target = canvasContainerRef.current;
@@ -85,8 +123,6 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
     // sein setState-Re-Render mutated das DOM, Observer feuert, wieder
     // setState, Re-Render … Nach ~5s brach React aus und der ganze
     // Tldraw-Subtree wurde abgeworfen → weisser Bildschirm.
-    // Direct-children-Watch reicht uns: wenn tldraw stirbt aendert sich
-    // die Top-Level Struktur des Containers.
     const observer = new MutationObserver(() => {
       measure();
       const desc = target.querySelectorAll('*').length;
@@ -94,12 +130,9 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
     });
     observer.observe(target, { childList: true, subtree: false });
 
-    // Periodischer Health-Check alle 3s — fuer stille Zustands-Aenderungen
-    // wo nichts mutated aber Pixels weg sind (z.B. CSS-transitions, GPU-loss).
     const healthInterval = window.setInterval(() => {
       const prev = target.getBoundingClientRect();
       measure();
-      // Loggen wenn die Dimensionen drastisch geschrumpft sind
       if (prev.width < 50 || prev.height < 50) {
         logDiag('error', `canvas collapsed: ${Math.round(prev.width)}×${Math.round(prev.height)}px`);
       }
@@ -111,15 +144,40 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
     };
   }, [canvasContainerRef]);
 
-  // Page Visibility tracking — falls das Tab in den Hintergrund geht
-  // und beim Zurueckkommen das Whiteboard "leer" ist, sehen wir das.
+  // STEP 3: Rich Visibility-Resume Snapshot.
+  // Bei visibility=visible loggen wir alles was zur Diagnose der drei
+  // Render-Failure-Modi noetig ist:
+  //   A) Render-Loop tot     → rect ok, shapes>0, canvas-children=0
+  //   B) Viewport-Bug        → rect=0x0 oder <50
+  //   C) CSS-Issue           → display:none / visibility:hidden / opacity:0
   useEffect(() => {
     const onVisChange = () => {
       logDiag('info', `visibility=${document.visibilityState}`);
+      if (document.visibilityState !== 'visible') return;
+      if (!canvasContainerRef?.current) return;
+
+      const target = canvasContainerRef.current;
+      const rect = target.getBoundingClientRect();
+      const cs = getComputedStyle(target);
+      const canvasEls = target.querySelectorAll('canvas').length;
+      logDiag('info', `vis-resume rect=${Math.round(rect.width)}x${Math.round(rect.height)}`);
+      logDiag('info', `vis-resume cs=display:${cs.display}/vis:${cs.visibility}/op:${cs.opacity}`);
+      logDiag('info', `vis-resume canvas-elements=${canvasEls}, descendants=${target.querySelectorAll('*').length}`);
+
+      if (editor) {
+        try {
+          const cam = editor.getCamera();
+          const zoom = editor.getZoomLevel();
+          const shapes = editor.getCurrentPageShapes().length;
+          logDiag('info', `vis-resume cam=${Math.round(cam.x)},${Math.round(cam.y)},z${cam.z.toFixed(2)} zoom=${zoom.toFixed(2)} shapes=${shapes}`);
+        } catch (e: any) {
+          logDiag('error', `vis-resume editor-read failed: ${e?.message ?? e}`);
+        }
+      }
     };
     document.addEventListener('visibilitychange', onVisChange);
     return () => document.removeEventListener('visibilitychange', onVisChange);
-  }, []);
+  }, [canvasContainerRef, editor]);
 
   if (collapsed) {
     return (
@@ -133,12 +191,14 @@ export function DiagnosticsPanel({ canvasContainerRef }: {
     );
   }
 
-  const recentLogs = logs.slice(-12);
+  const recentLogs = getLogs().slice(-14);
 
   return (
-    <div className="absolute top-14 right-2 z-50 w-[360px] max-h-[60vh] flex flex-col rounded-xl bg-white dark:bg-[#1a1d2e] border border-yellow-300 dark:border-yellow-700 shadow-xl text-[10px] font-mono">
+    <div className="absolute top-14 right-2 z-50 w-[380px] max-h-[60vh] flex flex-col rounded-xl bg-white dark:bg-[#1a1d2e] border border-yellow-300 dark:border-yellow-700 shadow-xl text-[10px] font-mono">
       <div className="flex items-center justify-between gap-2 px-2 py-1 border-b border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded-t-xl">
-        <span className="font-semibold text-yellow-800 dark:text-yellow-300">🛠 Whiteboard-Diagnose</span>
+        <span className="font-semibold text-yellow-800 dark:text-yellow-300">
+          🛠 Whiteboard-Diagnose{variant ? ` · ${variant}` : ''}
+        </span>
         <div className="flex items-center gap-1">
           <button
             onClick={async () => {
