@@ -65,7 +65,7 @@ export class AiGeneratorService {
   constructor(private readonly config: ConfigService) {
     this.openaiKey = this.config.get<string>('OPENAI_API_KEY') || null;
     this.anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY') || null;
-    this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o';
+    this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'GPT-5.4 mini';
 
     // Provider-Auswahl:
     //   1. CONTENT_AI_PROVIDER=openai|anthropic explizit → verwenden
