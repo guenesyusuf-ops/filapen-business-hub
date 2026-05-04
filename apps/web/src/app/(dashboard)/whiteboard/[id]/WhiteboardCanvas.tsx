@@ -25,8 +25,10 @@ import { logDiag, DiagnosticsPanel } from './whiteboard-diagnostics';
 // passenden Suspense-Boundary in der Auth-Phase und der ganze Canvas zeigt
 // permanent den dynamic-Loading-Spinner.
 import { LiveblocksProvider, RoomProvider, useRoom, useOthers } from '@liveblocks/react';
-import * as Y from 'yjs';
-import { LiveblocksYjsProvider } from '@liveblocks/yjs';
+// Yjs-State-Sync wurde entfernt — siehe Comment in MultiplayerCanvas.
+// Imports nur als Hinweis fuer den Re-Aktivierungs-Pfad spaeter.
+// import * as Y from 'yjs';
+// import { LiveblocksYjsProvider } from '@liveblocks/yjs';
 import { cn } from '@/lib/utils';
 
 interface Props { board: WhiteboardDetail }
@@ -421,49 +423,45 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
   const mountedOnceRef = useRef(false);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
-  // Yjs-Doc fuer CRDT-Sync. tldraw kennt von sich aus kein Yjs — wir
-  // syncen manuell: Yjs-Map haelt das tldraw-Snapshot, jeder lokale Edit
-  // schreibt ins Map, jeder Remote-Update wird in tldraw geladen.
-  const ydoc = useMemo(() => new Y.Doc(), []);
-  const yProvider = useMemo(() => new LiveblocksYjsProvider(room as any, ydoc), [room, ydoc]);
-  const yState = useMemo(() => ydoc.getMap('tldraw-state'), [ydoc]);
+  // WHITE-SCREEN-FIX: Yjs-State-Sync ENTFERNT.
+  //
+  // Diagnose-Logs zeigten klar: ~5s nach Mount feuert der Liveblocks-Yjs
+  // Initial-Sync, mein yState.observe-Callback ruft loadSnapshot mit
+  // leerem oder stalem Snapshot → tldraw entleert sich von 360 auf 43
+  // DOM-Descendants → User sieht weisses Canvas.
+  //
+  // Mein manueller Yjs-State-Roundtrip war experimentell und kennt
+  // tldraws Schema nicht richtig. Stattdessen:
+  //   - State persistiert nur lokal + per Auto-Save in unsere DB
+  //   - Liveblocks-RoomProvider bleibt aktiv → Live-Cursors + User-Counter
+  //     funktionieren weiterhin (das war das wertvollste Multiplayer-Feature)
+  //   - Echtes State-Sharing kommt via @tldraw/sync (offizielle Liveblocks-
+  //     Integration) zurueck — die kennt tldraws-Schema und macht's safe.
 
   const handleMount = useCallback((ed: Editor) => {
+    logDiag('info', 'tldraw onMount fired (multiplayer)');
     setEditor(ed);
-    if (mountedOnceRef.current) return;
+    if (mountedOnceRef.current) {
+      logDiag('warn', 'onMount fired again — ignored (mountedOnceRef)');
+      return;
+    }
     mountedOnceRef.current = true;
     try {
-      // Initial-Load: bevorzuge Yjs-Map (live state), fallback auf DB-Snapshot
-      const yStateValue = yState.get('snapshot') as TLEditorSnapshot | undefined;
-      if (yStateValue) {
-        loadSnapshot(ed.store, yStateValue);
-      } else if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
+      if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
+        logDiag('info', `loadSnapshot from existing state (${JSON.stringify(board.state).length} bytes)`);
         loadSnapshot(ed.store, board.state as TLEditorSnapshot);
       } else if (board.state?.__template) {
+        logDiag('info', `applyTemplate: ${board.state.__template}`);
         applyTemplate(ed, board.state.__template);
+      } else {
+        logDiag('info', 'no template, no state — empty canvas');
       }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('Whiteboard mount init failed:', e);
+    } catch (e: any) {
+      logDiag('error', `mount init failed: ${e?.message ?? e}`);
     }
     lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
-
-    // Lokal → Yjs: bei jeder Editor-Aenderung in Yjs-Map schreiben
-    const onLocalChange = () => {
-      const snap = getSnapshot(ed.store);
-      yState.set('snapshot', snap);
-    };
-    ed.store.listen(onLocalChange, { source: 'user' });
-
-    // Yjs → Lokal: wenn andere User Aenderungen machen, ins tldraw laden
-    yState.observe((event) => {
-      if (event.transaction.local) return; // unser eigenes update
-      const snap = yState.get('snapshot') as TLEditorSnapshot | undefined;
-      if (snap) {
-        try { loadSnapshot(ed.store, snap); } catch { /* ignore */ }
-      }
-    });
-  }, [board.state, yState]);
+    logDiag('info', `mount-init done, snapshot ${lastSavedJsonRef.current.length} bytes`);
+  }, [board.state]);
 
   // Auto-Save in DB (Backup, unabhaengig von Liveblocks)
   useEffect(() => {
@@ -490,9 +488,8 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
     saveTimerRef.current = setTimeout(tick, 30_000);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      yProvider.destroy();
     };
-  }, [editor, board.id, yProvider]);
+  }, [editor, board.id]);
 
   return (
     <div className="fixed inset-0 flex flex-col bg-[#fafafa] dark:bg-[#0c0e1c]">
