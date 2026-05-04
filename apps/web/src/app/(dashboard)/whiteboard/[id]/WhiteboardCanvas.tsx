@@ -20,6 +20,7 @@ import {
   toRichText,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
+import { logDiag, DiagnosticsPanel } from './whiteboard-diagnostics';
 // Non-suspense Liveblocks API — sonst suspendieren useRoom/useOthers ohne
 // passenden Suspense-Boundary in der Auth-Phase und der ganze Canvas zeigt
 // permanent den dynamic-Loading-Spinner.
@@ -282,52 +283,80 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
   // (effect/onMount feuert dort 2x — sonst landen Templates doppelt im Canvas
   // oder loadSnapshot kollidiert mit sich selbst und das Board wird weiss).
   const mountedOnceRef = useRef(false);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   // tldraw-Snapshot beim Mount laden falls vorhanden
   const handleMount = useCallback((ed: Editor) => {
+    logDiag('info', 'tldraw onMount fired');
     setEditor(ed);
-    if (mountedOnceRef.current) return;
+    if (mountedOnceRef.current) {
+      logDiag('warn', 'onMount fired again — ignored (mountedOnceRef)');
+      return;
+    }
     mountedOnceRef.current = true;
     try {
       if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
+        logDiag('info', `loadSnapshot from existing state (${JSON.stringify(board.state).length} bytes)`);
         loadSnapshot(ed.store, board.state as TLEditorSnapshot);
       } else if (board.state?.__template) {
-        // Fresh-Board mit Template-Marker: Initial-Shapes erzeugen.
-        // Beim ersten Auto-Save wird der Marker durch den echten Snapshot ersetzt.
+        logDiag('info', `applyTemplate: ${board.state.__template}`);
         applyTemplate(ed, board.state.__template);
+      } else {
+        logDiag('info', 'no template, no state — empty canvas');
       }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('Whiteboard mount init failed:', e);
+    } catch (e: any) {
+      logDiag('error', `mount init failed: ${e?.message ?? e}`);
     }
     lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
+    logDiag('info', `mount-init done, snapshot ${lastSavedJsonRef.current.length} bytes`);
   }, [board.state]);
 
   // Auto-Save Loop: alle 30s pruefen ob sich was geaendert hat
   useEffect(() => {
     if (!editor) return;
+    logDiag('info', 'auto-save loop started');
     const tick = async () => {
-      const snap = getSnapshot(editor.store);
-      const json = JSON.stringify(snap);
-      if (json === lastSavedJsonRef.current) {
-        // Nichts geaendert — Timer einfach neu setzen
+      let snap: any;
+      try {
+        snap = getSnapshot(editor.store);
+      } catch (e: any) {
+        logDiag('error', `getSnapshot crash: ${e?.message ?? e}`);
         saveTimerRef.current = setTimeout(tick, 30_000);
         return;
       }
+      let json: string;
+      try {
+        json = JSON.stringify(snap);
+      } catch (e: any) {
+        logDiag('error', `JSON.stringify crash: ${e?.message ?? e}`);
+        saveTimerRef.current = setTimeout(tick, 30_000);
+        return;
+      }
+      if (json === lastSavedJsonRef.current) {
+        logDiag('info', `auto-save tick: no change (${json.length} bytes)`);
+        saveTimerRef.current = setTimeout(tick, 30_000);
+        return;
+      }
+      logDiag('info', `auto-save tick: changes detected (${json.length} bytes), POST...`);
       setSaveState('saving');
       try {
         await whiteboardApi.update(board.id, { state: snap });
         lastSavedJsonRef.current = json;
         setSaveState('saved');
+        logDiag('info', 'auto-save OK');
         setTimeout(() => setSaveState('idle'), 2000);
-      } catch (e) {
+      } catch (e: any) {
         setSaveState('error');
+        logDiag('error', `auto-save failed: ${e?.message ?? e}`);
         setTimeout(() => setSaveState('idle'), 4000);
       }
       saveTimerRef.current = setTimeout(tick, 30_000);
     };
     saveTimerRef.current = setTimeout(tick, 30_000);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      logDiag('info', 'auto-save loop teardown');
+    };
   }, [editor, board.id]);
 
   // Beim Unmount letzten Stand sichern (fire-and-forget)
@@ -358,8 +387,9 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
           router.push('/whiteboard');
         }}
       />
-      <div className="flex-1 relative">
+      <div className="flex-1 relative" ref={canvasContainerRef}>
         <Tldraw onMount={handleMount} />
+        <DiagnosticsPanel canvasContainerRef={canvasContainerRef} />
         {editor && <EntityDockPanel editor={editor} />}
       </div>
     </div>
@@ -378,6 +408,7 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
   const lastSavedJsonRef = useRef<string>('');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedOnceRef = useRef(false);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   // Yjs-Doc fuer CRDT-Sync. tldraw kennt von sich aus kein Yjs — wir
   // syncen manuell: Yjs-Map haelt das tldraw-Snapshot, jeder lokale Edit
@@ -468,8 +499,9 @@ function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'fr
           router.push('/whiteboard');
         }}
       />
-      <div className="flex-1 relative">
+      <div className="flex-1 relative" ref={canvasContainerRef}>
         <Tldraw onMount={handleMount} />
+        <DiagnosticsPanel canvasContainerRef={canvasContainerRef} />
         {editor && <EntityDockPanel editor={editor} />}
         {/* Pro-Features kommen hier rein sobald LIVEBLOCKS_TIER=pro:
             <ProCommentsPanel boardId={board.id} /> — Threads + Replies
