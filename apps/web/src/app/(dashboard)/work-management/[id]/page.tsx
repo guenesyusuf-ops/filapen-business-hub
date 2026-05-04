@@ -30,6 +30,7 @@ import {
 } from '@/hooks/work-management/useWm';
 import { useCreateApprovalTask } from '@/hooks/work-management/useWmApproval';
 import type { WmTask, WmColumn } from '@/hooks/work-management/useWm';
+import { getRealIdSync } from '@/hooks/work-management/temp-task-bridge';
 import dynamic from 'next/dynamic';
 
 // Lazy-load DnD components to avoid SSR issues with @dnd-kit
@@ -172,7 +173,25 @@ export default function ProjectDetailPage() {
   //   - subtasks     (eigene Endpoints, optimistic)
   useEffect(() => {
     if (!selectedTask || !project?.tasks) return;
-    const fresh = (project.tasks as any[]).find((t) => t.id === selectedTask.id);
+    let fresh = (project.tasks as any[]).find((t) => t.id === selectedTask.id);
+
+    // Falls selectedTask noch eine temp-ID hat, der CREATE inzwischen aber
+    // resolved ist: die echte ID via Bridge nachschlagen + auf das passende
+    // Task im Cache mappen. Sonst klebt selectedTask ewig auf "temp-..."
+    // und alle Updates schmeissen "Temp-Task nicht registriert".
+    if (!fresh && selectedTask.id?.startsWith('temp-')) {
+      // Bridge-Lookup: gibt die echte ID zurueck wenn create resolved ist
+      const realId = getRealIdSync(selectedTask.id);
+      if (realId) {
+        fresh = (project.tasks as any[]).find((t) => t.id === realId);
+        if (fresh) {
+          // selectedTask ID upgraden — danach laufen alle weiteren Updates auf
+          // der echten ID und die Bridge-Pfade muessen nicht mehr greifen.
+          setSelectedTask((prev) => prev ? { ...prev, ...fresh, id: realId } : prev);
+          return;
+        }
+      }
+    }
     if (!fresh) return;
 
     const updates: any = {};
