@@ -21,14 +21,11 @@ import {
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
 import { logDiag, logMount, logUnmount, DiagnosticsPanel } from './whiteboard-diagnostics';
-// Non-suspense Liveblocks API — sonst suspendieren useRoom/useOthers ohne
-// passenden Suspense-Boundary in der Auth-Phase und der ganze Canvas zeigt
-// permanent den dynamic-Loading-Spinner.
-import { LiveblocksProvider, RoomProvider, useRoom, useOthers } from '@liveblocks/react';
-// Yjs-State-Sync wurde entfernt — siehe Comment in MultiplayerCanvas.
-// Imports nur als Hinweis fuer den Re-Aktivierungs-Pfad spaeter.
-// import * as Y from 'yjs';
-// import { LiveblocksYjsProvider } from '@liveblocks/yjs';
+// BISECT-STEP-1: Liveblocks komplett entfernt fuer Diagnose. Bevor:
+//   import { LiveblocksProvider, RoomProvider, useRoom, useOthers } from '@liveblocks/react';
+// Wrapper returned ausschliesslich <SingleUserCanvas /> — keinerlei
+// Liveblocks-Code laeuft mehr (kein WebSocket, kein Auth-Fetch, kein
+// Provider). Wenn Bug verschwindet → Liveblocks war Ursache.
 import { cn } from '@/lib/utils';
 
 interface Props { board: WhiteboardDetail }
@@ -222,69 +219,16 @@ function applyTemplate(editor: Editor, template: string) {
  * User auftauchen.
  */
 export function WhiteboardCanvas({ board }: Props) {
-  // Multiplayer-Decision: WICHTIG — wir muessen die Entscheidung
-  // "Single-User vs. Multiplayer" EINMAL beim Initial-Mount treffen
-  // und dabei bleiben. Vorher wurde Single-User waehrend des Auth-
-  // Checks gerendert und nach ~5s auf Multiplayer geswitched — das
-  // unmountete die laufende Tldraw-Instanz und der Canvas wurde weiss.
-  //
-  // Jetzt: Skelett anzeigen bis Auth fertig ist, dann einmalig die
-  // richtige Variante. Kein Mid-Session-Switch mehr.
-  const publicKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY : undefined;
-  const [authResult, setAuthResult] = useState<{ token: string | null; tier: 'free' | 'pro' | null } | null>(null);
-
-  // STEP 2: Wrapper-Mount/Unmount-Tracing — falls ein Hidden-Remount
-  // den ganzen Wrapper neu aufbaut, sehen wir das hier in den Logs
-  // bevor irgendein anderer Lifecycle-Event feuert.
+  // BISECT-STEP-1: Liveblocks komplett entfernt. Wrapper rendert nur
+  // noch SingleUserCanvas — kein Auth-Fetch, kein Provider, kein
+  // WebSocket, kein Mid-Session-Switch. Wenn der White-Screen-Bug
+  // weg ist, war Liveblocks der Ursprung.
   useEffect(() => {
-    logMount('WhiteboardCanvas wrapper');
+    logMount('WhiteboardCanvas wrapper (BISECT-1: no liveblocks)');
     return () => logUnmount('WhiteboardCanvas wrapper');
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!publicKey) {
-      setAuthResult({ token: null, tier: null });
-      return;
-    }
-    whiteboardApi.liveblocksAuth(board.id)
-      .then((r) => { if (!cancelled) setAuthResult({ token: r.token ?? null, tier: r.tier ?? null }); })
-      .catch(() => { if (!cancelled) setAuthResult({ token: null, tier: null }); });
-    return () => { cancelled = true; };
-  }, [publicKey, board.id]);
-
-  // Phase 1: Auth check noch nicht durch → Skelett (KEIN tldraw)
-  if (!authResult) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-[#fafafa] dark:bg-[#0c0e1c]">
-        <div className="flex flex-col items-center gap-3 text-gray-500 dark:text-gray-400">
-          <div className="h-8 w-8 rounded-full border-2 border-gray-300 border-t-primary-500 animate-spin" />
-          <p className="text-sm">Whiteboard wird vorbereitet…</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Phase 2: kein Multiplayer-Token → permanent Single-User-Canvas
-  if (!authResult.token) {
-    return <SingleUserCanvas board={board} />;
-  }
-
-  // Phase 3: Multiplayer aktiv — bleibt fuer die ganze Session
-  return (
-    <LiveblocksProvider
-      authEndpoint={async (room?: string) => {
-        if (!room) throw new Error('No room provided');
-        const r = await whiteboardApi.liveblocksAuth(board.id);
-        if (!r.token) throw new Error(r.reason || 'Liveblocks not configured');
-        return { token: r.token };
-      }}
-    >
-      <RoomProvider id={board.liveblocksRoomId || `wb-${board.id}`} initialPresence={{}}>
-        <MultiplayerCanvas board={board} tier={authResult.tier ?? 'free'} />
-      </RoomProvider>
-    </LiveblocksProvider>
-  );
+  return <SingleUserCanvas board={board} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -508,181 +452,6 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Multiplayer Canvas (mit Liveblocks)
-// ---------------------------------------------------------------------------
-function MultiplayerCanvas({ board, tier }: { board: WhiteboardDetail; tier: 'free' | 'pro' }) {
-  const router = useRouter();
-  const room = useRoom();
-  const others = useOthers();
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const lastSavedJsonRef = useRef<string>('');
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedOnceRef = useRef(false);
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
-
-  // STEP 2: Mount/Unmount-Tracing — falls Liveblocks-RoomProvider den
-  // ganzen Subtree neu mountet (z.B. bei WebSocket-Reconnect on visibility),
-  // sehen wir das hier sofort.
-  useEffect(() => {
-    logMount('MultiplayerCanvas');
-    return () => logUnmount('MultiplayerCanvas');
-  }, []);
-
-  // STEP 5: Visibility-Recovery — siehe SingleUserCanvas fuer Details.
-  useEffect(() => {
-    if (!editor || !canvasContainerRef.current) return;
-    const containerEl = canvasContainerRef.current;
-    const onVis = () => {
-      if (document.visibilityState !== 'visible') return;
-      requestAnimationFrame(() => {
-        try {
-          editor.updateViewportScreenBounds(editor.getContainer());
-          const cam = editor.getCamera();
-          editor.setCamera({ x: cam.x + 50, y: cam.y, z: cam.z });
-          logDiag('info', 'vis-recover stage1a: bounds + camera +50px');
-          requestAnimationFrame(() => {
-            editor.setCamera(cam);
-            logDiag('info', 'vis-recover stage1b: camera reset');
-            requestAnimationFrame(() => {
-              window.dispatchEvent(new Event('resize'));
-              logDiag('info', 'vis-recover stage2: window resize dispatched');
-              requestAnimationFrame(() => {
-                const desc = containerEl.querySelectorAll('*').length;
-                logDiag('info', `vis-recover post-stage2: ${desc} descendants`);
-                if (desc < 100) {
-                  const tldrawEl = editor.getContainer();
-                  const oldDisplay = tldrawEl.style.display;
-                  tldrawEl.style.display = 'none';
-                  void tldrawEl.offsetHeight;
-                  tldrawEl.style.display = oldDisplay;
-                  logDiag('warn', 'vis-recover stage3: hard display-toggle reflow');
-                  requestAnimationFrame(() => {
-                    const desc2 = containerEl.querySelectorAll('*').length;
-                    logDiag('info', `vis-recover post-stage3: ${desc2} descendants`);
-                  });
-                }
-              });
-            });
-          });
-        } catch (e: any) {
-          logDiag('error', `vis-recover failed: ${e?.message ?? e}`);
-        }
-      });
-    };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, [editor]);
-
-  // WHITE-SCREEN-FIX: Yjs-State-Sync ENTFERNT.
-  //
-  // Diagnose-Logs zeigten klar: ~5s nach Mount feuert der Liveblocks-Yjs
-  // Initial-Sync, mein yState.observe-Callback ruft loadSnapshot mit
-  // leerem oder stalem Snapshot → tldraw entleert sich von 360 auf 43
-  // DOM-Descendants → User sieht weisses Canvas.
-  //
-  // Mein manueller Yjs-State-Roundtrip war experimentell und kennt
-  // tldraws Schema nicht richtig. Stattdessen:
-  //   - State persistiert nur lokal + per Auto-Save in unsere DB
-  //   - Liveblocks-RoomProvider bleibt aktiv → Live-Cursors + User-Counter
-  //     funktionieren weiterhin (das war das wertvollste Multiplayer-Feature)
-  //   - Echtes State-Sharing kommt via @tldraw/sync (offizielle Liveblocks-
-  //     Integration) zurueck — die kennt tldraws-Schema und macht's safe.
-
-  const handleMount = useCallback((ed: Editor) => {
-    logDiag('info', 'tldraw onMount fired (multiplayer)');
-    setEditor(ed);
-    if (mountedOnceRef.current) {
-      logDiag('warn', 'onMount fired again — ignored (mountedOnceRef)');
-      return;
-    }
-    mountedOnceRef.current = true;
-    try {
-      if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
-        logDiag('info', `loadSnapshot from existing state (${JSON.stringify(board.state).length} bytes)`);
-        loadSnapshot(ed.store, board.state as TLEditorSnapshot);
-      } else if (board.state?.__template) {
-        logDiag('info', `applyTemplate: ${board.state.__template}`);
-        applyTemplate(ed, board.state.__template);
-      } else {
-        logDiag('info', 'no template, no state — empty canvas');
-      }
-      // Same as SingleUser: zoomToFit damit die Template-Shapes im
-      // sichtbaren Bereich landen (sonst tldraw-Cull → weiss).
-      try {
-        ed.zoomToFit({ animation: { duration: 0 } });
-        logDiag('info', `zoomToFit applied (multiplayer)`);
-      } catch (e: any) {
-        logDiag('warn', `zoomToFit failed: ${e?.message ?? e}`);
-      }
-    } catch (e: any) {
-      logDiag('error', `mount init failed: ${e?.message ?? e}`);
-    }
-    lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
-    logDiag('info', `mount-init done, snapshot ${lastSavedJsonRef.current.length} bytes`);
-  }, [board.state]);
-
-  // Auto-Save in DB (Backup, unabhaengig von Liveblocks)
-  useEffect(() => {
-    if (!editor) return;
-    const tick = async () => {
-      const snap = getSnapshot(editor.store);
-      const json = JSON.stringify(snap);
-      if (json === lastSavedJsonRef.current) {
-        saveTimerRef.current = setTimeout(tick, 30_000);
-        return;
-      }
-      setSaveState('saving');
-      try {
-        await whiteboardApi.update(board.id, { state: snap });
-        lastSavedJsonRef.current = json;
-        setSaveState('saved');
-        setTimeout(() => setSaveState('idle'), 2000);
-      } catch {
-        setSaveState('error');
-        setTimeout(() => setSaveState('idle'), 4000);
-      }
-      saveTimerRef.current = setTimeout(tick, 30_000);
-    };
-    saveTimerRef.current = setTimeout(tick, 30_000);
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [editor, board.id]);
-
-  return (
-    <div className="fixed inset-0 flex flex-col bg-[#fafafa] dark:bg-[#0c0e1c]">
-      <Toolbar
-        title={board.title}
-        saveState={saveState}
-        userCount={others.length + 1}
-        tier={tier}
-        onBack={() => router.push('/whiteboard')}
-        onTitleChange={async (t) => { await whiteboardApi.update(board.id, { title: t }); }}
-        onDelete={async () => {
-          // eslint-disable-next-line no-alert
-          if (!window.confirm('Whiteboard wirklich löschen?')) return;
-          await whiteboardApi.remove(board.id);
-          router.push('/whiteboard');
-        }}
-      />
-      {/* min-h-0 verhindert flex-collapse: ohne das kann der Container in
-          bestimmten flex-Szenarien auf 0px Hoehe schrumpfen, tldraw rendert
-          weiter (mit position:absolute), bleibt aber unsichtbar — User
-          sieht nur den weissen Hintergrund vom Parent. */}
-      <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
-        <Tldraw onMount={handleMount} />
-        <DiagnosticsPanel canvasContainerRef={canvasContainerRef} editor={editor} variant="multi" />
-        {editor && <EntityDockPanel editor={editor} />}
-        {/* Pro-Features kommen hier rein sobald LIVEBLOCKS_TIER=pro:
-            <ProCommentsPanel boardId={board.id} /> — Threads + Replies
-            <InboxNotifications /> — @-mentions + neue Kommentare
-            Komponenten-Skeleton liegt unten in WhiteboardProFeatures.tsx */}
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Toolbar (oben)
