@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Save, Users, Loader2, MoreHorizontal, History, Trash2,
-  Search, ListTodo, ShoppingCart, Package, Plus, Sparkles,
+  Search, ListTodo, ShoppingCart, Package, Plus, Sparkles, ZoomIn, ZoomOut, Maximize2,
 } from 'lucide-react';
 import {
   Tldraw,
@@ -361,6 +361,9 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
           await whiteboardApi.remove(board.id);
           router.push('/whiteboard');
         }}
+        onZoomIn={() => editorRef.current?.zoomIn()}
+        onZoomOut={() => editorRef.current?.zoomOut()}
+        onZoomToFit={() => editorRef.current?.zoomToFit({ animation: { duration: 200 } })}
       />
       {/* min-h-0 verhindert flex-collapse */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
@@ -377,6 +380,7 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
 // ---------------------------------------------------------------------------
 function Toolbar({
   title, saveState, userCount, tier, onBack, onTitleChange, onDelete,
+  onZoomIn, onZoomOut, onZoomToFit,
 }: {
   title: string;
   saveState: 'idle' | 'saving' | 'saved' | 'error';
@@ -385,6 +389,9 @@ function Toolbar({
   onBack: () => void;
   onTitleChange: (t: string) => Promise<void>;
   onDelete: () => Promise<void>;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onZoomToFit?: () => void;
 }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(title);
@@ -428,6 +435,39 @@ function Toolbar({
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Zoom-Gruppe: Lupe-Buttons fuer rein/raus + Reset (zoom-to-fit) */}
+        {(onZoomIn || onZoomOut || onZoomToFit) && (
+          <div className="flex items-center rounded-lg border border-gray-200/70 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.03] overflow-hidden">
+            {onZoomOut && (
+              <button
+                onClick={onZoomOut}
+                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                title="Rauszoomen"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </button>
+            )}
+            {onZoomToFit && (
+              <button
+                onClick={onZoomToFit}
+                className="border-x border-gray-200/70 dark:border-white/10 p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                title="An Inhalt anpassen"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            )}
+            {onZoomIn && (
+              <button
+                onClick={onZoomIn}
+                className="p-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                title="Reinzoomen"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Save-State */}
         <div className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 min-w-[100px] justify-end">
           {saveState === 'saving' && (<><Loader2 className="h-3 w-3 animate-spin" /> Speichern…</>)}
