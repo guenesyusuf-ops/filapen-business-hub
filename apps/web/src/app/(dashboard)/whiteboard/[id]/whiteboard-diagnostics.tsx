@@ -138,11 +138,49 @@ export function DiagnosticsPanel({
       }
     }, 3000);
 
+    // FAST-POLL: Descendant-Count + RenderingShapes alle 500ms.
+    // Loggt NUR wenn sich was aendert → kein Spam. Damit fangen wir
+    // den exakten Zeitpunkt + Gap zwischen Store-Shapes und Rendered-
+    // Shapes ein. Wenn currentPageShapes konstant 7 bleibt aber
+    // renderingShapes auf 0 faellt → Beweis dass tldraws Culling/
+    // Filter-Computed kollabiert ist.
+    let lastDesc = -1;
+    let lastRender = -1;
+    let lastStore = -1;
+    const fastPoll = window.setInterval(() => {
+      const desc = target.querySelectorAll('*').length;
+      let renderCount = -1;
+      let storeCount = -1;
+      if (editor) {
+        try {
+          // @ts-ignore — getRenderingShapes existiert in tldraw 4.x
+          renderCount = (editor.getRenderingShapes?.() ?? []).length;
+        } catch { /* not available */ }
+        try {
+          storeCount = editor.getCurrentPageShapes().length;
+        } catch { /* ignore */ }
+      }
+      if (desc !== lastDesc || renderCount !== lastRender || storeCount !== lastStore) {
+        const delta =
+          (lastDesc !== -1 && desc !== lastDesc ? `desc ${lastDesc}→${desc}` : `desc ${desc}`) +
+          (storeCount !== lastStore ? `, store ${lastStore}→${storeCount}` : `, store ${storeCount}`) +
+          (renderCount !== lastRender ? `, render ${lastRender}→${renderCount}` : `, render ${renderCount}`);
+        logDiag(
+          desc < 100 && lastDesc >= 100 ? 'error' : 'info',
+          `fast-poll: ${delta}`,
+        );
+        lastDesc = desc;
+        lastRender = renderCount;
+        lastStore = storeCount;
+      }
+    }, 500);
+
     return () => {
       observer.disconnect();
       window.clearInterval(healthInterval);
+      window.clearInterval(fastPoll);
     };
-  }, [canvasContainerRef]);
+  }, [canvasContainerRef, editor]);
 
   // STEP 3: Rich Visibility-Resume Snapshot.
   // Bei visibility=visible loggen wir alles was zur Diagnose der drei
