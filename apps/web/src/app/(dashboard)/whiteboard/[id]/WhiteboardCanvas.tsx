@@ -14,19 +14,24 @@ import {
   Tldraw,
   type Editor,
   type TLEditorSnapshot,
+  type TLComponents,
   loadSnapshot,
   getSnapshot,
   createShapeId,
   toRichText,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
-import { logDiag, logMount, logUnmount, DiagnosticsPanel } from './whiteboard-diagnostics';
-// BISECT-STEP-1: Liveblocks komplett entfernt fuer Diagnose. Bevor:
-//   import { LiveblocksProvider, RoomProvider, useRoom, useOthers } from '@liveblocks/react';
-// Wrapper returned ausschliesslich <SingleUserCanvas /> — keinerlei
-// Liveblocks-Code laeuft mehr (kein WebSocket, kein Auth-Fetch, kein
-// Provider). Wenn Bug verschwindet → Liveblocks war Ursache.
 import { cn } from '@/lib/utils';
+
+// tldraw UI-Tweak: PageMenu (Seitenname) und NavigationPanel (Zoom-Selector
+// unten rechts) ausblenden — gewinnen Canvas-Platz. Wichtige Funktionen
+// (Undo/Redo, Pages, File-Ops) bleiben ueber das MainMenu (3 Punkte oben
+// links) erreichbar. KONST auf Modul-Ebene damit React.memo immer
+// dieselbe Referenz sieht und tldraw nicht reconciled.
+const TLDRAW_COMPONENTS: TLComponents = {
+  PageMenu: null,
+  NavigationPanel: null,
+};
 
 interface Props { board: WhiteboardDetail }
 
@@ -219,49 +224,26 @@ function applyTemplate(editor: Editor, template: string) {
  * User auftauchen.
  */
 export function WhiteboardCanvas({ board }: Props) {
-  // BISECT-STEP-1: Liveblocks komplett entfernt. Wrapper rendert nur
-  // noch SingleUserCanvas — kein Auth-Fetch, kein Provider, kein
-  // WebSocket, kein Mid-Session-Switch. Wenn der White-Screen-Bug
-  // weg ist, war Liveblocks der Ursprung.
-  useEffect(() => {
-    logMount('WhiteboardCanvas wrapper (BISECT-1: no liveblocks)');
-    return () => logUnmount('WhiteboardCanvas wrapper');
-  }, []);
-
   return <SingleUserCanvas board={board} />;
 }
 
 // ---------------------------------------------------------------------------
-// StableTldraw — React.memo wrapper mit STABILEM onMount-Prop.
+// StableTldraw — React.memo wrapper mit STABILEN Props.
 //
-// Architektur-Fix fuer das White-Screen-Problem.
+// Verhindert dass Parent-Re-Renders (saveState-Updates, Toolbar-Animation
+// etc.) den tldraw-Subtree reconcilen. Damit bleiben tldraws interne
+// signia-Subscriptions stabil ueber den Lifetime des Whiteboards.
 //
-// tldraw nutzt intern signia + useValue fuer reactive subscriptions auf
-// editor.getRenderingShapes(). useValue registriert seinen reactor in
-// einem useEffect, dessen cleanup den reactor abmeldet. Wenn der Parent
-// sich oft genug rerendert UND tldraw waehrend hidden-Tab dabei seine
-// internen Effekte cleanup-rerun-Zyklen durchlaeuft, kann der frisch
-// registrierte reactor seine erste Evaluation in einer pausierten RAF-
-// Queue verlieren — bleibt fuer immer inert. React kennt nur den letzten
-// Wert (leere Shape-Liste) und rendert nichts mehr neu.
-//
-// Loesung: Tldraw in React.memo wrappen mit IMMER identischem onMount-
-// Prop. Damit bailed React jeden Reconciliation-Versuch fuer den tldraw-
-// Subtree → tldraws interne Effects laufen NIE wieder ihren cleanup-
-// rerun-Zyklus → signia-Subscriptions bleiben stabil.
-//
-// NUR onMount als Prop. Keine veraenderlichen Props (saveState, board,
-// etc.) — alles andere muss ueber Refs/global laufen.
+// onMount muss vom Parent via useCallback mit empty deps stabil sein,
+// TLDRAW_COMPONENTS ist eine Modul-Konstante — beide Referenzen aendern
+// sich nie → memo bailed alle Re-Renders.
 // ---------------------------------------------------------------------------
-let stableTldrawRenderCount = 0;
 const StableTldraw = memo(function StableTldraw({
   onMount,
 }: {
   onMount: (editor: Editor) => void;
 }) {
-  stableTldrawRenderCount += 1;
-  logDiag('info', `StableTldraw render #${stableTldrawRenderCount}`);
-  return <Tldraw onMount={onMount} />;
+  return <Tldraw onMount={onMount} components={TLDRAW_COMPONENTS} />;
 });
 
 // ---------------------------------------------------------------------------
@@ -269,119 +251,78 @@ const StableTldraw = memo(function StableTldraw({
 // ---------------------------------------------------------------------------
 function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
   const router = useRouter();
-  // saveState bleibt React-state weil Toolbar es darstellt. Aenderungen
-  // re-rendern SingleUserCanvas, aber StableTldraw ist memoized mit
-  // stable onMount → React.memo bailed → tldraw-Subtree unberuehrt.
+  // saveState in React-state, weil Toolbar das darstellt. Aenderungen
+  // re-rendern SingleUserCanvas; StableTldraw bailed via memo.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  // ONE-TIME flip: nach onMount auf true, danach NIE wieder geaendert.
-  // Triggert eine einzige Re-Render-Phase damit DiagnosticsPanel und
-  // EntityDockPanel mounten koennen. StableTldraw bailed memo → keine
-  // Auswirkung auf tldraw.
+  // ONE-TIME flip nach onMount → einmaliger Re-Render damit EntityDock mountet.
   const [editorReady, setEditorReady] = useState(false);
 
-  // editor in REF, NICHT in state → kein Re-Render bei editor-Verfuegbarkeit
+  // editor in REF, nicht in state — siehe Architektur-Notes oben.
   const editorRef = useRef<Editor | null>(null);
   const lastSavedJsonRef = useRef<string>('');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedOnceRef = useRef(false);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-  // board.state + board.id in Refs damit handleMount EMPTY DEPS haben kann.
-  // Wenn handleMount jemals neu generiert wuerde, waere die onMount-Prop
-  // von StableTldraw inkonsistent → React.memo wuerde nicht mehr bailen
-  // → tldraw-Subtree wuerde reconciliert → Bug zurueck.
+  // board.state/id in Refs damit handleMount EMPTY DEPS bleibt.
   const boardStateRef = useRef(board.state);
   const boardIdRef = useRef(board.id);
   useEffect(() => { boardStateRef.current = board.state; }, [board.state]);
   useEffect(() => { boardIdRef.current = board.id; }, [board.id]);
 
-  useEffect(() => {
-    logMount('SingleUserCanvas');
-    return () => logUnmount('SingleUserCanvas');
-  }, []);
-
   // STABLE handleMount — empty deps, NIEMALS re-created.
-  // → onMount-Prop von StableTldraw ist immer identisch
-  // → React.memo bailed reconciliation
-  // → tldraw-internal Effects laufen ihren Lebenszyklus genau EINMAL
   const handleMount = useCallback((ed: Editor) => {
-    logDiag('info', 'tldraw onMount fired');
-    if (mountedOnceRef.current) {
-      logDiag('warn', 'onMount fired again — ignored (mountedOnceRef)');
-      return;
-    }
+    if (mountedOnceRef.current) return;
     mountedOnceRef.current = true;
     editorRef.current = ed;
 
     try {
       const state = boardStateRef.current;
       if (state && Object.keys(state).length > 0 && !state.__template) {
-        logDiag('info', `loadSnapshot from existing state (${JSON.stringify(state).length} bytes)`);
         loadSnapshot(ed.store, state as TLEditorSnapshot);
       } else if (state?.__template) {
-        logDiag('info', `applyTemplate: ${state.__template}`);
         applyTemplate(ed, state.__template);
-      } else {
-        logDiag('info', 'no template, no state — empty canvas');
       }
       try {
         ed.zoomToFit({ animation: { duration: 0 } });
-        logDiag('info', 'zoomToFit applied');
-      } catch (e: any) {
-        logDiag('warn', `zoomToFit failed (no shapes?): ${e?.message ?? e}`);
-      }
-    } catch (e: any) {
-      logDiag('error', `mount init failed: ${e?.message ?? e}`);
-    }
+      } catch { /* no shapes — no-op */ }
+    } catch { /* mount init failed — non-fatal */ }
 
     lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
-    logDiag('info', `mount-init done, snapshot ${lastSavedJsonRef.current.length} bytes`);
-
-    // ONE-TIME flip — re-rendert SingleUserCanvas EINMAL damit Diagnostics
-    // + Dock mounten koennen. StableTldraw bailed → kein tldraw-Re-Render.
     setEditorReady(true);
   }, []);
 
-  // Auto-Save: liest editor aus Ref. Effekt laeuft nach editorReady=true.
-  // setSaveState in tick re-rendert SingleUserCanvas, aber StableTldraw
-  // bleibt memoized → tldraw-Subtree unberuehrt.
+  // Auto-Save: liest editor aus Ref. Laeuft einmal nach editorReady=true.
   useEffect(() => {
     if (!editorReady) return;
     const ed = editorRef.current;
     if (!ed) return;
-    logDiag('info', 'auto-save loop started');
     const tick = async () => {
       let snap: any;
       try {
         snap = getSnapshot(ed.store);
-      } catch (e: any) {
-        logDiag('error', `getSnapshot crash: ${e?.message ?? e}`);
+      } catch {
         saveTimerRef.current = setTimeout(tick, 30_000);
         return;
       }
       let json: string;
       try {
         json = JSON.stringify(snap);
-      } catch (e: any) {
-        logDiag('error', `JSON.stringify crash: ${e?.message ?? e}`);
+      } catch {
         saveTimerRef.current = setTimeout(tick, 30_000);
         return;
       }
       if (json === lastSavedJsonRef.current) {
-        logDiag('info', `auto-save tick: no change (${json.length} bytes)`);
         saveTimerRef.current = setTimeout(tick, 30_000);
         return;
       }
-      logDiag('info', `auto-save tick: changes detected (${json.length} bytes), POST...`);
       setSaveState('saving');
       try {
         await whiteboardApi.update(boardIdRef.current, { state: snap });
         lastSavedJsonRef.current = json;
         setSaveState('saved');
-        logDiag('info', 'auto-save OK');
         setTimeout(() => setSaveState('idle'), 2000);
-      } catch (e: any) {
+      } catch {
         setSaveState('error');
-        logDiag('error', `auto-save failed: ${e?.message ?? e}`);
         setTimeout(() => setSaveState('idle'), 4000);
       }
       saveTimerRef.current = setTimeout(tick, 30_000);
@@ -389,7 +330,6 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
     saveTimerRef.current = setTimeout(tick, 30_000);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      logDiag('info', 'auto-save loop teardown');
     };
   }, [editorReady]);
 
@@ -425,13 +365,6 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
       {/* min-h-0 verhindert flex-collapse */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <StableTldraw onMount={handleMount} />
-        {editorReady && (
-          <DiagnosticsPanel
-            canvasContainerRef={canvasContainerRef}
-            editor={editorRef.current}
-            variant="single"
-          />
-        )}
         {editorReady && editorRef.current && <EntityDockPanel editor={editorRef.current} />}
       </div>
     </div>
@@ -598,10 +531,11 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        // BOTTOM-CENTER: bewusst weg von links (Sidebar) und rechts
-        // (tldraw Chat/Share Icons). Mittig im Canvas-Bereich →
-        // immer sichtbar, kollidiert nirgends.
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-primary-500/30 hover:shadow-primary-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
+        // BOTTOM-LINKS-VERSETZT: 3x Buttonbreite (~480px) links vom
+        // Zentrum, damit der Button nicht hinter tldraws zentralem
+        // Toolbar / Style-Panel verschwindet.
+        className="absolute bottom-4 left-1/2 z-30 flex items-center gap-2 rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-primary-500/30 hover:shadow-primary-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
+        style={{ transform: 'translateX(calc(-50% - 480px))' }}
         title="Filapen-Daten einfuegen"
       >
         <Sparkles className="h-4 w-4" />
@@ -611,7 +545,10 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
   }
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 w-[380px] max-h-[75vh] flex flex-col rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden animate-fade-in">
+    <div
+      className="absolute bottom-4 left-1/2 z-30 w-[380px] max-h-[75vh] flex flex-col rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden animate-fade-in"
+      style={{ transform: 'translateX(calc(-50% - 480px))' }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5">
         <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
