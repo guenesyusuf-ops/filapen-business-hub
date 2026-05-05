@@ -4,7 +4,7 @@
 // werden bevor das Canvas rendert, sonst sieht es kaputt aus.
 import 'tldraw/tldraw.css';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Save, Users, Loader2, MoreHorizontal, History, Trash2,
@@ -232,145 +232,127 @@ export function WhiteboardCanvas({ board }: Props) {
 }
 
 // ---------------------------------------------------------------------------
-// Single-User Mode (kein Liveblocks)
+// StableTldraw — React.memo wrapper mit STABILEM onMount-Prop.
+//
+// Architektur-Fix fuer das White-Screen-Problem.
+//
+// tldraw nutzt intern signia + useValue fuer reactive subscriptions auf
+// editor.getRenderingShapes(). useValue registriert seinen reactor in
+// einem useEffect, dessen cleanup den reactor abmeldet. Wenn der Parent
+// sich oft genug rerendert UND tldraw waehrend hidden-Tab dabei seine
+// internen Effekte cleanup-rerun-Zyklen durchlaeuft, kann der frisch
+// registrierte reactor seine erste Evaluation in einer pausierten RAF-
+// Queue verlieren — bleibt fuer immer inert. React kennt nur den letzten
+// Wert (leere Shape-Liste) und rendert nichts mehr neu.
+//
+// Loesung: Tldraw in React.memo wrappen mit IMMER identischem onMount-
+// Prop. Damit bailed React jeden Reconciliation-Versuch fuer den tldraw-
+// Subtree → tldraws interne Effects laufen NIE wieder ihren cleanup-
+// rerun-Zyklus → signia-Subscriptions bleiben stabil.
+//
+// NUR onMount als Prop. Keine veraenderlichen Props (saveState, board,
+// etc.) — alles andere muss ueber Refs/global laufen.
+// ---------------------------------------------------------------------------
+let stableTldrawRenderCount = 0;
+const StableTldraw = memo(function StableTldraw({
+  onMount,
+}: {
+  onMount: (editor: Editor) => void;
+}) {
+  stableTldrawRenderCount += 1;
+  logDiag('info', `StableTldraw render #${stableTldrawRenderCount}`);
+  return <Tldraw onMount={onMount} />;
+});
+
+// ---------------------------------------------------------------------------
+// Single-User Mode (kein Liveblocks) — STABILIZED
 // ---------------------------------------------------------------------------
 function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
   const router = useRouter();
-  const [editor, setEditor] = useState<Editor | null>(null);
+  // saveState bleibt React-state weil Toolbar es darstellt. Aenderungen
+  // re-rendern SingleUserCanvas, aber StableTldraw ist memoized mit
+  // stable onMount → React.memo bailed → tldraw-Subtree unberuehrt.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // ONE-TIME flip: nach onMount auf true, danach NIE wieder geaendert.
+  // Triggert eine einzige Re-Render-Phase damit DiagnosticsPanel und
+  // EntityDockPanel mounten koennen. StableTldraw bailed memo → keine
+  // Auswirkung auf tldraw.
+  const [editorReady, setEditorReady] = useState(false);
+
+  // editor in REF, NICHT in state → kein Re-Render bei editor-Verfuegbarkeit
+  const editorRef = useRef<Editor | null>(null);
   const lastSavedJsonRef = useRef<string>('');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Verhindert double-mount-Initialisierung in React Strict Mode
-  // (effect/onMount feuert dort 2x — sonst landen Templates doppelt im Canvas
-  // oder loadSnapshot kollidiert mit sich selbst und das Board wird weiss).
   const mountedOnceRef = useRef(false);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  // board.state + board.id in Refs damit handleMount EMPTY DEPS haben kann.
+  // Wenn handleMount jemals neu generiert wuerde, waere die onMount-Prop
+  // von StableTldraw inkonsistent → React.memo wuerde nicht mehr bailen
+  // → tldraw-Subtree wuerde reconciliert → Bug zurueck.
+  const boardStateRef = useRef(board.state);
+  const boardIdRef = useRef(board.id);
+  useEffect(() => { boardStateRef.current = board.state; }, [board.state]);
+  useEffect(() => { boardIdRef.current = board.id; }, [board.id]);
 
-  // STEP 2: Mount/Unmount-Tracing
   useEffect(() => {
     logMount('SingleUserCanvas');
     return () => logUnmount('SingleUserCanvas');
   }, []);
 
-  // STEP 5 (v3): Visibility-Recovery — Multi-Stage-Eskalation.
-  //
-  // v2-Diagnose: Bounds waren 1711x833 (nicht 0!), Editor + 7 shapes
-  // intakt, Camera-Kick lief — TROTZDEM bleibt der Render-Layer leer
-  // (47 statt 302 descendants). Das heisst: weder Bounds noch Camera-
-  // State sind das Problem. tldraws interner React-Subscriber ist
-  // entkoppelt und braucht einen STARKEN Trigger um sich neu anzumelden.
-  //
-  // Strategie: drei Eskalationsstufen, zeitlich versetzt:
-  //   Stage 1 (rAF #1): Bounds-Refresh + Camera-Wackler ueber zwei Frames
-  //                     → trennt Camera-Sets in separate Reconciliation-Ticks
-  //   Stage 2 (rAF #3): window resize-Event dispatchen → tldraws ResizeObs
-  //                     UND window-Listener feuern beide neu
-  //   Stage 3 (rAF #4): Verification — wenn descendants immer noch <100,
-  //                     hartes Re-Mount via display:none Toggle
-  //
-  // Damit decken wir die drei plausiblen Failure-Modi ab:
-  //   - State-Change-Bailout       (Stage 1)
-  //   - Stale Subscription         (Stage 2)
-  //   - React-Tree-Hibernation     (Stage 3)
-  useEffect(() => {
-    if (!editor || !canvasContainerRef.current) return;
-    const containerEl = canvasContainerRef.current;
-    const onVis = () => {
-      if (document.visibilityState !== 'visible') return;
-
-      requestAnimationFrame(() => {
-        try {
-          // Stage 1a — Bounds refresh + erste Camera-Setzung (echte Bewegung)
-          editor.updateViewportScreenBounds(editor.getContainer());
-          const cam = editor.getCamera();
-          editor.setCamera({ x: cam.x + 50, y: cam.y, z: cam.z });
-          logDiag('info', 'vis-recover stage1a: bounds + camera +50px');
-
-          requestAnimationFrame(() => {
-            // Stage 1b — zweiter Frame, Camera zurueck → echtes Round-Trip
-            editor.setCamera(cam);
-            logDiag('info', 'vis-recover stage1b: camera reset');
-
-            requestAnimationFrame(() => {
-              // Stage 2 — globaler Resize-Event triggert tldraws RO + window-Listener
-              window.dispatchEvent(new Event('resize'));
-              logDiag('info', 'vis-recover stage2: window resize dispatched');
-
-              requestAnimationFrame(() => {
-                // Stage 3 — Verifizieren: hat es geholfen?
-                const desc = containerEl.querySelectorAll('*').length;
-                logDiag('info', `vis-recover post-stage2: ${desc} descendants`);
-                if (desc < 100) {
-                  // Render-Layer immer noch tot — harter Re-Layout via display-toggle
-                  const tldrawEl = editor.getContainer();
-                  const oldDisplay = tldrawEl.style.display;
-                  tldrawEl.style.display = 'none';
-                  // Force-Reflow
-                  void tldrawEl.offsetHeight;
-                  tldrawEl.style.display = oldDisplay;
-                  logDiag('warn', 'vis-recover stage3: hard display-toggle reflow');
-
-                  requestAnimationFrame(() => {
-                    const desc2 = containerEl.querySelectorAll('*').length;
-                    logDiag('info', `vis-recover post-stage3: ${desc2} descendants`);
-                  });
-                }
-              });
-            });
-          });
-        } catch (e: any) {
-          logDiag('error', `vis-recover failed: ${e?.message ?? e}`);
-        }
-      });
-    };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, [editor]);
-
-  // tldraw-Snapshot beim Mount laden falls vorhanden
+  // STABLE handleMount — empty deps, NIEMALS re-created.
+  // → onMount-Prop von StableTldraw ist immer identisch
+  // → React.memo bailed reconciliation
+  // → tldraw-internal Effects laufen ihren Lebenszyklus genau EINMAL
   const handleMount = useCallback((ed: Editor) => {
     logDiag('info', 'tldraw onMount fired');
-    setEditor(ed);
     if (mountedOnceRef.current) {
       logDiag('warn', 'onMount fired again — ignored (mountedOnceRef)');
       return;
     }
     mountedOnceRef.current = true;
+    editorRef.current = ed;
+
     try {
-      if (board.state && Object.keys(board.state).length > 0 && !board.state.__template) {
-        logDiag('info', `loadSnapshot from existing state (${JSON.stringify(board.state).length} bytes)`);
-        loadSnapshot(ed.store, board.state as TLEditorSnapshot);
-      } else if (board.state?.__template) {
-        logDiag('info', `applyTemplate: ${board.state.__template}`);
-        applyTemplate(ed, board.state.__template);
+      const state = boardStateRef.current;
+      if (state && Object.keys(state).length > 0 && !state.__template) {
+        logDiag('info', `loadSnapshot from existing state (${JSON.stringify(state).length} bytes)`);
+        loadSnapshot(ed.store, state as TLEditorSnapshot);
+      } else if (state?.__template) {
+        logDiag('info', `applyTemplate: ${state.__template}`);
+        applyTemplate(ed, state.__template);
       } else {
         logDiag('info', 'no template, no state — empty canvas');
       }
-      // KRITISCH: Kamera auf die Shapes zentrieren, sonst sind sie
-      // ausserhalb des Viewports → tldraw cullt sie nach paar Sekunden
-      // → User sieht weisses Canvas. zoomToFit zentriert + scaled passend.
-      // Wenn keine Shapes da sind (leeres Canvas) ist es ein no-op.
       try {
         ed.zoomToFit({ animation: { duration: 0 } });
-        logDiag('info', `zoomToFit applied`);
+        logDiag('info', 'zoomToFit applied');
       } catch (e: any) {
         logDiag('warn', `zoomToFit failed (no shapes?): ${e?.message ?? e}`);
       }
     } catch (e: any) {
       logDiag('error', `mount init failed: ${e?.message ?? e}`);
     }
+
     lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
     logDiag('info', `mount-init done, snapshot ${lastSavedJsonRef.current.length} bytes`);
-  }, [board.state]);
 
-  // Auto-Save Loop: alle 30s pruefen ob sich was geaendert hat
+    // ONE-TIME flip — re-rendert SingleUserCanvas EINMAL damit Diagnostics
+    // + Dock mounten koennen. StableTldraw bailed → kein tldraw-Re-Render.
+    setEditorReady(true);
+  }, []);
+
+  // Auto-Save: liest editor aus Ref. Effekt laeuft nach editorReady=true.
+  // setSaveState in tick re-rendert SingleUserCanvas, aber StableTldraw
+  // bleibt memoized → tldraw-Subtree unberuehrt.
   useEffect(() => {
-    if (!editor) return;
+    if (!editorReady) return;
+    const ed = editorRef.current;
+    if (!ed) return;
     logDiag('info', 'auto-save loop started');
     const tick = async () => {
       let snap: any;
       try {
-        snap = getSnapshot(editor.store);
+        snap = getSnapshot(ed.store);
       } catch (e: any) {
         logDiag('error', `getSnapshot crash: ${e?.message ?? e}`);
         saveTimerRef.current = setTimeout(tick, 30_000);
@@ -392,7 +374,7 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
       logDiag('info', `auto-save tick: changes detected (${json.length} bytes), POST...`);
       setSaveState('saving');
       try {
-        await whiteboardApi.update(board.id, { state: snap });
+        await whiteboardApi.update(boardIdRef.current, { state: snap });
         lastSavedJsonRef.current = json;
         setSaveState('saved');
         logDiag('info', 'auto-save OK');
@@ -409,19 +391,20 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       logDiag('info', 'auto-save loop teardown');
     };
-  }, [editor, board.id]);
+  }, [editorReady]);
 
-  // Beim Unmount letzten Stand sichern (fire-and-forget)
+  // Save on unmount (fire-and-forget)
   useEffect(() => {
     return () => {
-      if (!editor) return;
-      const snap = getSnapshot(editor.store);
+      const ed = editorRef.current;
+      if (!ed) return;
+      const snap = getSnapshot(ed.store);
       const json = JSON.stringify(snap);
       if (json !== lastSavedJsonRef.current) {
-        whiteboardApi.update(board.id, { state: snap }).catch(() => {});
+        whiteboardApi.update(boardIdRef.current, { state: snap }).catch(() => {});
       }
     };
-  }, [editor, board.id]);
+  }, []);
 
   return (
     <div className="fixed inset-0 flex flex-col bg-[#fafafa] dark:bg-[#0c0e1c]">
@@ -439,14 +422,17 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
           router.push('/whiteboard');
         }}
       />
-      {/* min-h-0 verhindert flex-collapse: ohne das kann der Container in
-          bestimmten flex-Szenarien auf 0px Hoehe schrumpfen, tldraw rendert
-          weiter (mit position:absolute), bleibt aber unsichtbar — User
-          sieht nur den weissen Hintergrund vom Parent. */}
+      {/* min-h-0 verhindert flex-collapse */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
-        <Tldraw onMount={handleMount} />
-        <DiagnosticsPanel canvasContainerRef={canvasContainerRef} editor={editor} variant="single" />
-        {editor && <EntityDockPanel editor={editor} />}
+        <StableTldraw onMount={handleMount} />
+        {editorReady && (
+          <DiagnosticsPanel
+            canvasContainerRef={canvasContainerRef}
+            editor={editorRef.current}
+            variant="single"
+          />
+        )}
+        {editorReady && editorRef.current && <EntityDockPanel editor={editorRef.current} />}
       </div>
     </div>
   );
