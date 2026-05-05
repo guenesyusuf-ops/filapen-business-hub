@@ -138,6 +138,48 @@ export function DiagnosticsPanel({
       }
     }, 3000);
 
+    // DOM-REAPER-CATCHER: subtree-MutationObserver auf TLDRAW's eigenen
+    // Container (NICHT auf canvasContainerRef weil DiagnosticsPanel da
+    // drin lebt → Endlos-Loop). Loggt jede Node-Entfernung mit Tag,
+    // Class, Parent. Wenn etwas (Extension, Script, tldraw-intern)
+    // Shapes aus dem DOM streicht, sehen wir GENAU welche Knoten und
+    // wann.
+    let reaperObserver: MutationObserver | null = null;
+    const tldrawContainer = editor?.getContainer?.();
+    if (tldrawContainer) {
+      reaperObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.removedNodes.length === 0) continue;
+          const removedSummary: string[] = [];
+          m.removedNodes.forEach((n) => {
+            if (n instanceof HTMLElement) {
+              const tag = n.tagName.toLowerCase();
+              const cls = (n.className || '').toString().slice(0, 60);
+              removedSummary.push(`${tag}.${cls}`);
+            } else {
+              removedSummary.push(`#${n.nodeType}`);
+            }
+          });
+          const parentEl = m.target instanceof HTMLElement ? m.target : null;
+          const parentInfo = parentEl
+            ? `${parentEl.tagName.toLowerCase()}.${(parentEl.className || '').toString().slice(0, 40)}`
+            : '?';
+          // Nur loggen wenn mehr als 1 Knoten entfernt wurde — kleine
+          // Removals (z.B. Tooltip-Hover) sind Noise.
+          if (m.removedNodes.length > 0) {
+            logDiag(
+              m.removedNodes.length > 5 ? 'error' : 'info',
+              `DOM-REAPER: -${m.removedNodes.length} from <${parentInfo}>: ${removedSummary.slice(0, 5).join(', ')}${removedSummary.length > 5 ? '...' : ''}`,
+            );
+          }
+        }
+      });
+      reaperObserver.observe(tldrawContainer, { childList: true, subtree: true });
+      logDiag('info', 'DOM-REAPER observer armed on tldraw container');
+    } else {
+      logDiag('warn', 'DOM-REAPER: editor.getContainer() not available, observer skipped');
+    }
+
     // FAST-POLL: Descendant-Count + RenderingShapes alle 500ms.
     // Loggt NUR wenn sich was aendert → kein Spam. Damit fangen wir
     // den exakten Zeitpunkt + Gap zwischen Store-Shapes und Rendered-
@@ -179,6 +221,7 @@ export function DiagnosticsPanel({
       observer.disconnect();
       window.clearInterval(healthInterval);
       window.clearInterval(fastPoll);
+      reaperObserver?.disconnect();
     };
   }, [canvasContainerRef, editor]);
 
