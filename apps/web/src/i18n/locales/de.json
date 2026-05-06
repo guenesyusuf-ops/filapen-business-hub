@@ -101,7 +101,8 @@
     "salesOrders": "Bestellungen",
     "salesCustomers": "B2B-Kunden",
     "salesImport": "Import",
-    "salesExport": "Export"
+    "salesExport": "Export",
+    "screenShare": "Bildschirm teilen"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",

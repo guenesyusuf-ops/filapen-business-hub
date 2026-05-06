@@ -70,6 +70,7 @@ import {
   Boxes,
   Plug as PlugIcon,
   PencilRuler,
+  Monitor,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -269,6 +270,14 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.approvals', href: '/settings/approvals', icon: ShieldCheck },
       { labelKey: 'nav.integrations', href: '/finance/integrations', icon: Plug },
     ],
+  },
+  {
+    // Bildschirm teilen — direkt unter Einstellungen wie gewuenscht
+    labelKey: 'nav.screenShare',
+    href: '/screen-share',
+    icon: Monitor,
+    permissionKey: 'screen-share',
+    accent: 'text-accent-work',
   },
 ];
 

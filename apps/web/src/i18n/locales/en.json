@@ -101,7 +101,8 @@
     "salesOrders": "Orders",
     "salesCustomers": "B2B Customers",
     "salesImport": "Import",
-    "salesExport": "Export"
+    "salesExport": "Export",
+    "screenShare": "Screen Share"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",
