@@ -453,6 +453,38 @@ function SingleUserCanvas({
   // Wird vom Auto-Save-Effekt unten gesetzt damit handleMount es nutzen kann.
   const triggerSaveRef = useRef<(() => void) | null>(null);
 
+  // Thumbnail-Generierung: gedrosselt damit wir nicht jedes 30s-Tick
+  // einen R2-Upload + DB-Update machen. Max 1x pro 2 Min.
+  const lastThumbnailAtRef = useRef<number>(0);
+  const generatingThumbnailRef = useRef<boolean>(false);
+
+  async function maybeGenerateThumbnail() {
+    const ed = editorRef.current;
+    if (!ed) return;
+    if (generatingThumbnailRef.current) return;
+    if (Date.now() - lastThumbnailAtRef.current < 120_000) return; // throttle 2 Min
+    const shapeIds = Array.from(ed.getCurrentPageShapeIds());
+    if (shapeIds.length === 0) return; // leeres Canvas → kein Thumbnail
+    generatingThumbnailRef.current = true;
+    try {
+      const result = await ed.toImage(shapeIds, {
+        format: 'png',
+        background: true,
+        scale: 0.4,
+        padding: 32,
+      });
+      if (!result?.blob) return;
+      const file = new File([result.blob], `thumbnail-${Date.now()}.png`, { type: 'image/png' });
+      const upload = await whiteboardApi.uploadAsset(boardIdRef.current, file);
+      await whiteboardApi.update(boardIdRef.current, { thumbnailUrl: upload.url });
+      lastThumbnailAtRef.current = Date.now();
+    } catch {
+      // non-fatal — Thumbnail ist optional, fehlt halt mal
+    } finally {
+      generatingThumbnailRef.current = false;
+    }
+  }
+
   // Auto-Save: liest editor aus Ref. Laeuft einmal nach editorReady=true.
   useEffect(() => {
     if (!editorReady) return;
@@ -484,6 +516,9 @@ function SingleUserCanvas({
         setSaveState('saved');
         setLastSavedAt(new Date());
         setTimeout(() => setSaveState('idle'), 2000);
+        // Thumbnail aktualisieren — gedrosselt auf max 1x pro 2 Min damit
+        // wir R2 nicht mit jedem 30s-Tick zumuellen.
+        void maybeGenerateThumbnail();
       } catch {
         setSaveState('error');
         setTimeout(() => setSaveState('idle'), 4000);
