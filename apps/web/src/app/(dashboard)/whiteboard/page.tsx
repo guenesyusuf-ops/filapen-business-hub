@@ -497,6 +497,11 @@ function BoardCard({
   onMove: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Falls thumbnailUrl kaputt/tot ist, faellt onError den Wert auf null
+  // damit der PencilRuler-Fallback rendered. Sonst stehen wir mit einem
+  // unsichtbaren <img> da und der Card wirkt leer.
+  const [thumbBroken, setThumbBroken] = useState(false);
+  const showThumb = board.thumbnailUrl && !thumbBroken;
   const updated = new Date(board.updatedAt);
   const dateStr = updated.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -506,9 +511,14 @@ function BoardCard({
       className="group relative block rounded-2xl border border-gray-200/70 dark:border-white/8 bg-white dark:bg-[var(--card-bg)] overflow-hidden shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200"
     >
       <div className="aspect-video bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 dark:from-white/[0.02] dark:via-white/[0.04] dark:to-white/[0.02] relative overflow-hidden">
-        {board.thumbnailUrl ? (
+        {showThumb ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={board.thumbnailUrl} alt={board.title} className="w-full h-full object-cover" />
+          <img
+            src={board.thumbnailUrl!}
+            alt={board.title}
+            className="w-full h-full object-cover"
+            onError={() => setThumbBroken(true)}
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <PencilRuler className="h-12 w-12 text-gray-300 dark:text-white/15" />
