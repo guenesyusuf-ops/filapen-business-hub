@@ -17,6 +17,7 @@ import {
   type TLEditorSnapshot,
   type TLComponents,
   type TLAsset,
+  type TLShapeId,
   AssetRecordType,
   loadSnapshot,
   getSnapshot,
@@ -27,6 +28,8 @@ import {
   DefaultMainMenuContent,
   TldrawUiMenuGroup,
   TldrawUiMenuItem,
+  useEditor,
+  useValue,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
@@ -86,12 +89,166 @@ function CustomMainMenu() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// EMOJI-REACTIONS
+// ---------------------------------------------------------------------------
+// Speichern in shape.meta.reactions als Map { '🔥': ['userId1', 'userId2'] }
+// → persistiert mit dem normalen Snapshot via Auto-Save
+// → Toggle-Verhalten: User klickt Emoji nochmal → entfernt seine eigene Reaction
+// → Counter zeigt Anzahl Users die so reagiert haben.
+//
+// currentUserIdRef-Bridge analog zu insertActions: SingleUserCanvas updated
+// das Modul-Objekt damit OnTheCanvas-Components den aktuellen User kennen.
+const REACTION_EMOJIS = ['🔥', '👍', '😍', '❤️', '🤔', '✅'];
+const currentUserIdRef: { value: string | null } = { value: null };
+// Shape-Typen die KEINE Reaktionen kriegen (Pfeile, freie Linien etc.).
+const NO_REACTION_TYPES = new Set(['arrow', 'draw', 'line', 'highlight', 'frame']);
+
+function toggleReaction(editor: Editor, shapeId: TLShapeId, emoji: string) {
+  const userId = currentUserIdRef.value;
+  if (!userId) return;
+  const shape = editor.getShape(shapeId);
+  if (!shape) return;
+  const meta = (shape.meta as any) ?? {};
+  const reactions: Record<string, string[]> = { ...(meta.reactions ?? {}) };
+  const users = reactions[emoji] ?? [];
+  const newUsers = users.includes(userId)
+    ? users.filter((u) => u !== userId)
+    : [...users, userId];
+  if (newUsers.length === 0) {
+    delete reactions[emoji];
+  } else {
+    reactions[emoji] = newUsers;
+  }
+  editor.updateShape({ id: shapeId, type: shape.type, meta: { ...meta, reactions } });
+}
+
+// Popover: kleine Emoji-Bar oberhalb der aktuell selektierten Shape
+function ReactionPopover() {
+  const editor = useEditor();
+  const selectedIds = useValue('selectedIds', () => editor.getSelectedShapeIds(), [editor]);
+  // Re-render wenn sich shape.meta aendert (fuer "reagiert"-Highlight).
+  useValue('reactionsTick', () => {
+    if (selectedIds.length !== 1) return 0;
+    const s = editor.getShape(selectedIds[0]);
+    return s ? JSON.stringify((s.meta as any)?.reactions ?? {}).length : 0;
+  }, [editor, selectedIds]);
+
+  if (selectedIds.length !== 1) return null;
+  const shape = editor.getShape(selectedIds[0]);
+  if (!shape) return null;
+  if (NO_REACTION_TYPES.has(shape.type)) return null;
+  const bounds = editor.getShapePageBounds(shape.id);
+  if (!bounds) return null;
+
+  const reactions = ((shape.meta as any)?.reactions ?? {}) as Record<string, string[]>;
+  const userId = currentUserIdRef.value;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: bounds.midX,
+        top: bounds.minY - 12,
+        transform: 'translate(-50%, -100%)',
+        pointerEvents: 'all',
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      className="flex items-center gap-0.5 rounded-full bg-white dark:bg-[#1a1d2e] shadow-lg border border-gray-200 dark:border-white/10 px-1.5 py-1 select-none"
+    >
+      {REACTION_EMOJIS.map((emoji) => {
+        const reacted = !!userId && (reactions[emoji] ?? []).includes(userId);
+        return (
+          <button
+            key={emoji}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleReaction(editor, shape.id, emoji);
+            }}
+            className={
+              'inline-flex items-center justify-center w-7 h-7 text-base rounded-full transition-all hover:scale-125 ' +
+              (reacted ? 'bg-primary-100 dark:bg-primary-900/40' : 'hover:bg-gray-100 dark:hover:bg-white/5')
+            }
+            title={reacted ? 'Reaktion zurueckziehen' : 'Reagieren'}
+          >
+            {emoji}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Badges: kleine Sticker mit Emoji + Counter unten rechts an der Shape
+function ReactionBadges() {
+  const editor = useEditor();
+  const items = useValue(
+    'shapesWithReactions',
+    () => {
+      return editor
+        .getCurrentPageShapes()
+        .map((s) => {
+          const reactions = ((s.meta as any)?.reactions ?? {}) as Record<string, string[]>;
+          const entries = Object.entries(reactions).filter(([, users]) => users.length > 0);
+          return { shapeId: s.id, reactions: entries };
+        })
+        .filter((x) => x.reactions.length > 0);
+    },
+    [editor],
+  );
+  if (items.length === 0) return null;
+  return (
+    <>
+      {items.map(({ shapeId, reactions }) => {
+        const bounds = editor.getShapePageBounds(shapeId);
+        if (!bounds) return null;
+        return (
+          <div
+            key={shapeId}
+            style={{
+              position: 'absolute',
+              left: bounds.maxX,
+              top: bounds.maxY,
+              transform: 'translate(-100%, 4px)',
+              pointerEvents: 'none',
+            }}
+            className="flex flex-wrap gap-0.5 max-w-[180px] justify-end"
+          >
+            {reactions.map(([emoji, users]) => (
+              <span
+                key={emoji}
+                className="rounded-full bg-white dark:bg-[#1a1d2e] border border-gray-200 dark:border-white/10 shadow-sm text-xs px-1.5 py-0.5 whitespace-nowrap inline-flex items-center gap-0.5"
+              >
+                <span>{emoji}</span>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">{users.length}</span>
+              </span>
+            ))}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function ReactionsLayer() {
+  return (
+    <>
+      <ReactionBadges />
+      <ReactionPopover />
+    </>
+  );
+}
+
 // KONST auf Modul-Ebene damit React.memo immer dieselbe Referenz sieht
 // und tldraw nicht reconciled.
 const TLDRAW_COMPONENTS: TLComponents = {
   PageMenu: null,
   NavigationPanel: null,
   MainMenu: CustomMainMenu,
+  // OnTheCanvas: lebt im transformed canvas → page coords funktionieren direkt
+  OnTheCanvas: ReactionsLayer,
 };
 
 interface Props { board: WhiteboardDetail }
@@ -724,6 +881,13 @@ function SingleUserCanvas({
       insertActions.template = null;
     };
   }, []);
+
+  // currentUserIdRef sync — damit ReactionPopover/Badges (laufen auf
+  // Modul-Ebene ausserhalb dieses Components) wissen wer reagiert hat.
+  useEffect(() => {
+    currentUserIdRef.value = currentUser?.id ?? null;
+    return () => { currentUserIdRef.value = null; };
+  }, [currentUser?.id]);
 
   // Auto-Save: tickt alle 5 Sekunden (war 30s — wurde reduziert weil
   // User-Aenderungen sonst beim Verlassen der Seite verloren gehen koennen
