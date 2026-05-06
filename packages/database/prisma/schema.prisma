@@ -339,6 +339,7 @@ model Organization {
   contentTemplates         ContentTemplate[]
   contentPieces            ContentPiece[]
   whiteboards              Whiteboard[]
+  whiteboardFolders        WhiteboardFolder[]
   teamInvites              TeamInvite[]
   invitations              ProjectInvitation[]
   suppliers                Supplier[]
@@ -1775,6 +1776,10 @@ model Whiteboard {
   /// liveblocks Room-ID. Format "wb-{boardId}". Vorab generiert damit der
   /// Frontend-Client direkt joinen kann ohne extra API-Call.
   liveblocksRoomId String? @map("liveblocks_room_id") @db.VarChar(100)
+  /// Optionaler Ordner. Null = "Kein Ordner". onDelete: SetNull damit
+  /// Boards beim Loeschen des Ordners erhalten bleiben (Frontend bietet
+  /// vorher einen Verschieben-Flow an).
+  folderId    String?  @map("folder_id") @db.Uuid
   createdById String   @map("created_by_id") @db.Uuid
   /// Wer zuletzt am Board war (User-ID) — fuer "Letzter Edit von …" in der Liste
   lastEditedById String? @map("last_edited_by_id") @db.Uuid
@@ -1782,12 +1787,31 @@ model Whiteboard {
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  folder       WhiteboardFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
   snapshots    WhiteboardSnapshot[]
   members      WhiteboardMember[]
 
   @@index([orgId])
   @@index([orgId, updatedAt])
+  @@index([folderId])
   @@map("whiteboards")
+}
+
+/// Ordner fuer Whiteboards. Eine Ebene tief, kein Nesten.
+/// Loesch-Recht: nur createdById ODER User mit role=owner.
+model WhiteboardFolder {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  whiteboards  Whiteboard[]
+
+  @@index([orgId])
+  @@map("whiteboard_folders")
 }
 
 /// Versions-History — eine Zeile pro Auto-Save. Erlaubt Rollback auf

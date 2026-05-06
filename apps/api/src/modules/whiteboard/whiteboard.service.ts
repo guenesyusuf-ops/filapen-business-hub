@@ -33,6 +33,7 @@ export class WhiteboardService {
         title: true,
         description: true,
         thumbnailUrl: true,
+        folderId: true,
         createdById: true,
         lastEditedById: true,
         createdAt: true,
@@ -40,6 +41,86 @@ export class WhiteboardService {
       },
     });
     return rows;
+  }
+
+  // ------------------------------------------------------------------
+  // Ordner — eine Ebene tief, kein Nesten
+  // ------------------------------------------------------------------
+
+  async listFolders() {
+    return this.prisma.whiteboardFolder.findMany({
+      where: { orgId: DEV_ORG_ID },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        createdById: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { whiteboards: true } },
+      },
+    });
+  }
+
+  async createFolder(userId: string, name: string) {
+    const trimmed = name?.trim();
+    if (!trimmed) throw new BadRequestException('Name erforderlich');
+    return this.prisma.whiteboardFolder.create({
+      data: { orgId: DEV_ORG_ID, name: trimmed, createdById: userId },
+    });
+  }
+
+  async renameFolder(folderId: string, userId: string, name: string) {
+    const trimmed = name?.trim();
+    if (!trimmed) throw new BadRequestException('Name erforderlich');
+    await this.assertFolderEditable(folderId, userId);
+    return this.prisma.whiteboardFolder.update({
+      where: { id: folderId },
+      data: { name: trimmed },
+    });
+  }
+
+  /** Loescht den Ordner. Boards drin werden auf folderId=null gesetzt
+   *  (FK ist ON DELETE SET NULL), bleiben also erhalten. */
+  async removeFolder(folderId: string, userId: string) {
+    await this.assertFolderEditable(folderId, userId);
+    await this.prisma.whiteboardFolder.delete({ where: { id: folderId } });
+    return { deleted: true };
+  }
+
+  async moveBoard(boardId: string, userId: string, folderId: string | null) {
+    await this.get(boardId);
+    if (folderId) {
+      const folder = await this.prisma.whiteboardFolder.findFirst({
+        where: { id: folderId, orgId: DEV_ORG_ID },
+      });
+      if (!folder) throw new NotFoundException('Ordner nicht gefunden');
+    }
+    return this.prisma.whiteboard.update({
+      where: { id: boardId },
+      data: { folderId, lastEditedById: userId },
+    });
+  }
+
+  /** Pruefung: Nur Ersteller des Ordners ODER role=owner darf bearbeiten. */
+  private async assertFolderEditable(folderId: string, userId: string) {
+    const folder = await this.prisma.whiteboardFolder.findFirst({
+      where: { id: folderId, orgId: DEV_ORG_ID },
+    });
+    if (!folder) throw new NotFoundException('Ordner nicht gefunden');
+    if (folder.createdById === userId) return;
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role === 'owner') return;
+    throw new BadRequestException('Nur der Ersteller oder ein Owner darf diesen Ordner aendern.');
+  }
+
+  /** Pruefung fuer Board-Loeschen: Nur Ersteller ODER role=owner. */
+  async assertBoardDeletable(boardId: string, userId: string) {
+    const wb = await this.get(boardId);
+    if (wb.createdById === userId) return;
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role === 'owner') return;
+    throw new BadRequestException('Nur der Ersteller oder ein Owner darf dieses Whiteboard loeschen.');
   }
 
   async get(id: string) {
@@ -110,8 +191,8 @@ export class WhiteboardService {
     return this.prisma.whiteboard.update({ where: { id }, data: updateData });
   }
 
-  async remove(id: string) {
-    await this.get(id);
+  async remove(id: string, userId: string) {
+    await this.assertBoardDeletable(id, userId);
     await this.prisma.whiteboard.delete({ where: { id } });
     return { deleted: true };
   }

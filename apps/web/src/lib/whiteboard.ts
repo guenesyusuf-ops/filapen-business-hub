@@ -19,6 +19,7 @@ export interface WhiteboardListItem {
   title: string;
   description: string | null;
   thumbnailUrl: string | null;
+  folderId: string | null;
   createdById: string;
   lastEditedById: string | null;
   createdAt: string;
@@ -30,6 +31,15 @@ export interface WhiteboardDetail extends WhiteboardListItem {
   liveblocksRoomId: string | null;
 }
 
+export interface WhiteboardFolder {
+  id: string;
+  name: string;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  _count: { whiteboards: number };
+}
+
 export const whiteboardApi = {
   list: () => call<WhiteboardListItem[]>('/boards'),
   get: (id: string) => call<WhiteboardDetail>(`/boards/${id}`),
@@ -38,6 +48,17 @@ export const whiteboardApi = {
   update: (id: string, data: { title?: string; description?: string; state?: any; thumbnailUrl?: string | null }) =>
     call<WhiteboardDetail>(`/boards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (id: string) => call<void>(`/boards/${id}`, { method: 'DELETE' }),
+  move: (id: string, folderId: string | null) =>
+    call<WhiteboardDetail>(`/boards/${id}/move`, { method: 'PATCH', body: JSON.stringify({ folderId }) }),
+
+  // Ordner
+  listFolders: () => call<WhiteboardFolder[]>('/folders'),
+  createFolder: (name: string) =>
+    call<WhiteboardFolder>('/folders', { method: 'POST', body: JSON.stringify({ name }) }),
+  renameFolder: (id: string, name: string) =>
+    call<WhiteboardFolder>(`/folders/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  removeFolder: (id: string) =>
+    call<void>(`/folders/${id}`, { method: 'DELETE' }),
 
   listSnapshots: (id: string) => call<Array<{ id: string; capturedById: string; capturedAt: string }>>(`/boards/${id}/snapshots`),
   restoreSnapshot: (id: string, snapshotId: string) =>

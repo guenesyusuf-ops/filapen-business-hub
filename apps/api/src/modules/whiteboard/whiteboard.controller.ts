@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Param, Body, Headers, Query, Logger,
+  Controller, Get, Post, Put, Patch, Delete, Param, Body, Headers, Query, Logger,
   HttpException, HttpStatus, BadRequestException,
 } from '@nestjs/common';
 import { WhiteboardService } from './whiteboard.service';
@@ -62,8 +62,57 @@ export class WhiteboardController {
   }
 
   @Delete('boards/:id')
-  async remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  async remove(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+  ) {
+    const userId = this.extractUserId(authHeader);
+    return this.service.remove(id, userId);
+  }
+
+  @Patch('boards/:id/move')
+  async moveBoard(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { folderId: string | null },
+  ) {
+    const userId = this.extractUserId(authHeader);
+    return this.service.moveBoard(id, userId, body.folderId ?? null);
+  }
+
+  // Ordner -----------------------------------------------------------
+
+  @Get('folders')
+  async listFolders() {
+    return this.service.listFolders();
+  }
+
+  @Post('folders')
+  async createFolder(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { name: string },
+  ) {
+    const userId = this.extractUserId(authHeader);
+    return this.service.createFolder(userId, body.name);
+  }
+
+  @Patch('folders/:id')
+  async renameFolder(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { name: string },
+  ) {
+    const userId = this.extractUserId(authHeader);
+    return this.service.renameFolder(id, userId, body.name);
+  }
+
+  @Delete('folders/:id')
+  async removeFolder(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+  ) {
+    const userId = this.extractUserId(authHeader);
+    return this.service.removeFolder(id, userId);
   }
 
   // Snapshots --------------------------------------------------------
