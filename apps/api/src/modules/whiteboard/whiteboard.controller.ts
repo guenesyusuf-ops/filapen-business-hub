@@ -1,7 +1,8 @@
 import {
   Controller, Get, Post, Put, Patch, Delete, Param, Body, Headers, Query, Logger,
-  HttpException, HttpStatus, BadRequestException,
+  HttpException, HttpStatus, BadRequestException, UseInterceptors, UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { WhiteboardService } from './whiteboard.service';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -130,6 +131,19 @@ export class WhiteboardController {
   ) {
     const userId = this.extractUserId(authHeader);
     return this.service.restoreSnapshot(id, snapshotId, userId);
+  }
+
+  // Asset-Upload — fuer Bilder/Videos/PDFs aus Drag-Drop ins Canvas.
+  // Ohne diesen Endpoint speichert tldraw nur eine temporaere blob://-URL,
+  // die beim Tab-Schliessen verschwindet → Asset ist beim naechsten Open weg.
+  @Post('boards/:id/assets/upload')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  async uploadAsset(
+    @Param('id') boardId: string,
+    @UploadedFile() file: any,
+  ) {
+    if (!file) throw new BadRequestException('Datei fehlt');
+    return this.service.uploadAsset(boardId, file);
   }
 
   // Liveblocks Auth --------------------------------------------------

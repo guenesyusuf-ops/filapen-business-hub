@@ -69,6 +69,21 @@ export const whiteboardApi = {
   liveblocksAuth: (id: string) =>
     call<{ token: string | null; reason?: string; tier?: 'free' | 'pro' }>(`/boards/${id}/liveblocks-auth`, { method: 'POST' }),
 
+  /** Lädt eine Datei (Bild/Video/PDF) als Whiteboard-Asset zu R2 hoch.
+   *  Wird vom tldraw asset-handler bei Drag-Drop/Paste aufgerufen. */
+  uploadAsset: async (boardId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const auth = getAuthHeaders();
+    const res = await fetch(`${API_URL}/api/whiteboard/boards/${boardId}/assets/upload`, {
+      method: 'POST',
+      body: fd,
+      headers: { ...auth },
+    });
+    if (!res.ok) throw new Error(`Asset-Upload fehlgeschlagen (HTTP ${res.status})`);
+    return res.json() as Promise<{ url: string; key: string; name: string; mimeType: string; size: number }>;
+  },
+
   // Drag-Panel: leichtgewichtige Suche in den drei Filapen-Domains
   searchTasks: (q: string) => call<Array<{
     id: string; title: string; priority: string; completed: boolean;

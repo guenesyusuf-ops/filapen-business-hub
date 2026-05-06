@@ -16,10 +16,13 @@ import {
   type Editor,
   type TLEditorSnapshot,
   type TLComponents,
+  type TLAsset,
+  AssetRecordType,
   loadSnapshot,
   getSnapshot,
   createShapeId,
   toRichText,
+  MediaHelpers,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
 import { useAuthStore } from '@/stores/auth';
@@ -363,6 +366,7 @@ function SingleUserCanvas({
   // saveState in React-state, weil Toolbar das darstellt. Aenderungen
   // re-rendern SingleUserCanvas; StableTldraw bailed via memo.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   // ONE-TIME flip nach onMount → einmaliger Re-Render damit EntityDock mountet.
   const [editorReady, setEditorReady] = useState(false);
   // Modals fuer Insert-Aktionen
@@ -387,6 +391,48 @@ function SingleUserCanvas({
     mountedOnceRef.current = true;
     editorRef.current = ed;
 
+    // KRITISCH: Asset-Handler fuer File-Drops (Bilder, Videos, etc.)
+    // Default-Verhalten von tldraw waere `URL.createObjectURL(file)` →
+    // ein temporaerer blob:// Link der beim Tab-Schliessen tot ist.
+    // Wir laden stattdessen zu R2 hoch und nutzen die persistente URL.
+    ed.registerExternalAssetHandler('file', async ({ file }) => {
+      const upload = await whiteboardApi.uploadAsset(boardIdRef.current, file);
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      // Dimensionen ermitteln — tldraw braucht w/h fuer korrekte Darstellung
+      let w = 0, h = 0, isAnimated = false;
+      try {
+        if (isImage) {
+          const size = await MediaHelpers.getImageSize(file);
+          w = size.w; h = size.h;
+          isAnimated = file.type === 'image/gif';
+        } else if (isVideo) {
+          const size = await MediaHelpers.getVideoSize(file);
+          w = size.w; h = size.h;
+          isAnimated = true;
+        }
+      } catch { /* dimensions unknown — tldraw faellt auf default zurueck */ }
+      const asset: TLAsset = AssetRecordType.create({
+        id: AssetRecordType.createId(),
+        type: isVideo ? 'video' : 'image',
+        typeName: 'asset',
+        props: {
+          name: upload.name,
+          src: upload.url,
+          w: w || 600,
+          h: h || 400,
+          mimeType: upload.mimeType || file.type,
+          isAnimated,
+        },
+        meta: {},
+      });
+      // Direkt nach Asset-Upload Auto-Save antriggern (kurz statt 30s warten)
+      // damit das neue Asset garantiert in der DB landet bevor User wegnavigiert.
+      // 1 Sekunde gibt tldraw Zeit das Shape mit dem neuen Asset zu erstellen.
+      setTimeout(() => triggerSaveRef.current?.(), 1000);
+      return asset;
+    });
+
     try {
       const state = boardStateRef.current;
       if (state && Object.keys(state).length > 0 && !state.__template) {
@@ -402,6 +448,10 @@ function SingleUserCanvas({
     lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
     setEditorReady(true);
   }, []);
+
+  // Trigger fuer sofortiges Speichern (z.B. nach Asset-Upload).
+  // Wird vom Auto-Save-Effekt unten gesetzt damit handleMount es nutzen kann.
+  const triggerSaveRef = useRef<(() => void) | null>(null);
 
   // Auto-Save: liest editor aus Ref. Laeuft einmal nach editorReady=true.
   useEffect(() => {
@@ -432,6 +482,7 @@ function SingleUserCanvas({
         await whiteboardApi.update(boardIdRef.current, { state: snap });
         lastSavedJsonRef.current = json;
         setSaveState('saved');
+        setLastSavedAt(new Date());
         setTimeout(() => setSaveState('idle'), 2000);
       } catch {
         setSaveState('error');
@@ -440,8 +491,14 @@ function SingleUserCanvas({
       saveTimerRef.current = setTimeout(tick, 30_000);
     };
     saveTimerRef.current = setTimeout(tick, 30_000);
+    // Trigger fuer sofortiges Speichern (von handleMount/Asset-Handler genutzt).
+    triggerSaveRef.current = () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      tick();
+    };
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      triggerSaveRef.current = null;
     };
   }, [editorReady]);
 
@@ -463,6 +520,8 @@ function SingleUserCanvas({
       <Toolbar
         title={board.title}
         saveState={saveState}
+        lastSavedAt={lastSavedAt}
+        onSaveNow={() => triggerSaveRef.current?.()}
         userCount={1}
         tier="free"
         canDelete={canDelete}
@@ -530,14 +589,63 @@ function SingleUserCanvas({
 
 
 // ---------------------------------------------------------------------------
+// SaveStateBadge — kompakte Anzeige fuer Auto-Save mit "vor X Sek" Timestamp.
+// ---------------------------------------------------------------------------
+function SaveStateBadge({
+  state, lastSavedAt,
+}: { state: 'idle' | 'saving' | 'saved' | 'error'; lastSavedAt?: Date | null }) {
+  // re-render alle 30s damit der "vor X Min"-Text live tickt
+  const [, force] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => force((v) => v + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (state === 'saving') {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+        <Loader2 className="h-3 w-3 animate-spin" /> Speichern…
+      </span>
+    );
+  }
+  if (state === 'error') {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-medium">
+        ⚠ Speicher-Fehler — neu versuchen
+      </span>
+    );
+  }
+  // saved oder idle — Wenn lastSavedAt da ist, "vor X" anzeigen
+  if (lastSavedAt) {
+    const ago = Date.now() - lastSavedAt.getTime();
+    const sec = Math.floor(ago / 1000);
+    const min = Math.floor(sec / 60);
+    const text = sec < 5 ? 'soeben gespeichert' : sec < 60 ? `vor ${sec} Sek gespeichert` : `vor ${min} Min gespeichert`;
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+        <Save className="h-3 w-3" /> {text}
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+      Auto-Save aktiv
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Toolbar (oben)
 // ---------------------------------------------------------------------------
 function Toolbar({
-  title, saveState, userCount, tier, canDelete, usersSlot, onBack, onTitleChange, onDelete,
+  title, saveState, lastSavedAt, onSaveNow,
+  userCount, tier, canDelete, usersSlot, onBack, onTitleChange, onDelete,
   onZoomIn, onZoomOut, onZoomToFit, onInsertTemplate, onInsertTable,
 }: {
   title: string;
   saveState: 'idle' | 'saving' | 'saved' | 'error';
+  lastSavedAt?: Date | null;
+  onSaveNow?: () => void;
   userCount: number;
   tier: 'free' | 'pro';
   canDelete?: boolean;
@@ -627,12 +735,19 @@ function Toolbar({
           </div>
         )}
 
-        {/* Save-State */}
-        <div className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 min-w-[100px] justify-end">
-          {saveState === 'saving' && (<><Loader2 className="h-3 w-3 animate-spin" /> Speichern…</>)}
-          {saveState === 'saved' && (<><Save className="h-3 w-3 text-emerald-500" /> Gespeichert</>)}
-          {saveState === 'error' && (<><span className="text-red-500">⚠</span> Fehler</>)}
-          {saveState === 'idle' && (<>Auto-Save aktiv</>)}
+        {/* Save-State + Jetzt-speichern Button */}
+        <div className="hidden sm:flex items-center gap-2 min-w-[140px] justify-end">
+          <SaveStateBadge state={saveState} lastSavedAt={lastSavedAt} />
+          {onSaveNow && (
+            <button
+              onClick={onSaveNow}
+              disabled={saveState === 'saving'}
+              className="rounded-lg p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Jetzt speichern"
+            >
+              <Save className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Pro-Badge: leuchtet wenn LIVEBLOCKS_TIER=pro auf dem Backend */}

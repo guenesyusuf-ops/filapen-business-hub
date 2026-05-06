@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { Liveblocks } from '@liveblocks/node';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageService } from '../../common/storage/storage.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -18,7 +19,23 @@ export class WhiteboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Lädt ein Asset (Bild/Video/PDF) für ein Whiteboard zu R2 hoch.
+   * Aufgerufen vom Frontend wenn der User per Drag-Drop oder Paste eine
+   * Datei einfuegt — sonst wuerde tldraw nur einen temporaeren blob://
+   * Link erzeugen, der beim Tab-Schliessen verschwindet.
+   */
+  async uploadAsset(boardId: string, file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
+    if (!file?.buffer) throw new BadRequestException('Datei fehlt');
+    await this.get(boardId); // sicherstellen dass Board existiert
+    const ext = (file.originalname.split('.').pop() || 'bin').toLowerCase().slice(0, 6);
+    const key = `whiteboards/${boardId}/assets/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const url = await this.storage.upload(key, file.buffer, file.mimetype || 'application/octet-stream');
+    return { url, key, name: file.originalname, mimeType: file.mimetype, size: file.size };
+  }
 
   // ------------------------------------------------------------------
   // CRUD
