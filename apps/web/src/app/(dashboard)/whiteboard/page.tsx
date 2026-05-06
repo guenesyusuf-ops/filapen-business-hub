@@ -448,7 +448,7 @@ function FolderRow({
       >
         <Icon className="h-3.5 w-3.5 flex-shrink-0" />
         <span className="flex-1 text-left truncate">{folder.name}</span>
-        <span className="text-[10px] text-gray-400 dark:text-gray-500">{folder._count.whiteboards}</span>
+        <span className="text-[10px] text-gray-400 dark:text-gray-500">{folder._count?.whiteboards ?? 0}</span>
       </button>
       {canManage && (
         <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">

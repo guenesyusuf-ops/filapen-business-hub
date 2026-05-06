@@ -82,19 +82,23 @@ export class WhiteboardService {
   async createFolder(userId: string, name: string) {
     const trimmed = name?.trim();
     if (!trimmed) throw new BadRequestException('Name erforderlich');
-    return this.prisma.whiteboardFolder.create({
+    const created = await this.prisma.whiteboardFolder.create({
       data: { orgId: DEV_ORG_ID, name: trimmed, createdById: userId },
     });
+    // _count beifuegen damit Frontend das gleiche Shape wie bei listFolders bekommt
+    return { ...created, _count: { whiteboards: 0 } };
   }
 
   async renameFolder(folderId: string, userId: string, name: string) {
     const trimmed = name?.trim();
     if (!trimmed) throw new BadRequestException('Name erforderlich');
     await this.assertFolderEditable(folderId, userId);
-    return this.prisma.whiteboardFolder.update({
+    const updated = await this.prisma.whiteboardFolder.update({
       where: { id: folderId },
       data: { name: trimmed },
+      include: { _count: { select: { whiteboards: true } } },
     });
+    return updated;
   }
 
   /** Loescht den Ordner. Boards drin werden auf folderId=null gesetzt
