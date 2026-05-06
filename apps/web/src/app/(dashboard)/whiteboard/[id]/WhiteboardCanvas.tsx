@@ -273,6 +273,214 @@ function applyTemplate(editor: Editor, template: string, origin: { x: number; y:
         props: { w: 380, h: 600, name },
       });
     });
+  } else if (template === 'decision_tree') {
+    // Hierarchischer Entscheidungsbaum: Problem → Frage → 2 Decisions →
+    // je 2 Aktionen → je 1 Ergebnis. Mit Pfeilen zwischen den Ebenen.
+    const box = (x: number, y: number, w: number, h: number, color: any, fill: any, text: string, size: any = 'm') => {
+      const id = createShapeId();
+      editor.createShape({
+        id,
+        type: 'geo',
+        x: ox + x, y: oy + y,
+        props: { geo: 'rectangle', w, h, color, fill, richText: toRichText(text), size },
+      });
+      return { id, cx: ox + x + w / 2, cy: oy + y + h / 2, top: oy + y, bottom: oy + y + h };
+    };
+    const arrow = (sx: number, sy: number, ex: number, ey: number) => {
+      editor.createShape({
+        id: createShapeId(),
+        type: 'arrow',
+        x: 0, y: 0,
+        props: {
+          start: { x: sx, y: sy },
+          end: { x: ex, y: ey },
+          color: 'grey',
+          size: 's',
+        },
+      });
+    };
+    const problem = box(550, 0, 300, 80, 'black', 'solid', 'Problem');
+    const frage = box(575, 140, 250, 70, 'grey', 'semi', 'Was tun?');
+    const dec1 = box(200, 280, 280, 90, 'orange', 'solid', 'Entscheidung 1');
+    const dec2 = box(920, 280, 280, 90, 'orange', 'solid', 'Entscheidung 2');
+    const a1 = box(40, 440, 220, 80, 'green', 'semi', 'Aktion 1', 's');
+    const a2 = box(280, 440, 220, 80, 'green', 'semi', 'Aktion 2', 's');
+    const a3 = box(820, 440, 220, 80, 'light-red', 'semi', 'Aktion 1', 's');
+    const a4 = box(1060, 440, 220, 80, 'light-red', 'semi', 'Aktion 2', 's');
+    const r1 = box(80, 580, 140, 60, 'black', 'none', 'Ergebnis', 's');
+    const r2 = box(320, 580, 140, 60, 'black', 'none', 'Ergebnis', 's');
+    const r3 = box(860, 580, 140, 60, 'black', 'none', 'Ergebnis', 's');
+    const r4 = box(1100, 580, 140, 60, 'black', 'none', 'Ergebnis', 's');
+    arrow(problem.cx, problem.bottom, frage.cx, frage.top);
+    arrow(frage.cx, frage.bottom, dec1.cx, dec1.top);
+    arrow(frage.cx, frage.bottom, dec2.cx, dec2.top);
+    arrow(dec1.cx, dec1.bottom, a1.cx, a1.top);
+    arrow(dec1.cx, dec1.bottom, a2.cx, a2.top);
+    arrow(dec2.cx, dec2.bottom, a3.cx, a3.top);
+    arrow(dec2.cx, dec2.bottom, a4.cx, a4.top);
+    arrow(a1.cx, a1.bottom, r1.cx, r1.top);
+    arrow(a2.cx, a2.bottom, r2.cx, r2.top);
+    arrow(a3.cx, a3.bottom, r3.cx, r3.top);
+    arrow(a4.cx, a4.bottom, r4.cx, r4.top);
+  } else if (template === 'scamper') {
+    // 7 horizontale Frames, jeder mit Methode + Hinweistext
+    const items = [
+      { letter: 'S', name: 'Substitute',         hint: 'Was ersetzen?' },
+      { letter: 'C', name: 'Combine',            hint: 'Was kombinieren?' },
+      { letter: 'A', name: 'Adapt',              hint: 'Was anpassen?' },
+      { letter: 'M', name: 'Modify',             hint: 'Was vergroessern/aendern?' },
+      { letter: 'P', name: 'Put to other use',   hint: 'Anderer Einsatz?' },
+      { letter: 'E', name: 'Eliminate',          hint: 'Was weglassen?' },
+      { letter: 'R', name: 'Reverse',            hint: 'Umkehren / neu ordnen?' },
+    ];
+    items.forEach((it, i) => {
+      editor.createShape({
+        id: createShapeId(),
+        type: 'frame',
+        x: ox + i * 280, y: oy + 0,
+        props: { w: 260, h: 480, name: `${it.letter} — ${it.name}` },
+      });
+      editor.createShape({
+        id: createShapeId(),
+        type: 'note',
+        x: ox + i * 280 + 30, y: oy + 60,
+        props: { color: 'yellow', richText: toRichText(it.hint), size: 's' },
+      });
+    });
+  } else if (template === '5_whys') {
+    // 5 vertikale Boxen mit Pfeilen zwischen jeder Stufe
+    const headerY = 0;
+    editor.createShape({
+      id: createShapeId(),
+      type: 'geo',
+      x: ox + 0, y: oy + headerY,
+      props: { geo: 'rectangle', w: 600, h: 80, color: 'red', fill: 'solid', richText: toRichText('Problem-Beschreibung'), size: 'l' },
+    });
+    let prevBottom = oy + headerY + 80;
+    let prevCx = ox + 300;
+    for (let i = 1; i <= 5; i++) {
+      const y = headerY + 130 + (i - 1) * 130;
+      // Pfeil von vorherigem zu diesem
+      editor.createShape({
+        id: createShapeId(),
+        type: 'arrow',
+        x: 0, y: 0,
+        props: {
+          start: { x: prevCx, y: prevBottom },
+          end:   { x: ox + 300, y: oy + y },
+          color: 'grey',
+          size: 's',
+        },
+      });
+      editor.createShape({
+        id: createShapeId(),
+        type: 'geo',
+        x: ox + 0, y: oy + y,
+        props: {
+          geo: 'rectangle',
+          w: 600, h: 90,
+          color: 'orange',
+          fill: 'semi',
+          richText: toRichText(`Warum #${i}?`),
+          size: 'm',
+        },
+      });
+      prevBottom = oy + y + 90;
+      prevCx = ox + 300;
+    }
+    // Root-Cause unten
+    editor.createShape({
+      id: createShapeId(),
+      type: 'arrow',
+      x: 0, y: 0,
+      props: {
+        start: { x: prevCx, y: prevBottom },
+        end:   { x: ox + 300, y: oy + headerY + 130 + 5 * 130 + 30 },
+        color: 'grey',
+        size: 's',
+      },
+    });
+    editor.createShape({
+      id: createShapeId(),
+      type: 'geo',
+      x: ox + 0, y: oy + headerY + 130 + 5 * 130 + 30,
+      props: { geo: 'rectangle', w: 600, h: 90, color: 'green', fill: 'solid', richText: toRichText('Root Cause'), size: 'l' },
+    });
+  } else if (template === 'starbursting') {
+    // Zentrum + 6 Frage-Spokes (Wer/Was/Wann/Wo/Warum/Wie)
+    const center = { x: 600, y: 400 };
+    editor.createShape({
+      id: createShapeId(),
+      type: 'geo',
+      x: ox + center.x - 100, y: oy + center.y - 50,
+      props: { geo: 'star', w: 200, h: 100, color: 'violet', fill: 'solid', richText: toRichText('Idee / Thema'), size: 'm' },
+    });
+    const questions = [
+      { label: 'Wer?',    color: 'blue'   as const },
+      { label: 'Was?',    color: 'green'  as const },
+      { label: 'Wann?',   color: 'orange' as const },
+      { label: 'Wo?',     color: 'red'    as const },
+      { label: 'Warum?',  color: 'yellow' as const },
+      { label: 'Wie?',    color: 'light-violet' as any },
+    ];
+    questions.forEach((q, i) => {
+      const angle = (i / questions.length) * Math.PI * 2 - Math.PI / 2;
+      const x = center.x + Math.cos(angle) * 360 - 110;
+      const y = center.y + Math.sin(angle) * 280 - 50;
+      editor.createShape({
+        id: createShapeId(),
+        type: 'geo',
+        x: ox + x, y: oy + y,
+        props: { geo: 'rectangle', w: 220, h: 100, color: q.color, fill: 'semi', richText: toRichText(q.label), size: 'm' },
+      });
+      // Pfeil vom Zentrum zur Frage
+      editor.createShape({
+        id: createShapeId(),
+        type: 'arrow',
+        x: 0, y: 0,
+        props: {
+          start: { x: ox + center.x, y: oy + center.y },
+          end:   { x: ox + x + 110, y: oy + y + 50 },
+          color: 'grey',
+          size: 's',
+        },
+      });
+    });
+  } else if (template === 'idea_jam') {
+    // Miro-Style: 5 Spalten (Teilnehmer), je 4 bunte Sticky-Notes als Vorlage
+    const participants = [
+      { name: 'Cassie', color: 'yellow' as const },
+      { name: 'Trevor', color: 'blue'   as const },
+      { name: 'Jules',  color: 'green'  as const },
+      { name: 'Mark',   color: 'red'    as const },
+      { name: 'Leslie', color: 'violet' as const },
+    ];
+    participants.forEach((p, i) => {
+      const colX = i * 240;
+      // Header (Name als Text-Shape)
+      editor.createShape({
+        id: createShapeId(),
+        type: 'geo',
+        x: ox + colX, y: oy + 0,
+        props: { geo: 'rectangle', w: 220, h: 60, color: p.color, fill: 'solid', richText: toRichText(p.name), size: 'l' },
+      });
+      // 4 Sticky-Notes pro Spalte
+      for (let j = 0; j < 4; j++) {
+        editor.createShape({
+          id: createShapeId(),
+          type: 'note',
+          x: ox + colX, y: oy + 90 + j * 220,
+          props: { color: p.color, richText: toRichText('Idee…'), size: 'm' },
+        });
+      }
+    });
+    // Header oben drueber
+    editor.createShape({
+      id: createShapeId(),
+      type: 'geo',
+      x: ox - 40, y: oy - 100,
+      props: { geo: 'rectangle', w: 1240, h: 70, color: 'black', fill: 'none', richText: toRichText('💡  Brainstorm-Session'), size: 'l' },
+    });
   }
 }
 
@@ -1237,11 +1445,16 @@ function PresenceAvatars() {
 // ---------------------------------------------------------------------------
 
 const INSERT_TEMPLATES = [
-  { value: 'brainstorm', label: 'Brainstorm', icon: Lightbulb, desc: 'Sticky-Notes als Spinnen-Layout' },
-  { value: 'kanban', label: 'Kanban', icon: KanbanIcon, desc: 'To Do / Doing / Done' },
-  { value: 'retro', label: 'Retro', icon: ListChecks, desc: 'Was lief gut, schlecht, Action-Items' },
-  { value: 'mindmap', label: 'Mindmap', icon: GitBranch, desc: 'Zentral-Knoten + Verzweigungen' },
-  { value: 'customer_journey', label: 'Customer Journey', icon: MapPinned, desc: 'Touchpoint-Phasen' },
+  { value: 'brainstorm',       label: 'Brainstorm',         icon: Lightbulb,  desc: 'Sticky-Notes als Spinnen-Layout' },
+  { value: 'idea_jam',         label: 'Idea Jam',           icon: Sparkles,   desc: 'Miro-Style: 5 Teilnehmer-Spalten mit Sticky-Notes' },
+  { value: 'decision_tree',    label: 'Decision Tree',      icon: GitBranch,  desc: 'Problem → Entscheidung → Aktion → Ergebnis (mit Pfeilen)' },
+  { value: 'kanban',           label: 'Kanban',             icon: KanbanIcon, desc: 'To Do / Doing / Done' },
+  { value: 'retro',            label: 'Retro',              icon: ListChecks, desc: 'Was lief gut, schlecht, Action-Items' },
+  { value: 'mindmap',          label: 'Mindmap',            icon: GitBranch,  desc: 'Zentral-Knoten + Verzweigungen' },
+  { value: 'customer_journey', label: 'Customer Journey',   icon: MapPinned,  desc: 'Touchpoint-Phasen' },
+  { value: 'scamper',          label: 'SCAMPER',            icon: ListChecks, desc: '7 Denkfilter: Substitute, Combine, Adapt …' },
+  { value: '5_whys',           label: '5 Whys',             icon: GitBranch,  desc: 'Vertikale Warum-Kette zur Root-Cause' },
+  { value: 'starbursting',     label: 'Starbursting',       icon: Sparkles,   desc: 'Zentrum + 6 Fragen (Wer/Was/Wann/Wo/Warum/Wie)' },
 ] as const;
 
 function TemplatePickerModal({

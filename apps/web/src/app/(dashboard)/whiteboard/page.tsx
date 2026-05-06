@@ -17,12 +17,17 @@ import { useAuthStore } from '@/stores/auth';
 import { cn } from '@/lib/utils';
 
 const TEMPLATES: { value: string; label: string; icon: any; desc: string }[] = [
-  { value: 'blank', label: 'Leer', icon: PencilRuler, desc: 'Komplett leeres Canvas' },
-  { value: 'brainstorm', label: 'Brainstorm', icon: Lightbulb, desc: 'Sticky-Notes für Ideensammlung' },
-  { value: 'kanban', label: 'Kanban', icon: KanbanIcon, desc: 'To Do / Doing / Done Spalten' },
-  { value: 'retro', label: 'Retro', icon: ListChecks, desc: 'Was lief gut, schlecht, Action-Items' },
-  { value: 'mindmap', label: 'Mindmap', icon: GitBranch, desc: 'Zentral-Knoten + Verzweigungen' },
-  { value: 'customer_journey', label: 'Customer Journey', icon: MapPinned, desc: 'Touchpoint-Phasen horizontal' },
+  { value: 'blank',            label: 'Leer',              icon: PencilRuler, desc: 'Komplett leeres Canvas' },
+  { value: 'brainstorm',       label: 'Brainstorm',        icon: Lightbulb,   desc: 'Sticky-Notes für Ideensammlung' },
+  { value: 'idea_jam',         label: 'Idea Jam',          icon: Sparkles,    desc: 'Miro-Style: 5 Teilnehmer-Spalten mit Sticky-Notes' },
+  { value: 'decision_tree',    label: 'Decision Tree',     icon: GitBranch,   desc: 'Problem → Entscheidung → Aktion → Ergebnis (mit Pfeilen)' },
+  { value: 'kanban',           label: 'Kanban',            icon: KanbanIcon,  desc: 'To Do / Doing / Done Spalten' },
+  { value: 'retro',            label: 'Retro',             icon: ListChecks,  desc: 'Was lief gut, schlecht, Action-Items' },
+  { value: 'mindmap',          label: 'Mindmap',           icon: GitBranch,   desc: 'Zentral-Knoten + Verzweigungen' },
+  { value: 'customer_journey', label: 'Customer Journey',  icon: MapPinned,   desc: 'Touchpoint-Phasen horizontal' },
+  { value: 'scamper',          label: 'SCAMPER',           icon: ListChecks,  desc: '7 Denkfilter (Substitute, Combine, Adapt …)' },
+  { value: '5_whys',           label: '5 Whys',            icon: GitBranch,   desc: 'Vertikale Warum-Kette zur Root-Cause' },
+  { value: 'starbursting',     label: 'Starbursting',      icon: Sparkles,    desc: 'Zentrum + 6 Fragen (Wer/Was/Wann/Wo/Warum/Wie)' },
 ];
 
 // Spezial-Selektoren fuer die Sidebar (keine echten Ordner-IDs)
