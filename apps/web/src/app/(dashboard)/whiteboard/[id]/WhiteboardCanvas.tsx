@@ -637,6 +637,25 @@ function SingleUserCanvas({
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <StableTldraw onMount={handleMount} />
         {editorReady && editorRef.current && <EntityDockPanel editor={editorRef.current} />}
+        {/* Floating-Action-Buttons unten links — IMMER sichtbar, beschriftet */}
+        <div className="absolute bottom-4 left-4 z-30 flex flex-col gap-2">
+          <button
+            onClick={() => setShowTablePicker(true)}
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
+            title="Tabelle einfügen"
+          >
+            <Table2 className="h-4 w-4" />
+            Tabelle
+          </button>
+          <button
+            onClick={() => setShowTemplatePicker(true)}
+            className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-violet-600 to-violet-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
+            title="Vorlage einfügen"
+          >
+            <Sparkles className="h-4 w-4" />
+            Vorlage
+          </button>
+        </div>
       </div>
 
       {/* Vorlage einfuegen — opens template picker, applies at viewport center */}
