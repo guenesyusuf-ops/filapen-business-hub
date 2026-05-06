@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Save, Users, Loader2, MoreHorizontal, History, Trash2,
   Search, ListTodo, ShoppingCart, Package, Plus, Sparkles, ZoomIn, ZoomOut, Maximize2,
+  Table2, Lightbulb, Kanban as KanbanIcon, ListChecks, GitBranch, MapPinned, X,
 } from 'lucide-react';
 import {
   Tldraw,
@@ -21,6 +22,7 @@ import {
   toRichText,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
+import { useAuthStore } from '@/stores/auth';
 import { cn } from '@/lib/utils';
 
 // tldraw UI-Tweak: PageMenu (Seitenname) und NavigationPanel (Zoom-Selector
@@ -111,10 +113,17 @@ function formatEntityLines(type: 'task' | 'order' | 'product', e: any): string[]
 /**
  * Generiert initialen Canvas-Inhalt fuer ein Template. Wird beim ersten
  * Mount aufgerufen wenn board.state.__template gesetzt ist (Marker
- * vom Backend bei Create). Danach wird der Marker entfernt + der echte
- * Snapshot gespeichert.
+ * vom Backend bei Create) ODER spaeter ueber den "Vorlage einfuegen"-
+ * Button im offenen Whiteboard.
+ *
+ * `origin` verschiebt alle Shapes um (origin.x, origin.y) — beim
+ * Initial-Mount Default (0,0). Beim Einfuegen im offenen Board
+ * uebergeben wir das Zentrum des aktuellen Viewports damit die neuen
+ * Shapes dort landen wo der User gerade hinguckt.
  */
-function applyTemplate(editor: Editor, template: string) {
+function applyTemplate(editor: Editor, template: string, origin: { x: number; y: number } = { x: 0, y: 0 }) {
+  const ox = origin.x;
+  const oy = origin.y;
   if (template === 'kanban') {
     // 3 Frames horizontal: To Do, Doing, Done
     const cols = [
@@ -127,8 +136,8 @@ function applyTemplate(editor: Editor, template: string) {
       editor.createShape({
         id: frameId,
         type: 'frame',
-        x: c.x,
-        y: 0,
+        x: ox + c.x,
+        y: oy + 0,
         props: { w: 500, h: 800, name: c.name },
       });
       // 2 Sticky-Notes als Beispiel
@@ -136,8 +145,8 @@ function applyTemplate(editor: Editor, template: string) {
         editor.createShape({
           id: createShapeId(),
           type: 'note',
-          x: c.x + 60 + (i % 2) * 220,
-          y: 80 + i * 220,
+          x: ox + c.x + 60 + (i % 2) * 220,
+          y: oy + 80 + i * 220,
           props: { color: c.color, richText: toRichText('Neue Karte'), size: 'm' },
         });
       }
@@ -148,7 +157,7 @@ function applyTemplate(editor: Editor, template: string) {
     editor.createShape({
       id: frameId,
       type: 'frame',
-      x: 0, y: 0,
+      x: ox + 0, y: oy + 0,
       props: { w: 1400, h: 900, name: 'Brainstorm' },
     });
     const center = { x: 700, y: 450 };
@@ -158,8 +167,8 @@ function applyTemplate(editor: Editor, template: string) {
       editor.createShape({
         id: createShapeId(),
         type: 'note',
-        x: center.x + Math.cos(angle) * 280 - 100,
-        y: center.y + Math.sin(angle) * 200 - 100,
+        x: ox + center.x + Math.cos(angle) * 280 - 100,
+        y: oy + center.y + Math.sin(angle) * 200 - 100,
         props: { color, richText: toRichText('Idee…'), size: 'm' },
       });
     });
@@ -173,7 +182,7 @@ function applyTemplate(editor: Editor, template: string) {
       editor.createShape({
         id: createShapeId(),
         type: 'frame',
-        x: c.x, y: 0,
+        x: ox + c.x, y: oy + 0,
         props: { w: 500, h: 800, name: c.name },
       });
     });
@@ -182,7 +191,7 @@ function applyTemplate(editor: Editor, template: string) {
     editor.createShape({
       id: createShapeId(),
       type: 'geo',
-      x: center.x - 100, y: center.y - 40,
+      x: ox + center.x - 100, y: oy + center.y - 40,
       props: { geo: 'ellipse', w: 200, h: 80, color: 'violet', fill: 'semi', richText: toRichText('Hauptthema'), size: 'm' },
     });
     for (let i = 0; i < 4; i++) {
@@ -190,8 +199,8 @@ function applyTemplate(editor: Editor, template: string) {
       editor.createShape({
         id: createShapeId(),
         type: 'geo',
-        x: center.x + Math.cos(angle) * 350 - 80,
-        y: center.y + Math.sin(angle) * 250 - 30,
+        x: ox + center.x + Math.cos(angle) * 350 - 80,
+        y: oy + center.y + Math.sin(angle) * 250 - 30,
         props: { geo: 'rectangle', w: 160, h: 60, color: 'blue', fill: 'semi', richText: toRichText(`Zweig ${i + 1}`), size: 's' },
       });
     }
@@ -201,10 +210,47 @@ function applyTemplate(editor: Editor, template: string) {
       editor.createShape({
         id: createShapeId(),
         type: 'frame',
-        x: i * 420, y: 0,
+        x: ox + i * 420, y: oy + 0,
         props: { w: 380, h: 600, name },
       });
     });
+  }
+}
+
+/**
+ * Erzeugt ein Tabellen-Raster aus geo-Rechtecken (rows x cols).
+ * Jede Zelle ist einzeln editierbar (klick → Text rein). tldraw hat
+ * keine native Tabelle — das ist die saubere Workaround-Variante.
+ */
+function insertTable(
+  editor: Editor,
+  rows: number,
+  cols: number,
+  origin: { x: number; y: number },
+) {
+  const CELL_W = 160;
+  const CELL_H = 60;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      // Erste Zeile = Header (etwas anderer Style: dunkleres Fill)
+      const isHeader = r === 0;
+      editor.createShape({
+        id: createShapeId(),
+        type: 'geo',
+        x: origin.x + c * CELL_W,
+        y: origin.y + r * CELL_H,
+        props: {
+          geo: 'rectangle',
+          w: CELL_W,
+          h: CELL_H,
+          color: isHeader ? 'grey' : 'black',
+          fill: isHeader ? 'solid' : 'none',
+          dash: 'solid',
+          size: 's',
+          richText: toRichText(isHeader ? `Spalte ${c + 1}` : ''),
+        },
+      });
+    }
   }
 }
 
@@ -251,11 +297,18 @@ const StableTldraw = memo(function StableTldraw({
 // ---------------------------------------------------------------------------
 function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
   const router = useRouter();
+  const currentUser = useAuthStore((s) => s.user);
+  // Loesch-Berechtigung: Ersteller des Boards ODER role=owner
+  const canDelete = !!currentUser
+    && (board.createdById === currentUser.id || currentUser.role === 'owner');
   // saveState in React-state, weil Toolbar das darstellt. Aenderungen
   // re-rendern SingleUserCanvas; StableTldraw bailed via memo.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // ONE-TIME flip nach onMount → einmaliger Re-Render damit EntityDock mountet.
   const [editorReady, setEditorReady] = useState(false);
+  // Modals fuer Insert-Aktionen
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showTablePicker, setShowTablePicker] = useState(false);
 
   // editor in REF, nicht in state — siehe Architektur-Notes oben.
   const editorRef = useRef<Editor | null>(null);
@@ -353,23 +406,64 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
         saveState={saveState}
         userCount={1}
         tier="free"
+        canDelete={canDelete}
         onBack={() => router.push('/whiteboard')}
         onTitleChange={async (t) => { await whiteboardApi.update(board.id, { title: t }); }}
         onDelete={async () => {
+          if (!canDelete) {
+            // eslint-disable-next-line no-alert
+            window.alert('Nur der Ersteller oder ein Owner darf dieses Whiteboard loeschen.');
+            return;
+          }
           // eslint-disable-next-line no-alert
           if (!window.confirm('Whiteboard wirklich löschen?')) return;
-          await whiteboardApi.remove(board.id);
-          router.push('/whiteboard');
+          try {
+            await whiteboardApi.remove(board.id);
+            router.push('/whiteboard');
+          } catch (e: any) {
+            // eslint-disable-next-line no-alert
+            window.alert(e.message);
+          }
         }}
         onZoomIn={() => editorRef.current?.zoomIn()}
         onZoomOut={() => editorRef.current?.zoomOut()}
         onZoomToFit={() => editorRef.current?.zoomToFit({ animation: { duration: 200 } })}
+        onInsertTemplate={() => setShowTemplatePicker(true)}
+        onInsertTable={() => setShowTablePicker(true)}
       />
       {/* min-h-0 verhindert flex-collapse */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <StableTldraw onMount={handleMount} />
         {editorReady && editorRef.current && <EntityDockPanel editor={editorRef.current} />}
       </div>
+
+      {/* Vorlage einfuegen — opens template picker, applies at viewport center */}
+      {showTemplatePicker && editorRef.current && (
+        <TemplatePickerModal
+          onClose={() => setShowTemplatePicker(false)}
+          onPick={(template) => {
+            const ed = editorRef.current!;
+            const center = ed.getViewportPageBounds().center;
+            applyTemplate(ed, template, { x: center.x - 700, y: center.y - 400 });
+            setShowTemplatePicker(false);
+          }}
+        />
+      )}
+
+      {/* Tabelle einfuegen */}
+      {showTablePicker && editorRef.current && (
+        <TablePickerModal
+          onClose={() => setShowTablePicker(false)}
+          onInsert={(rows, cols) => {
+            const ed = editorRef.current!;
+            const center = ed.getViewportPageBounds().center;
+            const totalW = cols * 160;
+            const totalH = rows * 60;
+            insertTable(ed, rows, cols, { x: center.x - totalW / 2, y: center.y - totalH / 2 });
+            setShowTablePicker(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -379,19 +473,22 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
 // Toolbar (oben)
 // ---------------------------------------------------------------------------
 function Toolbar({
-  title, saveState, userCount, tier, onBack, onTitleChange, onDelete,
-  onZoomIn, onZoomOut, onZoomToFit,
+  title, saveState, userCount, tier, canDelete, onBack, onTitleChange, onDelete,
+  onZoomIn, onZoomOut, onZoomToFit, onInsertTemplate, onInsertTable,
 }: {
   title: string;
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   userCount: number;
   tier: 'free' | 'pro';
+  canDelete?: boolean;
   onBack: () => void;
   onTitleChange: (t: string) => Promise<void>;
   onDelete: () => Promise<void>;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onZoomToFit?: () => void;
+  onInsertTemplate?: () => void;
+  onInsertTable?: () => void;
 }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(title);
@@ -511,12 +608,38 @@ function Toolbar({
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 top-full mt-1 z-20 w-56 rounded-xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 py-1 overflow-hidden animate-fade-in">
-                <button
-                  onClick={() => { setMenuOpen(false); onDelete(); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Whiteboard löschen
-                </button>
+                {onInsertTemplate && (
+                  <button
+                    onClick={() => { setMenuOpen(false); onInsertTemplate(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-primary-500" /> Vorlage einfügen
+                  </button>
+                )}
+                {onInsertTable && (
+                  <button
+                    onClick={() => { setMenuOpen(false); onInsertTable(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <Table2 className="h-3.5 w-3.5 text-primary-500" /> Tabelle einfügen
+                  </button>
+                )}
+                {(onInsertTemplate || onInsertTable) && canDelete !== false && (
+                  <div className="my-1 h-px bg-gray-100 dark:bg-white/5" />
+                )}
+                {canDelete !== false && (
+                  <button
+                    onClick={() => { setMenuOpen(false); onDelete(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Whiteboard löschen
+                  </button>
+                )}
+                {canDelete === false && (
+                  <div className="px-3 py-2 text-[10px] italic text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-white/5">
+                    Nur der Ersteller darf löschen
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -709,6 +832,155 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
       </div>
       <div className="px-3 py-2 text-[10px] text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-white/5">
         Klick fügt eine Sticky-Note mit den Live-Daten ein.
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Insert-Modals: Vorlage auswaehlen + Tabelle konfigurieren
+// ---------------------------------------------------------------------------
+
+const INSERT_TEMPLATES = [
+  { value: 'brainstorm', label: 'Brainstorm', icon: Lightbulb, desc: 'Sticky-Notes als Spinnen-Layout' },
+  { value: 'kanban', label: 'Kanban', icon: KanbanIcon, desc: 'To Do / Doing / Done' },
+  { value: 'retro', label: 'Retro', icon: ListChecks, desc: 'Was lief gut, schlecht, Action-Items' },
+  { value: 'mindmap', label: 'Mindmap', icon: GitBranch, desc: 'Zentral-Knoten + Verzweigungen' },
+  { value: 'customer_journey', label: 'Customer Journey', icon: MapPinned, desc: 'Touchpoint-Phasen' },
+] as const;
+
+function TemplatePickerModal({
+  onClose,
+  onPick,
+}: {
+  onClose: () => void;
+  onPick: (template: string) => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-8 animate-fade-in">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative z-[5] w-full max-w-xl rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/5">
+          <h3 className="font-display-serif text-lg font-medium text-gray-900 dark:text-white">
+            Vorlage einfügen
+          </h3>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {INSERT_TEMPLATES.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.value}
+                onClick={() => onPick(t.value)}
+                className="flex flex-col items-start gap-1.5 rounded-xl border border-gray-200 dark:border-white/10 p-3 text-left hover:border-primary-300 dark:hover:border-primary-500/30 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-all"
+              >
+                <Icon className="h-5 w-5 text-primary-500" />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">{t.label}</div>
+                  <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight mt-0.5">{t.desc}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="px-5 py-3 text-[11px] text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-white/5">
+          Wird ans Zentrum deines aktuellen Viewports eingefügt.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TablePickerModal({
+  onClose,
+  onInsert,
+}: {
+  onClose: () => void;
+  onInsert: (rows: number, cols: number) => void;
+}) {
+  const [rows, setRows] = useState(4);
+  const [cols, setCols] = useState(3);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const valid = rows >= 1 && rows <= 20 && cols >= 1 && cols <= 20;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-8 animate-fade-in">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative z-[5] w-full max-w-md rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/5">
+          <h3 className="font-display-serif text-lg font-medium text-gray-900 dark:text-white">
+            Tabelle einfügen
+          </h3>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Zeilen</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={rows}
+                onChange={(e) => setRows(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.03] px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Spalten</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={cols}
+                onChange={(e) => setCols(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.03] px-4 py-2.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500"
+              />
+            </label>
+          </div>
+          <div className="text-[11px] text-gray-500 dark:text-gray-400">
+            Erste Zeile wird automatisch als Header formatiert. Jede Zelle ist klickbar zum Editieren.
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-white/[0.02]">
+          <button
+            onClick={onClose}
+            className="rounded-lg px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5"
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={() => onInsert(rows, cols)}
+            disabled={!valid}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary-600 to-primary-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            <Table2 className="h-3.5 w-3.5" />
+            Einfügen
+          </button>
+        </div>
       </div>
     </div>
   );
