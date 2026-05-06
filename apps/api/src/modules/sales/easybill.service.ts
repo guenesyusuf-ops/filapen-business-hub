@@ -228,19 +228,21 @@ export class EasybillService {
       q: i.quantity, p: i.single_price_net, t: i.description.slice(0, 30),
     }))));
 
-    // Intro- und Schlusstext sind AB-spezifisch (Bezug auf Bestellung +
-    // Liefertermin). Bei Rechnungen lassen wir beide Felder leer, dann
-    // übernimmt easybill den Default aus der Dokumentvorlage ("nachfolgend
-    // berechnen wir Ihnen …" + Zahlungsbedingungen).
+    // Intro-/Schlusstext pro Dokumenttyp. Alle drei Typen haben Bezug
+    // auf die Bestellung. Externe Bestellnummer wird bevorzugt — fallback
+    // auf interne orderNumber falls keine vom Kunden vergeben wurde.
     const fmt = (d: any) => d ? new Date(d).toLocaleDateString('de-DE') : '';
     const isConfirmation = type === 'CHARGE_CONFIRM';
     const isDelivery = type === 'DELIVERY';
+    const isInvoice = type === 'INVOICE';
 
     const orderDateStr = fmt(order.orderDate);
     // Vom Kunden vergebene Bestellnummer (z.B. "VEDES-12345"). Auf den
     // Dokumenten zeigen wir DIESE statt unserer internen orderNumber an
     // damit der Kunde die Bestellung sofort wiederfindet.
     const externalNum = order.externalOrderNumber || '';
+    // Fallback fuer den Bestellnummer-Bezug: erst extern, dann intern.
+    const orderRef = externalNum || order.orderNumber || '';
 
     let introText: string | undefined;
     if (isConfirmation) {
@@ -252,6 +254,12 @@ export class EasybillService {
       introText = externalNum
         ? `Sehr geehrte Damen und Herren,\n\nzu Ihrer Bestellung mit der Bestellnummer ${externalNum} liefern wir Ihnen folgende Artikel.`
         : `Sehr geehrte Damen und Herren,\n\nzu Ihrer Bestellung liefern wir Ihnen folgende Artikel.`;
+    } else if (isInvoice) {
+      // Rechnung: Bezug auf Bestelldatum + Bestellnummer. Externe Nummer
+      // bevorzugt, sonst interne Nummer als Fallback.
+      introText = orderDateStr
+        ? `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung vom ${orderDateStr} mit der Bestellung ${orderRef} berechnen wir Ihnen wie vorab besprochen:`
+        : `Sehr geehrte Damen und Herren,\n\ngemäß Ihrer Bestellung mit der Bestellung ${orderRef} berechnen wir Ihnen wie vorab besprochen:`;
     }
 
     const deliveryStr = fmt(order.requiredDeliveryDate);
