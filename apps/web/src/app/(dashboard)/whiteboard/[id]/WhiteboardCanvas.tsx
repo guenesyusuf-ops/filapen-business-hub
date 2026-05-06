@@ -25,7 +25,8 @@ import {
   MediaHelpers,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
-import { useAuthStore } from '@/stores/auth';
+import { useAuthStore, getAuthHeaders } from '@/stores/auth';
+import { API_URL } from '@/lib/api';
 import { cn } from '@/lib/utils';
 // Non-suspense API: useRoom/useOthers koennten sonst suspendieren ohne
 // passenden Suspense-Boundary in der Auth-Phase.
@@ -453,7 +454,10 @@ function SingleUserCanvas({
   // Wird vom Auto-Save-Effekt unten gesetzt damit handleMount es nutzen kann.
   const triggerSaveRef = useRef<(() => void) | null>(null);
 
-  // Auto-Save: liest editor aus Ref. Laeuft einmal nach editorReady=true.
+  // Auto-Save: tickt alle 5 Sekunden (war 30s — wurde reduziert weil
+  // User-Aenderungen sonst beim Verlassen der Seite verloren gehen koennen
+  // bevor der erste Save laeuft).
+  const SAVE_INTERVAL_MS = 5_000;
   useEffect(() => {
     if (!editorReady) return;
     const ed = editorRef.current;
@@ -462,36 +466,40 @@ function SingleUserCanvas({
       let snap: any;
       try {
         snap = getSnapshot(ed.store);
-      } catch {
-        saveTimerRef.current = setTimeout(tick, 30_000);
+      } catch (e: any) {
+        console.error('[wb-save] getSnapshot failed:', e?.message ?? e);
+        saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
         return;
       }
       let json: string;
       try {
         json = JSON.stringify(snap);
-      } catch {
-        saveTimerRef.current = setTimeout(tick, 30_000);
+      } catch (e: any) {
+        console.error('[wb-save] JSON.stringify failed:', e?.message ?? e);
+        saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
         return;
       }
       if (json === lastSavedJsonRef.current) {
-        saveTimerRef.current = setTimeout(tick, 30_000);
+        saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
         return;
       }
       setSaveState('saving');
+      console.log(`[wb-save] saving ${json.length} bytes…`);
       try {
         await whiteboardApi.update(boardIdRef.current, { state: snap });
         lastSavedJsonRef.current = json;
         setSaveState('saved');
         setLastSavedAt(new Date());
+        console.log('[wb-save] OK');
         setTimeout(() => setSaveState('idle'), 2000);
-      } catch {
+      } catch (e: any) {
         setSaveState('error');
+        console.error('[wb-save] FAILED:', e?.message ?? e);
         setTimeout(() => setSaveState('idle'), 4000);
       }
-      saveTimerRef.current = setTimeout(tick, 30_000);
+      saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
     };
-    saveTimerRef.current = setTimeout(tick, 30_000);
-    // Trigger fuer sofortiges Speichern (von handleMount/Asset-Handler genutzt).
+    saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
     triggerSaveRef.current = () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       tick();
@@ -502,15 +510,27 @@ function SingleUserCanvas({
     };
   }, [editorReady]);
 
-  // Save on unmount (fire-and-forget)
+  // Save on unmount via fetch keepalive — Request laeuft auch nach
+  // Component-Unmount + Page-Navigation weiter. Behaelt Bearer-Token im
+  // Authorization-Header (anders als sendBeacon).
   useEffect(() => {
     return () => {
       const ed = editorRef.current;
       if (!ed) return;
-      const snap = getSnapshot(ed.store);
-      const json = JSON.stringify(snap);
-      if (json !== lastSavedJsonRef.current) {
-        whiteboardApi.update(boardIdRef.current, { state: snap }).catch(() => {});
+      try {
+        const snap = getSnapshot(ed.store);
+        const json = JSON.stringify(snap);
+        if (json === lastSavedJsonRef.current) return;
+        const url = `${API_URL}/api/whiteboard/boards/${boardIdRef.current}`;
+        fetch(url, {
+          method: 'PUT',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({ state: snap }),
+        }).catch(() => { /* ignore */ });
+        console.log(`[wb-save] unmount keepalive PUT, ${json.length} bytes`);
+      } catch (e: any) {
+        console.error('[wb-save] unmount failed:', e?.message ?? e);
       }
     };
   }, []);
