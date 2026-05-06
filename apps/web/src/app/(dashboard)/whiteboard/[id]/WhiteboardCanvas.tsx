@@ -453,55 +453,6 @@ function SingleUserCanvas({
   // Wird vom Auto-Save-Effekt unten gesetzt damit handleMount es nutzen kann.
   const triggerSaveRef = useRef<(() => void) | null>(null);
 
-  // Thumbnail-Generierung: gedrosselt damit wir nicht jedes 30s-Tick
-  // einen R2-Upload + DB-Update machen. Max 1x pro 2 Min.
-  const lastThumbnailAtRef = useRef<number>(0);
-  const generatingThumbnailRef = useRef<boolean>(false);
-
-  async function maybeGenerateThumbnail() {
-    const ed = editorRef.current;
-    if (!ed) return;
-    if (generatingThumbnailRef.current) {
-      console.log('[wb-thumb] skipped: already generating');
-      return;
-    }
-    const sinceLast = Date.now() - lastThumbnailAtRef.current;
-    if (sinceLast < 120_000 && lastThumbnailAtRef.current !== 0) {
-      console.log(`[wb-thumb] skipped: throttle (${Math.round(sinceLast / 1000)}s ago, need 120s)`);
-      return;
-    }
-    const shapeIds = Array.from(ed.getCurrentPageShapeIds());
-    if (shapeIds.length === 0) {
-      console.log('[wb-thumb] skipped: empty canvas');
-      return;
-    }
-    generatingThumbnailRef.current = true;
-    console.log(`[wb-thumb] generating for ${shapeIds.length} shapes…`);
-    try {
-      const result = await ed.toImage(shapeIds, {
-        format: 'png',
-        background: true,
-        scale: 0.4,
-        padding: 32,
-      });
-      if (!result?.blob) {
-        console.warn('[wb-thumb] toImage returned no blob');
-        return;
-      }
-      console.log(`[wb-thumb] PNG generated, size=${result.blob.size}B, ${result.width}x${result.height}`);
-      const file = new File([result.blob], `thumbnail-${Date.now()}.png`, { type: 'image/png' });
-      const upload = await whiteboardApi.uploadAsset(boardIdRef.current, file);
-      console.log('[wb-thumb] uploaded to:', upload.url);
-      await whiteboardApi.update(boardIdRef.current, { thumbnailUrl: upload.url });
-      console.log('[wb-thumb] board updated with thumbnailUrl');
-      lastThumbnailAtRef.current = Date.now();
-    } catch (e: any) {
-      console.error('[wb-thumb] FAILED:', e?.message ?? e);
-    } finally {
-      generatingThumbnailRef.current = false;
-    }
-  }
-
   // Auto-Save: liest editor aus Ref. Laeuft einmal nach editorReady=true.
   useEffect(() => {
     if (!editorReady) return;
@@ -533,9 +484,6 @@ function SingleUserCanvas({
         setSaveState('saved');
         setLastSavedAt(new Date());
         setTimeout(() => setSaveState('idle'), 2000);
-        // Thumbnail aktualisieren — gedrosselt auf max 1x pro 2 Min damit
-        // wir R2 nicht mit jedem 30s-Tick zumuellen.
-        void maybeGenerateThumbnail();
       } catch {
         setSaveState('error');
         setTimeout(() => setSaveState('idle'), 4000);
@@ -548,12 +496,8 @@ function SingleUserCanvas({
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       tick();
     };
-    // Initialer Thumbnail-Versuch 10s nach Mount — auch wenn Board nicht
-    // editiert wird, bekommt es so beim ersten Oeffnen ein Thumbnail.
-    const initialThumbTimer = setTimeout(() => { void maybeGenerateThumbnail(); }, 10_000);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      clearTimeout(initialThumbTimer);
       triggerSaveRef.current = null;
     };
   }, [editorReady]);
