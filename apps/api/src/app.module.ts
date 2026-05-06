@@ -14,6 +14,7 @@ import { IntegrationModule } from './modules/integration/integration.module';
 import { StorageModule } from './common/storage/storage.module';
 import { WorkManagementModule } from './modules/work-management/work-management.module';
 import { WhiteboardModule } from './modules/whiteboard/whiteboard.module';
+import { ScreenShareModule } from './modules/screen-share/screen-share.module';
 import { HomeModule } from './modules/home/home.module';
 import { AiModule } from './modules/ai/ai.module';
 import { DocumentsModule } from './modules/documents/documents.module';
@@ -78,6 +79,7 @@ import { HealthController } from './health.controller';
     StorageModule,
     WorkManagementModule,
     WhiteboardModule,
+    ScreenShareModule,
     HomeModule,
     AiModule,
     DocumentsModule,

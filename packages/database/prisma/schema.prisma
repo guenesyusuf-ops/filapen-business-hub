@@ -340,6 +340,7 @@ model Organization {
   contentPieces            ContentPiece[]
   whiteboards              Whiteboard[]
   whiteboardFolders        WhiteboardFolder[]
+  screenShareSessions      ScreenShareSession[]
   teamInvites              TeamInvite[]
   invitations              ProjectInvitation[]
   suppliers                Supplier[]
@@ -3210,4 +3211,63 @@ model SalesOrderShipment {
   @@index([orderId])
   @@index([orgId, shippedAt])
   @@map("sales_order_shipments")
+}
+
+// =============================================================================
+// MODELS — Screen-Share Modul (LiveKit-basiertes Bildschirmteilen)
+// =============================================================================
+
+model ScreenShareSession {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId               String    @map("org_id") @db.Uuid
+  hostUserId          String    @map("host_user_id") @db.Uuid
+  /// Name des LiveKit-Rooms (entspricht typischerweise "ss-{sessionId}")
+  livekitRoomId       String    @map("livekit_room_id") @db.VarChar(120)
+  /// Optionaler Session-Titel den der Host beim Start angegeben hat
+  sessionName         String?   @map("session_name") @db.VarChar(255)
+  /// Audio des geteilten Bildschirms / Tabs mit teilen
+  audioEnabled        Boolean   @default(false) @map("audio_enabled")
+  /// Voice-Chat (Mikrofone der Teilnehmer) aktiviert
+  voiceEnabled        Boolean   @default(false) @map("voice_enabled")
+  /// Externer Gast-Link aktiv?
+  isPublic            Boolean   @default(false) @map("is_public")
+  /// 12-Zeichen Random-Token fuer /share/[token]
+  publicToken         String?   @map("public_token") @db.VarChar(40)
+  /// bcrypt-Hash falls Passwort gesetzt
+  publicPasswordHash  String?   @map("public_password_hash") @db.VarChar(120)
+  publicExpiresAt     DateTime? @map("public_expires_at") @db.Timestamptz
+  /// 'active' | 'ended'
+  status              String    @default("active") @db.VarChar(20)
+  startedAt           DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  endedAt             DateTime? @map("ended_at") @db.Timestamptz
+
+  organization        Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  participants        ScreenShareParticipant[]
+
+  @@unique([publicToken])
+  @@index([orgId, status])
+  @@index([hostUserId])
+  @@map("screen_share_sessions")
+}
+
+model ScreenShareParticipant {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId   String    @map("session_id") @db.Uuid
+  /// Null wenn Gast (anonym via public token beigetreten)
+  userId      String?   @map("user_id") @db.Uuid
+  /// Nur bei Gaesten gesetzt — Anzeigename den der Gast eingegeben hat
+  guestName   String?   @map("guest_name") @db.VarChar(120)
+  /// 'host' | 'viewer'
+  role        String    @default("viewer") @db.VarChar(20)
+  invitedAt   DateTime  @default(now()) @map("invited_at") @db.Timestamptz
+  joinedAt    DateTime? @map("joined_at") @db.Timestamptz
+  leftAt      DateTime? @map("left_at") @db.Timestamptz
+  /// 'invited' | 'joined' | 'declined' | 'left'
+  status      String    @default("invited") @db.VarChar(20)
+
+  session     ScreenShareSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([userId])
+  @@map("screen_share_participants")
 }
