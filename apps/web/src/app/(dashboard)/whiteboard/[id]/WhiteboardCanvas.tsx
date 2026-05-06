@@ -722,6 +722,32 @@ function Toolbar({
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Insert-Gruppe: Vorlage + Tabelle direkt sichtbar in Toolbar */}
+        {(onInsertTemplate || onInsertTable) && (
+          <div className="flex items-center rounded-lg border border-gray-200/70 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.03] overflow-hidden">
+            {onInsertTemplate && (
+              <button
+                onClick={onInsertTemplate}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                title="Vorlage in dieses Whiteboard einfuegen"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Vorlage
+              </button>
+            )}
+            {onInsertTable && (
+              <button
+                onClick={onInsertTable}
+                className="flex items-center gap-1.5 border-l border-gray-200/70 dark:border-white/10 px-2.5 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                title="Tabelle einfuegen"
+              >
+                <Table2 className="h-3.5 w-3.5" />
+                Tabelle
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Zoom-Gruppe: Lupe-Buttons fuer rein/raus + Reset (zoom-to-fit) */}
         {(onZoomIn || onZoomOut || onZoomToFit) && (
           <div className="flex items-center rounded-lg border border-gray-200/70 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.03] overflow-hidden">
