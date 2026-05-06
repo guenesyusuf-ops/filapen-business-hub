@@ -24,6 +24,9 @@ import {
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
 import { useAuthStore } from '@/stores/auth';
 import { cn } from '@/lib/utils';
+// Non-suspense API: useRoom/useOthers koennten sonst suspendieren ohne
+// passenden Suspense-Boundary in der Auth-Phase.
+import { LiveblocksProvider, RoomProvider, useOthers, useSelf } from '@liveblocks/react';
 
 // tldraw UI-Tweak: PageMenu (Seitenname) und NavigationPanel (Zoom-Selector
 // unten rechts) ausblenden — gewinnen Canvas-Platz. Wichtige Funktionen
@@ -270,7 +273,55 @@ function insertTable(
  * User auftauchen.
  */
 export function WhiteboardCanvas({ board }: Props) {
-  return <SingleUserCanvas board={board} />;
+  // Auth-Phase: einmalig pruefen ob Liveblocks konfiguriert ist.
+  // Wenn ja → wrappe SingleUserCanvas in LiveblocksProvider+RoomProvider
+  // damit useOthers/useSelf funktionieren und wir Presence-Avatars zeigen
+  // koennen. tldraw-State selbst wird (noch) nicht ueber Liveblocks
+  // sync'd — das kommt mit @tldraw/sync wenn ihr das spaeter braucht.
+  // Wenn nicht → Single-User Modus ohne Provider (currentUserCount=1).
+  const publicKey = typeof window !== 'undefined'
+    ? process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY
+    : undefined;
+  type AuthPhase = 'loading' | 'no-liveblocks' | 'liveblocks-ok' | 'liveblocks-failed';
+  const [authPhase, setAuthPhase] = useState<AuthPhase>(publicKey ? 'loading' : 'no-liveblocks');
+
+  useEffect(() => {
+    if (!publicKey) return;
+    let cancelled = false;
+    whiteboardApi.liveblocksAuth(board.id)
+      .then((r) => { if (!cancelled) setAuthPhase(r.token ? 'liveblocks-ok' : 'liveblocks-failed'); })
+      .catch(() => { if (!cancelled) setAuthPhase('liveblocks-failed'); });
+    return () => { cancelled = true; };
+  }, [publicKey, board.id]);
+
+  if (authPhase === 'loading') {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-[#fafafa] dark:bg-[#0c0e1c]">
+        <div className="h-8 w-8 rounded-full border-2 border-gray-300 border-t-primary-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (authPhase !== 'liveblocks-ok') {
+    // Kein Liveblocks (nicht konfiguriert oder Auth fehlgeschlagen) → Single-User
+    return <SingleUserCanvas board={board} />;
+  }
+
+  // Mit Liveblocks: Provider + Room → SingleUserCanvas kann useOthers nutzen
+  return (
+    <LiveblocksProvider
+      authEndpoint={async (room?: string) => {
+        if (!room) throw new Error('No room provided');
+        const r = await whiteboardApi.liveblocksAuth(board.id);
+        if (!r.token) throw new Error(r.reason || 'Liveblocks not configured');
+        return { token: r.token };
+      }}
+    >
+      <RoomProvider id={board.liveblocksRoomId || `wb-${board.id}`} initialPresence={{}}>
+        <SingleUserCanvas board={board} withPresence />
+      </RoomProvider>
+    </LiveblocksProvider>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -295,7 +346,15 @@ const StableTldraw = memo(function StableTldraw({
 // ---------------------------------------------------------------------------
 // Single-User Mode (kein Liveblocks) — STABILIZED
 // ---------------------------------------------------------------------------
-function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
+function SingleUserCanvas({
+  board,
+  withPresence = false,
+}: {
+  board: WhiteboardDetail;
+  /** True wenn dieser Canvas innerhalb eines RoomProviders gemounted ist —
+   *  dann zeigen wir die Multi-User-Avatars in der Toolbar. */
+  withPresence?: boolean;
+}) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
   // Loesch-Berechtigung: Ersteller des Boards ODER role=owner
@@ -407,6 +466,7 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
         userCount={1}
         tier="free"
         canDelete={canDelete}
+        usersSlot={withPresence ? <PresenceAvatars /> : null}
         onBack={() => router.push('/whiteboard')}
         onTitleChange={async (t) => { await whiteboardApi.update(board.id, { title: t }); }}
         onDelete={async () => {
@@ -473,7 +533,7 @@ function SingleUserCanvas({ board }: { board: WhiteboardDetail }) {
 // Toolbar (oben)
 // ---------------------------------------------------------------------------
 function Toolbar({
-  title, saveState, userCount, tier, canDelete, onBack, onTitleChange, onDelete,
+  title, saveState, userCount, tier, canDelete, usersSlot, onBack, onTitleChange, onDelete,
   onZoomIn, onZoomOut, onZoomToFit, onInsertTemplate, onInsertTable,
 }: {
   title: string;
@@ -481,6 +541,8 @@ function Toolbar({
   userCount: number;
   tier: 'free' | 'pro';
   canDelete?: boolean;
+  /** Optional Slot fuer Multi-User-Avatars (Liveblocks Presence). */
+  usersSlot?: React.ReactNode;
   onBack: () => void;
   onTitleChange: (t: string) => Promise<void>;
   onDelete: () => Promise<void>;
@@ -584,16 +646,20 @@ function Toolbar({
           </div>
         )}
 
-        {/* User-Indicator */}
-        <div className={cn(
-          'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
-          userCount > 1
-            ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-            : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400',
-        )}>
-          <Users className="h-3 w-3" />
-          {userCount}
-        </div>
+        {/* User-Indicator: Multi-User-Avatars (mit Liveblocks) ODER Solo-Badge */}
+        {usersSlot ? (
+          usersSlot
+        ) : (
+          <div className={cn(
+            'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+            userCount > 1
+              ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+              : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400',
+          )}>
+            <Users className="h-3 w-3" />
+            {userCount}
+          </div>
+        )}
 
         {/* More-Menu */}
         <div className="relative">
@@ -833,6 +899,84 @@ function EntityDockPanel({ editor }: { editor: Editor }) {
       <div className="px-3 py-2 text-[10px] text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-white/5">
         Klick fügt eine Sticky-Note mit den Live-Daten ein.
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PresenceAvatars — Multi-User-Indikator in der Toolbar (Liveblocks).
+// Zeigt overlapping Initial-Avatar fuer jeden anderen + sich selbst.
+// Hover zeigt den vollen Namen.
+// ---------------------------------------------------------------------------
+function PresenceAvatars() {
+  // useOthers + useSelf funktionieren nur INSIDE eines RoomProviders.
+  // WhiteboardCanvas mountet PresenceAvatars nur dann (withPresence=true).
+  const others = useOthers();
+  const self = useSelf();
+
+  // Eigene Avatar-Daten kommen aus userInfo (vom Backend per Auth-Token).
+  // Falls noch nicht da, leere Liste.
+  const selfInfo = self?.info as { name?: string; avatarUrl?: string } | undefined;
+
+  const all = [
+    ...(self ? [{ id: 'self', name: selfInfo?.name ?? 'Du', avatarUrl: selfInfo?.avatarUrl, isMe: true }] : []),
+    ...others.map((o) => {
+      const info = o.info as { name?: string; avatarUrl?: string } | undefined;
+      return {
+        id: String(o.connectionId),
+        name: info?.name ?? `User ${o.connectionId}`,
+        avatarUrl: info?.avatarUrl,
+        isMe: false,
+      };
+    }),
+  ];
+
+  if (all.length === 0) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400">
+        <Users className="h-3 w-3" />
+        1
+      </div>
+    );
+  }
+
+  // Maximum 4 sichtbare Avatare, Rest als "+N"
+  const MAX = 4;
+  const visible = all.slice(0, MAX);
+  const overflow = Math.max(0, all.length - MAX);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex items-center -space-x-2">
+        {visible.map((u) => (
+          <div
+            key={u.id}
+            title={u.name + (u.isMe ? ' (du)' : '')}
+            className={cn(
+              'relative h-7 w-7 rounded-full ring-2 ring-white dark:ring-[#0c0e1c] flex items-center justify-center text-[10px] font-bold text-white overflow-hidden',
+              u.isMe ? 'bg-gradient-to-br from-primary-500 to-primary-700' : 'bg-gradient-to-br from-emerald-500 to-emerald-700',
+            )}
+          >
+            {u.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={u.avatarUrl} alt={u.name} className="h-full w-full object-cover" />
+            ) : (
+              <span>{(u.name || '?').charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+        ))}
+        {overflow > 0 && (
+          <div
+            className="relative h-7 w-7 rounded-full ring-2 ring-white dark:ring-[#0c0e1c] flex items-center justify-center text-[10px] font-bold bg-gray-200 dark:bg-white/10 text-gray-700 dark:text-gray-200"
+            title={`${overflow} weitere`}
+          >
+            +{overflow}
+          </div>
+        )}
+      </div>
+      <span className="hidden sm:inline text-[11px] text-gray-500 dark:text-gray-400">
+        {all.length} {all.length === 1 ? 'aktiv' : 'aktiv'}
+      </span>
     </div>
   );
 }
