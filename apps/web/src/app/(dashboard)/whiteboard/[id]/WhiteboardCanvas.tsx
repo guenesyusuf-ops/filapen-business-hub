@@ -23,6 +23,10 @@ import {
   createShapeId,
   toRichText,
   MediaHelpers,
+  DefaultMainMenu,
+  DefaultMainMenuContent,
+  TldrawUiMenuGroup,
+  TldrawUiMenuItem,
 } from 'tldraw';
 import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
@@ -35,11 +39,59 @@ import { LiveblocksProvider, RoomProvider, useOthers, useSelf } from '@liveblock
 // tldraw UI-Tweak: PageMenu (Seitenname) und NavigationPanel (Zoom-Selector
 // unten rechts) ausblenden — gewinnen Canvas-Platz. Wichtige Funktionen
 // (Undo/Redo, Pages, File-Ops) bleiben ueber das MainMenu (3 Punkte oben
-// links) erreichbar. KONST auf Modul-Ebene damit React.memo immer
-// dieselbe Referenz sieht und tldraw nicht reconciled.
+// links) erreichbar.
+//
+// Bridge zwischen tldraw-internem Override (laeuft ausserhalb React-Lifecycle)
+// und unserem React-State: SingleUserCanvas registriert seine setState-Calls
+// auf diesem Modul-Level Objekt, das CustomMainMenu liest sie zur Klick-Zeit.
+const insertActions: { table: null | (() => void); template: null | (() => void) } = {
+  table: null,
+  template: null,
+};
+
+// Custom MainMenu: standard tldraw Menue + zwei zusaetzliche Eintraege
+// "Tabelle einfuegen" und "Vorlage einfuegen" oben.
+//
+// Casts auf `any` umgehen einen tldraw Typings-Quirk (Komponenten-Returntype
+// enthaelt bigint und JSX akzeptiert das nicht).
+const Group = TldrawUiMenuGroup as unknown as React.ComponentType<{ id: string; children: React.ReactNode }>;
+const Item = TldrawUiMenuItem as unknown as React.ComponentType<{
+  id: string;
+  label: string;
+  icon: string;
+  readonlyOk?: boolean;
+  onSelect: () => void;
+}>;
+function CustomMainMenu() {
+  return (
+    <DefaultMainMenu>
+      <Group id="filapen-insert">
+        <Item
+          id="insert-table"
+          label="Tabelle einfügen"
+          icon="geo-rectangle"
+          readonlyOk={false}
+          onSelect={() => { insertActions.table?.(); }}
+        />
+        <Item
+          id="insert-template"
+          label="Vorlage einfügen"
+          icon="star"
+          readonlyOk={false}
+          onSelect={() => { insertActions.template?.(); }}
+        />
+      </Group>
+      <DefaultMainMenuContent />
+    </DefaultMainMenu>
+  );
+}
+
+// KONST auf Modul-Ebene damit React.memo immer dieselbe Referenz sieht
+// und tldraw nicht reconciled.
 const TLDRAW_COMPONENTS: TLComponents = {
   PageMenu: null,
   NavigationPanel: null,
+  MainMenu: CustomMainMenu,
 };
 
 interface Props { board: WhiteboardDetail }
@@ -453,6 +505,17 @@ function SingleUserCanvas({
   // Trigger fuer sofortiges Speichern (z.B. nach Asset-Upload).
   // Wird vom Auto-Save-Effekt unten gesetzt damit handleMount es nutzen kann.
   const triggerSaveRef = useRef<(() => void) | null>(null);
+
+  // Bridge zu tldraw MainMenu: registriere Modal-Opener-Callbacks
+  // damit Klicks im tldraw-MainMenu unsere React-Modals oeffnen koennen.
+  useEffect(() => {
+    insertActions.table = () => setShowTablePicker(true);
+    insertActions.template = () => setShowTemplatePicker(true);
+    return () => {
+      insertActions.table = null;
+      insertActions.template = null;
+    };
+  }, []);
 
   // Auto-Save: tickt alle 5 Sekunden (war 30s — wurde reduziert weil
   // User-Aenderungen sonst beim Verlassen der Seite verloren gehen koennen
