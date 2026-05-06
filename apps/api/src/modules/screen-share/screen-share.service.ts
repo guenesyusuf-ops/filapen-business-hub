@@ -118,31 +118,38 @@ export class ScreenShareService {
     });
     if (!session) throw new NotFoundException('Session nicht gefunden oder bereits beendet');
 
-    // Existierende Participant-Row updaten oder neu anlegen
-    const existing = await this.prisma.screenShareParticipant.findFirst({
-      where: { sessionId, userId: user.id },
-    });
-    if (existing) {
-      await this.prisma.screenShareParticipant.update({
-        where: { id: existing.id },
-        data: { status: 'joined', joinedAt: new Date(), leftAt: null },
+    const isHost = session.hostUserId === user.id;
+
+    // Participant-Row: Host nicht als Viewer einfuegen — er hat schon
+    // seinen Eintrag aus startSession. Bei Rejoin (Refresh, Tab-Switch)
+    // einfach token nochmal ausstellen.
+    if (!isHost) {
+      const existing = await this.prisma.screenShareParticipant.findFirst({
+        where: { sessionId, userId: user.id },
       });
-    } else {
-      await this.prisma.screenShareParticipant.create({
-        data: { sessionId, userId: user.id, role: 'viewer', status: 'joined', joinedAt: new Date() },
-      });
+      if (existing) {
+        await this.prisma.screenShareParticipant.update({
+          where: { id: existing.id },
+          data: { status: 'joined', joinedAt: new Date(), leftAt: null },
+        });
+      } else {
+        await this.prisma.screenShareParticipant.create({
+          data: { sessionId, userId: user.id, role: 'viewer', status: 'joined', joinedAt: new Date() },
+        });
+      }
     }
 
     const token = this.generateLivekitToken({
       roomId: session.livekitRoomId,
       identity: user.id,
       name: user.name,
-      isHost: false,
+      isHost,
       voiceEnabled: session.voiceEnabled,
     });
 
     return {
       session,
+      isHost,
       livekitToken: token,
       livekitUrl: this.config.get<string>('LIVEKIT_URL') ?? '',
     };

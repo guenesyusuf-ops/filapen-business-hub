@@ -54,6 +54,7 @@ export interface StartSessionResponse {
 
 export interface JoinSessionResponse {
   session: ScreenShareSession;
+  isHost: boolean;
   livekitToken: string;
   livekitUrl: string;
 }
