@@ -637,8 +637,16 @@ function SingleUserCanvas({
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <StableTldraw onMount={handleMount} />
         {editorReady && editorRef.current && <EntityDockPanel editor={editorRef.current} />}
-        {/* Floating-Action-Buttons unten links — IMMER sichtbar, beschriftet */}
-        <div className="absolute bottom-4 left-4 z-30 flex flex-col gap-2">
+        {/* Floating-Action-Buttons direkt UEBER "Daten einfuegen"-Button —
+            gleiche horizontale Position (480px links vom Center), drueber
+            gestackt mit kleinem Abstand. */}
+        <div
+          className="absolute left-1/2 z-30 flex flex-col gap-2"
+          style={{
+            bottom: '70px', // ueber Daten-Button (bottom-4 = 16px + Button-Hoehe ~42 + gap 12)
+            transform: 'translateX(calc(-50% - 480px))',
+          }}
+        >
           <button
             onClick={() => setShowTablePicker(true)}
             className="flex items-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-medium text-white shadow-2xl shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:scale-[1.03] active:scale-[0.97] transition-all"
