@@ -103,4 +103,45 @@ export const screenShareApi = {
     call<GuestJoinResponse>('/public/join',
       { method: 'POST', body: JSON.stringify({ token, name, password }) },
       false),
+
+  /** Liveblocks-Auth fuer org-presence Broadcast-Room */
+  liveblocksAuth: () =>
+    call<{ token: string | null; roomId?: string; reason?: string }>(
+      '/liveblocks-auth', { method: 'POST' }),
 };
+
+// ---------------------------------------------------------------------------
+// Invite-Broadcast Bridge
+// ---------------------------------------------------------------------------
+// InviteBroadcaster (Component innerhalb des org-presence RoomProviders)
+// registriert seine broadcast-Funktion hier. StartShareModal kann sie
+// dann ueber broadcastInvite() aufrufen ohne einen direkten React-Kontext.
+
+export type ScreenShareInviteEvent = {
+  type: 'screen-share-invite';
+  sessionId: string;
+  hostUserId: string;
+  hostName: string;
+  hostAvatarUrl?: string | null;
+  sessionName: string | null;
+  voiceEnabled: boolean;
+  audioEnabled: boolean;
+  invitedUserIds: string[];
+  startedAt: string; // ISO timestamp
+};
+
+type AnyEvent = ScreenShareInviteEvent | { type: 'screen-share-ended'; sessionId: string };
+
+const broadcastRef: { fn: ((event: AnyEvent) => void) | null } = { fn: null };
+
+export function setBroadcastFn(fn: ((event: AnyEvent) => void) | null) {
+  broadcastRef.fn = fn;
+}
+
+export function broadcastInvite(event: ScreenShareInviteEvent) {
+  broadcastRef.fn?.(event);
+}
+
+export function broadcastSessionEnded(sessionId: string) {
+  broadcastRef.fn?.({ type: 'screen-share-ended', sessionId });
+}

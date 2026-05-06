@@ -126,4 +126,24 @@ export class ScreenShareController {
     if (!body.token) throw new BadRequestException('Token fehlt');
     return this.service.joinAsGuest(body.token, body.name, body.password);
   }
+
+  // Liveblocks-Auth fuer den org-presence Broadcast-Room ----------------
+  @Post('liveblocks-auth')
+  async liveblocksAuth(
+    @Headers('authorization') authHeader: string,
+  ) {
+    const userId = this.extractUserId(authHeader);
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User nicht gefunden');
+    const name = user.name
+      || [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+      || user.email.split('@')[0];
+    return this.service.createOrgPresenceLiveblocksToken({
+      userId,
+      name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      orgId: user.orgId,
+    });
+  }
 }

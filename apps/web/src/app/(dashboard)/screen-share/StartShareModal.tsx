@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { X, Users, Mic, Volume2, Search, Loader2 } from 'lucide-react';
-import { screenShareApi } from '@/lib/screen-share';
+import { screenShareApi, broadcastInvite } from '@/lib/screen-share';
 import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
 import { useAuthStore } from '@/stores/auth';
@@ -98,12 +98,32 @@ export function StartShareModal({
     if (starting) return;
     setStarting(true);
     try {
+      const invitedUserIds = Array.from(selected);
       const res = await screenShareApi.start({
         sessionName: sessionName.trim() || undefined,
         audioEnabled,
         voiceEnabled,
-        invitedUserIds: Array.from(selected),
+        invitedUserIds,
       });
+      // Sofort an alle in der Org broadcasten — eingeladene User kriegen Popup,
+      // andere ignorieren das Event (siehe InvitePopupListener-Filter).
+      if (invitedUserIds.length > 0 && currentUser) {
+        const hostName = currentUser.name
+          || [currentUser.firstName, currentUser.lastName].filter(Boolean).join(' ').trim()
+          || currentUser.email.split('@')[0];
+        broadcastInvite({
+          type: 'screen-share-invite',
+          sessionId: res.session.id,
+          hostUserId: currentUser.id,
+          hostName,
+          hostAvatarUrl: currentUser.avatarUrl,
+          sessionName: res.session.sessionName,
+          voiceEnabled: res.session.voiceEnabled,
+          audioEnabled: res.session.audioEnabled,
+          invitedUserIds,
+          startedAt: res.session.startedAt,
+        });
+      }
       onStarted(res.session.id);
     } catch (e: any) {
       // eslint-disable-next-line no-alert

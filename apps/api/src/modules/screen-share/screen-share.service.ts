@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AccessToken } from 'livekit-server-sdk';
+import { Liveblocks } from '@liveblocks/node';
 import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -291,6 +292,44 @@ export class ScreenShareService {
       livekitUrl: this.config.get<string>('LIVEKIT_URL') ?? '',
       sessionName: session.sessionName,
     };
+  }
+
+  // ------------------------------------------------------------------
+  // Liveblocks-Auth fuer org-presence Room (Invite-Broadcast)
+  // ------------------------------------------------------------------
+  /**
+   * Authorisiert den User fuer den `org-presence-{orgId}` Liveblocks-Room.
+   * Dieser Room dient ausschliesslich als Broadcast-Channel fuer
+   * screen-share-invite Events — kein State, keine Cursors.
+   *
+   * Faellt zurueck auf `{ token: null }` wenn LIVEBLOCKS_SECRET_KEY nicht
+   * gesetzt ist — dann zeigt der Frontend kein Popup, aber die Session
+   * funktioniert trotzdem (Empfaenger sehen sie im /screen-share Index).
+   */
+  async createOrgPresenceLiveblocksToken(userInfo: {
+    userId: string;
+    name: string;
+    email: string;
+    avatarUrl?: string | null;
+    orgId: string;
+  }): Promise<{ token: string | null; roomId?: string; reason?: string }> {
+    const secretKey = this.config.get<string>('LIVEBLOCKS_SECRET_KEY');
+    if (!secretKey) {
+      return { token: null, reason: 'LIVEBLOCKS_SECRET_KEY not configured' };
+    }
+    const liveblocks = new Liveblocks({ secret: secretKey });
+    const roomId = `org-presence-${userInfo.orgId}`;
+    const session = liveblocks.prepareSession(userInfo.userId, {
+      userInfo: {
+        name: userInfo.name,
+        email: userInfo.email,
+        avatarUrl: userInfo.avatarUrl ?? undefined,
+      },
+    });
+    session.allow(roomId, session.FULL_ACCESS);
+    const { body } = await session.authorize();
+    const parsed = JSON.parse(body);
+    return { token: parsed.token, roomId };
   }
 
   // ------------------------------------------------------------------
