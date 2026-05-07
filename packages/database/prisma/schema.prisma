@@ -341,6 +341,7 @@ model Organization {
   whiteboards              Whiteboard[]
   whiteboardFolders        WhiteboardFolder[]
   screenShareSessions      ScreenShareSession[]
+  influencerPerformance    InfluencerPerformanceEntry[]
   teamInvites              TeamInvite[]
   invitations              ProjectInvitation[]
   suppliers                Supplier[]
@@ -3270,4 +3271,98 @@ model ScreenShareParticipant {
   @@index([sessionId])
   @@index([userId])
   @@map("screen_share_participants")
+}
+
+// =============================================================================
+// MODELS — Influencer Performance Tracking
+// =============================================================================
+
+/// Eine Zeile pro Influencer × Kampagne × Post. Die Haupt-Analytics-Tabelle
+/// fuer das Performance-Tracking-Modul. Viele Felder sind optional (Daten
+/// werden ueber die Zeit erfasst). Computed-Felder (ROAS, ROI, profit, CPA,
+/// CPM, conversion rate, AOV, profit margin) werden im Service berechnet —
+/// nicht in der DB — damit wir sie auch in Filtern/Aggregations nutzen koennen.
+model InfluencerPerformanceEntry {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                  String   @map("org_id") @db.Uuid
+
+  /// Optional Link zur Discovery-Datenbank (InfluencerProfile)
+  influencerProfileId    String?  @map("influencer_profile_id") @db.Uuid
+
+  // BASIC
+  influencerName         String   @map("influencer_name") @db.VarChar(255)
+  platform               String   @db.VarChar(50)
+  category               String?  @db.VarChar(120)
+  managerContact         String?  @map("manager_contact") @db.VarChar(255)
+  profileUrl             String?  @map("profile_url") @db.Text
+  followerCount          Int?     @map("follower_count")
+  engagementRate         Decimal? @map("engagement_rate") @db.Decimal(7, 3)
+  storyViews             Int?     @map("story_views")
+  avgViews               Int?     @map("avg_views")
+  country                String?  @db.VarChar(80)
+  language               String?  @db.VarChar(50)
+
+  // KAMPAGNE
+  campaignName           String?  @map("campaign_name") @db.VarChar(255)
+  postedAt               DateTime? @map("posted_at") @db.Timestamptz
+  storyAt                DateTime? @map("story_at") @db.Timestamptz
+  productName            String?  @map("product_name") @db.VarChar(255)
+  discountCode           String?  @map("discount_code") @db.VarChar(80)
+  discountPct            Decimal? @map("discount_pct") @db.Decimal(5, 2)
+  landingPageUrl         String?  @map("landing_page_url") @db.Text
+  affiliateLink          String?  @map("affiliate_link") @db.Text
+  /// 'planned' | 'contacted' | 'negotiating' | 'booked' | 'posted' | 'completed' | 'cancelled' | 'blacklisted'
+  status                 String   @default("planned") @db.VarChar(30)
+
+  // KOSTEN
+  influencerFee          Decimal  @default(0) @map("influencer_fee") @db.Decimal(12, 2)
+  productCost            Decimal  @default(0) @map("product_cost") @db.Decimal(12, 2)
+  shippingCost           Decimal  @default(0) @map("shipping_cost") @db.Decimal(12, 2)
+  cogs                   Decimal  @default(0) @db.Decimal(12, 2)
+  extraCost              Decimal  @default(0) @map("extra_cost") @db.Decimal(12, 2)
+
+  // PERFORMANCE
+  revenue                Decimal  @default(0) @db.Decimal(12, 2)
+  orders                 Int      @default(0)
+  clicks                 Int      @default(0)
+  views                  Int      @default(0)
+  profitMarginOverride   Decimal? @map("profit_margin_override") @db.Decimal(5, 2)
+
+  // TRACKING
+  trackingLink           String?  @map("tracking_link") @db.Text
+  utmSource              String?  @map("utm_source") @db.VarChar(120)
+  utmCampaign            String?  @map("utm_campaign") @db.VarChar(120)
+  trackingStatus         String?  @map("tracking_status") @db.VarChar(30)
+  attributionConfirmed   Boolean  @default(false) @map("attribution_confirmed")
+
+  // CONTENT-ANALYSE
+  hookWorked             Boolean? @map("hook_worked")
+  ctaQuality             Int?     @map("cta_quality") @db.SmallInt
+  videoQuality           Int?     @map("video_quality") @db.SmallInt
+  brandingScore          Int?     @map("branding_score") @db.SmallInt
+  performanceRating      Int?     @map("performance_rating") @db.SmallInt
+  bookable               Boolean?
+
+  // NOTIZEN
+  learnings              String?  @db.Text
+  whatWorked             String?  @map("what_worked") @db.Text
+  whatDidntWork          String?  @map("what_didnt_work") @db.Text
+  improvementIdeas       String?  @map("improvement_ideas") @db.Text
+
+  // FLAGS
+  whitelist              Boolean  @default(false)
+  blacklist              Boolean  @default(false)
+
+  createdById            String   @map("created_by_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, platform])
+  @@index([orgId, postedAt(sort: Desc)])
+  @@index([orgId, campaignName])
+  @@map("influencer_performance_entries")
 }

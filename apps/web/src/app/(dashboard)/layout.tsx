@@ -156,6 +156,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.discovery', href: '/influencers/discovery', icon: Search },
       { labelKey: 'nav.brands', href: '/influencers/brands', icon: Building2 },
       { labelKey: 'nav.watchlists', href: '/influencers/watchlists', icon: Eye },
+      { labelKey: 'nav.performanceTracking', href: '/influencers/performance-tracking', icon: TrendingUp },
     ],
   },
   {
