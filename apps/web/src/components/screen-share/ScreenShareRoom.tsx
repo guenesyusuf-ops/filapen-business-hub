@@ -70,7 +70,10 @@ function Inner({
   const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: true });
   const mainScreen = screenTracks[0];
 
-  // Host: beim ersten Mount automatisch Bildschirm-Sharing starten
+  // Host: beim ersten Mount automatisch Bildschirm-Sharing starten.
+  // WICHTIG: bei Picker-Cancel oder Fehler NICHT die Session beenden —
+  // der User kann jederzeit ueber den "Bildschirm waehlen"-Button neu
+  // ansetzen oder per "Beenden" sauber verlassen.
   useEffect(() => {
     if (!isHost) return;
     let cancelled = false;
@@ -78,11 +81,11 @@ function Inner({
       try {
         await localParticipant.setScreenShareEnabled(true, { audio: audioEnabled });
         if (!cancelled) setScreenOn(true);
-      } catch (e) {
-        // User hat Screen-Picker abgebrochen
+      } catch (e: any) {
         // eslint-disable-next-line no-console
-        console.warn('[screen-share] user cancelled screen picker', e);
-        if (!cancelled) handleLeave();
+        console.warn('[screen-share] screen picker error/cancel', e?.message ?? e);
+        // Kein handleLeave hier! Session bleibt offen, User kann erneut
+        // versuchen oder sauber beenden.
       }
     })();
     return () => { cancelled = true; };

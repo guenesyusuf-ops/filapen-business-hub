@@ -16,8 +16,10 @@ export default function ScreenSharePage() {
   const [error, setError] = useState<string | null>(null);
   const [showStart, setShowStart] = useState(false);
 
-  async function load() {
-    setLoading(true);
+  // initialLoad=true zeigt das Skeleton, polling-Refreshes (alle 5s)
+  // setzen loading nicht zurueck → kein Flackern.
+  async function load(initialLoad = false) {
+    if (initialLoad) setLoading(true);
     setError(null);
     try {
       const data = await screenShareApi.listActive();
@@ -25,15 +27,19 @@ export default function ScreenSharePage() {
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      if (initialLoad) setLoading(false);
     }
   }
   useEffect(() => {
-    load();
-    // Poll alle 5s damit neue Sessions auch ohne Page-Reload auftauchen
-    const id = setInterval(load, 5000);
+    load(true);
+    // Poll alle 5s — refreshed nur die Daten, kein Loading-Flicker.
+    // Bei offenem Modal pausieren damit Modal-Children nicht re-rendern.
+    const id = setInterval(() => {
+      if (!showStart) load(false);
+    }, 5000);
     return () => clearInterval(id);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showStart]);
 
   async function handleJoin(s: ScreenShareSession) {
     router.push(`/screen-share/${s.id}`);

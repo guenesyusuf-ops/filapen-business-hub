@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, Users, Mic, Volume2, Search, Loader2 } from 'lucide-react';
-import { screenShareApi, broadcastInvite } from '@/lib/screen-share';
+import { X, Users, Mic, Volume2, Search, Loader2, Link2, Copy, Lock, Check } from 'lucide-react';
+import { screenShareApi, broadcastInvite, type PublicLinkResponse } from '@/lib/screen-share';
 import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
 import { useAuthStore } from '@/stores/auth';
@@ -37,6 +37,12 @@ export function StartShareModal({
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true); // Voice an als Default — User wollte das
   const [starting, setStarting] = useState(false);
+  // Externer Gast-Link Optionen
+  const [createGuestLink, setCreateGuestLink] = useState(false);
+  const [guestPassword, setGuestPassword] = useState('');
+  // Nach Start gesetzt wenn Link erstellt wurde — zeigt Result-View
+  const [linkResult, setLinkResult] = useState<{ link: PublicLinkResponse; sessionId: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Team-Mitglieder laden
   useEffect(() => {
@@ -124,12 +130,83 @@ export function StartShareModal({
           startedAt: res.session.startedAt,
         });
       }
+      // Externer Gast-Link erstellen falls gewuenscht — Modal zeigt dann
+      // den Link statt direkt zur Viewer-Page zu navigieren. User kann
+      // den Link kopieren + dann selbst zur Session.
+      if (createGuestLink) {
+        try {
+          const link = await screenShareApi.createPublicLink(
+            res.session.id,
+            guestPassword.trim() || undefined,
+          );
+          setLinkResult({ link, sessionId: res.session.id });
+          setStarting(false);
+          return; // NICHT navigieren — User schaut sich den Link erst an
+        } catch (e: any) {
+          // Wenn Link-Erstellung fehlschlaegt: Session ist trotzdem aktiv.
+          // Wir loggen + zeigen Hinweis aber lassen den User trotzdem rein.
+          // eslint-disable-next-line no-alert
+          window.alert(`Session gestartet, aber Link-Erstellung fehlgeschlagen: ${e.message}\n\nDu kannst den Link jederzeit ueber den Link-Button in der Toolbar erstellen.`);
+        }
+      }
       onStarted(res.session.id);
     } catch (e: any) {
       // eslint-disable-next-line no-alert
       window.alert(`Sharing-Start fehlgeschlagen: ${e.message}`);
       setStarting(false);
     }
+  }
+
+  // Link-Result-View: nach erfolgreichem Start mit createGuestLink=true
+  if (linkResult) {
+    const fullUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/share/${linkResult.link.token}`;
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-8 animate-fade-in">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+        <div className="relative z-[5] w-full max-w-md rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200/50 dark:border-white/10 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-white/5">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Session läuft — Link bereit</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Kopier den Link und schick ihn deinem Gast.</p>
+          </div>
+          <div className="p-6 space-y-3">
+            <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.03] px-3 py-2.5 text-xs break-all font-mono text-primary-600 dark:text-primary-300">
+              {fullUrl}
+            </div>
+            <button
+              onClick={async () => {
+                try { await navigator.clipboard.writeText(fullUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* ignore */ }
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 px-4 py-2.5 text-sm font-medium"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Kopiert!' : 'Link kopieren'}
+            </button>
+            {linkResult.link.passwordRequired && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                ⚠ Vergiss nicht das Passwort separat an den Gast zu schicken.
+              </div>
+            )}
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              Gueltig bis {new Date(linkResult.link.expiresAt).toLocaleString('de-DE')} · 4h
+            </p>
+          </div>
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-white/[0.02]">
+            <button
+              onClick={onClose}
+              className="rounded-lg px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5"
+            >
+              Schliessen
+            </button>
+            <button
+              onClick={() => onStarted(linkResult.sessionId)}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary-600 to-primary-700 px-4 py-2 text-sm font-medium text-white"
+            >
+              <Users className="h-3.5 w-3.5" /> Zur Session
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -206,6 +283,48 @@ export function StartShareModal({
                   <div className="text-sm font-semibold text-gray-900 dark:text-white">Bildschirm-Audio</div>
                   <div className="text-[11px] text-gray-500 dark:text-gray-400">Tab/System-Sound mitteilen</div>
                 </div>
+              </div>
+            </label>
+          </div>
+
+          {/* Externer Gast-Link */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
+              Externer Gast-Link
+            </label>
+            <label className={cn(
+              'flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-all',
+              createGuestLink
+                ? 'border-primary-500 bg-primary-50/60 dark:bg-primary-900/20'
+                : 'border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/[0.02]',
+            )}>
+              <input
+                type="checkbox"
+                checked={createGuestLink}
+                onChange={(e) => setCreateGuestLink(e.target.checked)}
+                className="mt-0.5 rounded text-primary-600 focus:ring-primary-500"
+              />
+              <Link2 className="h-4 w-4 text-primary-500 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Auch externen Gast-Link erstellen
+                </div>
+                <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                  Fuer Personen ohne Filapen-Account. 4h gueltig, optional Passwort. Kein Mic, nur zuschauen.
+                </div>
+                {createGuestLink && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Lock className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                    <input
+                      type="text"
+                      value={guestPassword}
+                      onChange={(e) => setGuestPassword(e.target.value)}
+                      onClick={(e) => e.preventDefault()}
+                      placeholder="Passwort optional (leer = offen)"
+                      className="flex-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.05] px-3 py-1.5 text-xs text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                    />
+                  </div>
+                )}
               </div>
             </label>
           </div>
