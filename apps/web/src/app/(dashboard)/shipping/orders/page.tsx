@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw, Filter, X, MapPin, Save } from 'lucide-react';
+import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw, Filter, X, MapPin, Save, Check } from 'lucide-react';
 import { shippingApi, fmtDate, fmtDateTime } from '@/lib/shipping';
 import { PageHeader, Empty, btn, input as inputCls, label as labelCls, SectionCard, Badge, Money } from '@/components/shipping/ShippingUI';
+import { cn } from '@/lib/utils';
 
 // Raised from 50 to 200 so bulk label creation in one batch is realistic —
 // user-Feedback: 50 war zu wenig wenn ein Tag viele Bestellungen reinkommen.
@@ -27,6 +28,7 @@ interface ProductOption {
   productTitle: string;
   variantTitle: string;
   sku: string | null;
+  productImage: string | null;
 }
 
 export default function ShippingOrdersPage() {
@@ -50,11 +52,12 @@ export default function ShippingOrdersPage() {
   const [filterMode, setFilterMode] = useState<ProductFilterMode>('include');
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
 
-  // Exklusiv-Filter (SKU + Menge + Operator)
+  // Exklusiv-Filter (mehrere Variants + Menge + Operator)
   const [exclusiveOpen, setExclusiveOpen] = useState(false);
-  const [exclusiveVariantId, setExclusiveVariantId] = useState<string | null>(null);
+  const [exclusiveVariantIds, setExclusiveVariantIds] = useState<Set<string>>(new Set());
   const [exclusiveOp, setExclusiveOp] = useState<QuantityOp>('eq');
   const [exclusiveQuantity, setExclusiveQuantity] = useState<number>(2);
+  const [exclusiveSearch, setExclusiveSearch] = useState('');
 
   // Address-Error-Count für Tab-Badge
   const [addressErrorCount, setAddressErrorCount] = useState<number>(0);
@@ -62,7 +65,7 @@ export default function ShippingOrdersPage() {
   // Address-Correction-Modal
   const [correctingOrder, setCorrectingOrder] = useState<any | null>(null);
 
-  useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment, fulfillmentFilter, filterMode, selectedVariantIds, exclusiveVariantId, exclusiveOp, exclusiveQuantity, tab]);
+  useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment, fulfillmentFilter, filterMode, selectedVariantIds, exclusiveVariantIds, exclusiveOp, exclusiveQuantity, tab]);
 
   // Address-Error-Count regelmäßig laden (für Badge)
   useEffect(() => {
@@ -82,6 +85,7 @@ export default function ShippingOrdersPage() {
             productTitle: p.productTitle || '—',
             variantTitle: p.variantTitle || '',
             sku: p.sku,
+            productImage: p.productImage ?? null,
           })),
         );
       })
@@ -90,20 +94,21 @@ export default function ShippingOrdersPage() {
 
   const params = useMemo(() => {
     const ids = Array.from(selectedVariantIds);
+    const exIds = Array.from(exclusiveVariantIds);
     return {
       search: search || undefined,
       hasShipment: hasShipment || undefined,
       fulfillmentStatus: fulfillmentFilter === 'all' ? undefined : fulfillmentFilter,
       included: filterMode === 'include' && ids.length ? ids.join(',') : undefined,
       excluded: filterMode === 'exclude' && ids.length ? ids.join(',') : undefined,
-      exclusiveVariantId: exclusiveVariantId || undefined,
-      exclusiveQuantityOp: exclusiveVariantId ? exclusiveOp : undefined,
-      exclusiveQuantity: exclusiveVariantId ? String(exclusiveQuantity) : undefined,
+      exclusiveVariantIds: exIds.length ? exIds.join(',') : undefined,
+      exclusiveQuantityOp: exIds.length ? exclusiveOp : undefined,
+      exclusiveQuantity: exIds.length ? String(exclusiveQuantity) : undefined,
       addressStatus: tab === 'address_errors' ? 'error' : undefined,
       limit: String(PAGE_SIZE),
       offset: String(offset),
     };
-  }, [search, hasShipment, fulfillmentFilter, offset, filterMode, selectedVariantIds, exclusiveVariantId, exclusiveOp, exclusiveQuantity, tab]);
+  }, [search, hasShipment, fulfillmentFilter, offset, filterMode, selectedVariantIds, exclusiveVariantIds, exclusiveOp, exclusiveQuantity, tab]);
 
   useEffect(() => {
     setLoading(true);
@@ -335,21 +340,21 @@ export default function ShippingOrdersPage() {
                 <X className="h-3 w-3" /> Reset
               </button>
             )}
-            {/* Exklusiv-Filter: SKU + Operator + Menge */}
+            {/* Exklusiv-Filter: mehrere SKUs + Operator + Menge */}
             <button
               onClick={() => setExclusiveOpen((v) => !v)}
-              className={btn(exclusiveVariantId ? 'primary' : 'secondary', 'flex-1 sm:flex-none')}
+              className={btn(exclusiveVariantIds.size > 0 ? 'primary' : 'secondary', 'flex-1 sm:flex-none')}
             >
               <Filter className="h-4 w-4" />
               <span className="truncate">
-                {exclusiveVariantId
-                  ? `SKU-Filter aktiv (${QUANTITY_OPS.find((o) => o.value === exclusiveOp)?.label} ${exclusiveQuantity})`
+                {exclusiveVariantIds.size > 0
+                  ? `SKU-Filter (${exclusiveVariantIds.size} Produkt${exclusiveVariantIds.size === 1 ? '' : 'e'} · ${QUANTITY_OPS.find((o) => o.value === exclusiveOp)?.label} ${exclusiveQuantity})`
                   : 'SKU = Menge'}
               </span>
             </button>
-            {exclusiveVariantId && (
+            {exclusiveVariantIds.size > 0 && (
               <button
-                onClick={() => { setExclusiveVariantId(null); setExclusiveOpen(false); }}
+                onClick={() => { setExclusiveVariantIds(new Set()); setExclusiveOpen(false); }}
                 className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                 title="SKU-Filter zurücksetzen"
               >
@@ -359,28 +364,15 @@ export default function ShippingOrdersPage() {
           </div>
         </div>
 
-        {/* Exklusiv-SKU-Filter-Panel */}
+        {/* Exklusiv-SKU-Filter-Panel: Tiles + Multi-Select + Mengen-Operator */}
         {exclusiveOpen && (
           <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] p-3 space-y-3">
             <p className="text-xs text-gray-500">
-              Zeige nur Bestellungen, die <strong>genau</strong> dieses Produkt in der angegebenen Menge enthalten — und <strong>nichts anderes</strong>.
+              Zeige nur Bestellungen, die <strong>genau</strong> alle ausgewählten Produkte in der angegebenen Summen-Menge enthalten — und <strong>nichts anderes</strong>.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_80px_100px] gap-2 items-end">
-              <div>
-                <label className={labelCls()}>Produkt / SKU</label>
-                <select
-                  value={exclusiveVariantId ?? ''}
-                  onChange={(e) => setExclusiveVariantId(e.target.value || null)}
-                  className={inputCls()}
-                >
-                  <option value="">— Produkt wählen —</option>
-                  {productOptions.map((p) => (
-                    <option key={p.variantId} value={p.variantId}>
-                      {p.productTitle}{p.variantTitle && p.variantTitle !== 'Default Title' ? ` · ${p.variantTitle}` : ''}{p.sku ? ` (${p.sku})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
+            {/* Operator + Menge */}
+            <div className="grid grid-cols-2 gap-2 max-w-xs">
               <div>
                 <label className={labelCls()}>Operator</label>
                 <select
@@ -394,7 +386,7 @@ export default function ShippingOrdersPage() {
                 </select>
               </div>
               <div>
-                <label className={labelCls()}>Menge</label>
+                <label className={labelCls()}>Summen-Menge</label>
                 <input
                   type="number"
                   min="1"
@@ -404,11 +396,111 @@ export default function ShippingOrdersPage() {
                 />
               </div>
             </div>
-            {productOptions.length === 0 && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                Produktliste wird geladen — falls leer, öffne einmal den „Produkt-Filter" oben, dann bleibt sie hier verfügbar.
-              </p>
-            )}
+
+            {/* Suche */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <input
+                value={exclusiveSearch}
+                onChange={(e) => setExclusiveSearch(e.target.value)}
+                placeholder="Produkt suchen (Titel oder SKU) …"
+                className={inputCls('pl-8 h-9 text-xs')}
+              />
+            </div>
+
+            {/* Produkt-Kacheln mit Bildern */}
+            <div className="max-h-[420px] overflow-y-auto rounded-lg bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 p-2">
+              {productOptions.length === 0 ? (
+                <div className="p-6 text-center text-xs text-gray-500">Lädt Produkte …</div>
+              ) : (() => {
+                const q = exclusiveSearch.toLowerCase().trim();
+                const filtered = q
+                  ? productOptions.filter((p) =>
+                      p.productTitle.toLowerCase().includes(q) ||
+                      p.variantTitle.toLowerCase().includes(q) ||
+                      (p.sku || '').toLowerCase().includes(q),
+                    )
+                  : productOptions;
+                if (filtered.length === 0) {
+                  return <div className="p-6 text-center text-xs text-gray-500">Keine Treffer</div>;
+                }
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {filtered.map((p) => {
+                      const checked = exclusiveVariantIds.has(p.variantId);
+                      return (
+                        <button
+                          key={p.variantId}
+                          type="button"
+                          onClick={() => {
+                            setExclusiveVariantIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(p.variantId)) next.delete(p.variantId);
+                              else next.add(p.variantId);
+                              return next;
+                            });
+                          }}
+                          className={cn(
+                            'relative group flex flex-col items-stretch overflow-hidden rounded-xl border transition-all text-left',
+                            checked
+                              ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/40 dark:bg-primary-900/20'
+                              : 'border-gray-200 dark:border-white/10 hover:border-primary-300 dark:hover:border-primary-500/40 bg-white dark:bg-white/[0.02]',
+                          )}
+                        >
+                          <div className="aspect-square bg-gray-50 dark:bg-white/5 relative">
+                            {p.productImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={p.productImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center text-gray-300 dark:text-white/10 text-3xl">
+                                📦
+                              </div>
+                            )}
+                            {checked && (
+                              <div className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-primary-600 flex items-center justify-center text-white shadow-md">
+                                <Check className="h-3 w-3" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-2">
+                            <div className="text-[11px] font-medium text-gray-900 dark:text-white truncate">
+                              {p.productTitle}
+                            </div>
+                            {p.variantTitle && p.variantTitle !== 'Default Title' && (
+                              <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                                {p.variantTitle}
+                              </div>
+                            )}
+                            {p.sku && (
+                              <div className="text-[10px] text-gray-400 truncate font-mono">
+                                {p.sku}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer: Counter + Reset */}
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>
+                {exclusiveVariantIds.size > 0
+                  ? `${exclusiveVariantIds.size} Produkt${exclusiveVariantIds.size === 1 ? '' : 'e'} ausgewählt`
+                  : 'Wähle ein oder mehrere Produkte aus'}
+              </span>
+              {exclusiveVariantIds.size > 0 && (
+                <button
+                  onClick={() => setExclusiveVariantIds(new Set())}
+                  className="text-gray-500 hover:text-red-600 dark:hover:text-red-400 underline"
+                >
+                  Alle abwählen
+                </button>
+              )}
+            </div>
           </div>
         )}
 

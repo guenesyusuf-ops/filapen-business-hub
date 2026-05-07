@@ -42,10 +42,25 @@ export default function ShipmentDetailPage() {
     catch (e: any) { alert(e.message); }
   };
 
-  const printLabel = (url: string) => {
+  const printLabel = (labelId: string, url: string, alreadyPrinted: boolean) => {
+    // Mark als gedruckt (fire-and-forget) — sonst bleibt Label im
+    // "Erstellt"-Tab und zaehlt nicht in den Sendungs-Statistiken.
+    if (!alreadyPrinted) {
+      shippingApi.markLabelPrinted(labelId, true)
+        .then(() => setTimeout(reload, 500))
+        .catch(() => {});
+    }
     // Open in new window with print trigger
     const w = window.open(url + '#print', '_blank');
     if (!w) window.open(url, '_blank');
+  };
+
+  const openLabel = (labelId: string, url: string, alreadyPrinted: boolean) => {
+    if (!alreadyPrinted) {
+      shippingApi.markLabelPrinted(labelId, true)
+        .then(() => setTimeout(reload, 500))
+        .catch(() => {});
+    }
   };
 
   const regenerateLabel = async () => {
@@ -150,10 +165,16 @@ export default function ShipmentDetailPage() {
                       <div className="text-xs text-gray-400">Format: {l.format} · {l.widthMm && l.heightMm ? `${l.widthMm}×${l.heightMm} mm` : '—'}</div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => printLabel(l.url)} className={btn('primary', 'h-8 px-3 py-1 text-xs')}>
+                      <button onClick={() => printLabel(l.id, l.url, !!l.printedAt)} className={btn('primary', 'h-8 px-3 py-1 text-xs')}>
                         <Printer className="h-3.5 w-3.5" /> Drucken
                       </button>
-                      <a href={l.url} target="_blank" rel="noopener" className={btn('secondary', 'h-8 px-3 py-1 text-xs')}>
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noopener"
+                        onClick={() => openLabel(l.id, l.url, !!l.printedAt)}
+                        className={btn('secondary', 'h-8 px-3 py-1 text-xs')}
+                      >
                         <Download className="h-3.5 w-3.5" /> Öffnen
                       </a>
                     </div>

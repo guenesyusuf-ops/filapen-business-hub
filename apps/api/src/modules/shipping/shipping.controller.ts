@@ -85,7 +85,7 @@ export class ShippingController {
     @Query('hasShipment') hasShipment?: 'yes' | 'no',
     @Query('excluded') excluded?: string,
     @Query('included') included?: string,
-    @Query('exclusiveVariantId') exclusiveVariantId?: string,
+    @Query('exclusiveVariantIds') exclusiveVariantIds?: string,
     @Query('exclusiveQuantityOp') exclusiveQuantityOp?: 'eq' | 'gte' | 'lte' | 'gt' | 'lt',
     @Query('exclusiveQuantity') exclusiveQuantity?: string,
     @Query('addressStatus') addressStatus?: 'error' | 'ok' | 'all',
@@ -100,7 +100,9 @@ export class ShippingController {
       search, shopId, fromDate, toDate, hasShipment,
       excludedProductVariantIds: excludedIds,
       includedProductVariantIds: includedIds,
-      exclusiveVariantId: exclusiveVariantId || undefined,
+      exclusiveVariantIds: exclusiveVariantIds
+        ? exclusiveVariantIds.split(',').map((s) => s.trim()).filter(Boolean)
+        : undefined,
       exclusiveQuantityOp,
       exclusiveQuantity: exclusiveQuantity ? parseInt(exclusiveQuantity, 10) : undefined,
       addressStatus,

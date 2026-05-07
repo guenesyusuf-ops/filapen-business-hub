@@ -415,7 +415,21 @@ export default function ShippingLabelsPage() {
                           href={r.labelUrl}
                           target="_blank"
                           rel="noopener"
-                          title="Öffnen"
+                          title="Öffnen + als gedruckt markieren"
+                          onClick={() => {
+                            // Click oeffnet PDF im neuen Tab — User kann
+                            // direkt drucken/downloaden. Wir markieren das
+                            // Label proaktiv als gedruckt (fire-and-forget),
+                            // damit es nicht im "Erstellt"-Tab haengen
+                            // bleibt und in den Sendungen-Statistiken zaehlt.
+                            // Liste wird mit kleiner Verzoegerung neu geladen
+                            // damit der printedAt-Wert reinkommt.
+                            if (!r.printedAt) {
+                              shippingApi.markLabelPrinted(r.labelId, true)
+                                .then(() => setTimeout(load, 500))
+                                .catch(() => {});
+                            }
+                          }}
                           className={btn('secondary', 'h-8 sm:h-7 px-2 py-0 text-xs min-h-0')}
                         >
                           <ExternalLink className="h-3 w-3" />

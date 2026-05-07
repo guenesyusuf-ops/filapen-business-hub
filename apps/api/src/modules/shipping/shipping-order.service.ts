@@ -9,9 +9,9 @@ interface ListFilters {
   hasShipment?: 'yes' | 'no';
   excludedProductVariantIds?: string[];
   includedProductVariantIds?: string[];
-  /** SKU+Quantity exact filter: nur Bestellungen die GENAU diese Variant mit
-   *  dieser Menge haben UND kein anderes Produkt enthalten. */
-  exclusiveVariantId?: string;
+  /** SKU+Quantity exact filter: nur Bestellungen die GENAU diese Variants
+   *  in der angegebenen Summen-Menge enthalten — und nichts anderes. */
+  exclusiveVariantIds?: string[];
   exclusiveQuantityOp?: 'eq' | 'gte' | 'lte' | 'gt' | 'lt';
   exclusiveQuantity?: number;
   /** Nur Bestellungen mit fehlerhafter / unvollständiger Lieferadresse */
@@ -22,11 +22,29 @@ interface ListFilters {
   offset?: number;
 }
 
-// Adresse gilt als "fehlerhaft" wenn eines der vier Kern-Felder komplett fehlt:
-// Straße, PLZ, Stadt, Land. Alles andere (Hausnummer-Format, Tippfehler)
-// fängt die DHL-API beim Label-Request ab — dort bekommt der User eine
-// präzise Meldung und kann gezielt korrigieren. Wir wollen hier keine
-// False-Positives durch zu strenge Heuristik erzeugen.
+/**
+ * Erkennt eine fehlende Hausnummer. Logik analog zu DHL-Carrier splitStreet:
+ *  1. Wenn explizites houseNumber-Feld gesetzt → ok
+ *  2. Sonst: Hausnummer am Ende der Strasse (z.B. "Musterstr. 12a") suchen
+ *  3. Sonst: address2 isoliert eine Zahl? → ok
+ *  4. Sonst: keine Hausnummer → false
+ */
+function hasHouseNumber(addr: any): boolean {
+  const explicit = (addr.houseNumber || addr.house_number || '').toString().trim();
+  if (explicit) return true;
+  const street = (addr.address1 || addr.street || '').toString().trim();
+  // Match: "Strassenname 12", "Strassenname 12a", "Strassenname 12-14", "Strassenname 12/3"
+  if (/\d+[a-zA-Z]?(?:\s*[\/-]\s*\d+[a-zA-Z]?)?\s*$/.test(street)) return true;
+  // Hausnummer evtl. in address2 isoliert
+  const address2 = (addr.address2 || '').toString().trim();
+  if (/^\d+[a-zA-Z]?(?:[\/-]\d+[a-zA-Z]?)?$/.test(address2)) return true;
+  return false;
+}
+
+// Adresse gilt als "fehlerhaft" wenn eines der vier Kern-Felder fehlt
+// (Straße, PLZ, Stadt, Land) ODER wenn keine Hausnummer erkennbar ist.
+// DHL-API lehnt Labels ohne Hausnummer ab → daher wollen wir das schon
+// vor dem Label-Druck fangen statt erst beim Versuch.
 function isAddressValid(addr: any): boolean {
   if (!addr || typeof addr !== 'object') return false;
   const street = (addr.address1 || addr.street || '').toString().trim();
@@ -34,6 +52,8 @@ function isAddressValid(addr: any): boolean {
   const city = (addr.city || addr.town || '').toString().trim();
   const country = (addr.country_code || addr.countryCode || addr.country || '').toString().trim();
   if (!street || !zip || !city || !country) return false;
+  // Hausnummer-Check: fehlt sie, gilt die Adresse als fehlerhaft.
+  if (!hasHouseNumber(addr)) return false;
   return true;
 }
 
@@ -107,18 +127,17 @@ export class ShippingOrderService {
         none: { productVariantId: { in: filters.excludedProductVariantIds } },
       });
     }
-    // Exklusiv-Filter: genau diese Variant mit dieser *Summen-Menge*, sonst nichts.
+    // Exklusiv-Filter: genau diese Variants und nichts anderes.
     //
-    // Nicht-triviales Detail: Shopify-Orders können mehrere Line-Items derselben
-    // Variant haben (z.B. Gruppen-Rabatt-Splits). Eine naive Prisma-Filterung
-    // `some: { quantity: X }` matcht Orders in denen IRGENDEIN Einzel-Line N ist
-    // — aber die UI zeigt die SUMME pro Produkt. Resultat: filter "= 1" lieferte
-    // Orders mit Gesamt-2 (zwei Lines à 1) zurück, was der User als Bug meldet.
+    // Multi-Variant Variante:
+    //   1. Order muss ALLE ausgewaehlten Variants enthalten (jede mit >=1 Line)
+    //   2. Order darf KEINE anderen Variants enthalten (auch nicht NULL)
+    //   3. SUMME(quantity) ueber alle ausgewaehlten Variants in der Order
+    //      passt zum Operator+Wert (eq/gte/lte/gt/lt)
     //
-    // Fix: Raw SQL GroupBy + HAVING auf SUM(quantity) — 1:1 wie die UI aggregiert.
-    // Der Filter wird als pre-query ausgeführt und die Ergebnis-IDs per `where.id
-    // IN (...)` an die Haupt-Query gehängt.
-    if (filters.exclusiveVariantId && filters.exclusiveQuantity != null) {
+    // Edge Case bei Shopify: Mehrere Line-Items derselben Variant (z.B. wegen
+    // Gruppen-Rabatt-Split) → wir aggregieren mit SUM, weil die UI das auch tut.
+    if (filters.exclusiveVariantIds?.length && filters.exclusiveQuantity != null) {
       const op = filters.exclusiveQuantityOp ?? 'eq';
       const matchesOp = (sum: number, n: number): boolean => {
         switch (op) {
@@ -129,26 +148,27 @@ export class ShippingOrderService {
           default: return sum === n; // 'eq'
         }
       };
-      const rows = await this.prisma.$queryRaw<Array<{ orderId: string; sumQ: number }>>`
+      const variantCount = filters.exclusiveVariantIds.length;
+      const rows = await this.prisma.$queryRaw<Array<{ orderId: string; sumQ: number; distinctMatched: number }>>`
         SELECT li.order_id::text AS "orderId",
-               SUM(li.quantity)::int AS "sumQ"
+               SUM(li.quantity)::int AS "sumQ",
+               COUNT(DISTINCT li.product_variant_id)::int AS "distinctMatched"
         FROM order_line_items li
         WHERE li.org_id = ${orgId}::uuid
-          AND li.product_variant_id = ${filters.exclusiveVariantId}::uuid
+          AND li.product_variant_id = ANY(${filters.exclusiveVariantIds}::uuid[])
           AND NOT EXISTS (
             SELECT 1 FROM order_line_items li2
             WHERE li2.order_id = li.order_id
               AND (li2.product_variant_id IS NULL
-                   OR li2.product_variant_id <> ${filters.exclusiveVariantId}::uuid)
+                   OR NOT (li2.product_variant_id = ANY(${filters.exclusiveVariantIds}::uuid[])))
           )
         GROUP BY li.order_id
       `;
+      // ALLE ausgewaehlten Variants muessen vorkommen + Summen-Menge passt
       const matchingIds = rows
+        .filter((r) => Number(r.distinctMatched) === variantCount)
         .filter((r) => matchesOp(Number(r.sumQ), filters.exclusiveQuantity!))
         .map((r) => r.orderId);
-      // Wenn wir eine andere IDs-Restriction schon haben, schneiden wir sie
-      // beide — sonst einfach setzen. where.id = { in: [] } liefert korrekt 0
-      // Treffer statt alles wenn kein Order matcht.
       if (where.id?.in) {
         const prev: string[] = where.id.in;
         where.id = { in: matchingIds.filter((id) => prev.includes(id)) };
