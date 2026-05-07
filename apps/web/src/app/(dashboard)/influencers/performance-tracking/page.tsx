@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   TrendingUp, Plus, Search, Loader2, Star, Ban, Edit2, Trash2,
-  ExternalLink, Filter,
+  ExternalLink, Filter, Layers, Sparkles, Calendar, Trophy, Trello, Table,
+  TrendingDown, ArrowUpDown,
 } from 'lucide-react';
 import {
   influencerPerformanceApi,
@@ -11,7 +12,38 @@ import {
   type PerformanceEntry, type EntryStatus,
 } from '@/lib/influencer-performance';
 import { EntryFormModal } from './EntryFormModal';
+import {
+  PipelineKanbanView, PlatformGroupView, CampaignGroupView,
+  TimelineView, RankingView,
+} from './views';
 import { cn } from '@/lib/utils';
+
+type ViewMode =
+  | 'table'
+  | 'top-performer'
+  | 'worst'
+  | 'pipeline'
+  | 'platforms'
+  | 'campaigns'
+  | 'timeline'
+  | 'rankings'
+  | 'rebookable'
+  | 'whitelist'
+  | 'blacklist';
+
+const VIEW_OPTIONS: { value: ViewMode; label: string; icon: any; desc: string }[] = [
+  { value: 'table',         label: 'Tabelle',          icon: Table,         desc: 'Alle Eintraege' },
+  { value: 'top-performer', label: 'Top Performer',    icon: Trophy,        desc: 'ROAS hoch zuerst' },
+  { value: 'worst',         label: 'Verluste',         icon: TrendingDown,  desc: 'Profit < 0' },
+  { value: 'pipeline',      label: 'Pipeline',         icon: Trello,        desc: 'Status-Kanban' },
+  { value: 'platforms',     label: 'Plattformen',      icon: Layers,        desc: 'Gruppiert + Stats' },
+  { value: 'campaigns',     label: 'Kampagnen',        icon: Sparkles,      desc: 'Gruppiert + Stats' },
+  { value: 'timeline',      label: 'Timeline',         icon: Calendar,      desc: 'Chronologisch' },
+  { value: 'rankings',      label: 'Top 10',           icon: ArrowUpDown,   desc: 'Profit/ROAS/Umsatz' },
+  { value: 'rebookable',    label: 'Wieder buchbar',   icon: Star,          desc: 'bookable=Ja' },
+  { value: 'whitelist',     label: 'Whitelist',        icon: Star,          desc: '⭐ markiert' },
+  { value: 'blacklist',     label: 'Blacklist',        icon: Ban,           desc: '🚫 markiert' },
+];
 
 export default function PerformanceTrackingPage() {
   // Daten
@@ -19,6 +51,9 @@ export default function PerformanceTrackingPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // View-Selector
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
 
   // Filter
   const [search, setSearch] = useState('');
@@ -36,17 +71,43 @@ export default function PerformanceTrackingPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<PerformanceEntry | null>(null);
 
-  const params = useMemo(() => ({
-    search: search || undefined,
-    platform: platform || undefined,
-    status: status === 'all' ? undefined : status,
-    profitableOnly: profitableOnly ? true : undefined,
-    whitelist: whitelistOnly ? true : undefined,
-    blacklist: blacklistOnly ? true : undefined,
-    minRoas: minRoas ? Number(minRoas) : undefined,
-    fromDate: fromDate || undefined,
-    toDate: toDate || undefined,
-  }), [search, platform, status, profitableOnly, whitelistOnly, blacklistOnly, minRoas, fromDate, toDate]);
+  // View-Presets — Server-side Filter:
+  // Jede View kann Server-Filter ueberschreiben (z.B. "Whitelist" forciert
+  // whitelist=true). Setzen wir hier statt im Filter-State damit der User
+  // beim View-Switch nicht den Filter manuell anpassen muss.
+  const params = useMemo(() => {
+    const base = {
+      search: search || undefined,
+      platform: platform || undefined,
+      status: status === 'all' ? undefined : status,
+      profitableOnly: profitableOnly ? true : undefined,
+      whitelist: whitelistOnly ? true : undefined,
+      blacklist: blacklistOnly ? true : undefined,
+      minRoas: minRoas ? Number(minRoas) : undefined,
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+    };
+    if (viewMode === 'top-performer') return { ...base, profitableOnly: true, minRoas: base.minRoas ?? 1 };
+    if (viewMode === 'worst') return { ...base, profitableOnly: undefined };
+    if (viewMode === 'whitelist') return { ...base, whitelist: true };
+    if (viewMode === 'blacklist') return { ...base, blacklist: true };
+    return base;
+  }, [search, platform, status, profitableOnly, whitelistOnly, blacklistOnly, minRoas, fromDate, toDate, viewMode]);
+
+  // Client-side weitere Filterung pro View (für Felder die das Backend
+  // nicht filtern kann, z.B. bookable, oder fuer "worst"-Sortierung):
+  const viewItems = useMemo(() => {
+    if (viewMode === 'top-performer') {
+      return [...items].sort((a, b) => (b.roas ?? 0) - (a.roas ?? 0));
+    }
+    if (viewMode === 'worst') {
+      return items.filter((e) => e.profit < 0).sort((a, b) => a.profit - b.profit);
+    }
+    if (viewMode === 'rebookable') {
+      return items.filter((e) => e.bookable === true);
+    }
+    return items;
+  }, [items, viewMode]);
 
   async function load() {
     setLoading(true);
@@ -111,6 +172,30 @@ export default function PerformanceTrackingPage() {
           <Plus className="h-4 w-4" />
           Neuer Eintrag
         </button>
+      </div>
+
+      {/* View-Selector */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+        {VIEW_OPTIONS.map((v) => {
+          const Icon = v.icon;
+          const active = viewMode === v.value;
+          return (
+            <button
+              key={v.value}
+              onClick={() => setViewMode(v.value)}
+              title={v.desc}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium whitespace-nowrap border transition-all flex-shrink-0',
+                active
+                  ? 'bg-violet-600 text-white border-violet-600 shadow-md shadow-violet-500/30'
+                  : 'border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-violet-300 dark:hover:border-violet-500/40 hover:bg-violet-50 dark:hover:bg-violet-900/10',
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {v.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter-Bar */}
@@ -184,20 +269,33 @@ export default function PerformanceTrackingPage() {
         )}
       </div>
 
-      {/* Tabelle */}
-      <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
-        {loading ? (
-          <div className="p-12 flex items-center justify-center text-gray-500">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade …
-          </div>
-        ) : error ? (
-          <div className="p-6 text-sm text-red-600 dark:text-red-400">
-            ⚠ {error}
-            <p className="text-xs text-gray-500 mt-1">Falls "table not found": Migration in Supabase noch nicht gelaufen.</p>
-          </div>
-        ) : items.length === 0 ? (
-          <EmptyState onCreate={() => { setEditing(null); setShowForm(true); }} hasFilters={activeFilterCount > 0 || !!search} />
-        ) : (
+      {/* Content je nach View */}
+      {loading ? (
+        <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] p-12 flex items-center justify-center text-gray-500">
+          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade …
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10 p-6 text-sm text-red-600 dark:text-red-400">
+          ⚠ {error}
+          <p className="text-xs text-gray-500 mt-1">Falls "table not found": Migration in Supabase noch nicht gelaufen.</p>
+        </div>
+      ) : viewItems.length === 0 ? (
+        <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)]">
+          <EmptyState onCreate={() => { setEditing(null); setShowForm(true); }} hasFilters={activeFilterCount > 0 || !!search || viewMode !== 'table'} />
+        </div>
+      ) : viewMode === 'pipeline' ? (
+        <PipelineKanbanView items={viewItems} onEdit={(e) => { setEditing(e); setShowForm(true); }} />
+      ) : viewMode === 'platforms' ? (
+        <PlatformGroupView items={viewItems} />
+      ) : viewMode === 'campaigns' ? (
+        <CampaignGroupView items={viewItems} onEdit={(e) => { setEditing(e); setShowForm(true); }} />
+      ) : viewMode === 'timeline' ? (
+        <TimelineView items={viewItems} onEdit={(e) => { setEditing(e); setShowForm(true); }} />
+      ) : viewMode === 'rankings' ? (
+        <RankingView items={viewItems} onEdit={(e) => { setEditing(e); setShowForm(true); }} />
+      ) : (
+        // 'table', 'top-performer', 'worst', 'rebookable', 'whitelist', 'blacklist' — alle nutzen die Standard-Tabelle
+        <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50/60 dark:bg-white/[0.02] text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -216,7 +314,7 @@ export default function PerformanceTrackingPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-                {items.map((e) => (
+                {viewItems.map((e) => (
                   <Row
                     key={e.id}
                     entry={e}
@@ -229,8 +327,8 @@ export default function PerformanceTrackingPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {showForm && (
         <EntryFormModal
