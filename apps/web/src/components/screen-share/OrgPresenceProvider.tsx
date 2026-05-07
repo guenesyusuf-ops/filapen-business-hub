@@ -6,6 +6,7 @@ import { LiveblocksProvider, RoomProvider, useBroadcastEvent, useEventListener }
 import { Monitor, Mic, X, CheckCircle, Volume2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { screenShareApi, setBroadcastFn, type ScreenShareInviteEvent } from '@/lib/screen-share';
+import { whiteboardApi } from '@/lib/whiteboard';
 import { cn } from '@/lib/utils';
 
 /**
@@ -25,9 +26,22 @@ export function OrgPresenceProvider({ children }: { children: React.ReactNode })
   if (!user?.orgId) return <>{children}</>;
   return (
     <LiveblocksProvider
-      authEndpoint={async () => {
+      // Dispatch nach Room-Name. Dieser EINE LiveblocksProvider hostet
+      // alle RoomProvider im Dashboard-Tree (Screen-Share Org-Presence,
+      // Whiteboard wb-{boardId}, ggf. weitere). Liveblocks v3 erlaubt
+      // nur einen Provider pro Tree → wir routen die Auth zentral hier.
+      authEndpoint={async (room?: string) => {
+        if (!room) throw new Error('Liveblocks: kein Room angegeben');
+        // Whiteboard-Rooms: "wb-{boardId}"
+        if (room.startsWith('wb-')) {
+          const boardId = room.slice(3);
+          const r = await whiteboardApi.liveblocksAuth(boardId);
+          if (!r.token) throw new Error(r.reason || 'Liveblocks: Whiteboard-Auth fehlgeschlagen');
+          return { token: r.token };
+        }
+        // Default: Org-Presence Room (Screen-Share Invites)
         const r = await screenShareApi.liveblocksAuth();
-        if (!r.token) throw new Error(r.reason || 'Liveblocks not configured');
+        if (!r.token) throw new Error(r.reason || 'Liveblocks: Org-Presence-Auth fehlgeschlagen');
         return { token: r.token };
       }}
     >

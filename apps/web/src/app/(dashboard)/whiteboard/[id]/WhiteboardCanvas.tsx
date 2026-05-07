@@ -37,7 +37,7 @@ import { API_URL } from '@/lib/api';
 import { cn } from '@/lib/utils';
 // Non-suspense API: useRoom/useOthers koennten sonst suspendieren ohne
 // passenden Suspense-Boundary in der Auth-Phase.
-import { LiveblocksProvider, RoomProvider, useOthers, useSelf } from '@liveblocks/react';
+import { RoomProvider, useOthers, useSelf } from '@liveblocks/react';
 
 // tldraw UI-Tweak: PageMenu (Seitenname) und NavigationPanel (Zoom-Selector
 // unten rechts) ausblenden — gewinnen Canvas-Platz. Wichtige Funktionen
@@ -728,20 +728,14 @@ export function WhiteboardCanvas({ board }: Props) {
     return <SingleUserCanvas board={board} />;
   }
 
-  // Mit Liveblocks: Provider + Room → SingleUserCanvas kann useOthers nutzen
+  // Mit Liveblocks: NUR RoomProvider hier — der zugrunde liegende
+  // LiveblocksProvider lebt im Dashboard-Layout (OrgPresenceProvider) und
+  // routet die Auth nach Room-Name. Liveblocks v3 erlaubt nur einen
+  // Provider pro React-Tree, deshalb kein nested Provider mehr.
   return (
-    <LiveblocksProvider
-      authEndpoint={async (room?: string) => {
-        if (!room) throw new Error('No room provided');
-        const r = await whiteboardApi.liveblocksAuth(board.id);
-        if (!r.token) throw new Error(r.reason || 'Liveblocks not configured');
-        return { token: r.token };
-      }}
-    >
-      <RoomProvider id={board.liveblocksRoomId || `wb-${board.id}`} initialPresence={{}}>
-        <SingleUserCanvas board={board} withPresence />
-      </RoomProvider>
-    </LiveblocksProvider>
+    <RoomProvider id={board.liveblocksRoomId || `wb-${board.id}`} initialPresence={{}}>
+      <SingleUserCanvas board={board} withPresence />
+    </RoomProvider>
   );
 }
 
