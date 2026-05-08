@@ -9,10 +9,13 @@ interface ListFilters {
   hasShipment?: 'yes' | 'no';
   excludedProductVariantIds?: string[];
   includedProductVariantIds?: string[];
-  /** SKU+Quantity exact filter: nur Bestellungen die GENAU diese Variants
-   *  in der angegebenen Summen-Menge enthalten — und nichts anderes. */
+  /** SKU+Quantity Filter:
+   *  - operator='contains' → Bestellungen die ALLE ausgewaehlten Variants
+   *    enthalten (andere Produkte erlaubt, keine Mengen-Pruefung)
+   *  - operator=eq/gte/lte/gt/lt → GENAU diese Variants in der angegebenen
+   *    Summen-Menge — und nichts anderes (exclusive) */
   exclusiveVariantIds?: string[];
-  exclusiveQuantityOp?: 'eq' | 'gte' | 'lte' | 'gt' | 'lt';
+  exclusiveQuantityOp?: 'eq' | 'gte' | 'lte' | 'gt' | 'lt' | 'contains';
   exclusiveQuantity?: number;
   /** Nur Bestellungen mit fehlerhafter / unvollständiger Lieferadresse */
   addressStatus?: 'error' | 'ok' | 'all';
@@ -127,48 +130,68 @@ export class ShippingOrderService {
         none: { productVariantId: { in: filters.excludedProductVariantIds } },
       });
     }
-    // Exklusiv-Filter: genau diese Variants und nichts anderes.
+    // SKU-Filter: zwei Modi je nach Operator.
     //
-    // Multi-Variant Variante:
-    //   1. Order muss ALLE ausgewaehlten Variants enthalten (jede mit >=1 Line)
+    // 'contains' Mode:
+    //   Order enthaelt ALLE ausgewaehlten Variants (jede mit >=1 Line).
+    //   Andere Produkte erlaubt, keine Mengen-Pruefung.
+    //
+    // 'eq/gte/lte/gt/lt' Mode (Exclusive):
+    //   1. Order muss ALLE ausgewaehlten Variants enthalten
     //   2. Order darf KEINE anderen Variants enthalten (auch nicht NULL)
-    //   3. SUMME(quantity) ueber alle ausgewaehlten Variants in der Order
-    //      passt zum Operator+Wert (eq/gte/lte/gt/lt)
-    //
-    // Edge Case bei Shopify: Mehrere Line-Items derselben Variant (z.B. wegen
-    // Gruppen-Rabatt-Split) → wir aggregieren mit SUM, weil die UI das auch tut.
-    if (filters.exclusiveVariantIds?.length && filters.exclusiveQuantity != null) {
+    //   3. SUMME(quantity) ueber die ausgewaehlten Variants
+    //      passt zum Operator+Wert
+    if (filters.exclusiveVariantIds?.length) {
       const op = filters.exclusiveQuantityOp ?? 'eq';
-      const matchesOp = (sum: number, n: number): boolean => {
-        switch (op) {
-          case 'gt': return sum > n;
-          case 'gte': return sum >= n;
-          case 'lt': return sum < n;
-          case 'lte': return sum <= n;
-          default: return sum === n; // 'eq'
-        }
-      };
       const variantCount = filters.exclusiveVariantIds.length;
-      const rows = await this.prisma.$queryRaw<Array<{ orderId: string; sumQ: number; distinctMatched: number }>>`
-        SELECT li.order_id::text AS "orderId",
-               SUM(li.quantity)::int AS "sumQ",
-               COUNT(DISTINCT li.product_variant_id)::int AS "distinctMatched"
-        FROM order_line_items li
-        WHERE li.org_id = ${orgId}::uuid
-          AND li.product_variant_id = ANY(${filters.exclusiveVariantIds}::uuid[])
-          AND NOT EXISTS (
-            SELECT 1 FROM order_line_items li2
-            WHERE li2.order_id = li.order_id
-              AND (li2.product_variant_id IS NULL
-                   OR NOT (li2.product_variant_id = ANY(${filters.exclusiveVariantIds}::uuid[])))
-          )
-        GROUP BY li.order_id
-      `;
-      // ALLE ausgewaehlten Variants muessen vorkommen + Summen-Menge passt
-      const matchingIds = rows
-        .filter((r) => Number(r.distinctMatched) === variantCount)
-        .filter((r) => matchesOp(Number(r.sumQ), filters.exclusiveQuantity!))
-        .map((r) => r.orderId);
+
+      let matchingIds: string[] = [];
+
+      if (op === 'contains') {
+        // Nur Praesenz-Check: alle gewaehlten Variants muessen drin sein,
+        // andere Produkte sind egal.
+        const rows = await this.prisma.$queryRaw<Array<{ orderId: string; distinctMatched: number }>>`
+          SELECT li.order_id::text AS "orderId",
+                 COUNT(DISTINCT li.product_variant_id)::int AS "distinctMatched"
+          FROM order_line_items li
+          WHERE li.org_id = ${orgId}::uuid
+            AND li.product_variant_id = ANY(${filters.exclusiveVariantIds}::uuid[])
+          GROUP BY li.order_id
+        `;
+        matchingIds = rows
+          .filter((r) => Number(r.distinctMatched) === variantCount)
+          .map((r) => r.orderId);
+      } else if (filters.exclusiveQuantity != null) {
+        const matchesOp = (sum: number, n: number): boolean => {
+          switch (op) {
+            case 'gt': return sum > n;
+            case 'gte': return sum >= n;
+            case 'lt': return sum < n;
+            case 'lte': return sum <= n;
+            default: return sum === n; // 'eq'
+          }
+        };
+        const rows = await this.prisma.$queryRaw<Array<{ orderId: string; sumQ: number; distinctMatched: number }>>`
+          SELECT li.order_id::text AS "orderId",
+                 SUM(li.quantity)::int AS "sumQ",
+                 COUNT(DISTINCT li.product_variant_id)::int AS "distinctMatched"
+          FROM order_line_items li
+          WHERE li.org_id = ${orgId}::uuid
+            AND li.product_variant_id = ANY(${filters.exclusiveVariantIds}::uuid[])
+            AND NOT EXISTS (
+              SELECT 1 FROM order_line_items li2
+              WHERE li2.order_id = li.order_id
+                AND (li2.product_variant_id IS NULL
+                     OR NOT (li2.product_variant_id = ANY(${filters.exclusiveVariantIds}::uuid[])))
+            )
+          GROUP BY li.order_id
+        `;
+        matchingIds = rows
+          .filter((r) => Number(r.distinctMatched) === variantCount)
+          .filter((r) => matchesOp(Number(r.sumQ), filters.exclusiveQuantity!))
+          .map((r) => r.orderId);
+      }
+
       if (where.id?.in) {
         const prev: string[] = where.id.in;
         where.id = { in: matchingIds.filter((id) => prev.includes(id)) };

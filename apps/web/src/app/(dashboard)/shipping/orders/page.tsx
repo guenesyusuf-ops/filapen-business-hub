@@ -14,8 +14,9 @@ const PAGE_SIZE = 200;
 
 type ProductFilterMode = 'include' | 'exclude';
 type OrdersTab = 'pending' | 'address_errors';
-type QuantityOp = 'eq' | 'gte' | 'lte' | 'gt' | 'lt';
+type QuantityOp = 'eq' | 'gte' | 'lte' | 'gt' | 'lt' | 'contains';
 const QUANTITY_OPS: { value: QuantityOp; label: string }[] = [
+  { value: 'contains', label: 'enthält' },
   { value: 'eq', label: '=' },
   { value: 'gte', label: '≥' },
   { value: 'lte', label: '≤' },
@@ -103,7 +104,8 @@ export default function ShippingOrdersPage() {
       excluded: filterMode === 'exclude' && ids.length ? ids.join(',') : undefined,
       exclusiveVariantIds: exIds.length ? exIds.join(',') : undefined,
       exclusiveQuantityOp: exIds.length ? exclusiveOp : undefined,
-      exclusiveQuantity: exIds.length ? String(exclusiveQuantity) : undefined,
+      // Bei 'contains' brauchen wir keine Menge — nur Praesenz-Check.
+      exclusiveQuantity: exIds.length && exclusiveOp !== 'contains' ? String(exclusiveQuantity) : undefined,
       addressStatus: tab === 'address_errors' ? 'error' : undefined,
       limit: String(PAGE_SIZE),
       offset: String(offset),
@@ -348,7 +350,7 @@ export default function ShippingOrdersPage() {
               <Filter className="h-4 w-4" />
               <span className="truncate">
                 {exclusiveVariantIds.size > 0
-                  ? `SKU-Filter (${exclusiveVariantIds.size} Produkt${exclusiveVariantIds.size === 1 ? '' : 'e'} · ${QUANTITY_OPS.find((o) => o.value === exclusiveOp)?.label} ${exclusiveQuantity})`
+                  ? `SKU-Filter (${exclusiveVariantIds.size} Produkt${exclusiveVariantIds.size === 1 ? '' : 'e'} · ${QUANTITY_OPS.find((o) => o.value === exclusiveOp)?.label}${exclusiveOp !== 'contains' ? ' ' + exclusiveQuantity : ''})`
                   : 'SKU = Menge'}
               </span>
             </button>
@@ -368,11 +370,14 @@ export default function ShippingOrdersPage() {
         {exclusiveOpen && (
           <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] p-3 space-y-3">
             <p className="text-xs text-gray-500">
-              Zeige nur Bestellungen, die <strong>genau</strong> alle ausgewählten Produkte in der angegebenen Summen-Menge enthalten — und <strong>nichts anderes</strong>.
+              {exclusiveOp === 'contains'
+                ? <>Zeige Bestellungen, die <strong>alle ausgewählten Produkte enthalten</strong> (egal in welcher Menge, andere Produkte erlaubt).</>
+                : <>Zeige nur Bestellungen, die <strong>genau</strong> alle ausgewählten Produkte in der angegebenen Summen-Menge enthalten — und <strong>nichts anderes</strong>.</>
+              }
             </p>
 
-            {/* Operator + Menge */}
-            <div className="grid grid-cols-2 gap-2 max-w-xs">
+            {/* Operator + Menge (Menge nur wenn nicht 'enthält') */}
+            <div className={exclusiveOp === 'contains' ? 'max-w-[160px]' : 'grid grid-cols-2 gap-2 max-w-xs'}>
               <div>
                 <label className={labelCls()}>Operator</label>
                 <select
@@ -385,16 +390,18 @@ export default function ShippingOrdersPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className={labelCls()}>Summen-Menge</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={exclusiveQuantity}
-                  onChange={(e) => setExclusiveQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                  className={inputCls()}
-                />
-              </div>
+              {exclusiveOp !== 'contains' && (
+                <div>
+                  <label className={labelCls()}>Summen-Menge</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={exclusiveQuantity}
+                    onChange={(e) => setExclusiveQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className={inputCls()}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Suche */}
@@ -408,8 +415,8 @@ export default function ShippingOrdersPage() {
               />
             </div>
 
-            {/* Produkt-Kacheln mit Bildern */}
-            <div className="max-h-[420px] overflow-y-auto rounded-lg bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 p-2">
+            {/* Produkt-Liste: kompakte vertikale Zeilen mit kleinem Bild + Text + Checkbox */}
+            <div className="max-h-[420px] overflow-y-auto rounded-lg bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/5">
               {productOptions.length === 0 ? (
                 <div className="p-6 text-center text-xs text-gray-500">Lädt Produkte …</div>
               ) : (() => {
@@ -425,7 +432,7 @@ export default function ShippingOrdersPage() {
                   return <div className="p-6 text-center text-xs text-gray-500">Keine Treffer</div>;
                 }
                 return (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  <div className="divide-y divide-gray-100 dark:divide-white/5">
                     {filtered.map((p) => {
                       const checked = exclusiveVariantIds.has(p.variantId);
                       return (
@@ -441,40 +448,38 @@ export default function ShippingOrdersPage() {
                             });
                           }}
                           className={cn(
-                            'relative group flex flex-col items-stretch overflow-hidden rounded-xl border transition-all text-left',
-                            checked
-                              ? 'border-primary-500 ring-2 ring-primary-500/20 bg-primary-50/40 dark:bg-primary-900/20'
-                              : 'border-gray-200 dark:border-white/10 hover:border-primary-300 dark:hover:border-primary-500/40 bg-white dark:bg-white/[0.02]',
+                            'flex items-center gap-3 w-full px-2.5 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors',
+                            checked && 'bg-primary-50/60 dark:bg-primary-900/20',
                           )}
                         >
-                          <div className="aspect-square bg-gray-50 dark:bg-white/5 relative">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {}}
+                            className="rounded text-primary-600 focus:ring-primary-500 flex-shrink-0"
+                          />
+                          {/* Kleines 32px-Bild */}
+                          <div className="h-8 w-8 rounded bg-gray-100 dark:bg-white/5 flex-shrink-0 overflow-hidden">
                             {p.productImage ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={p.productImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                              <img src={p.productImage} alt="" className="h-full w-full object-cover" />
                             ) : (
-                              <div className="absolute inset-0 flex items-center justify-center text-gray-300 dark:text-white/10 text-3xl">
-                                📦
-                              </div>
-                            )}
-                            {checked && (
-                              <div className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-primary-600 flex items-center justify-center text-white shadow-md">
-                                <Check className="h-3 w-3" />
-                              </div>
+                              <div className="h-full w-full flex items-center justify-center text-gray-300 dark:text-white/10 text-base">📦</div>
                             )}
                           </div>
-                          <div className="p-2">
-                            <div className="text-[11px] font-medium text-gray-900 dark:text-white truncate">
+                          <div className="flex-1 min-w-0 flex items-baseline gap-2">
+                            <span className="text-xs font-medium text-gray-900 dark:text-white truncate">
                               {p.productTitle}
-                            </div>
+                            </span>
                             {p.variantTitle && p.variantTitle !== 'Default Title' && (
-                              <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
-                                {p.variantTitle}
-                              </div>
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                                · {p.variantTitle}
+                              </span>
                             )}
                             {p.sku && (
-                              <div className="text-[10px] text-gray-400 truncate font-mono">
-                                {p.sku}
-                              </div>
+                              <span className="text-[10px] text-gray-400 font-mono truncate">
+                                ({p.sku})
+                              </span>
                             )}
                           </div>
                         </button>
