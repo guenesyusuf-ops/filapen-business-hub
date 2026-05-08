@@ -10,8 +10,9 @@ import {
   VideoTrack,
   useChat,
   useRoomContext,
+  useConnectionState,
 } from '@livekit/components-react';
-import { Track, RoomEvent, type Participant } from 'livekit-client';
+import { Track, RoomEvent, ConnectionState, type Participant } from 'livekit-client';
 import {
   Mic, MicOff, Monitor, MonitorOff, MessageSquare, Users, X, Phone,
   Volume2, Maximize2, Send, Link2, Copy, Lock, Loader2,
@@ -58,6 +59,7 @@ function Inner({
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
+  const connectionState = useConnectionState();
 
   const [chatOpen, setChatOpen] = useState(true);
   const [participantsOpen, setParticipantsOpen] = useState(false);
@@ -65,32 +67,52 @@ function Inner({
   const [micOn, setMicOn] = useState(false);
   const [screenOn, setScreenOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  // Verhindert mehrfaches Auto-Start (StrictMode-Doppelmount, Reconnects)
+  const autoStartedRef = useRef(false);
 
   // Bildschirm-Track holen (falls vorhanden) → das ist was die Viewer sehen
   const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: true });
   const mainScreen = screenTracks[0];
 
   // Host: beim ersten Mount automatisch Bildschirm-Sharing starten.
-  // WICHTIG: bei Picker-Cancel oder Fehler NICHT die Session beenden —
-  // der User kann jederzeit ueber den "Bildschirm waehlen"-Button neu
-  // ansetzen oder per "Beenden" sauber verlassen.
+  // WICHTIG:
+  //  - Nur nach erfolgreicher LiveKit-Verbindung (sonst wirft publishTrack)
+  //  - Nur EINMAL pro Session (autoStartedRef gegen StrictMode + Reconnect-Loops)
+  //  - Bei Fehler sichtbar an User signalisieren, NICHT die Session beenden
   useEffect(() => {
     if (!isHost) return;
+    if (connectionState !== ConnectionState.Connected) return;
+    if (autoStartedRef.current) return;
+    if (localParticipant.isScreenShareEnabled) {
+      autoStartedRef.current = true;
+      setScreenOn(true);
+      return;
+    }
+    autoStartedRef.current = true;
     let cancelled = false;
     (async () => {
       try {
         await localParticipant.setScreenShareEnabled(true, { audio: audioEnabled });
-        if (!cancelled) setScreenOn(true);
+        if (cancelled) return;
+        setScreenOn(true);
+        setShareError(null);
       } catch (e: any) {
         // eslint-disable-next-line no-console
-        console.warn('[screen-share] screen picker error/cancel', e?.message ?? e);
-        // Kein handleLeave hier! Session bleibt offen, User kann erneut
-        // versuchen oder sauber beenden.
+        console.warn('[screen-share] auto-start failed', e);
+        if (cancelled) return;
+        // User-activation kann nach langer Connect-Dauer abgelaufen sein —
+        // dann muss der Host den Button "Bildschirm waehlen" manuell klicken.
+        // Wir erlauben dadurch einen Retry (autoStartedRef bleibt true).
+        const msg = e?.name === 'NotAllowedError'
+          ? 'Bildschirm-Auswahl abgebrochen oder vom Browser blockiert. Klick "Bildschirm waehlen" oben.'
+          : `Bildschirm konnte nicht gestartet werden: ${e?.message ?? 'Unbekannter Fehler'}`;
+        setShareError(msg);
       }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost]);
+  }, [isHost, connectionState]);
 
   // Sync micOn state mit LiveKit
   useEffect(() => {
@@ -110,14 +132,23 @@ function Inner({
 
   async function toggleScreen() {
     if (!isHost) return;
+    const wasOn = screenOn;
     try {
-      await localParticipant.setScreenShareEnabled(!screenOn, { audio: audioEnabled });
-      setScreenOn(!screenOn);
-      if (screenOn) {
+      await localParticipant.setScreenShareEnabled(!wasOn, { audio: audioEnabled });
+      setScreenOn(!wasOn);
+      setShareError(null);
+      if (wasOn) {
         // Wurde gerade ausgeschaltet → Session beenden
         handleLeave();
       }
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.warn('[screen-share] toggle failed', e);
+      const msg = e?.name === 'NotAllowedError'
+        ? 'Bildschirm-Auswahl abgebrochen oder Browser-Berechtigung fehlt.'
+        : `Konnte Bildschirm nicht ${wasOn ? 'stoppen' : 'starten'}: ${e?.message ?? 'Unbekannter Fehler'}`;
+      setShareError(msg);
+    }
   }
 
   async function handleLeave() {
@@ -238,22 +269,40 @@ function Inner({
           {mainScreen ? (
             <VideoTrack trackRef={mainScreen} className="max-w-full max-h-full object-contain" />
           ) : (
-            <div className="text-center text-gray-400 text-sm">
+            <div className="text-center text-gray-400 text-sm max-w-md px-6">
               {isHost ? (
                 <>
                   <Monitor className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <div>Waehle einen Bildschirm zum Teilen</div>
-                  <button
-                    onClick={toggleScreen}
-                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 px-3 py-1.5 text-xs text-white"
-                  >
-                    <Monitor className="h-3.5 w-3.5" /> Bildschirm waehlen
-                  </button>
+                  {connectionState !== ConnectionState.Connected ? (
+                    <div className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Verbinde mit LiveKit…
+                    </div>
+                  ) : (
+                    <>
+                      <div>Waehle einen Bildschirm zum Teilen</div>
+                      {shareError && (
+                        <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200 text-left">
+                          {shareError}
+                        </div>
+                      )}
+                      <button
+                        onClick={toggleScreen}
+                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 px-3 py-1.5 text-xs text-white"
+                      >
+                        <Monitor className="h-3.5 w-3.5" /> Bildschirm waehlen
+                      </button>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
                   <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin opacity-50" />
-                  <div>Warte auf Bildschirm vom Host…</div>
+                  <div>
+                    {connectionState !== ConnectionState.Connected
+                      ? 'Verbinde mit LiveKit…'
+                      : 'Warte auf Bildschirm vom Host…'}
+                  </div>
                 </>
               )}
             </div>
