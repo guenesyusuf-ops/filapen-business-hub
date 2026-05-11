@@ -87,8 +87,6 @@ function Inner({
   // @livekit/components-react triggerte in unserem Setup nicht zuverlaessig
   // (Loader hing ewig auf "Verbinde mit LiveKit").
   const [isRoomConnected, setIsRoomConnected] = useState(room.state === ConnectionState.Connected);
-  // Verhindert mehrfaches Auto-Start (StrictMode-Doppelmount, Reconnects)
-  const autoStartedRef = useRef(false);
 
   // Connection-State direkt am Room mitlesen + auf Events reagieren
   useEffect(() => {
@@ -126,48 +124,24 @@ function Inner({
     throw lastErr;
   }
 
-  // Bildschirm-Track holen (falls vorhanden) → das ist was die Viewer sehen
+  // Bildschirm-Track der ANDEREN Teilnehmer (= das was Viewer sehen sollen).
+  // WICHTIG: lokale Publikationen rausfiltern, sonst sieht der Host
+  // seinen eigenen geteilten Bildschirm im Tab und es entsteht ein
+  // unendlicher Mirror-Effekt ("100x mein Bildschirm im Spiel").
   const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: true });
-  const mainScreen = screenTracks[0];
+  const remoteScreen = screenTracks.find((t) => !t.participant?.isLocal);
 
-  // Host: beim ersten Mount automatisch Bildschirm-Sharing starten.
-  // WICHTIG:
-  //  - Nur nach erfolgreicher LiveKit-Verbindung (sonst wirft publishTrack)
-  //  - Nur EINMAL pro Session (autoStartedRef gegen StrictMode + Reconnect-Loops)
-  //  - Bei Fehler sichtbar an User signalisieren, NICHT die Session beenden
+  // Sync screenOn-State mit der tatsaechlichen LiveKit-Publikation.
+  // Wenn der Host vorher schon publisht (Reconnect, Tab-Switch) oder gerade
+  // gestoppt hat, muss screenOn stimmen damit der Button-Label korrekt ist.
   useEffect(() => {
-    if (!isHost) return;
-    if (!isRoomConnected) return;
-    if (autoStartedRef.current) return;
-    if (localParticipant.isScreenShareEnabled) {
-      autoStartedRef.current = true;
-      setScreenOn(true);
-      return;
-    }
-    autoStartedRef.current = true;
-    let cancelled = false;
-    (async () => {
-      try {
-        await setScreenShareWithRetry(true);
-        if (cancelled) return;
-        setScreenOn(true);
-        setShareError(null);
-      } catch (e: any) {
-        // eslint-disable-next-line no-console
-        console.warn('[screen-share] auto-start failed', e);
-        if (cancelled) return;
-        // User-activation kann nach langer Connect-Dauer abgelaufen sein —
-        // dann muss der Host den Button "Bildschirm waehlen" manuell klicken.
-        // Wir erlauben dadurch einen Retry (autoStartedRef bleibt true).
-        const msg = e?.name === 'NotAllowedError'
-          ? 'Bildschirm-Auswahl abgebrochen oder vom Browser blockiert. Klick "Bildschirm waehlen" oben.'
-          : `Bildschirm konnte nicht gestartet werden: ${e?.message ?? 'Unbekannter Fehler'}`;
-        setShareError(msg);
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, isRoomConnected]);
+    setScreenOn(localParticipant.isScreenShareEnabled);
+  }, [localParticipant.isScreenShareEnabled]);
+
+  // KEIN Auto-Start mehr — `getDisplayMedia` braucht eine direkte User-
+  // Aktivierung (Click), die durch den Auto-Mount in useEffect verloren
+  // geht. Host klickt "Bildschirm waehlen" manuell, dann ist die User-
+  // Activation frisch und der Picker oeffnet zuverlaessig.
 
   // Sync micOn state mit LiveKit
   useEffect(() => {
@@ -324,8 +298,26 @@ function Inner({
       <div className="flex-1 flex overflow-hidden">
         {/* Stream */}
         <div className="flex-1 flex items-center justify-center bg-black relative overflow-hidden">
-          {mainScreen ? (
-            <VideoTrack trackRef={mainScreen} className="max-w-full max-h-full object-contain" />
+          {remoteScreen ? (
+            <VideoTrack trackRef={remoteScreen} className="max-w-full max-h-full object-contain" />
+          ) : isHost && screenOn ? (
+            // Host teilt gerade — wir zeigen seinen eigenen Stream NICHT
+            // (sonst Spiegel-Effekt 100x). Stattdessen Hinweis dass es laeuft.
+            <div className="text-center text-gray-300 text-sm max-w-md px-6">
+              <div className="inline-flex h-16 w-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 items-center justify-center mb-4">
+                <Monitor className="h-7 w-7 text-emerald-400" />
+              </div>
+              <div className="text-base font-medium text-white">Du teilst deinen Bildschirm</div>
+              <div className="text-xs text-gray-400 mt-1">
+                Andere Teilnehmer sehen jetzt deinen Bildschirm live.
+              </div>
+              <button
+                onClick={toggleScreen}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs text-white"
+              >
+                <MonitorOff className="h-3.5 w-3.5" /> Teilen stoppen
+              </button>
+            </div>
           ) : (
             <div className="text-center text-gray-400 text-sm max-w-md px-6">
               {isHost ? (
@@ -344,7 +336,8 @@ function Inner({
                   )}
                   <button
                     onClick={toggleScreen}
-                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 px-3 py-1.5 text-xs text-white"
+                    disabled={!isRoomConnected}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 disabled:opacity-50 px-3 py-1.5 text-xs text-white"
                   >
                     <Monitor className="h-3.5 w-3.5" /> Bildschirm waehlen
                   </button>
