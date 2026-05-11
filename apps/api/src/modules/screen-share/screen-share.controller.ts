@@ -40,6 +40,18 @@ export class ScreenShareController {
     return this.service.startSession(userId, body);
   }
 
+  /** Public-Endpoint — kein Auth-Header noetig.
+   *  WICHTIG: muss VOR @Post(':id/join') stehen, sonst matcht NestJS
+   *  /public/join gegen :id/join mit id="public" und kommt nie hier
+   *  an (führt zu "User nicht gefunden", weil :id/join Auth braucht). */
+  @Post('public/join')
+  async joinAsGuest(
+    @Body() body: { token: string; name: string; password?: string },
+  ) {
+    if (!body.token) throw new BadRequestException('Token fehlt');
+    return this.service.joinAsGuest(body.token, body.name, body.password);
+  }
+
   @Post(':id/end')
   async end(
     @Headers('authorization') authHeader: string,
@@ -115,16 +127,6 @@ export class ScreenShareController {
   ) {
     const userId = this.extractUserId(authHeader);
     return this.service.revokePublicLink(id, userId);
-  }
-
-  /** Public-Endpoint — kein Auth-Header noetig.
-   *  Body: { token, name, password? } */
-  @Post('public/join')
-  async joinAsGuest(
-    @Body() body: { token: string; name: string; password?: string },
-  ) {
-    if (!body.token) throw new BadRequestException('Token fehlt');
-    return this.service.joinAsGuest(body.token, body.name, body.password);
   }
 
   // Liveblocks-Auth fuer den org-presence Broadcast-Room ----------------

@@ -10,7 +10,6 @@ import {
   VideoTrack,
   useChat,
   useRoomContext,
-  useConnectionState,
 } from '@livekit/components-react';
 import { Track, RoomEvent, ConnectionState, type Participant } from 'livekit-client';
 import {
@@ -59,7 +58,6 @@ function Inner({
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
-  const connectionState = useConnectionState();
 
   const [chatOpen, setChatOpen] = useState(true);
   const [participantsOpen, setParticipantsOpen] = useState(false);
@@ -68,8 +66,25 @@ function Inner({
   const [screenOn, setScreenOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  // Eigenes Connection-Tracking ueber RoomEvent — useConnectionState aus
+  // @livekit/components-react triggerte in unserem Setup nicht zuverlaessig
+  // (Loader hing ewig auf "Verbinde mit LiveKit").
+  const [isRoomConnected, setIsRoomConnected] = useState(room.state === ConnectionState.Connected);
   // Verhindert mehrfaches Auto-Start (StrictMode-Doppelmount, Reconnects)
   const autoStartedRef = useRef(false);
+
+  // Connection-State direkt am Room mitlesen + auf Events reagieren
+  useEffect(() => {
+    if (room.state === ConnectionState.Connected) setIsRoomConnected(true);
+    const onConnected = () => setIsRoomConnected(true);
+    const onDisconnected = () => setIsRoomConnected(false);
+    room.on(RoomEvent.Connected, onConnected);
+    room.on(RoomEvent.Disconnected, onDisconnected);
+    return () => {
+      room.off(RoomEvent.Connected, onConnected);
+      room.off(RoomEvent.Disconnected, onDisconnected);
+    };
+  }, [room]);
 
   // Bildschirm-Track holen (falls vorhanden) → das ist was die Viewer sehen
   const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: true });
@@ -82,7 +97,7 @@ function Inner({
   //  - Bei Fehler sichtbar an User signalisieren, NICHT die Session beenden
   useEffect(() => {
     if (!isHost) return;
-    if (connectionState !== ConnectionState.Connected) return;
+    if (!isRoomConnected) return;
     if (autoStartedRef.current) return;
     if (localParticipant.isScreenShareEnabled) {
       autoStartedRef.current = true;
@@ -112,7 +127,7 @@ function Inner({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHost, connectionState]);
+  }, [isHost, isRoomConnected]);
 
   // Sync micOn state mit LiveKit
   useEffect(() => {
@@ -273,33 +288,29 @@ function Inner({
               {isHost ? (
                 <>
                   <Monitor className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  {connectionState !== ConnectionState.Connected ? (
-                    <div className="inline-flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Verbinde mit LiveKit…
+                  <div>Waehle einen Bildschirm zum Teilen</div>
+                  {!isRoomConnected && (
+                    <div className="mt-2 text-[11px] text-gray-500 inline-flex items-center gap-1.5">
+                      <Loader2 className="h-3 w-3 animate-spin" /> verbinde mit LiveKit …
                     </div>
-                  ) : (
-                    <>
-                      <div>Waehle einen Bildschirm zum Teilen</div>
-                      {shareError && (
-                        <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200 text-left">
-                          {shareError}
-                        </div>
-                      )}
-                      <button
-                        onClick={toggleScreen}
-                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 px-3 py-1.5 text-xs text-white"
-                      >
-                        <Monitor className="h-3.5 w-3.5" /> Bildschirm waehlen
-                      </button>
-                    </>
                   )}
+                  {shareError && (
+                    <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200 text-left">
+                      {shareError}
+                    </div>
+                  )}
+                  <button
+                    onClick={toggleScreen}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 px-3 py-1.5 text-xs text-white"
+                  >
+                    <Monitor className="h-3.5 w-3.5" /> Bildschirm waehlen
+                  </button>
                 </>
               ) : (
                 <>
                   <Loader2 className="h-8 w-8 mx-auto mb-3 animate-spin opacity-50" />
                   <div>
-                    {connectionState !== ConnectionState.Connected
+                    {!isRoomConnected
                       ? 'Verbinde mit LiveKit…'
                       : 'Warte auf Bildschirm vom Host…'}
                   </div>
