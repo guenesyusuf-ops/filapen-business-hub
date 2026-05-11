@@ -101,47 +101,45 @@ function Inner({
     };
   }, [room]);
 
-  // Helper: setScreenShareEnabled mit Retry bei Engine-Timeout
-  // Erste Publish-Anfrage kann fehlschlagen bevor WebRTC-Publisher-PC
-  // wirklich steht (auch nach Signaling-Connected). Wir warten kurz und
-  // versuchen es nochmal.
-  async function setScreenShareWithRetry(enabled: boolean) {
-    let lastErr: any = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        await localParticipant.setScreenShareEnabled(enabled, { audio: audioEnabled });
-        return;
-      } catch (e: any) {
-        lastErr = e;
-        const isEngineTimeout = String(e?.message || '').toLowerCase().includes('engine not connected');
-        if (!isEngineTimeout) throw e;
-        // Engine ist noch nicht ready — warten und retry
-        // eslint-disable-next-line no-console
-        console.warn(`[screen-share] engine timeout attempt ${attempt + 1}/3, retrying after 2s`);
-        await new Promise((r) => setTimeout(r, 2000));
-      }
-    }
-    throw lastErr;
-  }
+  // ScreenShare-Tracks aller Teilnehmer holen. WICHTIG: ALLE Tracks holen
+  // (auch lokale), dann manuell filtern — `useTracks` mit `{ onlySubscribed }`
+  // verhaelt sich teilweise inkonsistent zwischen Versionen.
+  const allScreenTracks = useTracks([Track.Source.ScreenShare]);
+  // Der Stream den die Hauptflaeche zeigt = der EINE remote Screen-Track.
+  // Lokale Tracks NIE im Main-View rendern — das produziert pixel-recursion
+  // wenn Host den eigenen Tab/Bildschirm capturet.
+  const remoteScreen = allScreenTracks.find((t) => !t.participant?.isLocal && t.publication?.isSubscribed);
+  // Lokaler Track nur fuer kleine Self-Preview unten rechts (off by default).
+  const localScreen = allScreenTracks.find((t) => t.participant?.isLocal);
 
-  // Bildschirm-Track der ANDEREN Teilnehmer (= das was Viewer sehen sollen).
-  // WICHTIG: lokale Publikationen rausfiltern, sonst sieht der Host
-  // seinen eigenen geteilten Bildschirm im Tab und es entsteht ein
-  // unendlicher Mirror-Effekt ("100x mein Bildschirm im Spiel").
-  const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: true });
-  const remoteScreen = screenTracks.find((t) => !t.participant?.isLocal);
-
-  // Sync screenOn-State mit der tatsaechlichen LiveKit-Publikation.
-  // Wenn der Host vorher schon publisht (Reconnect, Tab-Switch) oder gerade
-  // gestoppt hat, muss screenOn stimmen damit der Button-Label korrekt ist.
+  // Sync screenOn-State mit der tatsaechlichen LiveKit-Publikation —
+  // deckt Browser-Stop ("Freigabe beenden"-Button), Reconnect, Tab-Close ab.
   useEffect(() => {
-    setScreenOn(localParticipant.isScreenShareEnabled);
+    const enabled = localParticipant.isScreenShareEnabled;
+    setScreenOn(enabled);
+    // eslint-disable-next-line no-console
+    console.log('[screen-share] localParticipant.isScreenShareEnabled =', enabled);
   }, [localParticipant.isScreenShareEnabled]);
 
-  // KEIN Auto-Start mehr — `getDisplayMedia` braucht eine direkte User-
-  // Aktivierung (Click), die durch den Auto-Mount in useEffect verloren
-  // geht. Host klickt "Bildschirm waehlen" manuell, dann ist die User-
-  // Activation frisch und der Picker oeffnet zuverlaessig.
+  // Diagnose-Log fuer Remote-Subscription — hilft "Gast sieht nichts" Fragen
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[screen-share] tracks update', allScreenTracks.map((t) => ({
+      participant: t.participant?.identity,
+      isLocal: t.participant?.isLocal,
+      subscribed: t.publication?.isSubscribed,
+      source: t.source,
+    })));
+  }, [allScreenTracks]);
+
+  // Lokale Preview off by default — Host kann sie an/aus toggeln
+  const [showLocalPreview, setShowLocalPreview] = useState(false);
+  // Capture-Surface-Warnung wenn Host eigenen Tab/Monitor capturet
+  const [captureWarning, setCaptureWarning] = useState<string | null>(null);
+
+  // KEINE useEffect-Publikation. KEINE Retries. KEIN Auto-Start.
+  // `setScreenShareEnabled()` darf ausschliesslich aus einem echten Click
+  // gerufen werden (siehe handleStartShare unten).
 
   // Sync micOn state mit LiveKit
   useEffect(() => {
@@ -159,27 +157,63 @@ function Inner({
     }
   }
 
-  async function toggleScreen() {
+  /**
+   * Start Screen-Share. MUSS aus einem echten Click-Handler kommen — keine
+   * useEffect/setTimeout/Retry-Wraps. Sonst zerstoert der Browser die
+   * User-Activation und blockt getDisplayMedia.
+   */
+  async function handleStartShare() {
     if (!isHost) return;
-    const wasOn = screenOn;
+    // eslint-disable-next-line no-console
+    console.log('[screen-share] start clicked');
+    setShareError(null);
+    setCaptureWarning(null);
     try {
-      await setScreenShareWithRetry(!wasOn);
-      setScreenOn(!wasOn);
-      setShareError(null);
-      if (wasOn) {
-        // Wurde gerade ausgeschaltet → Session beenden
-        handleLeave();
+      // eslint-disable-next-line no-console
+      console.log('[screen-share] publishing screen (audio=' + audioEnabled + ')');
+      await localParticipant.setScreenShareEnabled(true, { audio: audioEnabled });
+      // eslint-disable-next-line no-console
+      console.log('[screen-share] local track published');
+
+      // Capture-Surface inspizieren → Mirror-Warnung zeigen
+      const pub = localParticipant.getTrackPublication(Track.Source.ScreenShare);
+      const settings = pub?.track?.mediaStreamTrack?.getSettings() as MediaTrackSettings & { displaySurface?: string };
+      const surface = settings?.displaySurface;
+      // eslint-disable-next-line no-console
+      console.log('[screen-share] displaySurface =', surface);
+      if (surface === 'browser') {
+        // Tab-Sharing: wahrscheinlich rekursiv wenn unser eigener Tab gewaehlt wurde
+        setCaptureWarning('Du teilst einen Browser-Tab. Wenn das der Filapen-Tab ist, sehen Andere einen Spiegel-Effekt. Wechsle ggf. zu einem anderen Fenster.');
+      } else if (surface === 'monitor') {
+        setCaptureWarning('Du teilst den gesamten Bildschirm. Wenn dieses Filapen-Fenster sichtbar ist, sehen Andere einen Spiegel. Minimiere Filapen oder schiebe es ausserhalb des geteilten Bereichs.');
       }
     } catch (e: any) {
       // eslint-disable-next-line no-console
-      console.warn('[screen-share] toggle failed', e);
-      const errMsg = String(e?.message ?? '');
-      const msg = e?.name === 'NotAllowedError'
-        ? 'Bildschirm-Auswahl abgebrochen oder Browser-Berechtigung fehlt.'
-        : errMsg.toLowerCase().includes('engine not connected')
-          ? 'WebRTC-Engine konnte nicht aufgebaut werden (Firewall blockiert UDP?). Pruefe die Internet-Verbindung oder versuche es ueber Mobilfunk.'
-          : `Konnte Bildschirm nicht ${wasOn ? 'stoppen' : 'starten'}: ${errMsg || 'Unbekannter Fehler'}`;
+      console.warn('[screen-share] start failed', e?.name, e?.message);
+      // Spezifische Fehler — keine Retries, sondern klare Hinweise
+      const msg =
+        e?.name === 'NotAllowedError' ? 'Bildschirm-Auswahl abgebrochen oder Berechtigung verweigert.' :
+        e?.name === 'NotFoundError' ? 'Kein teilbarer Bildschirm/Fenster gefunden.' :
+        e?.name === 'AbortError' ? 'Bildschirm-Auswahl abgebrochen.' :
+        String(e?.message || '').toLowerCase().includes('engine not connected')
+          ? 'WebRTC-Verbindung nicht hergestellt. Pruefe Internet/Firewall und lade neu.'
+          : `Konnte Bildschirm nicht starten: ${e?.message ?? 'Unbekannter Fehler'}`;
       setShareError(msg);
+    }
+  }
+
+  /** Stop Screen-Share. Beendet Session nicht — Host kann nochmal neu starten. */
+  async function handleStopShare() {
+    if (!isHost) return;
+    // eslint-disable-next-line no-console
+    console.log('[screen-share] stop clicked');
+    try {
+      await localParticipant.setScreenShareEnabled(false);
+      setCaptureWarning(null);
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.warn('[screen-share] stop failed', e);
+      setShareError(`Konnte Bildschirm nicht stoppen: ${e?.message ?? 'Unbekannter Fehler'}`);
     }
   }
 
@@ -238,19 +272,35 @@ function Inner({
               {micOn ? 'Mic an' : 'Mic aus'}
             </button>
           )}
-          {/* Screen-Toggle (nur Host) */}
+          {/* Screen-Toggle (nur Host) — getrennte Start/Stop-Click-Handler
+              damit getDisplayMedia immer eine frische User-Activation hat */}
           {isHost && (
             <button
-              onClick={toggleScreen}
+              onClick={screenOn ? handleStopShare : handleStartShare}
+              disabled={!isRoomConnected}
               className={cn(
                 'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors',
                 screenOn
                   ? 'bg-blue-600 hover:bg-blue-500 text-white'
                   : 'bg-white/10 hover:bg-white/20 text-white',
+                'disabled:opacity-50',
               )}
             >
               {screenOn ? <Monitor className="h-3.5 w-3.5" /> : <MonitorOff className="h-3.5 w-3.5" />}
               {screenOn ? 'Sharing an' : 'Bildschirm waehlen'}
+            </button>
+          )}
+          {/* Lokale Preview-Toggle (nur Host wenn am Sharen) */}
+          {isHost && screenOn && (
+            <button
+              onClick={() => setShowLocalPreview((v) => !v)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium',
+                showLocalPreview ? 'bg-white/20' : 'bg-white/10 hover:bg-white/20',
+              )}
+              title="Eigene Vorschau ein/aus"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
             </button>
           )}
           {/* Externer Link (nur Host) */}
@@ -298,12 +348,14 @@ function Inner({
       <div className="flex-1 flex overflow-hidden">
         {/* Stream */}
         <div className="flex-1 flex items-center justify-center bg-black relative overflow-hidden">
+          {/* PRIORITAET 1: Remote Screen anzeigen (= was Viewer sehen) */}
           {remoteScreen ? (
             <VideoTrack trackRef={remoteScreen} className="max-w-full max-h-full object-contain" />
           ) : isHost && screenOn ? (
-            // Host teilt gerade — wir zeigen seinen eigenen Stream NICHT
-            // (sonst Spiegel-Effekt 100x). Stattdessen Hinweis dass es laeuft.
-            <div className="text-center text-gray-300 text-sm max-w-md px-6">
+            /* Host teilt aktiv — eigenen Stream NIE gross rendern (Pixel-
+               Recursion bei Tab/Monitor-Share). Stattdessen Status-Panel
+               + optionale kleine Self-Preview. */
+            <div className="text-center text-gray-300 text-sm max-w-lg px-6">
               <div className="inline-flex h-16 w-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 items-center justify-center mb-4">
                 <Monitor className="h-7 w-7 text-emerald-400" />
               </div>
@@ -311,8 +363,13 @@ function Inner({
               <div className="text-xs text-gray-400 mt-1">
                 Andere Teilnehmer sehen jetzt deinen Bildschirm live.
               </div>
+              {captureWarning && (
+                <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200 text-left">
+                  ⚠ {captureWarning}
+                </div>
+              )}
               <button
-                onClick={toggleScreen}
+                onClick={handleStopShare}
                 className="mt-4 inline-flex items-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs text-white"
               >
                 <MonitorOff className="h-3.5 w-3.5" /> Teilen stoppen
@@ -335,12 +392,16 @@ function Inner({
                     </div>
                   )}
                   <button
-                    onClick={toggleScreen}
+                    onClick={handleStartShare}
                     disabled={!isRoomConnected}
                     className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 disabled:opacity-50 px-3 py-1.5 text-xs text-white"
                   >
                     <Monitor className="h-3.5 w-3.5" /> Bildschirm waehlen
                   </button>
+                  <div className="mt-3 text-[10px] text-gray-500">
+                    Tipp: Teile NICHT diesen Tab oder dieses Browser-Fenster —
+                    sonst sehen Andere einen Spiegel-Effekt.
+                  </div>
                 </>
               ) : (
                 <>
@@ -352,6 +413,18 @@ function Inner({
                   </div>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Kleine Self-Preview unten rechts — off by default, Host kann
+              im Header an/aus toggeln. Bewusst klein gehalten damit
+              Rekursion praktisch nicht sichtbar ist. */}
+          {isHost && screenOn && showLocalPreview && localScreen && (
+            <div className="absolute bottom-3 right-3 w-48 rounded-lg overflow-hidden border-2 border-emerald-500/50 shadow-2xl bg-black">
+              <div className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-[9px] uppercase tracking-wider text-emerald-300">
+                Du
+              </div>
+              <VideoTrack trackRef={localScreen} className="w-full h-auto" />
             </div>
           )}
         </div>
