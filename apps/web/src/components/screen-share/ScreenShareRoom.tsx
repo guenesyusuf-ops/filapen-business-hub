@@ -39,11 +39,20 @@ export default function ScreenShareRoom(props: Props) {
         token={props.livekitToken}
         serverUrl={props.livekitUrl}
         connect
-        // Audio rendering aktiv damit Voice + Bildschirm-Audio hoerbar sind
         audio={false}
         video={false}
-        // Auto-leave bei Tab-close
+        // Default-Timeout in livekit-client ist 15s — bei strikten Netzwerken
+        // (Hotel/Firma/4G) braucht die ICE-Verhandlung deutlich laenger.
+        // 45s deckt die meisten realen Faelle ab.
+        connectOptions={{ peerConnectionTimeout: 45000 }}
+        // adaptiveStream + dynacast halten Bandbreite niedrig + machen
+        // Reconnects robuster.
+        options={{ adaptiveStream: true, dynacast: true }}
         onDisconnected={() => { /* handled in inner via onLeave */ }}
+        onError={(e) => {
+          // eslint-disable-next-line no-console
+          console.error('[screen-share] LiveKitRoom error', e);
+        }}
       >
         <RoomAudioRenderer />
         <Inner {...props} />
@@ -86,6 +95,29 @@ function Inner({
     };
   }, [room]);
 
+  // Helper: setScreenShareEnabled mit Retry bei Engine-Timeout
+  // Erste Publish-Anfrage kann fehlschlagen bevor WebRTC-Publisher-PC
+  // wirklich steht (auch nach Signaling-Connected). Wir warten kurz und
+  // versuchen es nochmal.
+  async function setScreenShareWithRetry(enabled: boolean) {
+    let lastErr: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await localParticipant.setScreenShareEnabled(enabled, { audio: audioEnabled });
+        return;
+      } catch (e: any) {
+        lastErr = e;
+        const isEngineTimeout = String(e?.message || '').toLowerCase().includes('engine not connected');
+        if (!isEngineTimeout) throw e;
+        // Engine ist noch nicht ready — warten und retry
+        // eslint-disable-next-line no-console
+        console.warn(`[screen-share] engine timeout attempt ${attempt + 1}/3, retrying after 2s`);
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+    throw lastErr;
+  }
+
   // Bildschirm-Track holen (falls vorhanden) → das ist was die Viewer sehen
   const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: true });
   const mainScreen = screenTracks[0];
@@ -108,7 +140,7 @@ function Inner({
     let cancelled = false;
     (async () => {
       try {
-        await localParticipant.setScreenShareEnabled(true, { audio: audioEnabled });
+        await setScreenShareWithRetry(true);
         if (cancelled) return;
         setScreenOn(true);
         setShareError(null);
@@ -149,7 +181,7 @@ function Inner({
     if (!isHost) return;
     const wasOn = screenOn;
     try {
-      await localParticipant.setScreenShareEnabled(!wasOn, { audio: audioEnabled });
+      await setScreenShareWithRetry(!wasOn);
       setScreenOn(!wasOn);
       setShareError(null);
       if (wasOn) {
@@ -159,9 +191,12 @@ function Inner({
     } catch (e: any) {
       // eslint-disable-next-line no-console
       console.warn('[screen-share] toggle failed', e);
+      const errMsg = String(e?.message ?? '');
       const msg = e?.name === 'NotAllowedError'
         ? 'Bildschirm-Auswahl abgebrochen oder Browser-Berechtigung fehlt.'
-        : `Konnte Bildschirm nicht ${wasOn ? 'stoppen' : 'starten'}: ${e?.message ?? 'Unbekannter Fehler'}`;
+        : errMsg.toLowerCase().includes('engine not connected')
+          ? 'WebRTC-Engine konnte nicht aufgebaut werden (Firewall blockiert UDP?). Pruefe die Internet-Verbindung oder versuche es ueber Mobilfunk.'
+          : `Konnte Bildschirm nicht ${wasOn ? 'stoppen' : 'starten'}: ${errMsg || 'Unbekannter Fehler'}`;
       setShareError(msg);
     }
   }
