@@ -79,7 +79,7 @@ export class ScreenShareService {
       });
     }
 
-    const hostToken = this.generateLivekitToken({
+    const hostToken = await this.generateLivekitToken({
       roomId: livekitRoomId,
       identity: hostUserId,
       name: 'Host',
@@ -139,7 +139,7 @@ export class ScreenShareService {
       }
     }
 
-    const token = this.generateLivekitToken({
+    const token = await this.generateLivekitToken({
       roomId: session.livekitRoomId,
       identity: user.id,
       name: user.name,
@@ -283,7 +283,7 @@ export class ScreenShareService {
       },
     });
 
-    const lkToken = this.generateLivekitToken({
+    const lkToken = await this.generateLivekitToken({
       roomId: session.livekitRoomId,
       identity: `guest-${guest.id}`,
       name: `${trimmedName} (Gast)`,
@@ -354,13 +354,23 @@ export class ScreenShareService {
    * im selben Room sind in LiveKit nicht erlaubt — das verhindert auch
    * accidentally mehrfaches Joinen.
    */
-  private generateLivekitToken(params: {
+  /**
+   * Erzeugt einen kurzlebigen LiveKit-Access-Token (4h).
+   *
+   * WICHTIG: `AccessToken.toJwt()` in livekit-server-sdk@2.x ist ASYNC und
+   * liefert `Promise<string>`. Ohne await landet ein Promise-Objekt im JSON-
+   * Response, NestJS serialisiert das zu "{}", und der Client bekommt keinen
+   * gueltigen JWT. Symptom: "publishing rejected as engine not connected
+   * within timeout" — denn LiveKit lehnt den Token still ab, das Signaling
+   * scheint hochzukommen, aber der Publisher-PC wird nie aufgebaut.
+   */
+  private async generateLivekitToken(params: {
     roomId: string;
     identity: string;
     name: string;
     isHost: boolean;
     voiceEnabled: boolean;
-  }): string {
+  }): Promise<string> {
     const apiKey = this.config.get<string>('LIVEKIT_API_KEY');
     const apiSecret = this.config.get<string>('LIVEKIT_API_SECRET');
     if (!apiKey || !apiSecret) {
@@ -374,18 +384,16 @@ export class ScreenShareService {
     at.addGrant({
       room: params.roomId,
       roomJoin: true,
-      // Host darf alles publishen (Screen + Mikro), Viewer nur Mikro falls Voice an
       canPublish: params.isHost || params.voiceEnabled,
       canSubscribe: true,
-      canPublishData: true, // fuer Live-Chat ueber LiveKit-Data-Channel
-      // KEINE canPublishSources — die Source-Whitelist hatte LiveKit-Engine-
-      // Verbindung sabotiert ("publishing rejected as engine not connected").
-      // canPublish=true erlaubt ohnehin alle Sources.
+      canPublishData: true,
     });
+    const jwt = await at.toJwt();
     this.logger.log(
-      `LiveKit-Token ausgestellt: room=${params.roomId} identity=${params.identity} ` +
-      `isHost=${params.isHost} voiceEnabled=${params.voiceEnabled} canPublish=${params.isHost || params.voiceEnabled}`,
+      `LiveKit-Token: room=${params.roomId} identity=${params.identity} ` +
+      `isHost=${params.isHost} canPublish=${params.isHost || params.voiceEnabled} ` +
+      `jwtLen=${jwt.length}`,
     );
-    return at.toJwt() as unknown as string;
+    return jwt;
   }
 }
