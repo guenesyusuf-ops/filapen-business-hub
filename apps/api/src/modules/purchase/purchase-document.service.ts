@@ -113,6 +113,25 @@ export class PurchaseDocumentService {
     return docs.map((d) => ({ ...d, fileSize: d.fileSize ? Number(d.fileSize) : null }));
   }
 
+  /**
+   * Streamt das Dokument aus R2 zurueck mit Org-Check.
+   * Caller (Controller) setzt Content-Disposition (inline vs attachment) +
+   * Filename anhand des zurueckgegebenen Documents.
+   */
+  async openStream(orgId: string, docId: string) {
+    const doc = await this.prisma.purchaseDocument.findFirst({
+      where: { id: docId, orgId },
+    });
+    if (!doc) throw new NotFoundException('Dokument nicht gefunden');
+    const obj = await this.storage.getObject(doc.storageKey);
+    return {
+      stream: obj.body,
+      fileName: doc.fileName,
+      mimeType: doc.mimeType || obj.contentType || 'application/octet-stream',
+      contentLength: obj.contentLength,
+    };
+  }
+
   async remove(orgId: string, userId: string, docId: string) {
     const existing = await this.prisma.purchaseDocument.findFirst({ where: { id: docId, orgId } });
     if (!existing) throw new NotFoundException('Dokument nicht gefunden');

@@ -468,6 +468,31 @@ export class PurchaseController {
     return this.documents.upload(orgId, userId, file, id, type);
   }
 
+  /**
+   * Stream-Download eines Dokuments — Proxy ueber R2 mit Org-Check.
+   * Mit ?inline=1 wird inline angezeigt (Preview), sonst als Download.
+   * Browser kann die R2-URL nicht direkt nutzen (CORS + keine Auth).
+   */
+  @Get('documents/:docId/file')
+  async streamDocument(
+    @Headers('authorization') authHeader: string,
+    @Param('docId') docId: string,
+    @Query('inline') inline: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const { stream, fileName, mimeType, contentLength } = await this.documents.openStream(orgId, docId);
+    const disposition = inline === '1' || inline === 'true' ? 'inline' : 'attachment';
+    // RFC 5987 fuer Umlaute im Dateinamen
+    const safeAscii = fileName.replace(/[^\x20-\x7E]+/g, '_').replace(/"/g, '');
+    const encoded = encodeURIComponent(fileName);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeAscii}"; filename*=UTF-8''${encoded}`);
+    if (contentLength) res.setHeader('Content-Length', String(contentLength));
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    stream.pipe(res);
+  }
+
   @Delete('documents/:docId')
   async deleteDocument(
     @Headers('authorization') authHeader: string,

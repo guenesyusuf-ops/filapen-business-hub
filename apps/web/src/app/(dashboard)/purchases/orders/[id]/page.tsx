@@ -6,7 +6,8 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, FileText, Plus, X, Trash2, Upload, Download, Receipt,
   CheckCircle2, AlertCircle, Truck as TruckIcon, Ban, History, Plane, Package as PackageIcon,
-  PackageCheck, Pencil,
+  PackageCheck, Pencil, Eye, Building2, Phone, Mail, MapPin, Banknote, CreditCard, ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import {
   purchasesApi, fmtDate, fmtDateTime,
@@ -33,6 +34,8 @@ export default function OrderDetailPage() {
   // Order-level Ankunftsdatum-Modal (unabhaengig von Shipments —
   // User-Wunsch: separater Button "Bestellung angekommen" auf der Order)
   const [orderArrivalForm, setOrderArrivalForm] = useState(false);
+  // Dokument-Preview-Modal (PDF/Bild im iframe/img anstatt neuer Tab)
+  const [previewDoc, setPreviewDoc] = useState<NonNullable<PurchaseOrder['documents']>[number] | null>(null);
 
   const { user } = useAuthStore();
 
@@ -221,12 +224,18 @@ export default function OrderDetailPage() {
         {/* RIGHT — Payment widget + documents */}
         <div className="space-y-4">
           {/* Supplier card */}
-          <Section title="Lieferant">
-            <div className="text-sm">
-              <div className="font-medium text-gray-900 dark:text-white">{order.supplier?.companyName}</div>
-              <div className="text-xs text-gray-500 mt-1">{order.supplier?.supplierNumber}</div>
-              {order.supplier?.vatId && <div className="text-xs text-gray-500">USt-ID: {order.supplier.vatId}</div>}
-            </div>
+          <Section
+            title="Lieferant"
+            actions={order.supplier?.id && (
+              <Link
+                href={`/purchases/suppliers?id=${order.supplier.id}`}
+                className="text-[11px] text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1"
+              >
+                Stammdaten <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
+          >
+            <SupplierCard supplier={order.supplier} />
           </Section>
 
           {/* Shipments */}
@@ -331,15 +340,12 @@ export default function OrderDetailPage() {
             {(order.documents?.length || 0) > 0 && (
               <div className="space-y-1.5 mt-3">
                 {order.documents!.map((d) => (
-                  <div key={d.id} className="flex items-center gap-2 p-2 border border-gray-100 dark:border-white/8 rounded-md">
-                    <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{d.fileName}</div>
-                      <div className="text-[10px] text-gray-400">{DOCUMENT_TYPE_LABELS[d.documentType]} · {fmtDate(d.uploadedAt)}</div>
-                    </div>
-                    <a href={d.fileUrl} target="_blank" rel="noopener" className="p-1 text-gray-400 hover:text-primary-600"><Download className="h-3.5 w-3.5" /></a>
-                    <button onClick={async () => { if (confirm('Dokument löschen?')) { await purchasesApi.deleteDocument(d.id); reload(); } }} className="p-1 text-gray-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
-                  </div>
+                  <DocumentRow
+                    key={d.id}
+                    doc={d}
+                    onPreview={() => setPreviewDoc(d)}
+                    onDelete={async () => { if (confirm('Dokument löschen?')) { await purchasesApi.deleteDocument(d.id); reload(); } }}
+                  />
                 ))}
               </div>
             )}
@@ -373,6 +379,282 @@ export default function OrderDetailPage() {
           onSaved={() => { setOrderArrivalForm(false); reload(); }}
         />
       )}
+      {previewDoc && (
+        <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Lieferant-Card — zeigt alle hinterlegten Stammdaten kompakt aufbereitet
+// ---------------------------------------------------------------------------
+function SupplierCard({ supplier }: { supplier?: PurchaseOrder['supplier'] }) {
+  if (!supplier) return <div className="text-xs text-gray-400 italic">Kein Lieferant verknuepft</div>;
+  const addressLines: string[] = [];
+  if (supplier.street) addressLines.push(supplier.street);
+  const cityLine = [supplier.zipCode, supplier.city].filter(Boolean).join(' ');
+  if (cityLine) addressLines.push(cityLine);
+  if (supplier.country) addressLines.push(supplier.country);
+  const hasBank = supplier.iban || supplier.bic || supplier.bankName;
+  return (
+    <div className="space-y-3 text-sm">
+      {/* Header */}
+      <div className="flex items-start gap-2">
+        <Building2 className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-gray-900 dark:text-white truncate">{supplier.companyName}</div>
+          <div className="text-[11px] text-gray-500 font-mono">{supplier.supplierNumber}</div>
+          {supplier.status === 'inactive' && (
+            <span className="inline-block mt-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">Inaktiv</span>
+          )}
+        </div>
+      </div>
+
+      {/* Kontakt */}
+      {(supplier.contactName || supplier.email || supplier.phone) && (
+        <div className="space-y-1 border-t border-gray-100 dark:border-white/8 pt-2">
+          {supplier.contactName && (
+            <div className="text-xs text-gray-700 dark:text-gray-300">{supplier.contactName}</div>
+          )}
+          {supplier.email && (
+            <a href={`mailto:${supplier.email}`} className="flex items-center gap-1.5 text-xs text-primary-600 dark:text-primary-400 hover:underline truncate">
+              <Mail className="h-3 w-3 flex-shrink-0" /> <span className="truncate">{supplier.email}</span>
+            </a>
+          )}
+          {supplier.phone && (
+            <a href={`tel:${supplier.phone}`} className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 hover:underline">
+              <Phone className="h-3 w-3 flex-shrink-0" /> {supplier.phone}
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Adresse */}
+      {addressLines.length > 0 && (
+        <div className="flex items-start gap-1.5 border-t border-gray-100 dark:border-white/8 pt-2">
+          <MapPin className="h-3 w-3 text-gray-400 mt-0.5 flex-shrink-0" />
+          <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+            {addressLines.map((line, i) => <div key={i}>{line}</div>)}
+          </div>
+        </div>
+      )}
+
+      {/* Steuer */}
+      {(supplier.vatId || supplier.taxNumber) && (
+        <div className="border-t border-gray-100 dark:border-white/8 pt-2 space-y-0.5">
+          {supplier.vatId && (
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-gray-500">USt-ID</span>
+              <span className="text-gray-800 dark:text-gray-200 font-mono">{supplier.vatId}</span>
+            </div>
+          )}
+          {supplier.taxNumber && (
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-gray-500">Steuernr.</span>
+              <span className="text-gray-800 dark:text-gray-200 font-mono">{supplier.taxNumber}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bank */}
+      {hasBank && (
+        <div className="border-t border-gray-100 dark:border-white/8 pt-2 space-y-0.5">
+          {supplier.bankName && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <Banknote className="h-3 w-3 text-gray-400" />
+              <span className="text-gray-700 dark:text-gray-300">{supplier.bankName}</span>
+            </div>
+          )}
+          {supplier.iban && (
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-gray-500">IBAN</span>
+              <span className="text-gray-800 dark:text-gray-200 font-mono break-all text-right">{supplier.iban}</span>
+            </div>
+          )}
+          {supplier.bic && (
+            <div className="flex justify-between gap-2 text-xs">
+              <span className="text-gray-500">BIC</span>
+              <span className="text-gray-800 dark:text-gray-200 font-mono">{supplier.bic}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Konditionen */}
+      <div className="border-t border-gray-100 dark:border-white/8 pt-2 space-y-0.5">
+        <div className="flex justify-between gap-2 text-xs">
+          <span className="text-gray-500 inline-flex items-center gap-1"><CreditCard className="h-3 w-3" /> Zahlungsziel</span>
+          <span className="text-gray-800 dark:text-gray-200">
+            {supplier.paymentTermDays != null ? `${supplier.paymentTermDays} Tage` : '—'}
+          </span>
+        </div>
+        <div className="flex justify-between gap-2 text-xs">
+          <span className="text-gray-500">Waehrung</span>
+          <span className="text-gray-800 dark:text-gray-200">{supplier.defaultCurrency || 'EUR'}</span>
+        </div>
+      </div>
+
+      {/* Notiz */}
+      {supplier.notes && (
+        <div className="border-t border-gray-100 dark:border-white/8 pt-2">
+          <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Notiz</div>
+          <div className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">{supplier.notes}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Document-Row mit Preview + direktem Download (kein neues Tab)
+// ---------------------------------------------------------------------------
+function DocumentRow({
+  doc, onPreview, onDelete,
+}: {
+  doc: NonNullable<PurchaseOrder['documents']>[number];
+  onPreview: () => void;
+  onDelete: () => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await purchasesApi.downloadDocument(doc.id, doc.fileName);
+    } catch (e: any) {
+      alert(`Download fehlgeschlagen: ${e?.message ?? 'Unbekannter Fehler'}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
+  return (
+    <div className="flex items-center gap-2 p-2 border border-gray-100 dark:border-white/8 rounded-md">
+      <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+      <button
+        onClick={onPreview}
+        className="min-w-0 flex-1 text-left hover:underline"
+        title="Vorschau"
+      >
+        <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{doc.fileName}</div>
+        <div className="text-[10px] text-gray-400">{DOCUMENT_TYPE_LABELS[doc.documentType]} · {fmtDate(doc.uploadedAt)}</div>
+      </button>
+      <button
+        onClick={onPreview}
+        className="p-1 text-gray-400 hover:text-primary-600"
+        title="Vorschau"
+      >
+        <Eye className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={handleDownload}
+        disabled={downloading}
+        className="p-1 text-gray-400 hover:text-primary-600 disabled:opacity-50"
+        title="Herunterladen"
+      >
+        {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+      </button>
+      <button onClick={onDelete} className="p-1 text-gray-400 hover:text-red-600" title="Loeschen">
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dokument-Preview-Modal — PDF in iframe, Bilder als <img>.
+// Laedt das Blob ueber den authentifizierten API-Endpoint und nutzt
+// URL.createObjectURL → kein neues Tab, kein direkter R2-Zugriff.
+// ---------------------------------------------------------------------------
+function DocumentPreviewModal({
+  doc, onClose,
+}: {
+  doc: NonNullable<PurchaseOrder['documents']>[number];
+  onClose: () => void;
+}) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let revoke: string | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { blob } = await purchasesApi.fetchDocumentBlob(doc.id, true);
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        revoke = url;
+        setObjectUrl(url);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message ?? 'Unbekannter Fehler');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (revoke) URL.revokeObjectURL(revoke);
+    };
+  }, [doc.id]);
+
+  // ESC schliesst
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const isPdf = doc.mimeType === 'application/pdf';
+  const isImage = doc.mimeType?.startsWith('image/');
+
+  const handleDownload = async () => {
+    try {
+      await purchasesApi.downloadDocument(doc.id, doc.fileName);
+    } catch (e: any) {
+      alert(`Download fehlgeschlagen: ${e?.message ?? 'Unbekannter Fehler'}`);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-5xl h-[90vh] bg-white dark:bg-[#0f1117] rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden"
+      >
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 dark:border-white/10 flex-shrink-0">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">{doc.fileName}</div>
+            <div className="text-[10px] text-gray-400">{DOCUMENT_TYPE_LABELS[doc.documentType]} · {fmtDate(doc.uploadedAt)}</div>
+          </div>
+          <button
+            onClick={handleDownload}
+            className={btn('secondary')}
+            title="Direkt herunterladen"
+          >
+            <Download className="h-3.5 w-3.5" /> Download
+          </button>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 bg-gray-100 dark:bg-black/40 overflow-auto flex items-center justify-center">
+          {err ? (
+            <div className="text-sm text-red-600 dark:text-red-400 p-6">Vorschau fehlgeschlagen: {err}</div>
+          ) : !objectUrl ? (
+            <div className="text-sm text-gray-500 inline-flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Laedt Vorschau …
+            </div>
+          ) : isPdf ? (
+            <iframe src={objectUrl} title={doc.fileName} className="w-full h-full bg-white" />
+          ) : isImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={objectUrl} alt={doc.fileName} className="max-w-full max-h-full object-contain" />
+          ) : (
+            <div className="text-sm text-gray-500 p-6 text-center">
+              Vorschau fuer diesen Dateityp nicht verfuegbar. Bitte herunterladen.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

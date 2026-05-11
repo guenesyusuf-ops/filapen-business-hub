@@ -4,7 +4,9 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import type { Readable } from 'stream';
 
 @Injectable()
 export class StorageService {
@@ -65,5 +67,25 @@ export class StorageService {
         Key: key,
       }),
     );
+  }
+
+  /**
+   * Holt Object-Body als Node-Stream + Metadaten — gedacht zum Proxy-Streamen
+   * an den Browser (Download / Preview ueber unsere Auth, ohne dass der
+   * Client direkt mit der R2-URL reden muss → keine CORS-Probleme +
+   * Berechtigungspruefung moeglich).
+   */
+  async getObject(key: string): Promise<{ body: Readable; contentType?: string; contentLength?: number }> {
+    const out = await this.s3.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }),
+    );
+    return {
+      body: out.Body as Readable,
+      contentType: out.ContentType,
+      contentLength: typeof out.ContentLength === 'number' ? out.ContentLength : undefined,
+    };
   }
 }

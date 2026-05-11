@@ -63,7 +63,7 @@ export interface PurchaseOrder {
   id: string;
   orderNumber: string;
   supplierId: string;
-  supplier?: { id: string; supplierNumber: string; companyName: string; vatId?: string | null };
+  supplier?: Supplier;
   orderDate: string;
   expectedDelivery?: string | null;
   receivedAt?: string | null;
@@ -191,6 +191,40 @@ export const purchasesApi = {
     return res.json();
   },
   deleteDocument: (docId: string) => call(`/documents/${docId}`, { method: 'DELETE' }),
+
+  /**
+   * Holt das Dokument als Blob — fuer direkten Download (download-Attribute am
+   * <a>-Tag plus URL.createObjectURL) und fuer Preview im Modal (iframe/img).
+   * Geht ueber unseren API-Stream-Endpoint, weil R2 ohne CORS+Auth nicht
+   * direkt aus dem Browser angesprochen werden kann.
+   */
+  fetchDocumentBlob: async (docId: string, inline: boolean): Promise<{ blob: Blob; fileName: string; mimeType: string }> => {
+    const url = `${API_URL}/api/purchase/documents/${docId}/file${inline ? '?inline=1' : ''}`;
+    const res = await fetch(url, { headers: getAuthHeaders() });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.message || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="([^"]+)"/i);
+    const fileName = m ? decodeURIComponent(m[1]) : 'document';
+    return { blob, fileName, mimeType: res.headers.get('Content-Type') || blob.type };
+  },
+
+  /** Loest direkten Download aus — kein neues Tab, kein Drift in den Browser-PDF-Viewer. */
+  downloadDocument: async (docId: string, fallbackName?: string): Promise<void> => {
+    const { blob, fileName } = await purchasesApi.fetchDocumentBlob(docId, false);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fallbackName || fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  },
 
   // Export — returns blob URL or preview JSON
   exportPreview: async (type: string, params: Record<string, string | undefined> = {}) => {
