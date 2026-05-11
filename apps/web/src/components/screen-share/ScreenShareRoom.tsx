@@ -33,6 +33,16 @@ interface Props {
 }
 
 export default function ScreenShareRoom(props: Props) {
+  // Diagnose-Log beim Mount — zeigt im Console welche LiveKit-Instanz wir
+  // anpeilen + ob Token-Length plausibel ist. Hilft bei "engine not connected"
+  // ohne weitere Symptome zu identifizieren ob Token/URL oder Netz Schuld sind.
+  if (typeof window !== 'undefined') {
+    // eslint-disable-next-line no-console
+    console.log(
+      '[screen-share] connecting to LiveKit',
+      { url: props.livekitUrl, tokenLength: props.livekitToken?.length, isHost: props.isHost },
+    );
+  }
   return (
     <div className="fixed inset-0 z-50 bg-[#0a0c18] text-white">
       <LiveKitRoom
@@ -41,17 +51,15 @@ export default function ScreenShareRoom(props: Props) {
         connect
         audio={false}
         video={false}
-        // Default-Timeout in livekit-client ist 15s — bei strikten Netzwerken
-        // (Hotel/Firma/4G) braucht die ICE-Verhandlung deutlich laenger.
-        // 45s deckt die meisten realen Faelle ab.
         connectOptions={{ peerConnectionTimeout: 45000 }}
-        // adaptiveStream + dynacast halten Bandbreite niedrig + machen
-        // Reconnects robuster.
         options={{ adaptiveStream: true, dynacast: true }}
-        onDisconnected={() => { /* handled in inner via onLeave */ }}
+        onDisconnected={(reason) => {
+          // eslint-disable-next-line no-console
+          console.warn('[screen-share] LiveKitRoom disconnected', reason);
+        }}
         onError={(e) => {
           // eslint-disable-next-line no-console
-          console.error('[screen-share] LiveKitRoom error', e);
+          console.error('[screen-share] LiveKitRoom error', e?.message, e);
         }}
       >
         <RoomAudioRenderer />

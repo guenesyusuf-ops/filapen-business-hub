@@ -378,15 +378,14 @@ export class ScreenShareService {
       canPublish: params.isHost || params.voiceEnabled,
       canSubscribe: true,
       canPublishData: true, // fuer Live-Chat ueber LiveKit-Data-Channel
-      // Explizit alle Sources erlauben fuer Host (Screen + Mikro + Audio).
-      // Wenn unset und canPublish=true ist eigentlich auch alles erlaubt,
-      // aber manche LiveKit-Server-Versionen sind hier strikt — explizit ist sicher.
-      ...(params.isHost
-        ? { canPublishSources: ['microphone', 'screen_share', 'screen_share_audio'] as any }
-        : params.voiceEnabled
-          ? { canPublishSources: ['microphone'] as any }
-          : {}),
+      // KEINE canPublishSources — die Source-Whitelist hatte LiveKit-Engine-
+      // Verbindung sabotiert ("publishing rejected as engine not connected").
+      // canPublish=true erlaubt ohnehin alle Sources.
     });
+    this.logger.log(
+      `LiveKit-Token ausgestellt: room=${params.roomId} identity=${params.identity} ` +
+      `isHost=${params.isHost} voiceEnabled=${params.voiceEnabled} canPublish=${params.isHost || params.voiceEnabled}`,
+    );
     return at.toJwt() as unknown as string;
   }
 }
