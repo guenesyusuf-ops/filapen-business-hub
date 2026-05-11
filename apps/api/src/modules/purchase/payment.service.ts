@@ -10,12 +10,14 @@ export interface PaymentInput {
   amount: number;
   currency?: string;
   method?: 'bank_transfer' | 'credit_card' | 'paypal' | 'sepa_debit' | 'cash' | 'other';
+  cardBrand?: string | null;
   reference?: string | null;
   note?: string | null;
   receiptDocumentId?: string | null;
 }
 
 const VALID_METHODS = new Set(['bank_transfer', 'credit_card', 'paypal', 'sepa_debit', 'cash', 'other']);
+const VALID_CARD_BRANDS = new Set(['visa', 'mastercard', 'amex', 'other']);
 
 function toDecimal(n: any): Prisma.Decimal {
   if (n === null || n === undefined || n === '') {
@@ -87,6 +89,16 @@ export class PaymentService {
         if (doc) receiptDocId = doc.id;
       }
 
+      // Kartenmarke nur bei credit_card relevant; sonst auf null normalisieren
+      let cardBrand: string | null = null;
+      if (method === 'credit_card' && data.cardBrand) {
+        const cb = String(data.cardBrand).toLowerCase().trim();
+        if (!VALID_CARD_BRANDS.has(cb)) {
+          throw new BadRequestException(`Unbekannte Kartenmarke: ${data.cardBrand}`);
+        }
+        cardBrand = cb;
+      }
+
       const payment = await this.prisma.payment.create({
         data: {
           orgId,
@@ -95,6 +107,7 @@ export class PaymentService {
           amount: new Prisma.Decimal(amountNum.toFixed(2)),
           currency: data.currency || order.currency,
           method: method as any,
+          cardBrand,
           reference: data.reference?.trim() || null,
           note: data.note?.trim() || null,
           receiptDocumentId: receiptDocId,
@@ -154,6 +167,21 @@ export class PaymentService {
       if (data.currency !== undefined) updates.currency = data.currency;
       if (data.paymentDate !== undefined) updates.paymentDate = new Date(data.paymentDate);
       if (data.method !== undefined) updates.method = data.method;
+      if (data.cardBrand !== undefined) {
+        const targetMethod = data.method ?? existing.method;
+        if (targetMethod !== 'credit_card') {
+          updates.cardBrand = null;
+        } else if (data.cardBrand === null || data.cardBrand === '') {
+          updates.cardBrand = null;
+        } else {
+          const cb = String(data.cardBrand).toLowerCase().trim();
+          if (!VALID_CARD_BRANDS.has(cb)) throw new BadRequestException(`Unbekannte Kartenmarke: ${data.cardBrand}`);
+          updates.cardBrand = cb;
+        }
+      } else if (data.method !== undefined && data.method !== 'credit_card') {
+        // Beim Wechseln WEG von credit_card die Kartenmarke loeschen
+        updates.cardBrand = null;
+      }
       if (data.reference !== undefined) updates.reference = data.reference?.trim() || null;
       if (data.note !== undefined) updates.note = data.note?.trim() || null;
       if (data.receiptDocumentId !== undefined) updates.receiptDocumentId = data.receiptDocumentId || null;

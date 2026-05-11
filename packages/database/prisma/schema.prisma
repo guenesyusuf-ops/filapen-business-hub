@@ -2180,6 +2180,7 @@ model Payment {
   amount            Decimal         @db.Decimal(14, 2)
   currency          String          @default("EUR") @db.VarChar(3)
   method            PoPaymentMethod @default(bank_transfer)
+  cardBrand         String?         @map("card_brand") @db.VarChar(20)
   reference         String?         @db.VarChar(255)
   note              String?         @db.Text
   receiptDocumentId String?         @map("receipt_document_id") @db.Uuid

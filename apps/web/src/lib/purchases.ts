@@ -86,7 +86,7 @@ export interface PurchaseOrder {
   updatedAt: string;
   items?: PoItem[];
   invoices?: Array<{ id: string; invoiceNumber: string; invoiceDate: string; dueDate?: string | null; amount: string }>;
-  payments?: Array<{ id: string; paymentDate: string; amount: string; method: PaymentMethod; reference?: string | null; note?: string | null; createdBy?: { name: string | null } }>;
+  payments?: Array<{ id: string; paymentDate: string; amount: string; method: PaymentMethod; cardBrand?: string | null; reference?: string | null; note?: string | null; createdBy?: { name: string | null } }>;
   documents?: Array<{ id: string; fileName: string; fileUrl: string; mimeType: string; documentType: DocumentType; uploadedAt?: string; uploadedBy?: { name: string | null } }>;
   shipments?: Shipment[];
   _count?: { documents: number; payments: number; shipments?: number };
@@ -291,6 +291,14 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   sepa_debit: 'SEPA-Lastschrift',
   cash: 'Bar',
   other: 'Sonstiges',
+};
+
+export type CardBrand = 'visa' | 'mastercard' | 'amex' | 'other';
+export const CARD_BRAND_LABELS: Record<CardBrand, string> = {
+  visa: 'Visa',
+  mastercard: 'Mastercard',
+  amex: 'American Express',
+  other: 'Andere',
 };
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {

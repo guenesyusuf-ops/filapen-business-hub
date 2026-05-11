@@ -12,7 +12,8 @@ import {
 import {
   purchasesApi, fmtDate, fmtDateTime,
   STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, DOCUMENT_TYPE_LABELS, CARRIERS,
-  type PurchaseOrder, type PaymentMethod, type DocumentType,
+  CARD_BRAND_LABELS,
+  type PurchaseOrder, type PaymentMethod, type CardBrand, type DocumentType,
 } from '@/lib/purchases';
 import { Badge, btn, input, label, Money, PageHeader } from '@/components/purchases/PurchaseUI';
 import { useAuthStore } from '@/stores/auth';
@@ -314,7 +315,12 @@ export default function OrderDetailPage() {
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between gap-2">
-                          <span className="text-gray-700 dark:text-gray-300">{fmtDate(p.paymentDate)} · {PAYMENT_METHOD_LABELS[p.method]}</span>
+                          <span className="text-gray-700 dark:text-gray-300">
+                            {fmtDate(p.paymentDate)} · {PAYMENT_METHOD_LABELS[p.method]}
+                            {p.method === 'credit_card' && p.cardBrand && (
+                              <span className="text-gray-500"> ({CARD_BRAND_LABELS[p.cardBrand as CardBrand] || p.cardBrand})</span>
+                            )}
+                          </span>
                           <span className="tabular-nums font-medium"><Money amount={p.amount} currency={order.currency} /></span>
                         </div>
                         {p.reference && <div className="text-gray-400">Ref: {p.reference}</div>}
@@ -744,6 +750,7 @@ function PaymentModal({ orderId, currency, openAmount, onClose, onSaved }: { ord
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState<string>(openAmount > 0 ? String(openAmount) : '');
   const [method, setMethod] = useState<PaymentMethod>('bank_transfer');
+  const [cardBrand, setCardBrand] = useState<CardBrand>('visa');
   const [reference, setReference] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -754,7 +761,9 @@ function PaymentModal({ orderId, currency, openAmount, onClose, onSaved }: { ord
     setBusy(true); setErr(null); setWarning(null);
     try {
       const res = await purchasesApi.addPayment(orderId, {
-        paymentDate: date, amount: Number(amount), currency, method, reference: reference || null, note: note || null,
+        paymentDate: date, amount: Number(amount), currency, method,
+        cardBrand: method === 'credit_card' ? cardBrand : null,
+        reference: reference || null, note: note || null,
       });
       if (res?.warning) {
         setWarning(res.warning);
@@ -777,11 +786,21 @@ function PaymentModal({ orderId, currency, openAmount, onClose, onSaved }: { ord
             <div><label className={label()}>Datum *</label><input type="date" className={input()} value={date} onChange={(e) => setDate(e.target.value)} /></div>
             <div><label className={label()}>Betrag * ({currency})</label><input type="number" step="0.01" min="0.01" className={input()} value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
           </div>
-          <div>
-            <label className={label()}>Zahlungsart</label>
-            <select className={input()} value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
-              {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={label()}>Zahlungsart</label>
+              <select className={input()} value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+                {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            {method === 'credit_card' && (
+              <div>
+                <label className={label()}>Kartenmarke</label>
+                <select className={input()} value={cardBrand} onChange={(e) => setCardBrand(e.target.value as CardBrand)}>
+                  {Object.entries(CARD_BRAND_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+            )}
           </div>
           <div><label className={label()}>Referenz / Transaktionsnr.</label><input className={input()} value={reference} onChange={(e) => setReference(e.target.value)} /></div>
           <div><label className={label()}>Notiz</label><textarea rows={2} className={input()} value={note} onChange={(e) => setNote(e.target.value)} /></div>
