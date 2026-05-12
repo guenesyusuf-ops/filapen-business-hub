@@ -59,16 +59,25 @@ export function AdminNotificationBell() {
       if (res.ok) {
         const items = await res.json();
         for (const n of items) {
+          // Backend liefert snake_case via $queryRawUnsafe — wir lesen beide
+          // Varianten defensiv (falls Serializer das mal aendert).
+          const taskId = n.task_id ?? n.taskId ?? null;
+          const projectId = n.project_id ?? n.projectId ?? null;
+          // Link: bei Task → Projekt mit ?task=<id> (oeffnet Task-Detail-Modal),
+          // sonst Projekt-Page.
+          const link = projectId
+            ? (taskId ? `/work-management/${projectId}?task=${taskId}` : `/work-management/${projectId}`)
+            : undefined;
           results.push({
             id: `wm-${n.id}`,
             type: n.type === 'approval' ? 'approval' : n.type === 'comment' ? 'comment' : 'task',
             title: n.title,
             message: n.message,
-            link: n.projectId ? `/work-management/${n.projectId}` : undefined,
+            link,
             seen: n.read ?? false,
             createdAt: n.created_at ?? n.createdAt,
-            taskId: n.taskId,
-            projectId: n.projectId,
+            taskId: taskId ?? undefined,
+            projectId: projectId ?? undefined,
           });
         }
       }
