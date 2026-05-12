@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Search, Trash2, Package, Truck, Check, X, ShoppingCart, FileText, MapPin, Receipt } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Package, Truck, Check, X, ShoppingCart } from 'lucide-react';
 import { purchasesApi, type Supplier } from '@/lib/purchases';
 import { btn, input, label, Money, PageHeader } from '@/components/purchases/PurchaseUI';
 
@@ -45,10 +45,6 @@ export default function NewOrderPage() {
   const [invoiceAmount, setInvoiceAmount] = useState('');
   const [useOrderTotalAsInvoice, setUseOrderTotalAsInvoice] = useState(true);
 
-  // Rechnungs- und Lieferadresse (free-form, multi-line)
-  const [billingAddress, setBillingAddress] = useState('');
-  const [shippingAddress, setShippingAddress] = useState('');
-  const [sameAsBilling, setSameAsBilling] = useState(true);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,8 +112,6 @@ export default function NewOrderPage() {
         customsCost: customsCost ? Number(customsCost) : null,
         notes: notes || null,
         internalNotes: internalNotes || null,
-        billingAddress: billingAddress.trim() || null,
-        shippingAddress: (sameAsBilling ? billingAddress : shippingAddress).trim() || null,
         items,
       });
 
@@ -173,7 +167,7 @@ export default function NewOrderPage() {
         {/* Left: supplier + conditions */}
         <div className="lg:col-span-1 space-y-4">
           {/* Supplier */}
-          <Card title="1. Lieferant" icon={<Truck className="h-4 w-4" />} accent="primary">
+          <Card title="1. Lieferant" icon={<Truck className="h-4 w-4" />}>
             {!supplier ? (
               <div className="space-y-2">
                 <div className="relative">
@@ -216,7 +210,7 @@ export default function NewOrderPage() {
           </Card>
 
           {/* Conditions */}
-          <Card title="2. Konditionen" icon={<ShoppingCart className="h-4 w-4" />} accent="sky">
+          <Card title="2. Konditionen" icon={<ShoppingCart className="h-4 w-4" />}>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={label()}>Bestelldatum *</label>
@@ -264,55 +258,13 @@ export default function NewOrderPage() {
               </div>
             </div>
           </Card>
-
-          {/* Adressen — Rechnungs- und Lieferadresse */}
-          <Card title="3. Adressen" icon={<MapPin className="h-4 w-4" />} accent="violet">
-            <div className="space-y-3">
-              <div>
-                <label className={label() + ' inline-flex items-center gap-1.5'}>
-                  <Receipt className="h-3 w-3" /> Rechnungsadresse
-                </label>
-                <textarea
-                  rows={4}
-                  className={input()}
-                  value={billingAddress}
-                  onChange={(e) => setBillingAddress(e.target.value)}
-                  placeholder="Filapen GmbH\nMusterstrasse 1\n12345 Berlin\nDeutschland"
-                />
-              </div>
-              <label className="inline-flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sameAsBilling}
-                  onChange={(e) => setSameAsBilling(e.target.checked)}
-                  className="rounded text-primary-600 focus:ring-primary-500"
-                />
-                Lieferadresse ist identisch mit Rechnungsadresse
-              </label>
-              {!sameAsBilling && (
-                <div>
-                  <label className={label() + ' inline-flex items-center gap-1.5'}>
-                    <Truck className="h-3 w-3" /> Lieferadresse
-                  </label>
-                  <textarea
-                    rows={4}
-                    className={input()}
-                    value={shippingAddress}
-                    onChange={(e) => setShippingAddress(e.target.value)}
-                    placeholder="Lager-Adresse, abweichender Empfaenger…"
-                  />
-                </div>
-              )}
-            </div>
-          </Card>
         </div>
 
         {/* Right: items + totals */}
         <div className="lg:col-span-2 space-y-4">
           <Card
-            title="4. Produkte / Positionen"
+            title="3. Produkte / Positionen"
             icon={<Package className="h-4 w-4" />}
-            accent="emerald"
             actions={
               <div className="flex gap-2">
                 <button onClick={() => setProductPickerOpen(true)} className={btn('secondary')}>
@@ -372,7 +324,7 @@ export default function NewOrderPage() {
           </Card>
 
           {/* Invoice (optional) */}
-          <Card title="5. Rechnung (optional)" icon={<FileText className="h-4 w-4" />} accent="amber">
+          <Card title="4. Rechnung (optional)" icon={<Package className="h-4 w-4" />}>
             <p className="text-xs text-gray-500 mb-3">Falls dir die Rechnung schon vorliegt, kannst du sie direkt miterfassen. Du kannst sie auch später hinzufügen.</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="col-span-2">
@@ -408,7 +360,7 @@ export default function NewOrderPage() {
           </Card>
 
           {/* Totals */}
-          <Card title="Übersicht" accent="rose">
+          <Card title="Übersicht">
             <div className="space-y-2 max-w-sm ml-auto text-sm">
               <Row label="Zwischensumme (netto)" value={<Money amount={totals.subtotal} currency={currency} />} />
               <Row label="Steuer" value={<Money amount={totals.tax} currency={currency} />} />
@@ -457,80 +409,12 @@ export default function NewOrderPage() {
   );
 }
 
-type CardAccent = 'primary' | 'emerald' | 'amber' | 'violet' | 'sky' | 'rose' | 'none';
-
-const ACCENT_STYLES: Record<CardAccent, { border: string; bg: string; iconWrap: string; iconColor: string; titleColor: string }> = {
-  primary: {
-    border: 'border-primary-200/60 dark:border-primary-500/20',
-    bg: 'bg-gradient-to-br from-primary-50/40 to-white dark:from-primary-900/10 dark:to-white/[0.03]',
-    iconWrap: 'bg-primary-100 dark:bg-primary-900/40',
-    iconColor: 'text-primary-700 dark:text-primary-300',
-    titleColor: 'text-primary-900 dark:text-primary-100',
-  },
-  emerald: {
-    border: 'border-emerald-200/60 dark:border-emerald-500/20',
-    bg: 'bg-gradient-to-br from-emerald-50/40 to-white dark:from-emerald-900/10 dark:to-white/[0.03]',
-    iconWrap: 'bg-emerald-100 dark:bg-emerald-900/40',
-    iconColor: 'text-emerald-700 dark:text-emerald-300',
-    titleColor: 'text-emerald-900 dark:text-emerald-100',
-  },
-  amber: {
-    border: 'border-amber-200/60 dark:border-amber-500/20',
-    bg: 'bg-gradient-to-br from-amber-50/40 to-white dark:from-amber-900/10 dark:to-white/[0.03]',
-    iconWrap: 'bg-amber-100 dark:bg-amber-900/40',
-    iconColor: 'text-amber-700 dark:text-amber-300',
-    titleColor: 'text-amber-900 dark:text-amber-100',
-  },
-  violet: {
-    border: 'border-violet-200/60 dark:border-violet-500/20',
-    bg: 'bg-gradient-to-br from-violet-50/40 to-white dark:from-violet-900/10 dark:to-white/[0.03]',
-    iconWrap: 'bg-violet-100 dark:bg-violet-900/40',
-    iconColor: 'text-violet-700 dark:text-violet-300',
-    titleColor: 'text-violet-900 dark:text-violet-100',
-  },
-  sky: {
-    border: 'border-sky-200/60 dark:border-sky-500/20',
-    bg: 'bg-gradient-to-br from-sky-50/40 to-white dark:from-sky-900/10 dark:to-white/[0.03]',
-    iconWrap: 'bg-sky-100 dark:bg-sky-900/40',
-    iconColor: 'text-sky-700 dark:text-sky-300',
-    titleColor: 'text-sky-900 dark:text-sky-100',
-  },
-  rose: {
-    border: 'border-rose-200/60 dark:border-rose-500/20',
-    bg: 'bg-gradient-to-br from-rose-50/40 to-white dark:from-rose-900/10 dark:to-white/[0.03]',
-    iconWrap: 'bg-rose-100 dark:bg-rose-900/40',
-    iconColor: 'text-rose-700 dark:text-rose-300',
-    titleColor: 'text-rose-900 dark:text-rose-100',
-  },
-  none: {
-    border: 'border-gray-200/80 dark:border-white/8',
-    bg: 'bg-white dark:bg-white/[0.03]',
-    iconWrap: 'bg-gray-100 dark:bg-white/5',
-    iconColor: 'text-gray-600 dark:text-gray-300',
-    titleColor: 'text-gray-900 dark:text-white',
-  },
-};
-
-function Card({
-  title, icon, actions, children, accent = 'none',
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
-  accent?: CardAccent;
-}) {
-  const a = ACCENT_STYLES[accent];
+function Card({ title, icon, actions, children }: { title: string; icon?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className={`rounded-2xl border ${a.border} ${a.bg} shadow-sm`}>
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100/70 dark:border-white/8">
-        <h3 className={`text-sm font-semibold flex items-center gap-2 ${a.titleColor}`}>
-          {icon && (
-            <span className={`inline-flex h-6 w-6 rounded-md items-center justify-center ${a.iconWrap} ${a.iconColor}`}>
-              {icon}
-            </span>
-          )}
-          {title}
+    <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03]">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/8">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          {icon} {title}
         </h3>
         {actions}
       </div>

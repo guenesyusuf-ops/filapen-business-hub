@@ -239,29 +239,6 @@ export default function OrderDetailPage() {
             <SupplierCard supplier={order.supplier} />
           </Section>
 
-          {/* Adressen — Rechnungs- + Lieferadresse falls hinterlegt */}
-          {(order.billingAddress || order.shippingAddress) && (
-            <Section title="Adressen">
-              <div className="space-y-3 text-xs">
-                {order.billingAddress && (
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Rechnungsadresse</div>
-                    <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words leading-relaxed">
-                      {order.billingAddress}
-                    </div>
-                  </div>
-                )}
-                {order.shippingAddress && order.shippingAddress !== order.billingAddress && (
-                  <div className="pt-2 border-t border-gray-100 dark:border-white/8">
-                    <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Lieferadresse</div>
-                    <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words leading-relaxed">
-                      {order.shippingAddress}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Section>
-          )}
 
           {/* Shipments */}
           <Section
