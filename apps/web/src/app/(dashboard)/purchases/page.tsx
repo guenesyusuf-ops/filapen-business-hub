@@ -239,6 +239,8 @@ export default function PurchasesDashboardPage() {
                     <th className="px-3 py-2.5 text-left">Lieferant</th>
                     <th className="px-3 py-2.5 text-left">Produkte</th>
                     <th className="px-3 py-2.5 text-left">Käufer</th>
+                    <th className="px-3 py-2.5 text-left whitespace-nowrap">Bestelldatum</th>
+                    <th className="px-3 py-2.5 text-left whitespace-nowrap">Ankunft</th>
                     <th className="px-3 py-2.5 text-right">Rechnungssumme</th>
                     <th className="px-3 py-2.5 text-right">Schon bezahlt</th>
                     <th className="px-3 py-2.5 text-right">Offener Betrag</th>
@@ -276,6 +278,14 @@ export default function PurchasesDashboardPage() {
                           <div className="text-xs text-gray-400">{fmtDate(o.orderDate)}</div>
                         </td>
                         <td className="px-3 py-3 text-gray-600 dark:text-gray-300">{o.createdBy?.name || o.createdBy?.email || '—'}</td>
+                        <td className="px-3 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{fmtDate(o.orderDate)}</td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          {o.receivedAt ? (
+                            <span className="text-emerald-700 dark:text-emerald-400">{fmtDate(o.receivedAt)}</span>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
                         <td className="px-3 py-3 text-right whitespace-nowrap"><Money amount={o.totalAmount} currency={o.currency} /></td>
                         <td className="px-3 py-3 text-right whitespace-nowrap text-green-700 dark:text-green-400"><Money amount={o.paidAmount} currency={o.currency} /></td>
                         <td className="px-3 py-3 text-right whitespace-nowrap font-medium">

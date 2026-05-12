@@ -80,6 +80,8 @@ export interface PurchaseOrder {
   paymentStatus: PaymentStatus;
   notes?: string | null;
   internalNotes?: string | null;
+  billingAddress?: string | null;
+  shippingAddress?: string | null;
   createdById: string;
   createdBy?: { id: string; name: string | null; email: string; avatarUrl?: string | null };
   createdAt: string;

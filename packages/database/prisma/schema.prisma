@@ -2101,6 +2101,8 @@ model PurchaseOrder {
   paymentStatus    PoPaymentStatus @default(unpaid) @map("payment_status")
   notes            String?         @db.Text
   internalNotes    String?         @map("internal_notes") @db.Text
+  billingAddress   String?         @map("billing_address") @db.Text
+  shippingAddress  String?         @map("shipping_address") @db.Text
   createdById      String          @map("created_by_id") @db.Uuid
   createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz

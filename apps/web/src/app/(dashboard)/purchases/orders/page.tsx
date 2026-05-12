@@ -218,7 +218,8 @@ export default function PurchaseOrdersPage() {
                   <Th hideOn="sm">Lieferant</Th>
                   <Th>Produkte</Th>
                   <Th hideOn="xl">Käufer</Th>
-                  <Th hideOn="md" onClick={() => toggleSort('orderDate')} active={sort === 'orderDate'} dir={dir}>Datum</Th>
+                  <Th hideOn="md" onClick={() => toggleSort('orderDate')} active={sort === 'orderDate'} dir={dir}>Bestelldatum</Th>
+                  <Th hideOn="md">Ankunft</Th>
                   <Th hideOn="xl">Rechnung</Th>
                   <Th onClick={() => toggleSort('total')} active={sort === 'total'} dir={dir} align="right">Betrag</Th>
                   <Th hideOn="lg" align="right">Bezahlt</Th>
@@ -257,6 +258,13 @@ export default function PurchaseOrdersPage() {
                       </td>
                       <td className="px-3 py-3 text-gray-600 dark:text-gray-300 hidden xl:table-cell">{o.createdBy?.name || o.createdBy?.email || '—'}</td>
                       <td className="px-3 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap hidden md:table-cell">{fmtDate(o.orderDate)}</td>
+                      <td className="px-3 py-3 whitespace-nowrap hidden md:table-cell">
+                        {o.receivedAt ? (
+                          <span className="text-emerald-700 dark:text-emerald-400">{fmtDate(o.receivedAt)}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-3 hidden xl:table-cell">
                         {inv ? (
                           <div>

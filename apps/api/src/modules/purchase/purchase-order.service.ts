@@ -23,6 +23,8 @@ export interface PoInput {
   customsCost?: number | null;
   notes?: string | null;
   internalNotes?: string | null;
+  billingAddress?: string | null;
+  shippingAddress?: string | null;
   items: PoItemInput[];
 }
 
@@ -310,6 +312,8 @@ export class PurchaseOrderService {
         paymentStatus: 'unpaid',
         notes: data.notes?.trim() || null,
         internalNotes: data.internalNotes?.trim() || null,
+        billingAddress: data.billingAddress?.trim() || null,
+        shippingAddress: data.shippingAddress?.trim() || null,
         createdById: userId,
         items: { create: itemRows },
       },
@@ -378,6 +382,8 @@ export class PurchaseOrderService {
     if (data.customsCost !== undefined) updates.customsCost = data.customsCost != null ? D(data.customsCost) : null;
     if (data.notes !== undefined) updates.notes = data.notes?.trim() || null;
     if (data.internalNotes !== undefined) updates.internalNotes = data.internalNotes?.trim() || null;
+    if (data.billingAddress !== undefined) updates.billingAddress = data.billingAddress?.trim() || null;
+    if (data.shippingAddress !== undefined) updates.shippingAddress = data.shippingAddress?.trim() || null;
 
     const updated = await this.prisma.purchaseOrder.update({
       where: { id },
