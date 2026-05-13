@@ -403,6 +403,8 @@ model User {
   documentsUploaded PurchaseDocument[] @relation("DocUploader")
   poAuditLogs       PurchaseAuditLog[] @relation("PoAuditUser")
   shipmentsCreated  Shipment[]         @relation("ShipmentCreator")
+  vacationRequests  VacationRequest[]  @relation("VacationRequester")
+  vacationReviews   VacationRequest[]  @relation("VacationReviewer")
 
   @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
   @@unique([orgId, email], map: "uq_user_org_email")
@@ -3049,6 +3051,31 @@ model SalesCustomer {
   @@index([orgId, companyName])
   @@index([orgId, email])
   @@map("sales_customers")
+}
+
+/// Urlaubs-Antrag — Mitarbeiter beantragt, Owner/Admin genehmigt oder lehnt ab.
+model VacationRequest {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String    @map("org_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  startDate    DateTime  @map("start_date") @db.Date
+  endDate      DateTime  @map("end_date") @db.Date
+  reason       String?   @db.Text
+  status       String    @default("pending") @db.VarChar(20)
+  reviewedById String?   @map("reviewed_by_id") @db.Uuid
+  reviewedAt   DateTime? @map("reviewed_at") @db.Timestamptz
+  reviewNote   String?   @map("review_note") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user       User  @relation("VacationRequester", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("VacationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([userId])
+  @@index([orgId, status])
+  @@index([orgId, status, startDate, endDate])
+  @@map("vacation_requests")
 }
 
 /// Kundenspezifischer Produkt-Preis (B2B-Sonderkondition).

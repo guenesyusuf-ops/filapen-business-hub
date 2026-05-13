@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
 import { useMyWmTasks } from '@/hooks/work-management/useWm';
@@ -44,6 +44,11 @@ import { OnlineUsersWidget } from '@/components/home/OnlineUsersWidget';
 import { PendingApprovalsWidget } from '@/components/home/PendingApprovalsWidget';
 import { ShortcutInbox } from '@/components/home/ShortcutInbox';
 import { CurrencyWidget } from '@/components/home/CurrencyWidget';
+import { VatCalculatorWidget } from '@/components/home/VatCalculatorWidget';
+import { VacationModal } from '@/components/home/VacationModal';
+import { VacationInbox } from '@/components/home/VacationInbox';
+import { vacationApi, type VacationRequest } from '@/lib/vacation';
+import { Plane } from 'lucide-react';
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -245,7 +250,9 @@ function CalendarWidget() {
   const now = new Date();
   const [monthOffset, setMonthOffset] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
+  const [showVacation, setShowVacation] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(isoDay(now));
+  const [vacations, setVacations] = useState<VacationRequest[]>([]);
 
   const viewDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const monthStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
@@ -255,6 +262,14 @@ function CalendarWidget() {
     monthStart.toISOString(),
     new Date(monthEnd.getFullYear(), monthEnd.getMonth(), monthEnd.getDate() + 1).toISOString(),
   );
+
+  // Genehmigte Urlaube des aktuellen Monats holen
+  useEffect(() => {
+    const from = isoDay(monthStart);
+    const to = isoDay(monthEnd);
+    vacationApi.listApproved(from, to).then(setVacations).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthOffset]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, PersonalCalendarEvent[]>();
@@ -266,6 +281,22 @@ function CalendarWidget() {
     }
     return map;
   }, [events]);
+
+  // Urlaubs-Map: pro Tag alle Urlaubs-Eintraege (kann sich ueber mehrere Tage spannen)
+  const vacationsByDay = useMemo(() => {
+    const map = new Map<string, VacationRequest[]>();
+    for (const v of vacations) {
+      const start = new Date(v.startDate);
+      const end = new Date(v.endDate);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const key = isoDay(d);
+        const arr = map.get(key) ?? [];
+        arr.push(v);
+        map.set(key, arr);
+      }
+    }
+    return map;
+  }, [vacations]);
 
   // Monday-first week layout
   const firstWeekday = (monthStart.getDay() + 6) % 7;
@@ -284,13 +315,22 @@ function CalendarWidget() {
           <Calendar className="h-4 w-4 text-accent-purchase" />
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Kalender</h2>
         </div>
-        <button
-          onClick={() => { setSelectedDate(isoDay(new Date())); setShowAdd(true); }}
-          className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium inline-flex items-center gap-1"
-        >
-          <Plus className="h-3 w-3" />
-          Termin
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowVacation(true)}
+            className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 font-medium inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/20"
+          >
+            <Plus className="h-3 w-3" />
+            Urlaub
+          </button>
+          <button
+            onClick={() => { setSelectedDate(isoDay(new Date())); setShowAdd(true); }}
+            className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/20"
+          >
+            <Plus className="h-3 w-3" />
+            Termin
+          </button>
+        </div>
       </div>
 
       {/* Month nav */}
@@ -326,6 +366,7 @@ function CalendarWidget() {
             const isToday = key === isoDay(new Date());
             const isSelected = key === selectedDate;
             const hasEvents = eventsByDay.has(key);
+            const hasVacation = vacationsByDay.has(key);
             return (
               <button
                 key={i}
@@ -334,17 +375,23 @@ function CalendarWidget() {
                   'h-8 rounded-md text-xs font-medium relative transition-colors',
                   isSelected
                     ? 'bg-primary-600 text-white'
-                    : isToday
-                      ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5',
+                    : hasVacation
+                      ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                      : isToday
+                        ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5',
                 )}
               >
                 {d}
-                {hasEvents && (
-                  <span className={cn(
-                    'absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full',
-                    isSelected ? 'bg-white' : 'bg-primary-500',
-                  )} />
+                {(hasEvents || hasVacation) && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
+                    {hasEvents && (
+                      <span className={cn('h-1 w-1 rounded-full', isSelected ? 'bg-white' : 'bg-primary-500')} />
+                    )}
+                    {hasVacation && (
+                      <span className={cn('h-1 w-1 rounded-full', isSelected ? 'bg-white' : 'bg-amber-500')} />
+                    )}
+                  </span>
                 )}
               </button>
             );
@@ -357,20 +404,58 @@ function CalendarWidget() {
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
           {new Date(selectedDate).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' })}
         </p>
-        {selectedEvents.length === 0 ? (
-          <p className="text-xs text-gray-400 italic">Keine Termine</p>
-        ) : (
-          <div className="space-y-2">
-            {selectedEvents.map((ev) => (
-              <EventRow key={ev.id} event={ev} />
-            ))}
-          </div>
-        )}
+        {(() => {
+          const dayVacations = vacationsByDay.get(selectedDate) ?? [];
+          if (selectedEvents.length === 0 && dayVacations.length === 0) {
+            return <p className="text-xs text-gray-400 italic">Keine Termine</p>;
+          }
+          return (
+            <div className="space-y-2">
+              {dayVacations.map((v) => (
+                <VacationRow key={v.id} vacation={v} />
+              ))}
+              {selectedEvents.map((ev) => (
+                <EventRow key={ev.id} event={ev} />
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {showAdd && (
         <AddEventModal defaultDate={selectedDate} onClose={() => setShowAdd(false)} />
       )}
+      {showVacation && (
+        <VacationModal
+          defaultStart={selectedDate}
+          onClose={() => setShowVacation(false)}
+          onCreated={() => {
+            // Re-fetch nach Submit — falls Owner selber Urlaub eintraegt + sofort genehmigt
+            const from = isoDay(monthStart);
+            const to = isoDay(monthEnd);
+            vacationApi.listApproved(from, to).then(setVacations).catch(() => {});
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function VacationRow({ vacation }: { vacation: VacationRequest }) {
+  const userName = vacation.user?.name
+    || [vacation.user?.firstName, vacation.user?.lastName].filter(Boolean).join(' ').trim()
+    || 'Mitarbeiter';
+  return (
+    <div className="flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-900/20 px-2 py-1.5">
+      <Plane className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-amber-900 dark:text-amber-100 truncate">
+          Urlaub · {userName}
+        </p>
+        <p className="text-[10px] text-amber-700 dark:text-amber-300">
+          {new Date(vacation.startDate).toLocaleDateString('de-DE')} – {new Date(vacation.endDate).toLocaleDateString('de-DE')}
+        </p>
+      </div>
     </div>
   );
 }
@@ -744,11 +829,16 @@ function QuickStats() {
 // -----------------------------------------------------------------------------
 
 export default function HomePage() {
+  const user = useAuthStore((s) => s.user);
+  const canReview = user?.role === 'owner' || user?.role === 'admin';
   return (
     <div className="space-y-5 animate-fade-in w-full">
       <GreetingCard />
       <QuickStats />
       <PendingApprovalsWidget />
+      {/* Owner/Admin: offene Urlaubsantraege */}
+      <VacationInbox canReview={canReview} />
+      <VacationDecisionPopup />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
         <TasksWidget />
         <CalendarWidget />
@@ -759,6 +849,88 @@ export default function HomePage() {
         <OnlineUsersWidget />
         <CurrencyWidget />
       </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
+        <VatCalculatorWidget />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Popup-Benachrichtigung fuer Mitarbeiter: zeigt frische Entscheidungen
+ * (approved/rejected innerhalb der letzten 7 Tage), die der User noch
+ * nicht "gesehen" hat (LocalStorage-Tracking — kein DB-Read-State).
+ */
+function VacationDecisionPopup() {
+  const [decisions, setDecisions] = useState<VacationRequest[]>([]);
+  useEffect(() => {
+    vacationApi.listMine().then((all) => {
+      const seenRaw = typeof window !== 'undefined' ? localStorage.getItem('vacation:seen') : null;
+      const seen = new Set<string>(seenRaw ? JSON.parse(seenRaw) : []);
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const fresh = all.filter((r) =>
+        (r.status === 'approved' || r.status === 'rejected') &&
+        r.reviewedAt && new Date(r.reviewedAt).getTime() > cutoff &&
+        !seen.has(r.id),
+      );
+      setDecisions(fresh);
+    }).catch(() => {});
+  }, []);
+  function dismiss(id: string) {
+    const seenRaw = localStorage.getItem('vacation:seen');
+    const seen = new Set<string>(seenRaw ? JSON.parse(seenRaw) : []);
+    seen.add(id);
+    localStorage.setItem('vacation:seen', JSON.stringify(Array.from(seen)));
+    setDecisions((prev) => prev.filter((r) => r.id !== id));
+  }
+  if (decisions.length === 0) return null;
+  return (
+    <div className="fixed top-20 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+      {decisions.map((r) => {
+        const approved = r.status === 'approved';
+        return (
+          <div
+            key={r.id}
+            className={cn(
+              'rounded-2xl shadow-2xl border overflow-hidden animate-fade-in-down',
+              approved
+                ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-500/30'
+                : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-500/30',
+            )}
+          >
+            <div className="flex items-start gap-3 p-4">
+              <div className={cn(
+                'h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0',
+                approved ? 'bg-emerald-500' : 'bg-red-500',
+              )}>
+                <Plane className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={cn(
+                  'text-sm font-semibold',
+                  approved ? 'text-emerald-900 dark:text-emerald-100' : 'text-red-900 dark:text-red-100',
+                )}>
+                  {approved ? 'Urlaub genehmigt' : 'Urlaub abgelehnt'}
+                </div>
+                <div className={cn(
+                  'text-xs mt-0.5',
+                  approved ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300',
+                )}>
+                  {new Date(r.startDate).toLocaleDateString('de-DE')} – {new Date(r.endDate).toLocaleDateString('de-DE')}
+                </div>
+                {r.reviewNote && (
+                  <div className="text-[11px] text-gray-600 dark:text-gray-300 mt-1.5 italic break-words">
+                    Notiz: {r.reviewNote}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => dismiss(r.id)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
