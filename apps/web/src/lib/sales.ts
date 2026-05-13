@@ -52,6 +52,20 @@ export const salesApi = {
   updateCustomer: (id: string, data: any) => call<any>(`/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCustomer: (id: string) => call(`/customers/${id}`, { method: 'DELETE' }),
 
+  // ----- B2B-Konditionen pro Kunde -----
+  getCustomerConditions: (customerId: string) =>
+    call<{ customer: any; productPrices: any[] }>(`/customers/${customerId}/conditions`),
+  updateCustomerConditions: (customerId: string, data: any) =>
+    call<any>(`/customers/${customerId}/conditions`, { method: 'PUT', body: JSON.stringify(data) }),
+  addCustomerProductPrice: (customerId: string, data: any) =>
+    call<any>(`/customers/${customerId}/product-prices`, { method: 'POST', body: JSON.stringify(data) }),
+  updateCustomerProductPrice: (priceId: string, data: any) =>
+    call<any>(`/product-prices/${priceId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCustomerProductPrice: (priceId: string) =>
+    call(`/product-prices/${priceId}`, { method: 'DELETE' }),
+  searchProductsForConditions: (q?: string) =>
+    call<any[]>(`/conditions/products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+
   // Orders
   listOrders: (q: Record<string, string | undefined> = {}) => {
     const p = new URLSearchParams();

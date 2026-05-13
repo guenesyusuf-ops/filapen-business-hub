@@ -252,6 +252,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.salesDashboard', href: '/sales/dashboard', icon: BarChart3 },
       { labelKey: 'nav.salesOrders', href: '/sales/orders', icon: ClipboardList },
       { labelKey: 'nav.salesCustomers', href: '/sales/customers', icon: Building2 },
+      { labelKey: 'nav.salesConditions', href: '/sales/conditions', icon: Sliders },
       { labelKey: 'nav.salesImport', href: '/sales/import', icon: FileText },
       { labelKey: 'nav.salesExport', href: '/sales/export', icon: Download },
     ],

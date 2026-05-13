@@ -14,6 +14,7 @@ import { SalesImportService } from './sales-import.service';
 import { EasybillService } from './easybill.service';
 import { SalesExportService } from './sales-export.service';
 import { SalesShippingService } from './sales-shipping.service';
+import { SalesConditionsService } from './sales-conditions.service';
 
 @Controller('sales')
 export class SalesController {
@@ -28,7 +29,69 @@ export class SalesController {
     private readonly easybill: EasybillService,
     private readonly exporter: SalesExportService,
     private readonly salesShipping: SalesShippingService,
+    private readonly conditions: SalesConditionsService,
   ) {}
+
+  // ==========================================================
+  // Konditionen (B2B per-Kunde)
+  // ==========================================================
+  @Get('customers/:id/conditions')
+  async getCustomerConditions(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.conditions.getConditions(orgId, id);
+  }
+
+  @Put('customers/:id/conditions')
+  async updateCustomerConditions(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.conditions.updateConditions(orgId, id, body);
+  }
+
+  @Post('customers/:id/product-prices')
+  async addProductPrice(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.conditions.addProductPrice(orgId, id, body);
+  }
+
+  @Put('product-prices/:priceId')
+  async updateProductPrice(
+    @Headers('authorization') authHeader: string,
+    @Param('priceId') priceId: string,
+    @Body() body: any,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.conditions.updateProductPrice(orgId, priceId, body);
+  }
+
+  @Delete('product-prices/:priceId')
+  async deleteProductPrice(
+    @Headers('authorization') authHeader: string,
+    @Param('priceId') priceId: string,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.conditions.removeProductPrice(orgId, priceId);
+  }
+
+  @Get('conditions/products')
+  async listProductsForConditions(
+    @Headers('authorization') authHeader: string,
+    @Query('q') q?: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.conditions.searchProducts(orgId, q);
+  }
 
   // ==========================================================
   // Dashboard

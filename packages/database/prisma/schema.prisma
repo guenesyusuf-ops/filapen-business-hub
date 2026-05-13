@@ -857,6 +857,7 @@ model Product {
   variants        ProductVariant[]
   creatorProjects CreatorProject[]
   briefings       Briefing[]
+  customerPrices  SalesCustomerProductPrice[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
@@ -891,6 +892,7 @@ model ProductVariant {
   orderLineItems  OrderLineItem[]
   shippingProfile ShippingProductProfile?
   salesLineItems  SalesOrderLineItem[]
+  customerPrices  SalesCustomerProductPrice[]
 
   @@unique([orgId, externalId], map: "uq_variant_org_external")
   @@index([orgId])
@@ -3024,6 +3026,11 @@ model SalesCustomer {
   shippingAddress        Json?    @map("shipping_address") @db.JsonB
   billingAddress         Json?    @map("billing_address") @db.JsonB
   paymentTerms           String?  @map("payment_terms") @db.VarChar(255)
+  // B2B-Konditionen (global pro Kunde)
+  minOrderQuantity       Int?     @map("min_order_quantity")
+  minOrderValue          Decimal? @map("min_order_value") @db.Decimal(12, 2)
+  discountPercent        Decimal? @map("discount_percent") @db.Decimal(5, 2)
+  shippingTerms          String?  @map("shipping_terms") @db.VarChar(255)
   notes                  String?  @db.Text
   // easybill internal API ID (integer as string) — set after first successful upsert
   easybillCustomerId     String?  @map("easybill_customer_id") @db.VarChar(100)
@@ -3033,14 +3040,39 @@ model SalesCustomer {
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  orders       SalesOrder[]
+  organization  Organization                  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orders        SalesOrder[]
+  productPrices SalesCustomerProductPrice[]
 
   @@unique([orgId, customerNumber], map: "uq_sales_customer_org_number")
   @@index([orgId])
   @@index([orgId, companyName])
   @@index([orgId, email])
   @@map("sales_customers")
+}
+
+/// Kundenspezifischer Produkt-Preis (B2B-Sonderkondition).
+/// Genau einer von product_id oder product_variant_id muss gesetzt sein.
+model SalesCustomerProductPrice {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String   @map("org_id") @db.Uuid
+  customerId       String   @map("customer_id") @db.Uuid
+  productId        String?  @map("product_id") @db.Uuid
+  productVariantId String?  @map("product_variant_id") @db.Uuid
+  netPrice         Decimal  @map("net_price") @db.Decimal(12, 4)
+  currency         String   @default("EUR") @db.VarChar(3)
+  minQuantity      Int?     @map("min_quantity")
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer       SalesCustomer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product        Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant?  @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([orgId, customerId])
+  @@map("sales_customer_product_prices")
 }
 
 model SalesOrder {

@@ -202,45 +202,7 @@ export default function OrderDetailPage() {
             )}
           </Section>
 
-          {/* Audit log inline */}
-          {showAudit && (
-            <Section title="Verlauf">
-              {audit.length === 0 ? <div className="text-sm text-gray-400">Keine Einträge</div> : (
-                <ol className="space-y-2 text-sm">
-                  {audit.map((a) => (
-                    <li key={a.id} className="flex gap-3 items-start">
-                      <div className="w-2 h-2 rounded-full bg-primary-500 mt-1.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <div className="text-gray-700 dark:text-gray-300"><span className="font-medium">{a.user?.name || a.user?.email}</span> · {a.action} · <span className="text-xs text-gray-400 uppercase">{a.entityType}</span></div>
-                        <div className="text-xs text-gray-400">{fmtDateTime(a.createdAt)}</div>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </Section>
-          )}
-        </div>
-
-        {/* RIGHT — Payment widget + documents */}
-        <div className="space-y-4">
-          {/* Supplier card */}
-          <Section
-            title="Lieferant"
-            actions={order.supplier?.id && (
-              <Link
-                href={`/purchases/suppliers?id=${order.supplier.id}`}
-                className="text-[11px] text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1"
-              >
-                Stammdaten <ExternalLink className="h-3 w-3" />
-              </Link>
-            )}
-          >
-            <SupplierCard supplier={order.supplier} />
-          </Section>
-
-
-          {/* Shipments */}
+          {/* Shipments — links damit links und rechts gleich viele Kacheln haben */}
           <Section
             title={`Sendungen (${order.shipments?.length || 0})`}
             actions={order.status !== 'cancelled' && <button onClick={() => setShipmentForm(true)} className={btn('primary')}><Plus className="h-4 w-4" /> Sendung</button>}
@@ -292,6 +254,43 @@ export default function OrderDetailPage() {
                 })}
               </div>
             )}
+          </Section>
+
+          {/* Audit log inline */}
+          {showAudit && (
+            <Section title="Verlauf">
+              {audit.length === 0 ? <div className="text-sm text-gray-400">Keine Einträge</div> : (
+                <ol className="space-y-2 text-sm">
+                  {audit.map((a) => (
+                    <li key={a.id} className="flex gap-3 items-start">
+                      <div className="w-2 h-2 rounded-full bg-primary-500 mt-1.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <div className="text-gray-700 dark:text-gray-300"><span className="font-medium">{a.user?.name || a.user?.email}</span> · {a.action} · <span className="text-xs text-gray-400 uppercase">{a.entityType}</span></div>
+                        <div className="text-xs text-gray-400">{fmtDateTime(a.createdAt)}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </Section>
+          )}
+        </div>
+
+        {/* RIGHT — Lieferant + Zahlungen + Dokumente (3 schmale Kacheln) */}
+        <div className="space-y-4">
+          {/* Supplier card */}
+          <Section
+            title="Lieferant"
+            actions={order.supplier?.id && (
+              <Link
+                href={`/purchases/suppliers?id=${order.supplier.id}`}
+                className="text-[11px] text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1"
+              >
+                Stammdaten <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
+          >
+            <SupplierCard supplier={order.supplier} />
           </Section>
 
           {/* Payment widget */}

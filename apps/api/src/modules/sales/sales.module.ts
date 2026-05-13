@@ -11,6 +11,7 @@ import { EasybillService } from './easybill.service';
 import { SalesReminderService } from './sales-reminder.service';
 import { SalesExportService } from './sales-export.service';
 import { SalesShippingService } from './sales-shipping.service';
+import { SalesConditionsService } from './sales-conditions.service';
 
 @Module({
   imports: [AuthModule, StorageModule, ShippingModule],
@@ -24,6 +25,7 @@ import { SalesShippingService } from './sales-shipping.service';
     SalesReminderService,
     SalesExportService,
     SalesShippingService,
+    SalesConditionsService,
   ],
   exports: [SalesOrderService, SalesCustomerService],
 })
