@@ -44,7 +44,6 @@ import { OnlineUsersWidget } from '@/components/home/OnlineUsersWidget';
 import { PendingApprovalsWidget } from '@/components/home/PendingApprovalsWidget';
 import { ShortcutInbox } from '@/components/home/ShortcutInbox';
 import { CurrencyWidget } from '@/components/home/CurrencyWidget';
-import { VatCalculatorWidget } from '@/components/home/VatCalculatorWidget';
 import { VacationModal } from '@/components/home/VacationModal';
 import { VacationInbox } from '@/components/home/VacationInbox';
 import { vacationApi, type VacationRequest } from '@/lib/vacation';
@@ -848,9 +847,6 @@ export default function HomePage() {
         <ShortcutInbox />
         <OnlineUsersWidget />
         <CurrencyWidget />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
-        <VatCalculatorWidget />
       </div>
     </div>
   );
