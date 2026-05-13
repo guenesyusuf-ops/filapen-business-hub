@@ -137,7 +137,7 @@ export default function OrderDetailPage() {
       <div className="grid lg:grid-cols-3 gap-4">
         {/* LEFT — Positions + invoices */}
         <div className="lg:col-span-2 space-y-4">
-          <Section title={`Positionen (${order.items?.length || 0})`}>
+          <Section title={`Positionen (${order.items?.length || 0})`} icon={<PackageIcon className="h-3.5 w-3.5" />} accent="emerald">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50/50 dark:bg-white/[0.02] text-xs text-gray-500 uppercase">
@@ -180,6 +180,8 @@ export default function OrderDetailPage() {
           {/* Invoices */}
           <Section
             title={`Rechnungen (${order.invoices?.length || 0})`}
+            icon={<Receipt className="h-3.5 w-3.5" />}
+            accent="amber"
             actions={<button onClick={() => setInvoiceForm(true)} className={btn('secondary')}><Plus className="h-4 w-4" /> Rechnung erfassen</button>}
           >
             {(order.invoices?.length || 0) === 0 ? (
@@ -205,6 +207,8 @@ export default function OrderDetailPage() {
           {/* Shipments — links damit links und rechts gleich viele Kacheln haben */}
           <Section
             title={`Sendungen (${order.shipments?.length || 0})`}
+            icon={<TruckIcon className="h-3.5 w-3.5" />}
+            accent="sky"
             actions={order.status !== 'cancelled' && <button onClick={() => setShipmentForm(true)} className={btn('primary')}><Plus className="h-4 w-4" /> Sendung</button>}
           >
             {(order.shipments?.length || 0) === 0 ? (
@@ -258,7 +262,7 @@ export default function OrderDetailPage() {
 
           {/* Audit log inline */}
           {showAudit && (
-            <Section title="Verlauf">
+            <Section title="Verlauf" icon={<History className="h-3.5 w-3.5" />} accent="none">
               {audit.length === 0 ? <div className="text-sm text-gray-400">Keine Einträge</div> : (
                 <ol className="space-y-2 text-sm">
                   {audit.map((a) => (
@@ -281,6 +285,8 @@ export default function OrderDetailPage() {
           {/* Supplier card */}
           <Section
             title="Lieferant"
+            icon={<Building2 className="h-3.5 w-3.5" />}
+            accent="primary"
             actions={order.supplier?.id && (
               <Link
                 href={`/purchases/suppliers?id=${order.supplier.id}`}
@@ -296,6 +302,8 @@ export default function OrderDetailPage() {
           {/* Payment widget */}
           <Section
             title="Zahlungen"
+            icon={<CreditCard className="h-3.5 w-3.5" />}
+            accent="rose"
             actions={order.status !== 'cancelled' && <button onClick={() => setPaymentForm(true)} className={btn('primary')}><Plus className="h-4 w-4" /> Erfassen</button>}
           >
             <div className="space-y-3">
@@ -341,7 +349,7 @@ export default function OrderDetailPage() {
           </Section>
 
           {/* Documents */}
-          <Section title={`Dokumente (${order.documents?.length || 0})`}>
+          <Section title={`Dokumente (${order.documents?.length || 0})`} icon={<FileText className="h-3.5 w-3.5" />} accent="violet">
             <DocumentDropzone orderId={id} onUploaded={reload} />
             {(order.documents?.length || 0) > 0 && (
               <div className="space-y-1.5 mt-3">
@@ -734,11 +742,39 @@ function OrderArrivalModal({
   );
 }
 
-function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
+type SectionAccent = 'primary' | 'emerald' | 'amber' | 'violet' | 'sky' | 'rose' | 'none';
+
+const SECTION_ACCENT: Record<SectionAccent, { border: string; bg: string; iconWrap: string; iconColor: string; titleColor: string }> = {
+  primary: { border: 'border-primary-200/60 dark:border-primary-500/20', bg: 'bg-gradient-to-br from-primary-50/40 to-white dark:from-primary-900/10 dark:to-white/[0.03]', iconWrap: 'bg-primary-100 dark:bg-primary-900/40', iconColor: 'text-primary-700 dark:text-primary-300', titleColor: 'text-primary-900 dark:text-primary-100' },
+  emerald: { border: 'border-emerald-200/60 dark:border-emerald-500/20', bg: 'bg-gradient-to-br from-emerald-50/40 to-white dark:from-emerald-900/10 dark:to-white/[0.03]', iconWrap: 'bg-emerald-100 dark:bg-emerald-900/40', iconColor: 'text-emerald-700 dark:text-emerald-300', titleColor: 'text-emerald-900 dark:text-emerald-100' },
+  amber: { border: 'border-amber-200/60 dark:border-amber-500/20', bg: 'bg-gradient-to-br from-amber-50/40 to-white dark:from-amber-900/10 dark:to-white/[0.03]', iconWrap: 'bg-amber-100 dark:bg-amber-900/40', iconColor: 'text-amber-700 dark:text-amber-300', titleColor: 'text-amber-900 dark:text-amber-100' },
+  violet: { border: 'border-violet-200/60 dark:border-violet-500/20', bg: 'bg-gradient-to-br from-violet-50/40 to-white dark:from-violet-900/10 dark:to-white/[0.03]', iconWrap: 'bg-violet-100 dark:bg-violet-900/40', iconColor: 'text-violet-700 dark:text-violet-300', titleColor: 'text-violet-900 dark:text-violet-100' },
+  sky: { border: 'border-sky-200/60 dark:border-sky-500/20', bg: 'bg-gradient-to-br from-sky-50/40 to-white dark:from-sky-900/10 dark:to-white/[0.03]', iconWrap: 'bg-sky-100 dark:bg-sky-900/40', iconColor: 'text-sky-700 dark:text-sky-300', titleColor: 'text-sky-900 dark:text-sky-100' },
+  rose: { border: 'border-rose-200/60 dark:border-rose-500/20', bg: 'bg-gradient-to-br from-rose-50/40 to-white dark:from-rose-900/10 dark:to-white/[0.03]', iconWrap: 'bg-rose-100 dark:bg-rose-900/40', iconColor: 'text-rose-700 dark:text-rose-300', titleColor: 'text-rose-900 dark:text-rose-100' },
+  none: { border: 'border-gray-200/80 dark:border-white/8', bg: 'bg-white dark:bg-white/[0.03]', iconWrap: 'bg-gray-100 dark:bg-white/5', iconColor: 'text-gray-600 dark:text-gray-300', titleColor: 'text-gray-900 dark:text-white' },
+};
+
+function Section({
+  title, actions, children, icon, accent = 'none',
+}: {
+  title: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  accent?: SectionAccent;
+}) {
+  const a = SECTION_ACCENT[accent];
   return (
-    <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03]">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/8">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+    <div className={`rounded-2xl border ${a.border} ${a.bg} shadow-sm`}>
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100/70 dark:border-white/8">
+        <h3 className={`text-sm font-semibold flex items-center gap-2 ${a.titleColor}`}>
+          {icon && (
+            <span className={`inline-flex h-6 w-6 rounded-md items-center justify-center ${a.iconWrap} ${a.iconColor}`}>
+              {icon}
+            </span>
+          )}
+          {title}
+        </h3>
         {actions}
       </div>
       <div className="p-5">{children}</div>

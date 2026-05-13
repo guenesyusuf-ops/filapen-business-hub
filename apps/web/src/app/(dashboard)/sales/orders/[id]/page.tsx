@@ -217,7 +217,7 @@ export default function SalesOrderDetailPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Linke Spalte: Kopfdaten */}
         <div className="lg:col-span-2 space-y-4">
-          <Section title="Kopfdaten" actions={
+          <Section title="Kopfdaten" icon={<FileText className="h-3.5 w-3.5" />} accent="primary" actions={
             <button onClick={saveHeader} disabled={saving} className={btn('primary', 'text-xs')}>
               <Save className="h-3 w-3" /> Speichern
             </button>
@@ -256,7 +256,7 @@ export default function SalesOrderDetailPage() {
             </Field>
           </Section>
 
-          <Section title="Positionen" actions={
+          <Section title="Positionen" icon={<Package className="h-3.5 w-3.5" />} accent="emerald" actions={
             <div className="flex gap-2">
               {(order.lineItems ?? []).some((li: any) => !li.shipmentId) && (
                 <button onClick={() => setShipModal(true)} className={btn('primary', 'text-xs')}>
@@ -339,7 +339,7 @@ export default function SalesOrderDetailPage() {
               Positionen. Mit dem DHL-Bulk-Label-Workflow brauchen wir die
               alte Liste nicht mehr — Sendungen sind jetzt einfach PDFs
               unter Dokumente. */}
-          <Section title="DHL Versandlabels">
+          <Section title="DHL Versandlabels" icon={<Truck className="h-3.5 w-3.5" />} accent="sky">
             <DhlLabelsPanel
               order={order}
               items={items}
@@ -353,11 +353,11 @@ export default function SalesOrderDetailPage() {
 
         {/* Rechte Spalte: easybill + Dokumente */}
         <div className="space-y-4">
-          <Section title="easybill">
+          <Section title="easybill" icon={<Send className="h-3.5 w-3.5" />} accent="amber">
             <EasybillPanel order={order} saving={saving} onAction={easybillAction} />
           </Section>
 
-          <Section title="Dokumente">
+          <Section title="Dokumente" icon={<FileIcon className="h-3.5 w-3.5" />} accent="violet">
             <div className="space-y-2">
               {/* DHL-Versandlabels werden separat unten unter "DHL Versandlabels"
                   angezeigt — hier rausfiltern damit der Dokumente-Bereich nicht
@@ -537,11 +537,39 @@ function DocumentPreviewModal({
 
 const inputCls = 'w-full rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1 text-xs text-gray-900 dark:text-gray-100';
 
-function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
+type SectionAccent = 'primary' | 'emerald' | 'amber' | 'violet' | 'sky' | 'rose' | 'none';
+
+const SECTION_ACCENT: Record<SectionAccent, { border: string; bg: string; iconWrap: string; iconColor: string; titleColor: string }> = {
+  primary: { border: 'border-primary-200/60 dark:border-primary-500/20', bg: 'bg-gradient-to-br from-primary-50/40 to-white dark:from-primary-900/10 dark:to-white/[0.03]', iconWrap: 'bg-primary-100 dark:bg-primary-900/40', iconColor: 'text-primary-700 dark:text-primary-300', titleColor: 'text-primary-900 dark:text-primary-100' },
+  emerald: { border: 'border-emerald-200/60 dark:border-emerald-500/20', bg: 'bg-gradient-to-br from-emerald-50/40 to-white dark:from-emerald-900/10 dark:to-white/[0.03]', iconWrap: 'bg-emerald-100 dark:bg-emerald-900/40', iconColor: 'text-emerald-700 dark:text-emerald-300', titleColor: 'text-emerald-900 dark:text-emerald-100' },
+  amber: { border: 'border-amber-200/60 dark:border-amber-500/20', bg: 'bg-gradient-to-br from-amber-50/40 to-white dark:from-amber-900/10 dark:to-white/[0.03]', iconWrap: 'bg-amber-100 dark:bg-amber-900/40', iconColor: 'text-amber-700 dark:text-amber-300', titleColor: 'text-amber-900 dark:text-amber-100' },
+  violet: { border: 'border-violet-200/60 dark:border-violet-500/20', bg: 'bg-gradient-to-br from-violet-50/40 to-white dark:from-violet-900/10 dark:to-white/[0.03]', iconWrap: 'bg-violet-100 dark:bg-violet-900/40', iconColor: 'text-violet-700 dark:text-violet-300', titleColor: 'text-violet-900 dark:text-violet-100' },
+  sky: { border: 'border-sky-200/60 dark:border-sky-500/20', bg: 'bg-gradient-to-br from-sky-50/40 to-white dark:from-sky-900/10 dark:to-white/[0.03]', iconWrap: 'bg-sky-100 dark:bg-sky-900/40', iconColor: 'text-sky-700 dark:text-sky-300', titleColor: 'text-sky-900 dark:text-sky-100' },
+  rose: { border: 'border-rose-200/60 dark:border-rose-500/20', bg: 'bg-gradient-to-br from-rose-50/40 to-white dark:from-rose-900/10 dark:to-white/[0.03]', iconWrap: 'bg-rose-100 dark:bg-rose-900/40', iconColor: 'text-rose-700 dark:text-rose-300', titleColor: 'text-rose-900 dark:text-rose-100' },
+  none: { border: 'border-gray-200/80 dark:border-white/8', bg: 'bg-white dark:bg-white/[0.03]', iconWrap: 'bg-gray-100 dark:bg-white/5', iconColor: 'text-gray-600 dark:text-gray-300', titleColor: 'text-gray-900 dark:text-white' },
+};
+
+function Section({
+  title, actions, children, icon, accent = 'none',
+}: {
+  title: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  accent?: SectionAccent;
+}) {
+  const a = SECTION_ACCENT[accent];
   return (
-    <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-4">
+    <div className={`rounded-2xl border ${a.border} ${a.bg} shadow-sm p-4`}>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
+        <h3 className={`text-sm font-semibold flex items-center gap-2 ${a.titleColor}`}>
+          {icon && (
+            <span className={`inline-flex h-6 w-6 rounded-md items-center justify-center ${a.iconWrap} ${a.iconColor}`}>
+              {icon}
+            </span>
+          )}
+          {title}
+        </h3>
         {actions}
       </div>
       {children}
