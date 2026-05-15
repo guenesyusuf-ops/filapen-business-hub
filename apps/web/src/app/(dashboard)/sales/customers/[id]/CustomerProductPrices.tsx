@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Search, X, Loader2, Receipt } from 'lucide-react';
+import { Plus, Trash2, Search, X, Loader2, Receipt, ChevronDown, ChevronRight } from 'lucide-react';
 import { salesApi } from '@/lib/sales';
 
 /**
@@ -13,6 +13,7 @@ export function CustomerProductPrices({ customerId }: { customerId: string }) {
   const [prices, setPrices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,37 +39,50 @@ export function CustomerProductPrices({ customerId }: { customerId: string }) {
   }
 
   return (
-    <div className="rounded-2xl border border-amber-200/60 dark:border-amber-500/20 bg-gradient-to-br from-amber-50/40 to-white dark:from-amber-900/10 dark:to-white/[0.03] p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100 flex items-center gap-2">
+    <div className="rounded-2xl border border-amber-200/60 dark:border-amber-500/20 bg-gradient-to-br from-amber-50/40 to-white dark:from-amber-900/10 dark:to-white/[0.03] shadow-sm overflow-hidden">
+      {/* Header — Klick auf den Titel klappt auf/zu */}
+      <div className="flex items-center justify-between p-4">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-100 hover:opacity-80 transition-opacity flex-1 text-left"
+        >
           <span className="inline-flex h-6 w-6 rounded-md items-center justify-center bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
             <Receipt className="h-3.5 w-3.5" />
           </span>
-          Produkt-Sonderpreise ({prices.length})
-        </h3>
-        <button onClick={() => setPickerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 px-3 py-1.5 text-xs font-medium">
-          <Plus className="h-3.5 w-3.5" /> Preis hinzufuegen
+          Produkt-Sonderpreise
+          {expanded
+            ? <ChevronDown className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            : <ChevronRight className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
         </button>
+        {expanded && (
+          <button onClick={() => setPickerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 px-3 py-1.5 text-xs font-medium">
+            <Plus className="h-3.5 w-3.5" /> Preis hinzufuegen
+          </button>
+        )}
       </div>
 
-      {loading ? (
-        <div className="text-center py-6 text-xs text-gray-400">
-          <Loader2 className="h-4 w-4 animate-spin inline-block mr-2" /> Laedt …
-        </div>
-      ) : prices.length === 0 ? (
-        <div className="text-center py-8 text-xs text-gray-400">
-          Noch keine Sonderpreise hinterlegt
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {prices.map((p) => (
-            <PriceRow
-              key={p.id}
-              price={p}
-              onChange={(patch) => updatePrice(p.id, patch)}
-              onDelete={() => deletePrice(p.id)}
-            />
-          ))}
+      {expanded && (
+        <div className="px-4 pb-4">
+          {loading ? (
+            <div className="text-center py-6 text-xs text-gray-400">
+              <Loader2 className="h-4 w-4 animate-spin inline-block mr-2" /> Laedt …
+            </div>
+          ) : prices.length === 0 ? (
+            <div className="text-center py-8 text-xs text-gray-400">
+              Noch keine Sonderpreise hinterlegt
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {prices.map((p) => (
+                <PriceRow
+                  key={p.id}
+                  price={p}
+                  onChange={(patch) => updatePrice(p.id, patch)}
+                  onDelete={() => deletePrice(p.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
