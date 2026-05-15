@@ -405,6 +405,8 @@ model User {
   shipmentsCreated  Shipment[]         @relation("ShipmentCreator")
   vacationRequests  VacationRequest[]  @relation("VacationRequester")
   vacationReviews   VacationRequest[]  @relation("VacationReviewer")
+  filesSent         FileTransfer[]              @relation("FileSender")
+  filesReceived     FileTransferRecipient[]     @relation("FileRecipient")
 
   @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
   @@unique([orgId, email], map: "uq_user_org_email")
@@ -3051,6 +3053,61 @@ model SalesCustomer {
   @@index([orgId, companyName])
   @@index([orgId, email])
   @@map("sales_customers")
+}
+
+/// Filapen Send — Datei-Transfer zwischen Team-Mitgliedern.
+/// Eine Transfer-Row pro "Sendung", N Empfaenger (file_transfer_recipients),
+/// N Dateien (file_transfer_items). Dateien liegen in R2.
+model FileTransfer {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  message   String?  @db.Text
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  sender     User                    @relation("FileSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipients FileTransferRecipient[]
+  items      FileTransferItem[]
+
+  @@index([orgId])
+  @@index([senderId])
+  @@map("file_transfers")
+}
+
+model FileTransferRecipient {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transferId            String    @map("transfer_id") @db.Uuid
+  recipientId           String    @map("recipient_id") @db.Uuid
+  receivedAt            DateTime? @map("received_at") @db.Timestamptz
+  deletedByRecipientAt  DateTime? @map("deleted_by_recipient_at") @db.Timestamptz
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  transfer  FileTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  recipient User         @relation("FileRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([transferId, recipientId])
+  @@index([recipientId])
+  @@index([transferId])
+  @@map("file_transfer_recipients")
+}
+
+model FileTransferItem {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transferId String   @map("transfer_id") @db.Uuid
+  fileName   String   @map("file_name") @db.VarChar(500)
+  filePath   String?  @map("file_path") @db.VarChar(1000)
+  mimeType   String?  @map("mime_type") @db.VarChar(160)
+  fileSize   BigInt   @map("file_size")
+  storageKey String   @map("storage_key") @db.Text
+  fileUrl    String   @map("file_url") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  transfer FileTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  @@index([transferId])
+  @@map("file_transfer_items")
 }
 
 /// Urlaubs-Antrag — Mitarbeiter beantragt, Owner/Admin genehmigt oder lehnt ab.

@@ -281,6 +281,14 @@ const NAV_ITEMS: NavItem[] = [
     permissionKey: 'screen-share',
     accent: 'text-accent-work',
   },
+  {
+    // Filapen Send — Datei-Sharing zwischen Team-Mitgliedern (LocalSend-Style)
+    labelKey: 'nav.filapenSend',
+    href: '/send',
+    icon: Send,
+    permissionKey: 'send',
+    accent: 'text-accent-work',
+  },
 ];
 
 // ---------------------------------------------------------------------------

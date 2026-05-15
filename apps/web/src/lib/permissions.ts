@@ -16,6 +16,7 @@ export const MENU_PERMISSIONS = [
   { key: 'shipping', label: 'Versand', description: 'Bestellungen, Labels, Sendungen, Versandregeln, Carrier-Konten' },
   { key: 'sales', label: 'Verkauf', description: 'B2B-Bestellungen (E-Mail/PDF-Import), Kunden, easybill-Integration' },
   { key: 'screen-share', label: 'Bildschirm teilen', description: 'Live Bildschirm + Voice-Chat mit Team oder externen Gaesten (LiveKit)' },
+  { key: 'send', label: 'Filapen Send', description: 'Dateien und Ordner an Team-Mitglieder senden (LocalSend-Style)' },
 ] as const;
 
 export type MenuPermissionKey = (typeof MENU_PERMISSIONS)[number]['key'];
@@ -37,6 +38,7 @@ export function pathToPermission(pathname: string): MenuPermissionKey | null {
   if (pathname.startsWith('/shipping')) return 'shipping';
   if (pathname.startsWith('/sales')) return 'sales';
   if (pathname.startsWith('/screen-share')) return 'screen-share';
+  if (pathname.startsWith('/send')) return 'send';
   return null;
 }
 

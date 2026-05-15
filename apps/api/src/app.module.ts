@@ -23,6 +23,7 @@ import { PurchaseModule } from './modules/purchase/purchase.module';
 import { EmailMarketingModule } from './modules/email-marketing/email-marketing.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { SalesModule } from './modules/sales/sales.module';
+import { FilapenSendModule } from './modules/filapen-send/send.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -89,6 +90,7 @@ import { HealthController } from './health.controller';
     EmailMarketingModule,
     ShippingModule,
     SalesModule,
+    FilapenSendModule,
   ],
   controllers: [HealthController],
   providers: [],
