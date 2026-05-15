@@ -12,6 +12,11 @@ export interface SalesCustomerInput {
   billingAddress?: any;
   paymentTerms?: string | null;
   notes?: string | null;
+  // B2B-Konditionen (siehe SalesCustomer-Schema)
+  minOrderQuantity?: number | null;
+  minOrderValue?: number | null;
+  discountPercent?: number | null;
+  shippingTerms?: string | null;
 }
 
 @Injectable()
@@ -81,6 +86,10 @@ export class SalesCustomerService {
         billingAddress: data.billingAddress ?? null,
         paymentTerms: data.paymentTerms || null,
         notes: data.notes || null,
+        minOrderQuantity: data.minOrderQuantity != null ? Math.floor(Number(data.minOrderQuantity)) : null,
+        minOrderValue: data.minOrderValue != null ? Number(data.minOrderValue) : null,
+        discountPercent: data.discountPercent != null ? Number(data.discountPercent) : null,
+        shippingTerms: data.shippingTerms || null,
       },
     });
   }
@@ -100,6 +109,10 @@ export class SalesCustomerService {
         ...(data.billingAddress !== undefined ? { billingAddress: data.billingAddress } : {}),
         ...(data.paymentTerms !== undefined ? { paymentTerms: data.paymentTerms } : {}),
         ...(data.notes !== undefined ? { notes: data.notes } : {}),
+        ...(data.minOrderQuantity !== undefined ? { minOrderQuantity: data.minOrderQuantity != null ? Math.floor(Number(data.minOrderQuantity)) : null } : {}),
+        ...(data.minOrderValue !== undefined ? { minOrderValue: data.minOrderValue != null ? Number(data.minOrderValue) : null } : {}),
+        ...(data.discountPercent !== undefined ? { discountPercent: data.discountPercent != null ? Number(data.discountPercent) : null } : {}),
+        ...(data.shippingTerms !== undefined ? { shippingTerms: data.shippingTerms } : {}),
       },
     });
   }

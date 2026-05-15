@@ -90,37 +90,66 @@ function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     companyName: '', externalCustomerNumber: '', easybillCustomerNumber: '',
     contactPerson: '', email: '', phone: '',
     paymentTerms: '', notes: '',
+    minOrderQuantity: '', minOrderValue: '', discountPercent: '', shippingTerms: '',
   });
   const [saving, setSaving] = useState(false);
   async function save() {
     if (!form.companyName.trim()) return alert('Firmenname erforderlich');
     setSaving(true);
     try {
-      await salesApi.createCustomer(form);
+      await salesApi.createCustomer({
+        ...form,
+        minOrderQuantity: form.minOrderQuantity.trim() ? Number(form.minOrderQuantity) : null,
+        minOrderValue: form.minOrderValue.trim() ? Number(form.minOrderValue) : null,
+        discountPercent: form.discountPercent.trim() ? Number(form.discountPercent) : null,
+      });
       onSaved();
     } catch (e: any) { alert(e.message); } finally { setSaving(false); }
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-gray-900 p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-semibold mb-3">Neuer B2B-Kunde</h3>
-        <div className="grid gap-2 text-sm">
-          <Input label="Firmenname *" value={form.companyName} onChange={(v) => setForm({ ...form, companyName: v })} />
-          <Input label="Externe Kundennummer (wie der Kunde uns kennt)" value={form.externalCustomerNumber} onChange={(v) => setForm({ ...form, externalCustomerNumber: v })} />
-          <Input label="easybill-Kundennummer (z.B. 10191) — optional, verhindert doppelte Anlage" value={form.easybillCustomerNumber} onChange={(v) => setForm({ ...form, easybillCustomerNumber: v })} />
-          <Input label="Ansprechpartner" value={form.contactPerson} onChange={(v) => setForm({ ...form, contactPerson: v })} />
-          <div className="grid grid-cols-2 gap-2">
-            <Input label="E-Mail" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-            <Input label="Telefon" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-          </div>
-          <Input label="Zahlungsbedingungen" value={form.paymentTerms} onChange={(v) => setForm({ ...form, paymentTerms: v })} />
-          <label className="text-xs">
-            <div className="text-gray-500 mb-1">Notizen</div>
-            <textarea className="w-full rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1 text-sm min-h-[60px]"
-              value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-          </label>
+      <div className="w-full max-w-2xl max-h-[90vh] rounded-2xl bg-white dark:bg-gray-900 shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 pt-5 pb-2 border-b border-gray-100 dark:border-white/10">
+          <h3 className="text-base font-semibold">Neuer B2B-Kunde</h3>
         </div>
-        <div className="flex justify-end gap-2 mt-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Stammdaten */}
+          <section>
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400 mb-2">Stammdaten</h4>
+            <div className="grid gap-2 text-sm">
+              <Input label="Firmenname *" value={form.companyName} onChange={(v) => setForm({ ...form, companyName: v })} />
+              <Input label="Externe Kundennummer (wie der Kunde uns kennt)" value={form.externalCustomerNumber} onChange={(v) => setForm({ ...form, externalCustomerNumber: v })} />
+              <Input label="easybill-Kundennummer (z.B. 10191) — optional, verhindert doppelte Anlage" value={form.easybillCustomerNumber} onChange={(v) => setForm({ ...form, easybillCustomerNumber: v })} />
+              <Input label="Ansprechpartner" value={form.contactPerson} onChange={(v) => setForm({ ...form, contactPerson: v })} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input label="E-Mail" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+                <Input label="Telefon" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+              </div>
+              <label className="text-xs">
+                <div className="text-gray-500 mb-1">Notizen</div>
+                <textarea className="w-full rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1 text-sm min-h-[60px]"
+                  value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </label>
+            </div>
+          </section>
+
+          {/* Konditionen */}
+          <section className="rounded-xl bg-emerald-50/40 dark:bg-emerald-900/10 border border-emerald-200/60 dark:border-emerald-500/20 p-3">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2">Konditionen</h4>
+            <div className="grid gap-2 text-sm grid-cols-2">
+              <Input label="Zahlungsziel" value={form.paymentTerms} onChange={(v) => setForm({ ...form, paymentTerms: v })} />
+              <Input label="Lieferbedingungen" value={form.shippingTerms} onChange={(v) => setForm({ ...form, shippingTerms: v })} />
+              <Input label="Mindestbestellmenge (Stueck)" value={form.minOrderQuantity} onChange={(v) => setForm({ ...form, minOrderQuantity: v })} type="number" />
+              <Input label="Mindestbestellwert (€)" value={form.minOrderValue} onChange={(v) => setForm({ ...form, minOrderValue: v })} type="number" />
+              <Input label="Rabatt (%)" value={form.discountPercent} onChange={(v) => setForm({ ...form, discountPercent: v })} type="number" />
+            </div>
+            <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/70 mt-2">
+              Produkt-Sonderpreise koennen nach Anlage des Kunden im Detail
+              hinzugefuegt werden.
+            </p>
+          </section>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02]">
           <button onClick={onClose} className={btn('ghost', 'text-sm')}>Abbrechen</button>
           <button onClick={save} disabled={saving} className={btn('primary', 'text-sm')}>Speichern</button>
         </div>
@@ -129,12 +158,17 @@ function CustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
   );
 }
 
-function Input({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Input({ label, value, onChange, type }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
   return (
     <label className="text-xs">
       <div className="text-gray-500 mb-1">{label}</div>
-      <input className="w-full rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1 text-sm"
-        value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
+      <input
+        type={type ?? 'text'}
+        step={type === 'number' ? '0.01' : undefined}
+        className="w-full rounded border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1 text-sm"
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </label>
   );
 }
