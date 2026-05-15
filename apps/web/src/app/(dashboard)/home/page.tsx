@@ -47,6 +47,7 @@ import { CurrencyWidget } from '@/components/home/CurrencyWidget';
 import { VacationModal } from '@/components/home/VacationModal';
 import { VacationInbox } from '@/components/home/VacationInbox';
 import { vacationApi, type VacationRequest } from '@/lib/vacation';
+import { colorForUser, splitGradient } from '@/lib/userColor';
 import { Plane } from 'lucide-react';
 
 // -----------------------------------------------------------------------------
@@ -365,32 +366,38 @@ function CalendarWidget() {
             const isToday = key === isoDay(new Date());
             const isSelected = key === selectedDate;
             const hasEvents = eventsByDay.has(key);
-            const hasVacation = vacationsByDay.has(key);
+            const dayVacations = vacationsByDay.get(key) ?? [];
+            const hasVacation = dayVacations.length > 0;
+            // Pro Mitarbeiter einmalige Farbe; bei mehreren → split-Gradient
+            const colors = dayVacations.map((v) => colorForUser(v.userId));
+            // Dedupliziert nach Farbe (falls zwei Antraege vom gleichen User)
+            const uniqueColors = colors.filter((c, idx, arr) => arr.findIndex((x) => x.name === c.name) === idx);
+            const vacationStyle = hasVacation && !isSelected
+              ? { background: splitGradient(uniqueColors), color: uniqueColors[0].text }
+              : undefined;
             return (
               <button
                 key={i}
                 onClick={() => setSelectedDate(key)}
+                style={vacationStyle}
                 className={cn(
-                  'h-8 rounded-md text-xs font-medium relative transition-colors',
+                  'h-8 rounded-md text-xs font-bold relative transition-colors overflow-hidden',
                   isSelected
                     ? 'bg-primary-600 text-white'
                     : hasVacation
-                      ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                      ? '' // Background kommt via inline style
                       : isToday
                         ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5',
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 font-medium',
                 )}
+                title={hasVacation ? dayVacations.map((v) => v.user?.name || v.user?.firstName || 'Mitarbeiter').join(' · ') : undefined}
               >
                 {d}
-                {(hasEvents || hasVacation) && (
-                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
-                    {hasEvents && (
-                      <span className={cn('h-1 w-1 rounded-full', isSelected ? 'bg-white' : 'bg-primary-500')} />
-                    )}
-                    {hasVacation && (
-                      <span className={cn('h-1 w-1 rounded-full', isSelected ? 'bg-white' : 'bg-amber-500')} />
-                    )}
-                  </span>
+                {hasEvents && (
+                  <span className={cn(
+                    'absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full',
+                    isSelected ? 'bg-white' : 'bg-primary-500',
+                  )} />
                 )}
               </button>
             );
@@ -444,14 +451,21 @@ function VacationRow({ vacation }: { vacation: VacationRequest }) {
   const userName = vacation.user?.name
     || [vacation.user?.firstName, vacation.user?.lastName].filter(Boolean).join(' ').trim()
     || 'Mitarbeiter';
+  const color = colorForUser(vacation.userId);
   return (
-    <div className="flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-900/20 px-2 py-1.5">
-      <Plane className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+    <div
+      className="flex items-start gap-2 rounded-md px-2 py-1.5"
+      style={{ background: `${color.bg}20`, borderLeft: `3px solid ${color.bg}` }}
+    >
+      <span
+        className="h-3 w-3 rounded-full mt-0.5 flex-shrink-0 ring-2 ring-white dark:ring-gray-900"
+        style={{ background: color.bg }}
+      />
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-amber-900 dark:text-amber-100 truncate">
+        <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">
           Urlaub · {userName}
         </p>
-        <p className="text-[10px] text-amber-700 dark:text-amber-300">
+        <p className="text-[10px] text-gray-600 dark:text-gray-400">
           {new Date(vacation.startDate).toLocaleDateString('de-DE')} – {new Date(vacation.endDate).toLocaleDateString('de-DE')}
         </p>
       </div>

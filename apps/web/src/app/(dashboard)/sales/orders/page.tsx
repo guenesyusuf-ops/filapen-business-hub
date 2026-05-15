@@ -148,6 +148,12 @@ export default function SalesOrdersPage() {
                 <th className="px-4 py-2">Kunde</th>
                 <th className="px-4 py-2">Produkte</th>
                 <th className="px-4 py-2">Liefertermin</th>
+                {tab === 'done' && (
+                  <>
+                    <th className="px-4 py-2 whitespace-nowrap">Versendet</th>
+                    <th className="px-4 py-2 whitespace-nowrap">Bezahlt</th>
+                  </>
+                )}
                 <th className="px-4 py-2 text-right">Betrag</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2" />
@@ -183,6 +189,24 @@ export default function SalesOrdersPage() {
                         <div className="text-[10px] text-gray-500 mt-0.5">{fmtDate(o.requiredDeliveryDate)}</div>
                       )}
                     </td>
+                    {tab === 'done' && (
+                      <>
+                        <td className="px-4 py-2 whitespace-nowrap">
+                          {o.shippedAt ? (
+                            <span className="text-emerald-700 dark:text-emerald-400">{fmtDate(o.shippedAt)}</span>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 whitespace-nowrap">
+                          {o.paidAt ? (
+                            <span className="text-emerald-700 dark:text-emerald-400">{fmtDate(o.paidAt)}</span>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-2 text-right font-medium">{fmtMoney(o.totalNet, o.currency)}</td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-1">

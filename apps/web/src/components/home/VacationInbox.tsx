@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plane, Check, X, MessageSquare, Loader2 } from 'lucide-react';
 import { vacationApi, type VacationRequest } from '@/lib/vacation';
+import { colorForUser } from '@/lib/userColor';
 import { cn } from '@/lib/utils';
 
 /**
@@ -65,6 +66,7 @@ function RequestRow({
   const start = new Date(request.startDate);
   const end = new Date(request.endDate);
   const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+  const color = colorForUser(request.userId);
 
   async function decide(action: 'approve' | 'reject') {
     setBusy(action);
@@ -85,9 +87,12 @@ function RequestRow({
       <div className="flex items-start gap-3">
         {request.user?.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={request.user.avatarUrl} alt="" className="h-9 w-9 rounded-full flex-shrink-0" />
+          <img src={request.user.avatarUrl} alt="" className="h-9 w-9 rounded-full flex-shrink-0 ring-2" style={{ boxShadow: `0 0 0 2px ${color.bg}` }} />
         ) : (
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+          <div
+            className="h-9 w-9 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
+            style={{ background: color.bg, color: color.text }}
+          >
             {userName.charAt(0).toUpperCase()}
           </div>
         )}
