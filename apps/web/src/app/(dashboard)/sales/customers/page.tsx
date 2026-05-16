@@ -52,8 +52,8 @@ export default function SalesCustomersPage() {
       ) : items.length === 0 ? (
         <Empty icon={<Users2 className="h-10 w-10" />} title="Keine Kunden" hint="Lege einen neuen Kunden an oder importiere eine Bestellung, dann wird der Kunde automatisch erkannt." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03]">
-          <table className="w-full text-sm">
+        <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] table-scroll">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="border-b border-gray-200/80 dark:border-white/8 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-4 py-2">Kundennr.</th>

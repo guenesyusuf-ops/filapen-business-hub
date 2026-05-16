@@ -343,6 +343,86 @@ html {
 .mobile-sheet { max-height: 90dvh; }
 
 /* ====================================================================== */
+/* MOBILE RESPONSIVE FOUNDATION — defensiv ohne Desktop zu beruehren.    */
+/* Greift nur auf max-width: 767px (Mobile + kleine Tablets).            */
+/* ====================================================================== */
+@media (max-width: 767px) {
+  /* 1) Horizontal-Overflow auf Body verhindern — Hauptursache fuer
+        "Seite scrollt nach rechts". Tabellen mit table-scroll bleiben
+        intern scrollbar; jeder andere Overflow wird gehidet. */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* 2) Modals/Dialoge: viele Modals nutzen w-full max-w-xx — zusaetzlich
+        ein max-width: calc(100vw - 1.5rem) damit nie aus dem Viewport
+        rausragt; max-height begrenzen damit Buttons immer erreichbar. */
+  [class*="rounded-2xl"][class*="bg-white"][class*="shadow-2xl"],
+  [role="dialog"] > div,
+  div.fixed[class*="z-50"] > div[class*="rounded"] {
+    max-width: min(100vw - 1rem, 100%);
+    max-height: 92dvh;
+  }
+
+  /* 3) Touch-Target-Mindestgroesse fuer kleine Icon-Buttons.
+        Buttons mit nur Icon (h-3/h-3.5 etc.) bekommen mindestens 36x36px
+        Hit-Area via padding/min-height. Sichtbare Groesse aendert sich nicht
+        weil Touch-Area > Inhalt zulaessig ist. */
+  button.text-xs, button.text-\[10px\], button.text-\[11px\] {
+    min-height: 36px;
+  }
+  /* Echte Icon-Buttons (nur Icon drin, p-1 / p-1.5 etc.) — Mindest-Tap-Target */
+  button.p-0\.5, button.p-1, button.p-1\.5 {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  /* 4) Tabellen die NICHT in .table-scroll wrapper liegen — fail-safe.
+        Wir verhindern dass <table> die Page sprengt. */
+  table {
+    max-width: 100%;
+  }
+  /* Wenn ein direkter table-Parent kein overflow hat, wir setzen es */
+  div:has(> table) {
+    max-width: 100%;
+  }
+
+  /* 5) Bilder + Videos nie ueber Viewport */
+  img, video, iframe, canvas, svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* 6) Pre/Code-Bloecke umbrechen */
+  pre {
+    overflow-x: auto;
+    max-width: 100%;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* 7) Lange URLs / E-Mails / Filenames umbrechen */
+  a, .break-anywhere {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  /* 8) Sticky Header / Bottom-Nav — ueber Inhalt damit nichts dahinter rutscht */
+  header.sticky, [class*="sticky"][class*="top-0"] {
+    z-index: 20;
+  }
+}
+
+/* Touch-Geraete: Hover-Effekte deaktivieren wenn nicht echter Hover-Support
+   (verhindert "sticky hover" auf Smartphones). */
+@media (hover: none) {
+  *:hover {
+    transition-duration: 0s !important;
+  }
+}
+
+/* ====================================================================== */
 /* Modal panel — bottom-sheet on mobile, centered card on tablet/desktop. */
 /* Keeps existing Tailwind styling on consumers; only fixes positioning.  */
 /* ====================================================================== */
