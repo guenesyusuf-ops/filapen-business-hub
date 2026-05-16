@@ -204,6 +204,12 @@ export class PurchaseOrderService {
     };
     const orderBy = sortMap[filters.sort || 'orderDate'] || { orderDate: 'desc' };
 
+    // Slim include: list-Page braucht nur Counts + Preview-Daten, NICHT die
+    // kompletten Sub-Listen. Vorher: items/invoices/payments/shipments
+    // /documents alle voll geladen — pro Order schnell 30+ Joined-Rows.
+    // Jetzt: take:2 fuer Items-Preview, nur die erste Rechnung, nur die
+    // erste Sendung (fuer "Unterwegs"-Badge), erstes Dokument (fuer
+    // Doc-Preview-Icon), Rest via _count.
     const [items, total] = await Promise.all([
       this.prisma.purchaseOrder.findMany({
         where,
@@ -213,12 +219,29 @@ export class PurchaseOrderService {
         include: {
           supplier: { select: { id: true, supplierNumber: true, companyName: true, vatId: true } },
           createdBy: { select: { id: true, name: true, email: true } },
-          items: { select: { id: true, productName: true, quantity: true } },
-          invoices: { select: { id: true, invoiceNumber: true, invoiceDate: true, dueDate: true, amount: true } },
-          payments: { select: { id: true, paymentDate: true, amount: true } },
-          shipments: { select: { id: true, trackingNumber: true, carrier: true, shippedAt: true, receivedAt: true } },
-          documents: { select: { id: true, fileName: true, fileUrl: true, mimeType: true, documentType: true } },
-          _count: { select: { documents: true, payments: true, shipments: true } },
+          items: {
+            select: { id: true, productName: true, quantity: true },
+            take: 2,
+            orderBy: { position: 'asc' },
+          },
+          invoices: {
+            select: { id: true, invoiceNumber: true, invoiceDate: true, dueDate: true, amount: true },
+            take: 1,
+            orderBy: { invoiceDate: 'desc' },
+          },
+          shipments: {
+            select: { id: true, trackingNumber: true, receivedAt: true },
+            // Nur was die List-UI braucht: "Unterwegs"-Badge (tracking != null && receivedAt == null)
+            where: { OR: [{ trackingNumber: { not: null } }, { receivedAt: { not: null } }] },
+            take: 1,
+          },
+          documents: {
+            // Nur 1 Doc fuer den Preview-Klick — Rest kommt in der Detail-Seite
+            select: { id: true, fileName: true, fileUrl: true, mimeType: true, documentType: true },
+            take: 1,
+            orderBy: { uploadedAt: 'desc' },
+          },
+          _count: { select: { items: true, documents: true, payments: true, shipments: true } },
         },
       }),
       this.prisma.purchaseOrder.count({ where }),

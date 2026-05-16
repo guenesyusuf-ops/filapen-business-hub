@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -32,44 +33,40 @@ function defaultRange(): { from: string; to: string } {
 
 export default function PurchasesDashboardPage() {
   const router = useRouter();
-  const [data, setData] = useState<any>(null);
-  const [loadingKpi, setLoadingKpi] = useState(true);
-  const [kpiError, setKpiError] = useState<string | null>(null);
 
   // Datums-Range fuer KPIs + Bestellungs-Liste. User-Wunsch: gefiltert auf
   // orderDate (das Datum an dem die Bestellung aufgegeben wurde).
   const [range, setRange] = useState(defaultRange);
-
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
-  const [loadingOrders, setLoadingOrders] = useState(true);
 
   // PDF preview modal
   const [previewDoc, setPreviewDoc] = useState<{ fileName: string; fileUrl: string; mimeType: string } | null>(null);
 
-  useEffect(() => {
-    setLoadingKpi(true);
-    purchasesApi.dashboard({ from: range.from, to: range.to })
-      .then((d) => { setData(d); setKpiError(null); })
-      .catch((e) => setKpiError(e.message))
-      .finally(() => setLoadingKpi(false));
-  }, [range.from, range.to]);
+  // React-Query fuer KPIs + Bestell-Liste — cached + stale-while-revalidate.
+  // Beim Zurueck-Navigieren auf den Einkauf sofort sichtbar.
+  const kpiQuery = useQuery({
+    queryKey: ['purchases-dashboard', range.from, range.to],
+    queryFn: () => purchasesApi.dashboard({ from: range.from, to: range.to }),
+  });
+  const data = kpiQuery.data as any;
+  const loadingKpi = kpiQuery.isLoading;
+  const kpiError = kpiQuery.error instanceof Error ? kpiQuery.error.message : null;
 
-  useEffect(() => {
-    setLoadingOrders(true);
-    purchasesApi.listOrders({
+  const ordersQuery = useQuery({
+    queryKey: ['purchases-orders-dash', range.from, range.to, offset],
+    queryFn: () => purchasesApi.listOrders({
       limit: String(PAGE_SIZE),
       offset: String(offset),
       sort: 'orderDate',
       dir: 'desc',
       from: range.from,
       to: range.to,
-    })
-      .then((d) => { setOrders(d.items); setTotal(d.total); })
-      .catch(() => {})
-      .finally(() => setLoadingOrders(false));
-  }, [offset, range.from, range.to]);
+    }),
+    placeholderData: keepPreviousData,
+  });
+  const orders = ordersQuery.data?.items ?? [];
+  const total = ordersQuery.data?.total ?? 0;
+  const loadingOrders = ordersQuery.isLoading;
 
   const counts = data?.counts || {};
   const openByCurrency: Array<{ currency: string; amount: string }> = data?.openByCurrency || [];
@@ -256,7 +253,7 @@ export default function PurchasesDashboardPage() {
                     const ps = PAYMENT_STATUS_LABELS[o.paymentStatus];
                     const ss = STATUS_LABELS[o.status];
                     const productPreview = (o.items || []).slice(0, 2).map((i) => i.productName).join(', ');
-                    const more = (o.items?.length || 0) - 2;
+                    const more = ((o._count as any)?.items ?? o.items?.length ?? 0) - 2;
                     const hasShipment = (o.shipments || []).some(s => s.trackingNumber && !s.receivedAt);
                     const docCount = o._count?.documents ?? 0;
                     return (

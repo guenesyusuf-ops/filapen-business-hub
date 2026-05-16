@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Plus, Search, FileText, Paperclip, Filter as FilterIcon, ChevronDown, ChevronLeft, ChevronRight, X, Download, Archive, MessageSquare, Pencil } from 'lucide-react';
@@ -20,10 +21,6 @@ const PAGE_SIZE = 25;
 
 export default function PurchaseOrdersPage() {
   const initialParams = useSearchParams();
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
 
   const [search, setSearch] = useState('');
@@ -68,13 +65,18 @@ export default function PurchaseOrdersPage() {
   // reset to first page when filters change
   useEffect(() => { setOffset(0); }, [search, paymentStatus, status, supplierFilter, hasDoc, onTheWay, includeCancelled, onlyCancelled, from, to]);
 
-  useEffect(() => {
-    setLoading(true);
-    purchasesApi.listOrders(params)
-      .then((d) => { setOrders(d.items); setTotal(d.total); setError(null); })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [params]);
+  // React-Query: cached + stale-while-revalidate. Beim Zurueck-Navigieren
+  // sind die Daten sofort sichtbar (cached), und beim Filterwechsel
+  // bleibt die alte Tabelle stehen waehrend die neue laedt (placeholderData).
+  const { data, isLoading, error: queryError } = useQuery({
+    queryKey: ['purchase-orders', params],
+    queryFn: () => purchasesApi.listOrders(params),
+    placeholderData: keepPreviousData,
+  });
+  const orders = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const loading = isLoading;
+  const error = queryError instanceof Error ? queryError.message : null;
 
   const toggleSort = (col: string) => {
     if (sort === col) setDir(dir === 'asc' ? 'desc' : 'asc');
@@ -234,7 +236,9 @@ export default function PurchaseOrdersPage() {
                   const inv = o.invoices?.[0];
                   const ps = PAYMENT_STATUS_LABELS[o.paymentStatus];
                   const productPreview = (o.items || []).slice(0, 2).map((i) => i.productName).join(', ');
-                  const more = (o.items?.length || 0) - 2;
+                  // Backend liefert nur take:2 items + _count.items — Liste-Page muss
+                  // den echten Count aus _count nehmen, nicht aus dem Preview-Array.
+                  const more = ((o._count as any)?.items ?? o.items?.length ?? 0) - 2;
                   return (
                     <tr key={o.id} className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02]">
                       <td className="px-3 py-3">
