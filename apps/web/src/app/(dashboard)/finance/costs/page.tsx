@@ -213,7 +213,7 @@ function PaymentMethodModal({
       <FormField label="Anbieter / Gateway" error={errors.name?.message}>
         <input {...register('name')} placeholder="z.B. Shopify Payments" className={inputClass} />
       </FormField>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormField label="Prozentuale Gebühr (%)" error={errors.percentageFee?.message}>
           <input
             {...register('percentageFee')}
@@ -389,7 +389,7 @@ function PaymentMethodsTab() {
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-border">
         <span className="text-xs text-gray-400">
           {methods.length} {methods.length === 1 ? 'Zahlungsmethode' : 'Zahlungsmethoden'}
         </span>
@@ -409,7 +409,7 @@ function PaymentMethodsTab() {
             <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 animate-fade-in" />
             <Dialog.Content
               className={cn(
-                'fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2',
+                'fixed left-1/2 top-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2',
                 'rounded-xl border border-border bg-white p-6 shadow-xl animate-fade-in',
               )}
             >
@@ -442,8 +442,8 @@ function PaymentMethodsTab() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="table-scroll">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-border">
@@ -578,7 +578,7 @@ function FixedCostModal({
       <FormField label="Name" error={errors.name?.message}>
         <input {...register('name')} placeholder="z.B. Shopify-Abo" className={inputClass} />
       </FormField>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormField label="Betrag (€)" error={errors.amount?.message}>
           <input
             {...register('amount')}
@@ -598,7 +598,7 @@ function FixedCostModal({
           </select>
         </FormField>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormField label="Häufigkeit" error={errors.frequency?.message}>
           <select {...register('frequency')} className={selectClass}>
             {FREQUENCIES.map((f) => (
@@ -614,7 +614,7 @@ function FixedCostModal({
           </select>
         </FormField>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormField label="Startdatum" error={errors.startDate?.message}>
           <input {...register('startDate')} type="date" className={inputClass} />
         </FormField>
@@ -885,7 +885,7 @@ function FixedCostsTab() {
             <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 animate-fade-in" />
             <Dialog.Content
               className={cn(
-                'fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2',
+                'fixed left-1/2 top-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2',
                 'rounded-xl border border-border bg-white p-6 shadow-xl animate-fade-in',
               )}
             >
@@ -918,8 +918,8 @@ function FixedCostsTab() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="table-scroll">
+          <table className="w-full text-sm min-w-[880px]">
             <thead>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id} className="border-b border-border">
@@ -994,7 +994,7 @@ export default function CostsPage() {
       <Tabs.Root defaultValue="payment-methods">
         <div className="rounded-lg bg-white shadow-card overflow-hidden">
           <Tabs.List
-            className="flex border-b border-border px-5"
+            className="flex border-b border-border px-5 overflow-x-auto"
             aria-label="Kostenkategorien"
           >
             <Tabs.Trigger

@@ -124,7 +124,7 @@ function DetailSkeleton() {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="rounded-xl bg-white p-5 shadow-card">
             <div className="h-3 w-20 rounded bg-gray-200 mb-2" />
@@ -330,7 +330,7 @@ export default function CreatorDetailPage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span
               className={cn(
                 'inline-flex items-center justify-center h-10 w-10 rounded-lg text-sm font-bold',
@@ -1098,8 +1098,8 @@ export default function CreatorDetailPage() {
                 <p className="text-sm text-gray-500">No deals yet</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="table-scroll">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead>
                     <tr className="border-b border-border bg-surface-secondary">
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Title</th>

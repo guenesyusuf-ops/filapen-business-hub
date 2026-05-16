@@ -168,7 +168,7 @@ export default function CampaignsPage() {
       {/* Platform Filter + Table */}
       <div className="rounded-xl bg-white shadow-card overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
           <div className="inline-flex items-center rounded-lg border border-border bg-surface-secondary">
             {PLATFORMS.map((p) => (
               <button
@@ -200,8 +200,8 @@ export default function CampaignsPage() {
             <p className="text-sm text-gray-400">No campaign data available for this period.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="w-full text-sm min-w-[900px]">
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="px-5 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500">

@@ -291,8 +291,8 @@ function BrandRelationships({ brands, influencerName }: { brands: InfluencerBran
         <div className="px-5 py-4 border-b border-gray-100">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Collaboration History</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="table-scroll">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-gray-50 text-xs text-gray-500">
                 <th className="text-left font-medium px-5 py-3">Brand</th>
@@ -392,7 +392,7 @@ export default function InfluencerProfilePage() {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-xl bg-white p-4 shadow-card animate-pulse">
               <div className="h-3 w-16 rounded bg-gray-200 mb-2" />
@@ -437,7 +437,7 @@ export default function InfluencerProfilePage() {
           style={{ backgroundColor: PLATFORM_COLORS[profile.platform] ?? '#EC4899' }}
         />
         <div className="p-6">
-          <div className="flex items-start gap-5">
+          <div className="flex items-start gap-5 flex-wrap">
             {/* Avatar */}
             <div className="h-20 w-20 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-2xl font-bold shrink-0">
               {profile.displayName.charAt(0)}
@@ -445,7 +445,7 @@ export default function InfluencerProfilePage() {
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                   {profile.displayName}
                 </h1>
@@ -477,7 +477,7 @@ export default function InfluencerProfilePage() {
               {profile.bio && (
                 <p className="text-sm text-gray-700 mb-3 max-w-2xl">{profile.bio}</p>
               )}
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
                 {profile.location && (
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3 w-3" />

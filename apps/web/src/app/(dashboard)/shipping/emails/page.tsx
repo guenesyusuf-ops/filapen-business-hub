@@ -124,8 +124,8 @@ export default function ShippingEmailsPage() {
                     )}
                   </div>
                   {TRIGGER_HINTS[status] && <p className="text-xs text-gray-500 mb-3">{TRIGGER_HINTS[status]}</p>}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
                       <label className={lblCls()}>Template</label>
                       <select value={data.templateId} onChange={(e) => setField(status, { templateId: e.target.value })} className={inputCls()} disabled={!data.enabled}>
                         <option value="">— kein Template —</option>
@@ -136,7 +136,7 @@ export default function ShippingEmailsPage() {
                       <label className={lblCls()}>Verzögerung (Min.)</label>
                       <input type="number" min="0" value={data.sendDelayMinutes} onChange={(e) => setField(status, { sendDelayMinutes: Number(e.target.value) })} className={inputCls()} disabled={!data.enabled} />
                     </div>
-                    <div className="col-span-3">
+                    <div className="sm:col-span-3">
                       <label className={lblCls()}>Betreff-Override (optional)</label>
                       <input value={data.subject} onChange={(e) => setField(status, { subject: e.target.value })} className={inputCls()} disabled={!data.enabled} placeholder="Leer → Betreff aus Template" />
                     </div>

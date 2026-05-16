@@ -97,7 +97,7 @@ export default function MyTasksPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Mein Tag</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -160,7 +160,7 @@ export default function MyTasksPage() {
                   <div
                     key={task.id}
                     className={cn(
-                      'flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-white dark:bg-[var(--card-bg,#1a1d2e)] hover:shadow-sm transition-all',
+                      'flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 rounded-lg border bg-white dark:bg-[var(--card-bg,#1a1d2e)] hover:shadow-sm transition-all flex-wrap',
                       group.label === 'Überfällig'
                         ? 'border-red-200 dark:border-red-900/30'
                         : 'border-gray-200 dark:border-white/10',

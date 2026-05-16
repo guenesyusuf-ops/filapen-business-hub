@@ -193,7 +193,7 @@ export default function OrderEditPage() {
       />
 
       <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={label()}>Bestelldatum</label>
             <input type="date" className={input()} value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
@@ -202,11 +202,11 @@ export default function OrderEditPage() {
             <label className={label()}>Erwartetes Lieferdatum</label>
             <input type="date" className={input()} value={expectedDelivery} onChange={(e) => setExpectedDelivery(e.target.value)} />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className={label()}>Zahlungsbedingungen</label>
             <input type="text" className={input()} value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="z.B. Netto 30 Tage" />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className={label()}>Wichtige Infos / Notiz</label>
             <textarea
               rows={3}
@@ -216,7 +216,7 @@ export default function OrderEditPage() {
               placeholder="z.B. Lieferung in 2 Tranchen, Sonderkonditionen…"
             />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className={label()}>Interne Notiz (nur intern sichtbar)</label>
             <textarea
               rows={2}

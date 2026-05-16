@@ -55,7 +55,7 @@ export default function ContactDetailPage() {
         }
       />
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left: profile details */}
         <div className="space-y-4">
           <SectionCard title="Profil">

@@ -328,7 +328,7 @@ export default function AttributionPage() {
       )}
 
       {/* Model Selector */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Model:</span>
         <div className="inline-flex items-center rounded-lg border border-border bg-surface-secondary">
           {MODELS.map((m) => (
@@ -424,8 +424,8 @@ export default function AttributionPage() {
         ) : !attribution?.channels.length ? (
           <div className="py-16 text-center text-sm text-gray-400">No attribution data available.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="w-full text-sm min-w-[960px]">
               <thead>
                 <tr className="border-b border-gray-200 bg-surface-secondary">
                   {['Channel', 'Revenue', 'Spend', 'ROAS', 'Orders', 'CAC', 'Revenue Share', 'Contribution', 'Incremental Rev.'].map((h) => (

@@ -211,7 +211,7 @@ export default function NewOrderPage() {
 
           {/* Conditions */}
           <Card title="2. Konditionen" icon={<ShoppingCart className="h-4 w-4" />}>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={label()}>Bestelldatum *</label>
                 <input type="date" className={input()} value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />

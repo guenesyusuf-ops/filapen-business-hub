@@ -98,7 +98,7 @@ function FilterPanel({
   loading: boolean;
 }) {
   return (
-    <div className="w-72 shrink-0 space-y-4">
+    <div className="w-full lg:w-72 lg:shrink-0 space-y-4">
       <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-card p-5 space-y-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
@@ -485,7 +485,7 @@ export default function InfluencerDiscoveryPage() {
       </div>
 
       {/* Content */}
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         <FilterPanel
           filters={filters}
           onChange={setFilters}

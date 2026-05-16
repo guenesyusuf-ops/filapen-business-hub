@@ -345,7 +345,7 @@ export default function CreativeAnalysisPage() {
 
       {/* Campaign Table */}
       <div className="rounded-xl bg-white shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Campaign Performance (Ranked by ROAS)</h3>
           <span className="text-xs text-gray-400">
             {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}
@@ -360,8 +360,8 @@ export default function CreativeAnalysisPage() {
         ) : campaigns.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">No campaign data available.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="w-full text-sm min-w-[1000px]">
               <thead>
                 <tr className="border-b border-gray-200 bg-surface-secondary">
                   {['#', 'Campaign', 'Platform', 'Spend', 'Revenue', 'ROAS', 'Conv.', 'CPA', 'CTR', 'Trend'].map((h) => (

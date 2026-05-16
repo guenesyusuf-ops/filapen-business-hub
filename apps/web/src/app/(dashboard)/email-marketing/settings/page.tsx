@@ -99,7 +99,7 @@ export default function EmailMarketingSettingsPage() {
         title="Sending-Identität"
         description="Wie du im Posteingang deiner Kunden erscheinst"
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div><label className={labelCls()}>Absender-Name</label><input className={inputCls()} value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="z.B. Filapen" /></div>
           <div><label className={labelCls()}>Absender-Email</label><input className={inputCls()} value={fromEmail} onChange={(e) => setFromEmail(e.target.value)} placeholder="marketing@mail.filapen.de" /></div>
           <div><label className={labelCls()}>Reply-To (optional)</label><input className={inputCls()} value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="hallo@filapen.de" /></div>
@@ -114,7 +114,7 @@ export default function EmailMarketingSettingsPage() {
       </SectionCard>
 
       <SectionCard title="Consent & Frequency" description="Wer bekommt welche Emails wie oft">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={labelCls()}>Default Consent-Modus</label>
             <select className={inputCls()} value={consentMode} onChange={(e) => setConsentMode(e.target.value)}>

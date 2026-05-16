@@ -65,17 +65,17 @@ export default function ShippingIntegrationsPage() {
         ) : (
           <div className="space-y-2">
             {accounts.map((a) => (
-              <div key={a.id} className="flex items-center justify-between p-3 border border-gray-100 dark:border-white/8 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 flex items-center justify-center">
+              <div key={a.id} className="flex items-center justify-between gap-2 flex-wrap p-3 border border-gray-100 dark:border-white/8 rounded-lg">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-lg bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 flex items-center justify-center flex-shrink-0">
                     <Truck className="h-5 w-5" />
                   </div>
-                  <div>
-                    <div className="font-semibold text-sm text-gray-900 dark:text-white">{a.accountName}</div>
-                    <div className="text-xs text-gray-500">{CARRIER_LABELS[a.carrier as ShippingCarrier]}</div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm text-gray-900 dark:text-white truncate">{a.accountName}</div>
+                    <div className="text-xs text-gray-500 truncate">{CARRIER_LABELS[a.carrier as ShippingCarrier]}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {a.isDefault && <Badge color="bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">Standard</Badge>}
                   {a.apiReady ? (
                     <Badge color="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"><CheckCircle2 className="h-3 w-3 inline mr-1" /> API aktiv</Badge>
@@ -182,7 +182,7 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
           <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/10"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls()}>Carrier</label>
               <select disabled={mode === 'edit'} value={carrier} onChange={(e) => setCarrier(e.target.value)} className={inputCls()}>
@@ -244,11 +244,11 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div><label className={labelCls()}>EKP-Nr / Billing-Number</label><input value={billingNumber} onChange={(e) => setBillingNumber(e.target.value)} className={inputCls()} placeholder="10-stellig, z.B. 3333333333" /></div>
                 <div><label className={labelCls()}>API Key (Client ID)</label><input value={apiKey} onChange={(e) => setApiKey(e.target.value)} className={inputCls()} placeholder="vom Developer Portal" /></div>
                 <div><label className={labelCls()}>API Secret (Client Secret)</label><input type="password" value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(leer = unverändert)' : 'vom Developer Portal'} /></div>
-                <div></div>
+                <div className="hidden sm:block"></div>
                 <div><label className={labelCls()}>Username (Geschäftskundenportal)</label><input value={username} onChange={(e) => setUsername(e.target.value)} className={inputCls()} placeholder="optional bei API-Key-Auth" /></div>
                 <div><label className={labelCls()}>Passwort (Geschäftskundenportal)</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(leer = unverändert)' : 'optional'} /></div>
               </div>
@@ -264,9 +264,9 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
           )}
 
           <SectionCard title="Absender-Adresse (für Labels)">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2"><label className={labelCls()}>Firma/Name</label><input value={senderName} onChange={(e) => setSenderName(e.target.value)} className={inputCls()} /></div>
-              <div className="col-span-2"><label className={labelCls()}>Straße + Hausnummer</label><input value={senderStreet} onChange={(e) => setSenderStreet(e.target.value)} className={inputCls()} /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2"><label className={labelCls()}>Firma/Name</label><input value={senderName} onChange={(e) => setSenderName(e.target.value)} className={inputCls()} /></div>
+              <div className="sm:col-span-2"><label className={labelCls()}>Straße + Hausnummer</label><input value={senderStreet} onChange={(e) => setSenderStreet(e.target.value)} className={inputCls()} /></div>
               <div><label className={labelCls()}>PLZ</label><input value={senderZip} onChange={(e) => setSenderZip(e.target.value)} className={inputCls()} /></div>
               <div><label className={labelCls()}>Ort</label><input value={senderCity} onChange={(e) => setSenderCity(e.target.value)} className={inputCls()} /></div>
               <div><label className={labelCls()}>Land (ISO-2)</label><input maxLength={2} value={senderCountry} onChange={(e) => setSenderCountry(e.target.value.toUpperCase())} className={inputCls('uppercase')} /></div>

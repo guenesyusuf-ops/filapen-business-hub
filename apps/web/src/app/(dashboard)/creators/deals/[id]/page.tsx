@@ -65,7 +65,7 @@ function DealDetailSkeleton() {
           <div className="h-5 w-16 rounded bg-gray-200" />
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="rounded-xl bg-white p-5 shadow-card">
             <div className="h-3 w-16 rounded bg-gray-200 mb-3" />

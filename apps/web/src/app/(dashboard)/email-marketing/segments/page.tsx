@@ -56,7 +56,8 @@ export default function SegmentsPage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] overflow-hidden">
-          <table className="min-w-full text-sm">
+          <div className="table-scroll">
+          <table className="min-w-[640px] w-full text-sm">
             <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
               <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                 <th className="px-3 py-2.5 text-left">Name</th>
@@ -84,6 +85,7 @@ export default function SegmentsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

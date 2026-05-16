@@ -140,7 +140,7 @@ function ConfirmDialog({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-0">
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onCancel} />
       <div className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-2xl p-6 animate-scale-in border border-gray-200 dark:border-white/8">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
@@ -354,8 +354,8 @@ export default function ApprovalsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-white/8">
                   <th className="px-5 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">User</th>
@@ -430,8 +430,8 @@ export default function ApprovalsPage() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-white/8">
                   <th className="px-5 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">User</th>

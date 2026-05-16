@@ -207,8 +207,8 @@ function DealsListView({
 
   return (
     <div className="rounded-xl bg-white shadow-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="table-scroll">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="border-b border-border bg-surface-secondary">
               <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Deal</th>
@@ -331,7 +331,7 @@ function NewDealModal({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-dropdown w-full max-w-md mx-4 animate-slide-up">
+      <div className="relative bg-white rounded-xl shadow-dropdown w-full max-w-md mx-3 sm:mx-4 animate-slide-up max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-border">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">New Deal</h2>
           <button onClick={onClose} className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-surface-secondary">
@@ -476,7 +476,7 @@ function DealsPageInner() {
             Manage your creator deal pipeline
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* View toggle */}
           <div className="flex items-center rounded-lg border border-border bg-white">
             <button

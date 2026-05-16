@@ -363,8 +363,8 @@ function InfluencersTable({ influencers }: { influencers: any[] }) {
       <div className="px-5 py-4 border-b border-gray-100">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Associated Creators</h3>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="table-scroll">
+        <table className="w-full text-sm min-w-[800px]">
           <thead>
             <tr className="border-b border-gray-50 text-xs text-gray-500">
               <th className="text-left font-medium px-5 py-3">Creator</th>
@@ -556,7 +556,7 @@ export default function BrandDetailPage() {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-xl bg-white p-5 shadow-card animate-pulse">
               <div className="h-3 w-16 rounded bg-gray-200 mb-2" />

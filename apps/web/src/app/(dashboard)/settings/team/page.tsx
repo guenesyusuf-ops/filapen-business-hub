@@ -134,9 +134,9 @@ function InviteModal({
   const canSubmit = email.includes('@') && (role === 'admin' || selectedPermissions.size > 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-0">
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-2xl p-6 animate-scale-in border border-gray-200 dark:border-white/8 max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-2xl p-4 sm:p-6 animate-scale-in border border-gray-200 dark:border-white/8 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team-Mitglied einladen</h2>
           <button
@@ -324,9 +324,9 @@ function PermissionsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-0">
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-2xl p-6 border border-gray-200 dark:border-white/8">
+      <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-[var(--card-bg)] shadow-2xl p-4 sm:p-6 border border-gray-200 dark:border-white/8">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Berechtigungen</h2>
@@ -634,8 +634,8 @@ export default function TeamSettingsPage() {
         </div>
 
         {/* Desktop table */}
-        <div className="overflow-x-auto hidden md:block">
-          <table className="w-full text-sm">
+        <div className="hidden md:block table-scroll">
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-white/8">
                 <th className="px-5 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Benutzer</th>
@@ -726,7 +726,7 @@ export default function TeamSettingsPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{invite.email}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2 flex-wrap">
                         <span>Eingeladen {new Date(invite.createdAt).toLocaleDateString('de-DE')}</span>
                         <span className="text-gray-300 dark:text-gray-600">·</span>
                         {roleBadge(invite.role)}

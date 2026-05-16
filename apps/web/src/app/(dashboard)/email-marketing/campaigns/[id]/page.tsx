@@ -59,12 +59,12 @@ export default function CampaignDetailPage() {
         title={c.name}
         subtitle={`Template: ${c.template?.name || '—'} · Segment: ${c.segment?.name || '—'}`}
         actions={
-          <>
+          <div className="flex flex-wrap gap-2">
             <Link href="/email-marketing/campaigns" className={btn('ghost')}><ArrowLeft className="h-4 w-4" /> Liste</Link>
             {isSendable && (
               <button onClick={sendNow} disabled={sending} className={btn('primary')}><Send className="h-4 w-4" /> {sending ? 'Startet …' : 'Jetzt senden'}</button>
             )}
-          </>
+          </div>
         }
       />
 
@@ -74,14 +74,14 @@ export default function CampaignDetailPage() {
         {c.sentAt && <span className="text-sm text-gray-500">Versendet: {fmtDateTime(c.sentAt)}</span>}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard label="Versendet" value={c.sentCount} accent="blue" />
         <KpiCard label="Zugestellt" value={c.deliveredCount} accent="green" />
         <KpiCard label="Geöffnet" value={`${c.uniqueOpenCount || c.openCount} / ${c.sentCount}`} sublabel={c.sentCount > 0 ? `${Math.round((c.openCount / c.sentCount) * 100)}%` : '–'} accent="indigo" />
         <KpiCard label="Geklickt" value={`${c.uniqueClickCount || c.clickCount} / ${c.sentCount}`} sublabel={c.sentCount > 0 ? `${Math.round((c.clickCount / c.sentCount) * 100)}%` : '–'} accent="purple" />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard title="Details">
           <dl className="text-sm space-y-2">
             <Row label="Absender">{c.fromName} &lt;{c.fromEmail}&gt;</Row>

@@ -150,8 +150,8 @@ function CampaignBreakdownTable({ campaigns, loading }: { campaigns: CampaignSum
       <div className="px-5 pt-5 pb-3">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Campaign Breakdown</h3>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="table-scroll">
+        <table className="w-full text-sm min-w-[760px]">
           <thead>
             <tr className="border-y border-gray-200">
               <th className="px-5 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Campaign</th>

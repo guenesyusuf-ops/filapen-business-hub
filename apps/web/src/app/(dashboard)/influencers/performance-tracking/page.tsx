@@ -156,7 +156,7 @@ export default function PerformanceTrackingPage() {
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Header */}
-      <div className="flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row">
+      <div className="flex items-start sm:items-center justify-between gap-3 flex-col sm:flex-row flex-wrap">
         <div>
           <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">
             Performance Tracking
@@ -296,8 +296,8 @@ export default function PerformanceTrackingPage() {
       ) : (
         // 'table', 'top-performer', 'worst', 'rebookable', 'whitelist', 'blacklist' — alle nutzen die Standard-Tabelle
         <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-gray-50/60 dark:bg-white/[0.02] text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 <tr>
                   <th className="px-3 py-2.5 text-left">Influencer</th>

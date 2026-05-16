@@ -123,7 +123,7 @@ export default function SalesExportPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between border-t border-gray-200/60 dark:border-white/5 pt-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-gray-200/60 dark:border-white/5 pt-4">
           <div className="text-xs text-gray-500">
             <strong>24 Spalten:</strong> Bestellnummer, externe Nr., Bestelldatum, Liefertermin, Kunde,
             Produkte, Status, Beträge, Tracking, Zahlungsbedingungen, easybill-Refs uvm. Summe in

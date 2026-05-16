@@ -51,11 +51,11 @@ export default function SalesDashboardPage() {
           <div className="space-y-2">
             {urgentOrders.map((o) => (
               <Link key={o.id} href={`/sales/orders/${o.id}`} className="flex items-center justify-between gap-2 rounded-lg border border-gray-200/60 dark:border-white/5 p-2 hover:border-primary-300">
-                <div>
-                  <div className="text-xs font-mono text-primary-600">{o.orderNumber}</div>
-                  <div className="text-sm">{o.customer?.companyName}</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-mono text-primary-600 truncate">{o.orderNumber}</div>
+                  <div className="text-sm truncate">{o.customer?.companyName}</div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex-shrink-0">
                   <div className="text-xs text-amber-600 font-medium">
                     Liefer: {o.requiredDeliveryDate ? new Date(o.requiredDeliveryDate).toLocaleDateString('de-DE') : '—'}
                   </div>

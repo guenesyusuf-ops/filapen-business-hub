@@ -167,7 +167,8 @@ export default function NewSalesOrderPage() {
               </button>
             }
           >
-            <table className="w-full text-xs">
+            <div className="table-scroll overflow-x-auto">
+            <table className="w-full text-xs min-w-[720px]">
               <thead className="text-left text-[10px] uppercase text-gray-500">
                 <tr>
                   <th className="py-1">Artikel</th>
@@ -195,6 +196,7 @@ export default function NewSalesOrderPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </ColorCard>
 
           <ColorCard title="Übersicht" icon={<Calculator className="h-4 w-4" />} accent="rose">

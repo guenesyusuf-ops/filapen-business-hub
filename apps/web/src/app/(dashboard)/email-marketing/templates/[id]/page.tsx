@@ -57,17 +57,17 @@ export default function TemplateEditPage() {
         title={name || 'Template'}
         subtitle={subject}
         actions={
-          <>
+          <div className="flex flex-wrap gap-2">
             <Link href="/email-marketing/templates" className={btn('ghost')}><ArrowLeft className="h-4 w-4" /> Liste</Link>
             <button onClick={() => setPreviewOpen(true)} className={btn('secondary')}><Eye className="h-4 w-4" /> Vorschau</button>
             <button onClick={save} disabled={busy} className={btn('primary')}><Save className="h-4 w-4" /> {busy ? 'Speichert …' : 'Speichern'}</button>
-          </>
+          </div>
         }
       />
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="space-y-4">
           <SectionCard title="Meta">
             <div className="space-y-3">

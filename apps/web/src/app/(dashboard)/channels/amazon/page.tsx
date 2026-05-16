@@ -372,8 +372,8 @@ export default function AmazonDashboardPage() {
             </div>
 
             {/* Desktop */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="hidden md:block table-scroll">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-white/5">
                     <th className="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Bestellung</th>

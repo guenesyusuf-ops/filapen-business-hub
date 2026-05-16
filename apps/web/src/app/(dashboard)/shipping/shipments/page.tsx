@@ -67,8 +67,8 @@ export default function ShipmentsPage() {
           <Empty icon={<PackageCheck className="h-10 w-10" />} title="Keine Sendungen" hint="Wähle in /shipping/orders Bestellungen aus und erstelle Labels." />
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
+            <div className="table-scroll">
+              <table className="min-w-[900px] w-full text-sm">
                 <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
                   <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     <th className="px-3 py-2.5 text-left">Tracking-Nr</th>
@@ -110,7 +110,7 @@ export default function ShipmentsPage() {
               </table>
             </div>
             {total > PAGE_SIZE && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-white/8 text-xs text-gray-500">
+              <div className="flex items-center justify-between gap-2 flex-wrap px-3 sm:px-5 py-3 border-t border-gray-100 dark:border-white/8 text-xs text-gray-500">
                 <div>Seite {currentPage} von {totalPages} · {total} gesamt</div>
                 <div className="flex gap-2">
                   <button onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} disabled={offset === 0} className={btn('secondary', 'h-8 px-2 py-1 text-xs disabled:opacity-40')}>

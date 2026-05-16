@@ -42,14 +42,14 @@ export default function AnalyticsPage() {
         <div className="p-12 text-center text-sm text-gray-500">Lädt …</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <KpiCard label="Versendet (alle Zeit)" value={totals.sent} accent="blue" icon={<Send className="h-5 w-5" />} />
             <KpiCard label="Zugestellt" value={totals.delivered} accent="green" icon={<CheckCircle2 className="h-5 w-5" />} />
             <KpiCard label="Öffnungsrate" value={`${openRate}%`} sublabel={`${totals.opened} geöffnet`} accent="indigo" icon={<MailOpen className="h-5 w-5" />} />
             <KpiCard label="Klickrate" value={`${clickRate}%`} sublabel={`${totals.clicked} geklickt`} accent="purple" icon={<MousePointer className="h-5 w-5" />} />
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <SectionCard title="Kampagnen-Performance" description={`${campaigns.length} Kampagnen`}>
               {campaigns.length === 0 ? (
                 <div className="text-sm text-gray-400 py-6 text-center">Noch keine Kampagnen.</div>

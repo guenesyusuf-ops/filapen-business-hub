@@ -138,8 +138,8 @@ export default function OrderDetailPage() {
         {/* LEFT — Positions + invoices */}
         <div className="lg:col-span-2 space-y-4">
           <Section title={`Positionen (${order.items?.length || 0})`} icon={<PackageIcon className="h-3.5 w-3.5" />} accent="emerald">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
+            <div className="table-scroll overflow-x-auto">
+              <table className="min-w-[640px] text-sm">
                 <thead className="bg-gray-50/50 dark:bg-white/[0.02] text-xs text-gray-500 uppercase">
                   <tr>
                     <th className="px-3 py-2 text-left">#</th>
@@ -1045,8 +1045,8 @@ function ShipmentModal({
           <div>
             <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Inhalt der Sendung</div>
             <div className="text-xs text-gray-500 mb-3">Gib pro Position die Menge in dieser Sendung an. Vorbelegt mit der Restmenge.</div>
-            <div className="border border-gray-100 dark:border-white/8 rounded-lg overflow-hidden">
-              <table className="min-w-full text-sm">
+            <div className="border border-gray-100 dark:border-white/8 rounded-lg overflow-hidden table-scroll overflow-x-auto">
+              <table className="min-w-[560px] text-sm">
                 <thead className="bg-gray-50/50 dark:bg-white/[0.02] text-xs text-gray-500 uppercase">
                   <tr>
                     <th className="px-3 py-2 text-left">Produkt</th>

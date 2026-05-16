@@ -207,8 +207,8 @@ export default function SalesImportPage() {
                 <Plus className="h-3 w-3" /> Zeile
               </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+            <div className="table-scroll overflow-x-auto">
+              <table className="w-full text-xs min-w-[720px]">
                 <thead className="text-left text-[10px] uppercase text-gray-500">
                   <tr>
                     <th className="py-1">Artikel</th>

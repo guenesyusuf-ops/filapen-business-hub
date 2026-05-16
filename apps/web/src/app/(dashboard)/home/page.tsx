@@ -584,7 +584,7 @@ function AddEventModal({ defaultDate, onClose }: { defaultDate: string; onClose:
               <span className="text-xs text-gray-500">Minuten vorher</span>
             </div>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-gray-500">Farbe:</span>
             {['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'].map((c) => (
               <button
@@ -895,7 +895,7 @@ function VacationDecisionPopup() {
   }
   if (decisions.length === 0) return null;
   return (
-    <div className="fixed top-20 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+    <div className="fixed top-20 right-4 left-4 sm:left-auto z-[100] flex flex-col gap-2 sm:max-w-sm">
       {decisions.map((r) => {
         const approved = r.status === 'approved';
         return (

@@ -167,7 +167,7 @@ function RevenueOverTimeChart({
 
   return (
     <div className="rounded-xl bg-white p-5 shadow-card">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Revenue Over Time</h3>
         <div className="flex rounded-lg border border-border overflow-hidden">
           {(['daily', 'weekly', 'monthly'] as Granularity[]).map((g) => (
@@ -329,8 +329,8 @@ function RevenueByCountryTable({
       {data.length === 0 ? (
         <div className="p-8 text-center text-sm text-gray-400">No country data available</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="table-scroll">
+          <table className="w-full min-w-[560px]">
             <thead>
               <tr className="border-b border-border bg-surface-secondary">
                 <th className="px-5 py-2.5 text-left text-xxs font-medium uppercase tracking-wider text-gray-500">
@@ -420,8 +420,8 @@ function RevenueByProductTable({
       {data.length === 0 ? (
         <div className="p-8 text-center text-sm text-gray-400">No product data available</div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="table-scroll">
+          <table className="w-full min-w-[520px]">
             <thead>
               <tr className="border-b border-border bg-surface-secondary">
                 <th className="px-5 py-2.5 text-left text-xxs font-medium uppercase tracking-wider text-gray-500">

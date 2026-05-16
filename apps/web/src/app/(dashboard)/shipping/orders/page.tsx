@@ -263,7 +263,7 @@ export default function ShippingOrdersPage() {
       )}
 
       {/* Tabs — Offene Bestellungen vs. Adressfehler */}
-      <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-1.5 inline-flex gap-1">
+      <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-1.5 inline-flex gap-1 flex-wrap">
         <button
           type="button"
           onClick={() => setTab('pending')}
@@ -624,7 +624,7 @@ export default function ShippingOrdersPage() {
         ) : (
           <>
             <div className="table-scroll">
-              <table className="min-w-full text-sm">
+              <table className="min-w-[640px] sm:min-w-full text-sm">
                 <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
                   <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     <th className="px-3 py-2.5 w-8">
@@ -711,7 +711,7 @@ export default function ShippingOrdersPage() {
               </table>
             </div>
             {total > PAGE_SIZE && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-white/8 text-xs text-gray-500">
+              <div className="flex items-center justify-between gap-2 flex-wrap px-3 sm:px-5 py-3 border-t border-gray-100 dark:border-white/8 text-xs text-gray-500">
                 <div>Seite {currentPage} von {totalPages} · {total} Bestellungen</div>
                 <div className="flex gap-2">
                   <button onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} disabled={offset === 0} className={btn('secondary', 'h-8 px-2 py-1 text-xs disabled:opacity-40')}>

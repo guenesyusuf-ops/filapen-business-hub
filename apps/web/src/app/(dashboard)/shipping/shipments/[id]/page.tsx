@@ -78,7 +78,7 @@ export default function ShipmentDetailPage() {
 
       <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Badge color={st.color}>{st.label}</Badge>
             {s.apiMode ? (
               <Badge color="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">API-Mode</Badge>
@@ -159,12 +159,12 @@ export default function ShipmentDetailPage() {
             ) : (
               <div className="space-y-2">
                 {s.labels.map((l: any) => (
-                  <div key={l.id} className="flex items-center justify-between p-3 border border-gray-100 dark:border-white/8 rounded-lg">
-                    <div>
-                      <div className="font-mono text-xs text-gray-700 dark:text-gray-300">{l.trackingNumber || '—'}</div>
+                  <div key={l.id} className="flex items-center justify-between gap-2 flex-wrap p-3 border border-gray-100 dark:border-white/8 rounded-lg">
+                    <div className="min-w-0">
+                      <div className="font-mono text-xs text-gray-700 dark:text-gray-300 truncate">{l.trackingNumber || '—'}</div>
                       <div className="text-xs text-gray-400">Format: {l.format} · {l.widthMm && l.heightMm ? `${l.widthMm}×${l.heightMm} mm` : '—'}</div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <button onClick={() => printLabel(l.id, l.url, !!l.printedAt)} className={btn('primary', 'h-8 px-3 py-1 text-xs')}>
                         <Printer className="h-3.5 w-3.5" /> Drucken
                       </button>

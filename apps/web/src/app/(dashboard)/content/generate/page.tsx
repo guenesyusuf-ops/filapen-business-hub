@@ -355,7 +355,7 @@ export default function GenerateContentPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Generate Content</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -379,7 +379,7 @@ export default function GenerateContentPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Panel -- Configuration */}
         <div className="lg:col-span-4">
-          <div className="rounded-xl bg-white p-6 shadow-card sticky top-6">
+          <div className="rounded-xl bg-white p-6 shadow-card lg:sticky lg:top-6">
             <div className="flex items-center gap-2 mb-5">
               <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-accent-content-light text-accent-content">
                 <Wand2 className="h-4 w-4" />
@@ -1032,7 +1032,7 @@ export default function GenerateContentPage() {
           {generatedItems.length > 0 && !generateMutation.isPending && (
             <div className="space-y-6">
               {/* Results header with view toggle */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                     Generated Content ({generatedItems.length} variants)

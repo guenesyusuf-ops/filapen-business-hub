@@ -126,7 +126,8 @@ export default function CustomerDetailPage() {
         {orders.length === 0 ? (
           <div className="text-xs text-gray-500 py-2">Noch keine Bestellungen für diesen Kunden.</div>
         ) : (
-          <table className="w-full text-xs">
+          <div className="table-scroll overflow-x-auto">
+          <table className="w-full text-xs min-w-[480px]">
             <thead className="text-left text-[10px] uppercase text-gray-500">
               <tr><th className="py-1">Bestellnr.</th><th className="py-1">Datum</th><th className="py-1">Status</th><th className="py-1 text-right">Betrag</th></tr>
             </thead>
@@ -141,6 +142,7 @@ export default function CustomerDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </ColorCard>
     </div>

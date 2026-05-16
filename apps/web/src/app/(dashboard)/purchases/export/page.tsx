@@ -68,7 +68,7 @@ export default function ExportPage() {
 
       {/* Filter bar */}
       <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div><label className={label()}>Von</label><input type="date" className={input()} value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div><label className={label()}>Bis</label><input type="date" className={input()} value={to} onChange={(e) => setTo(e.target.value)} /></div>
           <div>

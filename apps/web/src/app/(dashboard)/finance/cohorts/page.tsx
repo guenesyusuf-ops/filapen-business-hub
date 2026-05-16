@@ -78,8 +78,8 @@ function CohortHeatmap({
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Cohort Retention Heatmap</h3>
         <p className="text-xs text-gray-500 mt-0.5">Each cell shows the % of customers from each cohort who returned</p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+      <div className="table-scroll">
+        <table className="w-full text-xs min-w-[720px]">
           <thead>
             <tr className="border-b border-gray-200">
               <th className="px-3 py-2 text-left font-medium text-gray-500 sticky left-0 bg-white z-10">Cohort</th>
@@ -434,8 +434,8 @@ export default function CohortsPage() {
             ) : !ltvData?.segments.length ? (
               <div className="py-12 text-center text-sm text-gray-400">No LTV data available.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="table-scroll">
+                <table className="w-full text-sm min-w-[720px]">
                   <thead>
                     <tr className="border-b border-gray-200 bg-surface-secondary">
                       {['Segment', 'Customers', 'Avg LTV', 'Avg Orders', 'Avg AOV', 'Avg Lifespan'].map((h) => (

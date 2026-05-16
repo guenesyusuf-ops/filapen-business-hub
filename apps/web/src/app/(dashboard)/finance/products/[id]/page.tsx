@@ -519,8 +519,8 @@ export default function ProductDetailPage() {
               COGS pro Variante editierbar
             </span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className="table-scroll">
+            <table className="w-full border-collapse min-w-[960px]">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/5 text-left">
                   <th className="px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">

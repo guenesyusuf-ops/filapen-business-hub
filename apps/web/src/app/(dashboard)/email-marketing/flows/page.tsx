@@ -54,7 +54,7 @@ export default function FlowsPage() {
       {/* Pre-built catalog */}
       {flows.length === 0 && catalog.length > 0 && (
         <SectionCard title="Schnellstart — vorgefertigte Flows" description="Mit einem Klick installieren und anpassen">
-          <div className="grid md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {catalog.map((c) => (
               <div key={c.kind} className="rounded-xl border border-gray-200 dark:border-white/10 p-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -90,7 +90,8 @@ export default function FlowsPage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] overflow-hidden">
-          <table className="min-w-full text-sm">
+          <div className="table-scroll">
+          <table className="min-w-[640px] w-full text-sm">
             <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
               <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                 <th className="px-3 py-2.5 text-left">Name</th>
@@ -133,6 +134,7 @@ export default function FlowsPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

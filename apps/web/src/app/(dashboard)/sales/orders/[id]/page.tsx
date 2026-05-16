@@ -269,8 +269,8 @@ export default function SalesOrderDetailPage() {
               </button>
             </div>
           }>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="table-scroll overflow-x-auto">
+              <table className="w-full text-sm min-w-[860px]">
                 <thead className="text-left text-[10px] uppercase tracking-wide text-gray-500">
                   <tr>
                     <th className="py-1">#</th>

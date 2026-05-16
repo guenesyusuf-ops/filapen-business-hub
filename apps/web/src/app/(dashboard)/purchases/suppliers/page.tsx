@@ -70,8 +70,8 @@ export default function SuppliersPage() {
             action={<button onClick={() => setCreating(true)} className={btn('primary')}><Plus className="h-4 w-4" /> Neuer Lieferant</button>}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="table-scroll overflow-x-auto">
+            <table className="min-w-[820px] text-sm">
               <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
                 <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   <th className="px-3 py-2.5 text-left">Lieferantennr.</th>
@@ -218,14 +218,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div>
       <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">{title}</div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{children}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">{children}</div>
     </div>
   );
 }
 
 function Field({ label: lbl, children, colSpan }: { label: string; children: React.ReactNode; colSpan?: number }) {
   return (
-    <div className={colSpan === 2 ? 'col-span-2' : colSpan === 4 ? 'col-span-2 md:col-span-4' : ''}>
+    <div className={colSpan === 2 ? 'sm:col-span-2' : colSpan === 4 ? 'sm:col-span-2 md:col-span-4' : ''}>
       <label className={label()}>{lbl}</label>
       {children}
     </div>

@@ -119,8 +119,8 @@ export default function WatchlistDetailPage() {
         </div>
       ) : (
         <div className="rounded-xl bg-white shadow-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="table-scroll">
+            <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b border-gray-100 text-xs text-gray-500">
                   <th className="text-left font-medium px-5 py-3">Influencer</th>

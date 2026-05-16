@@ -182,8 +182,8 @@ function TopInfluencersTable({
       <div className="px-5 py-4 border-b border-gray-100">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Top Influencers by Score</h3>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="table-scroll">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="border-b border-gray-50 text-xs text-gray-500">
               <th className="text-left font-medium px-5 py-3">Influencer</th>
