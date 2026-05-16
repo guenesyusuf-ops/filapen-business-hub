@@ -79,9 +79,21 @@ import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { useThemeStore } from '@/stores/theme';
 import { hasMenuAccess, pathToPermission, type MenuPermissionKey } from '@/lib/permissions';
-import { CommandBar, useCommandBar } from '@/components/shared/CommandBar';
-import { GlobalMessenger } from '@/components/shared/GlobalMessenger';
+import dynamic from 'next/dynamic';
+import { useCommandBar } from '@/components/shared/CommandBar';
 import { BottomNav } from '@/components/shared/BottomNav';
+
+// Lazy-load schwere Komponenten — sie werden nicht direkt nach dem First-
+// Paint gebraucht (CommandBar oeffnet sich nur auf Cmd+K, GlobalMessenger
+// ist meistens collapsed). Spart deutlich Bundle-JS auf dem Critical Path.
+const CommandBar = dynamic(() => import('@/components/shared/CommandBar').then((m) => m.CommandBar), {
+  ssr: false,
+  loading: () => null,
+});
+const GlobalMessenger = dynamic(() => import('@/components/shared/GlobalMessenger').then((m) => m.GlobalMessenger), {
+  ssr: false,
+  loading: () => null,
+});
 import { OrgPresenceProvider } from '@/components/screen-share/OrgPresenceProvider';
 
 // ---------------------------------------------------------------------------
