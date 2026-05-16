@@ -218,8 +218,64 @@ export class FilapenSendService {
         where: { id: row.id },
         data: { receivedAt: new Date() },
       });
+      await this.cleanupIfAllReceived(transferId);
     }
     return { ok: true };
+  }
+
+  /**
+   * Wird nach jedem erfolgreichen Download des Empfaengers aufgerufen
+   * (via res.on('finish') im Controller).
+   *
+   * - markiert receivedAt fuer diesen Empfaenger, falls noch nicht gesetzt
+   * - prueft ob ALLE Empfaenger abgeholt haben → wenn ja: R2-Files + Transfer
+   *   loeschen ("Wenn alle es heruntergeladen haben, ist es weg")
+   */
+  async onItemDownloaded(orgId: string, userId: string, itemId: string) {
+    const item = await this.prisma.fileTransferItem.findUnique({
+      where: { id: itemId },
+      select: { transferId: true, transfer: { select: { orgId: true } } },
+    });
+    if (!item || item.transfer.orgId !== orgId) return;
+
+    const row = await this.prisma.fileTransferRecipient.findFirst({
+      where: { transferId: item.transferId, recipientId: userId },
+    });
+    if (!row) return;
+    if (!row.receivedAt) {
+      await this.prisma.fileTransferRecipient.update({
+        where: { id: row.id },
+        data: { receivedAt: new Date() },
+      });
+    }
+    await this.cleanupIfAllReceived(item.transferId);
+  }
+
+  /**
+   * Prueft ob alle Empfaenger eines Transfers receivedAt haben. Wenn ja:
+   * R2-Files loeschen + DB-Record entfernen. Sicher gegen Race-Conditions
+   * weil findFirst-then-delete atomisch genug fuer unseren Use-Case ist.
+   */
+  private async cleanupIfAllReceived(transferId: string): Promise<void> {
+    const transfer = await this.prisma.fileTransfer.findUnique({
+      where: { id: transferId },
+      include: {
+        items: { select: { id: true, storageKey: true } },
+        recipients: { select: { receivedAt: true } },
+      },
+    });
+    if (!transfer) return;
+    const allReceived = transfer.recipients.length > 0 && transfer.recipients.every((r) => !!r.receivedAt);
+    if (!allReceived) return;
+    // Cleanup R2-Files — best-effort, DB-Delete folgt unabhaengig
+    for (const item of transfer.items) {
+      await this.storage.delete(item.storageKey).catch((err) => {
+        this.logger.warn(`R2-Cleanup fuer ${item.storageKey} fehlgeschlagen: ${err.message}`);
+      });
+    }
+    // DB-Cascade loescht Items + Recipients automatisch
+    await this.prisma.fileTransfer.delete({ where: { id: transferId } }).catch(() => {});
+    this.logger.log(`Transfer ${transferId} bereinigt — alle Empfaenger haben heruntergeladen`);
   }
 
   // ----------------------------------------------------------------------

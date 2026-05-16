@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { X, Send, FileIcon, Folder, Trash2, Upload, Search, Loader2, Users } from 'lucide-react';
-import { sendApi, fmtSize } from '@/lib/filapen-send';
+import { sendApi, fmtSize, broadcastSendReceived } from '@/lib/filapen-send';
 import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
 import { useAuthStore } from '@/stores/auth';
@@ -81,10 +81,29 @@ export function SendModal({ onClose, onSent }: { onClose: () => void; onSent: ()
     setUploading(true);
     setProgress(0);
     try {
-      await sendApi.upload(Array.from(selected), files, {
+      const created = await sendApi.upload(Array.from(selected), files, {
         message: message.trim() || undefined,
         onProgress: (p) => setProgress(p.percent),
       });
+      // Live-Popup an alle Empfaenger broadcasten — gleicher Pattern wie
+      // ScreenShare-Invites. Empfaenger sehen sofort einen Toast.
+      const senderName = currentUser?.name
+        || [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ').trim()
+        || currentUser?.email?.split('@')[0]
+        || 'Jemand';
+      try {
+        broadcastSendReceived({
+          type: 'filapen-send-received',
+          transferId: created.id,
+          senderUserId: currentUser?.id || '',
+          senderName,
+          senderAvatarUrl: currentUser?.avatarUrl ?? null,
+          recipientUserIds: Array.from(selected),
+          fileCount: files.length,
+          totalSize: files.reduce((s, f) => s + f.size, 0),
+          message: message.trim() || null,
+        });
+      } catch { /* broadcast best-effort */ }
       onSent();
     } catch (e: any) {
       setError(e.message || 'Upload fehlgeschlagen');

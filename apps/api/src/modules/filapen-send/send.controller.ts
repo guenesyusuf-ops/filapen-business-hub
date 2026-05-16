@@ -78,7 +78,10 @@ export class FilapenSendController {
     });
   }
 
-  /** Download einer einzelnen Datei (Stream-Proxy von R2). */
+  /** Download einer einzelnen Datei (Stream-Proxy von R2).
+   *  Nach erfolgreichem Stream: Empfaenger markieren + ggf. Cleanup
+   *  ausloesen (wenn alle Empfaenger heruntergeladen haben → R2-Files
+   *  werden geloescht). */
   @Get('items/:itemId/file')
   async download(
     @Headers('authorization') authHeader: string,
@@ -95,6 +98,12 @@ export class FilapenSendController {
     res.setHeader('Content-Disposition', `${disposition}; filename="${safeAscii}"; filename*=UTF-8''${encoded}`);
     if (contentLength) res.setHeader('Content-Length', String(contentLength));
     res.setHeader('Cache-Control', 'private, max-age=60');
+
+    // Nach vollstaendigem Stream: Receive-Mark + Cleanup-Check ausloesen
+    res.on('finish', () => {
+      this.svc.onItemDownloaded(orgId, userId, itemId).catch(() => { /* best-effort */ });
+    });
+
     stream.pipe(res);
   }
 

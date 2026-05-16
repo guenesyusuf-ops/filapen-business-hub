@@ -133,6 +133,35 @@ export const sendApi = {
   hide: (id: string) => call(`/${id}/hide`, { method: 'PATCH' }),
 };
 
+// ----------------------------------------------------------------------------
+// Broadcast-Bridge: gleicher Pattern wie ScreenShare — OrgPresenceProvider
+// registriert die Liveblocks-Broadcast-Funktion hier, SendModal kann sie
+// nach erfolgreichem Upload aufrufen damit Empfaenger sofort ein Popup
+// sehen.
+// ----------------------------------------------------------------------------
+
+export type FilapenSendReceivedEvent = {
+  type: 'filapen-send-received';
+  transferId: string;
+  senderUserId: string;
+  senderName: string;
+  senderAvatarUrl?: string | null;
+  recipientUserIds: string[];
+  fileCount: number;
+  totalSize: number;
+  message: string | null;
+};
+
+const sendBroadcastRef: { fn: ((event: FilapenSendReceivedEvent) => void) | null } = { fn: null };
+
+export function setSendBroadcastFn(fn: ((event: FilapenSendReceivedEvent) => void) | null) {
+  sendBroadcastRef.fn = fn;
+}
+
+export function broadcastSendReceived(event: FilapenSendReceivedEvent) {
+  sendBroadcastRef.fn?.(event);
+}
+
 export function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

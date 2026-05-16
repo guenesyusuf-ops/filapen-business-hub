@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LiveblocksProvider, RoomProvider, useBroadcastEvent, useEventListener } from '@liveblocks/react';
-import { Monitor, Mic, X, CheckCircle, Volume2 } from 'lucide-react';
+import { Monitor, Mic, X, CheckCircle, Volume2, Send, Download } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { screenShareApi, setBroadcastFn, type ScreenShareInviteEvent } from '@/lib/screen-share';
+import { setSendBroadcastFn, fmtSize, type FilapenSendReceivedEvent } from '@/lib/filapen-send';
 import { whiteboardApi } from '@/lib/whiteboard';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +49,7 @@ export function OrgPresenceProvider({ children }: { children: React.ReactNode })
       <RoomProvider id={`org-presence-${user.orgId}`} initialPresence={{}}>
         <BroadcasterBridge />
         <InvitePopupListener />
+        <FilapenSendPopupListener />
         {children}
       </RoomProvider>
     </LiveblocksProvider>
@@ -63,7 +65,11 @@ function BroadcasterBridge() {
   const broadcast = useBroadcastEvent();
   useEffect(() => {
     setBroadcastFn(broadcast as any);
-    return () => setBroadcastFn(null);
+    setSendBroadcastFn(broadcast as any);
+    return () => {
+      setBroadcastFn(null);
+      setSendBroadcastFn(null);
+    };
   }, [broadcast]);
   return null;
 }
@@ -210,6 +216,77 @@ function InvitePopup({
       <div className="text-[10px] text-gray-400 text-center pb-1">
         Auto-Ablehnen in {secondsLeft}s
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Filapen Send — Toast-Popup wenn jemand uns Dateien sendet
+// Stiller Toast unten rechts mit Sender, Anzahl, Groesse + "Zum Inbox"
+// ---------------------------------------------------------------------------
+function FilapenSendPopupListener() {
+  const currentUser = useAuthStore((s) => s.user);
+  const router = useRouter();
+  const [received, setReceived] = useState<FilapenSendReceivedEvent[]>([]);
+
+  useEventListener(({ event }: { event: any }) => {
+    if (event?.type !== 'filapen-send-received') return;
+    const ev = event as FilapenSendReceivedEvent;
+    if (ev.senderUserId === currentUser?.id) return; // nicht selber
+    if (!ev.recipientUserIds.includes(currentUser?.id ?? '')) return; // nicht fuer mich
+    setReceived((prev) => {
+      if (prev.some((p) => p.transferId === ev.transferId)) return prev;
+      return [...prev, ev];
+    });
+    try { playInviteSound(); } catch { /* ignore */ }
+  });
+
+  function dismiss(id: string) {
+    setReceived((prev) => prev.filter((p) => p.transferId !== id));
+  }
+
+  if (received.length === 0) return null;
+  return (
+    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+      {received.map((ev) => (
+        <div key={ev.transferId} className="rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden animate-fade-in-down">
+          <div className="flex items-start gap-3 p-4">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center flex-shrink-0">
+              <Send className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                📩 {ev.senderName} hat dir Dateien gesendet
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {ev.fileCount} {ev.fileCount === 1 ? 'Datei' : 'Dateien'} · {fmtSize(ev.totalSize)}
+              </div>
+              {ev.message && (
+                <div className="text-xs text-gray-600 dark:text-gray-300 mt-1 italic truncate">
+                  "{ev.message}"
+                </div>
+              )}
+            </div>
+            <button onClick={() => dismiss(ev.transferId)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex border-t border-gray-100 dark:border-white/5">
+            <button
+              onClick={() => { router.push('/send'); dismiss(ev.transferId); }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-primary-600 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20"
+            >
+              <Download className="h-3.5 w-3.5" /> Zum Inbox
+            </button>
+            <button
+              onClick={() => dismiss(ev.transferId)}
+              className="flex-1 px-3 py-2 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 border-l border-gray-100 dark:border-white/5"
+            >
+              Spaeter
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
