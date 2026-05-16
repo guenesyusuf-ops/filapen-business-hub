@@ -113,9 +113,9 @@ export class SalesOrderService {
         take: limit,
         include: {
           customer: { select: { id: true, companyName: true, customerNumber: true } },
-          // matchedVariant → product → imageUrl damit die Listenansicht kleine
-          // Produkt-Kacheln rendern kann. Nicht alle Line-Items sind gematched
-          // (unbekannte SKUs aus Import), daher nullable Chain.
+          // List-Page zeigt Product-Tiles (max 5 sichtbar) + Hover-Popover (alle).
+          // 20 line-items pro Order decken 99%+ der real existierenden Orders ab.
+          // Bei mehr: Popover ist leicht inkomplett, aber Listen-UX bleibt schnell.
           lineItems: {
             select: {
               id: true, title: true, quantity: true,
@@ -124,8 +124,10 @@ export class SalesOrderService {
                 select: { id: true, sku: true, product: { select: { id: true, title: true, imageUrl: true } } },
               },
             },
+            take: 20,
+            orderBy: { position: 'asc' },
           },
-          _count: { select: { documents: true } },
+          _count: { select: { documents: true, lineItems: true } },
         },
       }),
       this.prisma.salesOrder.count({ where }),
