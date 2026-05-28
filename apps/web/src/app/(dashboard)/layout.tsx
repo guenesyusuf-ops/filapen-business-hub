@@ -71,6 +71,7 @@ import {
   Plug as PlugIcon,
   PencilRuler,
   Monitor,
+  Calculator,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -135,6 +136,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.cohorts', href: '/finance/cohorts', icon: UsersRound },
       { labelKey: 'nav.benchmarks', href: '/finance/benchmarks', icon: Gauge },
       { labelKey: 'nav.creativeAnalysis', href: '/finance/creative-analysis', icon: Palette },
+      { labelKey: 'nav.profitability', href: '/finance/profitability', icon: Calculator },
       { labelKey: 'nav.reports', href: '/finance/reports', icon: FileText },
       // Channels zusammengeführt unter Finanzen (Shopify + Amazon sind Umsatz-Quellen)
       { labelKey: 'nav.channelsOverview', href: '/channels', icon: Store },

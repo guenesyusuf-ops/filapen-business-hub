@@ -10,6 +10,7 @@ import { AttributionModule } from './attribution/attribution.module';
 import { CohortModule } from './cohort/cohort.module';
 import { BenchmarkModule } from './benchmark/benchmark.module';
 import { ShopifyAnalyticsModule } from './shopify-analytics/shopify-analytics.module';
+import { ProfitabilityModule } from './profitability/profitability.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ShopifyAnalyticsModule } from './shopify-analytics/shopify-analytics.mo
     CohortModule,
     BenchmarkModule,
     ShopifyAnalyticsModule,
+    ProfitabilityModule,
   ],
   exports: [
     ProfitCalculationModule,
