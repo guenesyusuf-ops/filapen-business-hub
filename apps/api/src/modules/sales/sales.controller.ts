@@ -374,6 +374,28 @@ export class SalesController {
     return this.documents.remove(orgId, id, docId);
   }
 
+  /** Stream-Download eines Sales-Dokuments. Proxy ueber R2 mit Auth-Check.
+   *  Mit ?inline=1 wird inline angezeigt (Preview im iframe/img), sonst
+   *  als Attachment. Loest CORS-Probleme der R2-dev-URL. */
+  @Get('documents/:docId/file')
+  async streamDocument(
+    @Headers('authorization') authHeader: string,
+    @Param('docId') docId: string,
+    @Query('inline') inline: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const { stream, fileName, mimeType, contentLength } = await this.documents.openStream(orgId, docId);
+    const disposition = inline === '1' || inline === 'true' ? 'inline' : 'attachment';
+    const safeAscii = fileName.replace(/[^\x20-\x7E]+/g, '_').replace(/"/g, '');
+    const encoded = encodeURIComponent(fileName);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeAscii}"; filename*=UTF-8''${encoded}`);
+    if (contentLength) res.setHeader('Content-Length', String(contentLength));
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    stream.pipe(res);
+  }
+
   // ==========================================================
   // Import (PDF/Bild → Claude Vision → Preview)
   // ==========================================================

@@ -117,6 +117,40 @@ export const salesApi = {
   deleteDocument: (orderId: string, docId: string) =>
     call(`/orders/${orderId}/documents/${docId}`, { method: 'DELETE' }),
 
+  /**
+   * Holt das Dokument als Blob ueber den authentifizierten Stream-Endpoint.
+   * Loest CORS-Problem der R2-dev-URL und garantiert Auth-Check.
+   * Mit inline=true fuer Preview (PDF in iframe via object URL), sonst
+   * download als Datei.
+   */
+  fetchDocumentBlob: async (docId: string, inline: boolean): Promise<{ blob: Blob; fileName: string; mimeType: string }> => {
+    const url = `${API_URL}/api/sales/documents/${docId}/file${inline ? '?inline=1' : ''}`;
+    const res = await fetch(url, { headers: getAuthHeaders() });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.message || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="([^"]+)"/i);
+    const fileName = m ? decodeURIComponent(m[1]) : 'document';
+    return { blob, fileName, mimeType: res.headers.get('Content-Type') || blob.type };
+  },
+
+  /** Triggert direkten Download (kein neues Tab). */
+  downloadDocument: async (docId: string, fallbackName?: string): Promise<void> => {
+    const { blob, fileName } = await salesApi.fetchDocumentBlob(docId, false);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fallbackName || fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  },
+
   // Import
   importOrder: async (file: File) => {
     const form = new FormData();

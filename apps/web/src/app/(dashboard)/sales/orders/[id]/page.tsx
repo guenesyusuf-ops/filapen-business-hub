@@ -21,7 +21,7 @@ export default function SalesOrderDetailPage() {
   const [shipModal, setShipModal] = useState(false);
   const [dirtyItems, setDirtyItems] = useState(false);
   // Preview-Modal fuer Dokumente: PDF/Bild/Text inline anzeigen, sonst Download-Hinweis.
-  const [previewDoc, setPreviewDoc] = useState<{ url: string; fileName: string; mimeType: string } | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ id: string; url: string; fileName: string; mimeType: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -366,7 +366,7 @@ export default function SalesOrderDetailPage() {
                 <div
                   key={d.id}
                   className="group flex items-center justify-between gap-2 rounded-lg border border-gray-200/60 dark:border-white/5 p-2 hover:border-primary-300 dark:hover:border-primary-500/40 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
-                  onClick={() => setPreviewDoc({ url: d.url, fileName: d.fileName, mimeType: d.mimeType || '' })}
+                  onClick={() => setPreviewDoc({ id: d.id, url: d.url, fileName: d.fileName, mimeType: d.mimeType || '' })}
                   title="Vorschau öffnen"
                 >
                   <div className="min-w-0 flex-1 flex items-center gap-2">
@@ -377,16 +377,13 @@ export default function SalesOrderDetailPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <a
-                      href={d.url}
-                      download={d.fileName}
-                      target="_blank"
-                      rel="noopener"
+                    <button
+                      onClick={() => salesApi.downloadDocument(d.id, d.fileName).catch((err) => alert(`Download fehlgeschlagen: ${err.message}`))}
                       className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/5"
                       title="Herunterladen"
                     >
                       <Download className="h-3.5 w-3.5" />
-                    </a>
+                    </button>
                     <button onClick={() => deleteDoc(d.id)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500" title="Löschen"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
@@ -419,7 +416,7 @@ export default function SalesOrderDetailPage() {
 
       {previewDoc && (
         <DocumentPreviewModal
-          url={previewDoc.url}
+          docId={previewDoc.id}
           fileName={previewDoc.fileName}
           mimeType={previewDoc.mimeType}
           onClose={() => setPreviewDoc(null)}
@@ -437,9 +434,9 @@ export default function SalesOrderDetailPage() {
 // gerendert, Office-Dokumente koennen wir nicht ohne externen Viewer
 // anzeigen, dort fallen wir auf einen Download-Hinweis zurueck.
 function DocumentPreviewModal({
-  url, fileName, mimeType, onClose,
+  docId, fileName, mimeType, onClose,
 }: {
-  url: string;
+  docId: string;
   fileName: string;
   mimeType: string;
   onClose: () => void;
@@ -451,11 +448,44 @@ function DocumentPreviewModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Datei via authentifiziertem Stream-Endpoint holen + lokale Object-URL bauen.
+  // Vorher: direkte R2-URL als iframe-src → CORS/Auth-Fehler.
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  useEffect(() => {
+    let revoke: string | null = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { blob } = await salesApi.fetchDocumentBlob(docId, true);
+        if (cancelled) return;
+        const blobUrl = URL.createObjectURL(blob);
+        revoke = blobUrl;
+        setObjectUrl(blobUrl);
+      } catch (e: any) {
+        if (!cancelled) setLoadError(e?.message ?? 'Unbekannter Fehler');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (revoke) URL.revokeObjectURL(revoke);
+    };
+  }, [docId]);
+
+  const url = objectUrl || '';
   const lower = fileName.toLowerCase();
   const mime = (mimeType || '').toLowerCase();
   const isPdf = mime === 'application/pdf' || lower.endsWith('.pdf');
   const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/.test(lower);
   const isText = mime.startsWith('text/') || /\.(txt|md|csv|log|json|xml|html?)$/.test(lower);
+
+  const handleDownload = async () => {
+    try {
+      await salesApi.downloadDocument(docId, fileName);
+    } catch (e: any) {
+      alert(`Download fehlgeschlagen: ${e.message}`);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-8 animate-fade-in">
@@ -468,17 +498,14 @@ function DocumentPreviewModal({
           <p className="text-sm font-medium truncate">{fileName}</p>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <a
-            href={url}
-            download={fileName}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            onClick={handleDownload}
             className="inline-flex items-center gap-1 rounded-lg bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-medium transition-colors"
             title="Herunterladen"
           >
             <Download className="h-3.5 w-3.5" />
             Download
-          </a>
+          </button>
           <button
             onClick={onClose}
             className="rounded-lg p-2 bg-white/10 hover:bg-white/20 transition-colors"
@@ -494,20 +521,29 @@ function DocumentPreviewModal({
         className="relative z-[5] w-full max-w-6xl max-h-[85vh] flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
-        {isPdf && (
+        {loadError ? (
+          <div className="rounded-2xl bg-white dark:bg-[#1a1d2e] p-10 shadow-2xl text-center max-w-md">
+            <FileIcon className="h-16 w-16 text-red-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 break-all">{fileName}</h3>
+            <p className="text-sm text-red-600 dark:text-red-400 mb-6">Vorschau fehlgeschlagen: {loadError}</p>
+            <button onClick={handleDownload} className="inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 text-sm">
+              <Download className="h-4 w-4" /> Trotzdem herunterladen
+            </button>
+          </div>
+        ) : !objectUrl ? (
+          <div className="text-white/70 text-sm">Lädt Vorschau …</div>
+        ) : isPdf ? (
           <iframe src={url} title={fileName} className="w-full h-[85vh] rounded-lg shadow-2xl bg-white" />
-        )}
-        {isImage && (
+        ) : isImage ? (
           <img
             src={url}
             alt={fileName}
             className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain"
           />
-        )}
-        {isText && !isPdf && !isImage && (
+        ) : isText ? (
           <iframe src={url} title={fileName} className="w-full h-[85vh] rounded-lg shadow-2xl bg-white" />
-        )}
-        {!isPdf && !isImage && !isText && (
+        ) : null}
+        {!isPdf && !isImage && !isText && !loadError && objectUrl && (
           <div className="rounded-2xl bg-white dark:bg-[#1a1d2e] p-10 shadow-2xl text-center max-w-md">
             <FileIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1 break-all">
@@ -516,16 +552,13 @@ function DocumentPreviewModal({
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
               Dieser Dateityp kann nicht direkt im Browser angezeigt werden.
             </p>
-            <a
-              href={url}
-              download={fileName}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              onClick={handleDownload}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition-colors"
             >
               <Download className="h-4 w-4" />
               Herunterladen
-            </a>
+            </button>
           </div>
         )}
       </div>
@@ -740,7 +773,7 @@ function DhlLabelsPanel({
   saving: boolean;
   onAction: (fn: () => Promise<any>, label: string) => Promise<void>;
   onReload: () => Promise<void> | void;
-  onPreviewDoc: (d: { url: string; fileName: string; mimeType: string }) => void;
+  onPreviewDoc: (d: { id: string; url: string; fileName: string; mimeType: string }) => void;
 }) {
   // Karton-Plan = Vorschau: pro Line ceil(qty / VKE). Falls keine VKE: 1 Karton.
   const plan = (items ?? [])
@@ -843,7 +876,7 @@ function DhlLabelsPanel({
             .map((d: any) => (
               <div
                 key={d.id}
-                onClick={() => onPreviewDoc({ url: d.url, fileName: d.fileName, mimeType: d.mimeType || '' })}
+                onClick={() => onPreviewDoc({ id: d.id, url: d.url, fileName: d.fileName, mimeType: d.mimeType || '' })}
                 className="group flex items-center justify-between gap-2 rounded-lg border border-gray-200/60 dark:border-white/5 p-2 hover:border-primary-300 dark:hover:border-primary-500/40 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
                 title="Vorschau öffnen (durchblätterbar)"
               >

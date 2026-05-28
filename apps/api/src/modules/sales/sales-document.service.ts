@@ -80,6 +80,26 @@ export class SalesDocumentService {
     });
   }
 
+  /**
+   * Streamt das Dokument aus R2 zurueck. Caller (Controller) setzt
+   * Content-Disposition + Filename anhand des zurueckgegebenen Documents.
+   * Loest CORS-Problem (R2 dev-URL hat keine CORS-Header) und erlaubt
+   * Authentifizierung — direkte R2-Links waren nicht zuverlaessig.
+   */
+  async openStream(orgId: string, docId: string) {
+    const doc = await this.prisma.salesOrderDocument.findFirst({
+      where: { id: docId, orgId },
+    });
+    if (!doc) throw new NotFoundException('Dokument nicht gefunden');
+    const obj = await this.storage.getObject(doc.r2Key);
+    return {
+      stream: obj.body,
+      fileName: doc.fileName,
+      mimeType: doc.mimeType || obj.contentType || 'application/octet-stream',
+      contentLength: obj.contentLength,
+    };
+  }
+
   async remove(orgId: string, orderId: string, documentId: string) {
     const doc = await this.prisma.salesOrderDocument.findFirst({
       where: { id: documentId, orderId, orgId },
