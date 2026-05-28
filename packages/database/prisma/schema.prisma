@@ -3082,6 +3082,10 @@ model FileTransferRecipient {
   recipientId           String    @map("recipient_id") @db.Uuid
   receivedAt            DateTime? @map("received_at") @db.Timestamptz
   deletedByRecipientAt  DateTime? @map("deleted_by_recipient_at") @db.Timestamptz
+  // Welche Items dieser Empfaenger bereits heruntergeladen hat. Cleanup
+  // greift erst wenn array.length == transfer.items.length — sonst gehen
+  // Bulk-Downloads kaputt weil R2-Files vorzeitig geloescht wuerden.
+  downloadedItemIds     String[]  @default([]) @map("downloaded_item_ids") @db.Uuid
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   transfer  FileTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)

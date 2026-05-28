@@ -211,12 +211,18 @@ export class FilapenSendService {
   async markReceived(orgId: string, userId: string, transferId: string) {
     const row = await this.prisma.fileTransferRecipient.findFirst({
       where: { transferId, recipientId: userId, transfer: { orgId } },
+      include: { transfer: { select: { items: { select: { id: true } } } } },
     });
     if (!row) throw new NotFoundException('Transfer nicht gefunden');
     if (!row.receivedAt) {
       await this.prisma.fileTransferRecipient.update({
         where: { id: row.id },
-        data: { receivedAt: new Date() },
+        data: {
+          receivedAt: new Date(),
+          // Wenn User explizit "Als gelesen" klickt: alle Items als
+          // heruntergeladen markieren damit Cleanup-Check sauber durchgeht
+          downloadedItemIds: row.transfer.items.map((i) => i.id),
+        },
       });
       await this.cleanupIfAllReceived(transferId);
     }
@@ -227,14 +233,22 @@ export class FilapenSendService {
    * Wird nach jedem erfolgreichen Download des Empfaengers aufgerufen
    * (via res.on('finish') im Controller).
    *
-   * - markiert receivedAt fuer diesen Empfaenger, falls noch nicht gesetzt
-   * - prueft ob ALLE Empfaenger abgeholt haben → wenn ja: R2-Files + Transfer
-   *   loeschen ("Wenn alle es heruntergeladen haben, ist es weg")
+   * Korrekte Reihenfolge:
+   * 1. itemId zu downloadedItemIds dieses Empfaengers hinzufuegen (dedup)
+   * 2. Wenn dieser Empfaenger jetzt ALLE Items heruntergeladen hat →
+   *    receivedAt setzen
+   * 3. Wenn ALLE Empfaenger received haben → R2 + Transfer cleanup
+   *
+   * Vorher: cleanup nach erstem Download → Bulk-Downloads kaputt weil
+   * Datei 2..N nach Cleanup nur noch 404 zurueckkommen.
    */
   async onItemDownloaded(orgId: string, userId: string, itemId: string) {
     const item = await this.prisma.fileTransferItem.findUnique({
       where: { id: itemId },
-      select: { transferId: true, transfer: { select: { orgId: true } } },
+      select: {
+        transferId: true,
+        transfer: { select: { orgId: true, items: { select: { id: true } } } },
+      },
     });
     if (!item || item.transfer.orgId !== orgId) return;
 
@@ -242,12 +256,31 @@ export class FilapenSendService {
       where: { transferId: item.transferId, recipientId: userId },
     });
     if (!row) return;
+
+    // 1. Item zur Download-Liste hinzufuegen (dedup via Set)
+    const existing = new Set(row.downloadedItemIds);
+    if (!existing.has(itemId)) {
+      existing.add(itemId);
+      await this.prisma.fileTransferRecipient.update({
+        where: { id: row.id },
+        data: { downloadedItemIds: Array.from(existing) },
+      });
+    }
+
+    // 2. Hat dieser Empfaenger jetzt ALLE Items heruntergeladen?
+    const allItemIds = new Set(item.transfer.items.map((i) => i.id));
+    const downloadedAll = Array.from(allItemIds).every((id) => existing.has(id));
+    if (!downloadedAll) return; // noch nicht fertig → kein Cleanup-Check
+
+    // 3. Empfaenger als received markieren falls noch nicht
     if (!row.receivedAt) {
       await this.prisma.fileTransferRecipient.update({
         where: { id: row.id },
         data: { receivedAt: new Date() },
       });
     }
+
+    // 4. Erst jetzt pruefen ob ALLE Empfaenger fertig sind → cleanup
     await this.cleanupIfAllReceived(item.transferId);
   }
 

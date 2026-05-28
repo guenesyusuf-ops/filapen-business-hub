@@ -122,10 +122,20 @@ function InboxRow({ transfer, onUpdate }: { transfer: InboxTransfer; onUpdate: (
     try { await sendApi.hide(transfer.id); onUpdate(); } catch {}
   }
   async function downloadAll() {
-    if (!transfer.receivedAt) markRead();
+    // WICHTIG: NICHT vorher markRead() rufen — das wuerde Cleanup ausloesen
+    // und die Files in R2 loeschen bevor wir sie alle gezogen haben.
+    // Backend markiert pro-Item; cleanup triggert erst nach letztem Download
+    // automatisch (siehe onItemDownloaded im Service).
     for (const item of transfer.items) {
-      try { await sendApi.downloadItem(item.id, item.fileName); } catch (e: any) { alert(e.message); break; }
+      try {
+        await sendApi.downloadItem(item.id, item.fileName);
+      } catch (e: any) {
+        alert(`Download "${item.fileName}" fehlgeschlagen: ${e.message}`);
+        break;
+      }
     }
+    // Frontend-Refresh — Backend hat ggf. den Transfer schon geloescht
+    onUpdate();
   }
 
   return (
