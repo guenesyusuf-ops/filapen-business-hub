@@ -6,6 +6,7 @@ export interface ProfitabilityInput {
   productName: string;
   purchasePrice: number;
   shippingCost?: number;
+  orderQuantity?: number;
   customsRate?: number;
   salesPrice: number;
   vatRate?: number;
@@ -43,6 +44,7 @@ export class ProfitabilityService {
         productName: data.productName.trim(),
         purchasePrice: new Prisma.Decimal(Number(data.purchasePrice).toFixed(2)),
         shippingCost: new Prisma.Decimal(Number(data.shippingCost ?? 0).toFixed(2)),
+        orderQuantity: Math.max(1, Math.floor(Number(data.orderQuantity ?? 1))),
         customsRate: new Prisma.Decimal(Number(data.customsRate ?? 0).toFixed(2)),
         salesPrice: new Prisma.Decimal(Number(data.salesPrice).toFixed(2)),
         vatRate: new Prisma.Decimal(Number(data.vatRate ?? 19).toFixed(2)),
@@ -60,6 +62,7 @@ export class ProfitabilityService {
     if (data.productName !== undefined) updates.productName = data.productName.trim();
     if (data.purchasePrice !== undefined) updates.purchasePrice = new Prisma.Decimal(Number(data.purchasePrice).toFixed(2));
     if (data.shippingCost !== undefined) updates.shippingCost = new Prisma.Decimal(Number(data.shippingCost).toFixed(2));
+    if (data.orderQuantity !== undefined) updates.orderQuantity = Math.max(1, Math.floor(Number(data.orderQuantity)));
     if (data.customsRate !== undefined) updates.customsRate = new Prisma.Decimal(Number(data.customsRate).toFixed(2));
     if (data.salesPrice !== undefined) updates.salesPrice = new Prisma.Decimal(Number(data.salesPrice).toFixed(2));
     if (data.vatRate !== undefined) updates.vatRate = new Prisma.Decimal(Number(data.vatRate).toFixed(2));

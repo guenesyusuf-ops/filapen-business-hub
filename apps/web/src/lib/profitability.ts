@@ -16,8 +16,9 @@ async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
 
 export interface ProfitInput {
   productName: string;
-  purchasePrice: number;        // EK netto
-  shippingCost: number;          // Speditionskosten
+  purchasePrice: number;        // EK netto pro Einheit
+  shippingCost: number;          // Speditionskosten GESAMT (gesamte Bestellung)
+  orderQuantity: number;         // Bestellmenge — Spedition wird hierauf umgelegt
   customsRate: number;           // Zollsatz %
   salesPrice: number;            // VK brutto
   vatRate: number;               // MwSt %
@@ -47,7 +48,8 @@ export interface ProfitCalculation extends ProfitInput {
  */
 export function compute(input: ProfitInput) {
   const ek = Number(input.purchasePrice) || 0;
-  const ship = Number(input.shippingCost) || 0;
+  const shipTotal = Number(input.shippingCost) || 0;
+  const qty = Math.max(1, Math.floor(Number(input.orderQuantity) || 1));
   const customsRate = Number(input.customsRate) || 0;
   const vk = Number(input.salesPrice) || 0;
   const vatRate = Number(input.vatRate) || 0;
@@ -55,10 +57,13 @@ export function compute(input: ProfitInput) {
   const payRate = Number(input.paymentRate) || 0;
   const ads = Number(input.adCost ?? 0) || 0;
 
-  // 1. Zollgebuehren auf (EK + Spedition)
+  // Spedition wird auf alle Einheiten der Bestellung umgelegt
+  const ship = shipTotal / qty;
+
+  // 1. Zollgebuehren auf (EK + Spedition) pro Einheit
   const customsFee = (ek + ship) * (customsRate / 100);
 
-  // 2. Produktpreis bei Ankunft
+  // 2. Produktpreis bei Ankunft pro Einheit
   const arrivedCost = ek + ship + customsFee;
 
   // 3. MwSt aus VK herausrechnen (VK ist Brutto)
@@ -88,10 +93,10 @@ export function compute(input: ProfitInput) {
   // diesen Gewinn machst (= dein aktueller pro Sale)
   const effectiveRoas = ads > 0 ? vk / ads : Infinity;
 
-  // Kostenaufschluesselung fuer Visualisierung
+  // Kostenaufschluesselung fuer Visualisierung — alle Werte pro Einheit
   const breakdown = [
     { label: 'Einkauf', value: ek, color: '#3b82f6' },
-    { label: 'Spedition', value: ship, color: '#06b6d4' },
+    { label: 'Spedition / Einheit', value: ship, color: '#06b6d4' },
     { label: 'Zoll', value: customsFee, color: '#8b5cf6' },
     { label: 'MwSt', value: vatAmount, color: '#94a3b8' },
     { label: 'Versand Kunde', value: shipCust, color: '#f59e0b' },
@@ -130,7 +135,9 @@ export function solveForMargin(input: ProfitInput, targetMarginPct: number): num
   const vatRate = Number(input.vatRate) || 0;
   const payRate = Number(input.paymentRate) || 0;
   const ek = Number(input.purchasePrice) || 0;
-  const ship = Number(input.shippingCost) || 0;
+  const shipTotal = Number(input.shippingCost) || 0;
+  const qty = Math.max(1, Math.floor(Number(input.orderQuantity) || 1));
+  const ship = shipTotal / qty;
   const shipCust = Number(input.shippingToCustomer) || 0;
   const arrivedCost = ek + ship + (ek + ship) * (customsRate / 100);
 

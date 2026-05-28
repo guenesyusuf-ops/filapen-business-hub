@@ -3125,6 +3125,7 @@ model ProfitabilityCalculation {
   productName        String   @map("product_name") @db.VarChar(255)
   purchasePrice      Decimal  @map("purchase_price") @db.Decimal(12, 2)
   shippingCost       Decimal  @default(0) @map("shipping_cost") @db.Decimal(12, 2)
+  orderQuantity      Int      @default(1) @map("order_quantity")
   customsRate        Decimal  @default(0) @map("customs_rate") @db.Decimal(5, 2)
   salesPrice         Decimal  @map("sales_price") @db.Decimal(12, 2)
   vatRate            Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS profitability_calculations (
   product_name varchar(255) NOT NULL,
   purchase_price decimal(12,2) NOT NULL,
   shipping_cost decimal(12,2) NOT NULL DEFAULT 0,
+  order_quantity integer NOT NULL DEFAULT 1,
   customs_rate decimal(5,2) NOT NULL DEFAULT 0,
   sales_price decimal(12,2) NOT NULL,
   vat_rate decimal(5,2) NOT NULL DEFAULT 19,

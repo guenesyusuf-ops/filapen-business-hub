@@ -14,6 +14,7 @@ const EMPTY: ProfitInput = {
   productName: '',
   purchasePrice: 0,
   shippingCost: 0,
+  orderQuantity: 1,
   customsRate: 0,
   salesPrice: 0,
   vatRate: 19,
@@ -37,6 +38,7 @@ export function ProfitabilityModal({ initial, onClose, onSaved }: Props) {
         productName: initial.productName,
         purchasePrice: Number(initial.purchasePrice),
         shippingCost: Number(initial.shippingCost),
+        orderQuantity: Number(initial.orderQuantity) || 1,
         customsRate: Number(initial.customsRate),
         salesPrice: Number(initial.salesPrice),
         vatRate: Number(initial.vatRate),
@@ -141,16 +143,19 @@ export function ProfitabilityModal({ initial, onClose, onSaved }: Props) {
             {/* Einkauf */}
             <Section title="Einkauf & Import">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Einkaufspreis (EK netto, €)">
+                <Field label="Einkaufspreis (EK netto, €)" hint="pro Einheit">
                   <NumberInput value={form.purchasePrice} onChange={(v) => setField('purchasePrice', v)} step="0.01" />
                 </Field>
-                <Field label="Speditionskosten (€)">
+                <Field label="Bestellmenge (Stück)" hint="Spedition wird auf alle Einheiten umgelegt">
+                  <NumberInput value={form.orderQuantity} onChange={(v) => setField('orderQuantity', Math.max(1, Math.floor(v || 1)))} step="1" min={1} />
+                </Field>
+                <Field label="Speditionskosten gesamt (€)" hint={form.orderQuantity > 0 ? `≙ ${fmtEUR((Number(form.shippingCost) || 0) / Math.max(1, form.orderQuantity))} pro Einheit` : undefined}>
                   <NumberInput value={form.shippingCost} onChange={(v) => setField('shippingCost', v)} step="0.01" />
                 </Field>
                 <Field label="Zollsatz (%)">
                   <NumberInput value={form.customsRate} onChange={(v) => setField('customsRate', v)} step="0.1" />
                 </Field>
-                <Field label="Zollgebühren (€) — berechnet" hint="(EK + Spedition) × Zollsatz">
+                <Field label="Zollgebühren (€) — berechnet" hint="(EK + Spedition/Einheit) × Zollsatz">
                   <div className="px-3 py-2 text-sm rounded-lg bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 tabular-nums">
                     {fmtEUR(result.customsFee)}
                   </div>
@@ -158,7 +163,7 @@ export function ProfitabilityModal({ initial, onClose, onSaved }: Props) {
               </div>
               <div className="mt-3 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-500/30 px-3 py-2 text-xs text-sky-800 dark:text-sky-200 inline-flex items-center gap-2">
                 <Info className="h-3.5 w-3.5 flex-shrink-0" />
-                Produktpreis bei Ankunft: <strong>{fmtEUR(result.arrivedCost)}</strong>
+                Produktpreis bei Ankunft (pro Einheit): <strong>{fmtEUR(result.arrivedCost)}</strong>
               </div>
             </Section>
 
@@ -318,7 +323,7 @@ export function ProfitabilityModal({ initial, onClose, onSaved }: Props) {
               </summary>
               <div className="mt-3 space-y-1.5">
                 <Row label="Einkaufspreis netto" value={fmtEUR(Number(form.purchasePrice))} />
-                <Row label="+ Spedition" value={fmtEUR(Number(form.shippingCost))} />
+                <Row label={`+ Spedition / Einheit (${form.orderQuantity} Stk)`} value={fmtEUR((Number(form.shippingCost) || 0) / Math.max(1, form.orderQuantity))} />
                 <Row label={`+ Zoll (${form.customsRate}%)`} value={fmtEUR(result.customsFee)} />
                 <Row label="= Produkt bei Ankunft" value={fmtEUR(result.arrivedCost)} strong />
                 <div className="h-px bg-gray-100 dark:bg-white/8 my-1" />
@@ -388,22 +393,47 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 const inputCls = 'w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30';
 
 function NumberInput({
-  value, onChange, step, placeholder,
+  value, onChange, step, placeholder, min = 0,
 }: {
   value: number;
   onChange: (v: number) => void;
   step?: string;
   placeholder?: string;
+  min?: number;
 }) {
+  // Interner String-Buffer — sonst kann der User die 0 nicht löschen
+  // weil `Number('')` zu 0 wird und der Wert sofort wieder gerendert wird.
+  // Buffer wird mit dem externen Wert synced, aber während der User tippt
+  // (focus aktiv) bleibt die rohe Eingabe stehen (auch leer/Komma/Minus).
+  const [text, setText] = useState<string>(value === 0 ? '' : String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) {
+      setText(value === 0 ? '' : String(value));
+    }
+  }, [value, focused]);
+
   return (
     <input
       type="number"
+      inputMode="decimal"
       step={step ?? '0.01'}
-      min="0"
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value) || 0)}
-      placeholder={placeholder}
-      onFocus={(e) => e.target.select()}
+      min={min}
+      value={text}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setText(raw);
+        const n = Number(raw);
+        onChange(Number.isFinite(n) ? n : 0);
+      }}
+      onFocus={(e) => { setFocused(true); e.target.select(); }}
+      onBlur={() => {
+        setFocused(false);
+        // Bei leerem Feld → 0 zurückspielen, damit nichts undefined bleibt
+        if (text.trim() === '') onChange(0);
+      }}
+      placeholder={placeholder ?? '0'}
       className={inputCls + ' tabular-nums'}
     />
   );
