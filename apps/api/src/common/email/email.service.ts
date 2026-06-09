@@ -140,6 +140,98 @@ export class EmailService {
     }
   }
 
+  /**
+   * Erinnerungsmail fuer eine Eingangsrechnung — 7T/3T vor Faelligkeit,
+   * am Faelligkeitstag oder bei Überschreitung.
+   */
+  async sendInvoiceReminder(params: {
+    to: string;
+    supplierName: string;
+    invoiceNumber: string;
+    grossAmount: string;
+    dueDate: string;
+    daysUntilDue: number; // negative = ueberfaellig
+    detailLink: string;
+  }): Promise<boolean> {
+    if (!this.apiKey) {
+      this.logger.warn(`Email not sent (no RESEND_API_KEY): Invoice reminder ${params.invoiceNumber} -> ${params.to}`);
+      return false;
+    }
+    let subject: string;
+    if (params.daysUntilDue < 0) {
+      subject = `Überfällig: ${params.supplierName} · ${params.grossAmount}`;
+    } else if (params.daysUntilDue === 0) {
+      subject = `Heute fällig: ${params.supplierName} · ${params.grossAmount}`;
+    } else {
+      subject = `In ${params.daysUntilDue} Tagen fällig: ${params.supplierName} · ${params.grossAmount}`;
+    }
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: this.fromEmail,
+          to: [params.to],
+          subject,
+          html: this.buildInvoiceReminderHtml(params),
+        }),
+      });
+      if (!res.ok) {
+        this.logger.error(`Failed to send invoice reminder: ${await res.text()}`);
+        return false;
+      }
+      this.logger.log(`Invoice reminder sent: ${params.invoiceNumber} → ${params.to}`);
+      return true;
+    } catch (err) {
+      this.logger.error(`Invoice reminder error: ${err}`);
+      return false;
+    }
+  }
+
+  private buildInvoiceReminderHtml(params: {
+    supplierName: string;
+    invoiceNumber: string;
+    grossAmount: string;
+    dueDate: string;
+    daysUntilDue: number;
+    detailLink: string;
+  }): string {
+    const isOverdue = params.daysUntilDue < 0;
+    const isToday = params.daysUntilDue === 0;
+    const color = isOverdue ? '#dc2626' : isToday ? '#d97706' : '#ea580c';
+    const banner = isOverdue
+      ? `Überfällig seit ${Math.abs(params.daysUntilDue)} Tag(en)`
+      : isToday
+        ? 'Heute fällig'
+        : `In ${params.daysUntilDue} Tagen fällig`;
+    return `
+      <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <div style="display: inline-block; width: 40px; height: 40px; background: ${color}; border-radius: 10px; line-height: 40px; color: white; font-weight: bold; font-size: 18px;">€</div>
+        </div>
+        <div style="background: ${color}10; border: 1px solid ${color}40; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; text-align: center;">
+          <div style="font-size: 12px; color: ${color}; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 4px;">${banner}</div>
+          <div style="font-size: 14px; color: #444;">Fällig am <strong>${params.dueDate}</strong></div>
+        </div>
+        <h1 style="font-size: 18px; font-weight: 600; color: #111; margin: 0 0 4px 0;">${params.supplierName}</h1>
+        <p style="font-size: 13px; color: #888; margin: 0 0 16px 0;">Rechnung Nr. ${params.invoiceNumber || '—'}</p>
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #666;">Brutto-Betrag</span>
+          <strong style="font-size: 20px; color: #111;">${params.grossAmount}</strong>
+        </div>
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="${params.detailLink}" style="display: inline-block; background: ${color}; color: white; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;">
+            Rechnung öffnen
+          </a>
+        </div>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
+        <p style="font-size: 12px; color: #999; text-align: center;">
+          Filapen Business Hub — Automatische Erinnerung
+        </p>
+      </div>
+    `;
+  }
+
   private buildTeamInviteWithPasswordHtml(params: {
     to: string;
     roleLabel: string;

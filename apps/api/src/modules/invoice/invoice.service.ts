@@ -237,6 +237,70 @@ export class InvoiceService {
       .sort((a, b) => b.totalSpend - a.totalSpend);
   }
 
+  /**
+   * Detaillierte Lieferanten-Übersicht fuer die Lieferanten-Seite:
+   * Anzahl, Gesamtausgaben, Offen/Bezahlt-Summen, letzte Rechnung, letzte Zahlung.
+   */
+  async suppliersDetailed(orgId: string) {
+    const rows = await this.prisma.invoice.findMany({
+      where: { orgId, supplierName: { not: null }, archived: false },
+      select: {
+        supplierName: true,
+        grossAmount: true,
+        status: true,
+        invoiceDate: true,
+        paidAt: true,
+      },
+    });
+
+    const byName = new Map<string, {
+      supplierName: string;
+      invoiceCount: number;
+      totalSpend: number;
+      openSpend: number;
+      paidSpend: number;
+      lastInvoiceDate: Date | null;
+      lastPaymentDate: Date | null;
+    }>();
+
+    for (const r of rows) {
+      if (!r.supplierName) continue;
+      const e = byName.get(r.supplierName) ?? {
+        supplierName: r.supplierName,
+        invoiceCount: 0,
+        totalSpend: 0,
+        openSpend: 0,
+        paidSpend: 0,
+        lastInvoiceDate: null as Date | null,
+        lastPaymentDate: null as Date | null,
+      };
+      const gross = r.grossAmount ? Number(r.grossAmount) : 0;
+      e.invoiceCount++;
+      e.totalSpend += gross;
+      if (r.status === 'paid') e.paidSpend += gross;
+      else e.openSpend += gross;
+      if (r.invoiceDate && (!e.lastInvoiceDate || r.invoiceDate > e.lastInvoiceDate)) {
+        e.lastInvoiceDate = r.invoiceDate;
+      }
+      if (r.paidAt && (!e.lastPaymentDate || r.paidAt > e.lastPaymentDate)) {
+        e.lastPaymentDate = r.paidAt;
+      }
+      byName.set(r.supplierName, e);
+    }
+
+    return Array.from(byName.values())
+      .map((e) => ({
+        ...e,
+        avgInvoice: e.invoiceCount > 0 ? e.totalSpend / e.invoiceCount : 0,
+        totalSpend: round2(e.totalSpend),
+        openSpend: round2(e.openSpend),
+        paidSpend: round2(e.paidSpend),
+        lastInvoiceDate: e.lastInvoiceDate?.toISOString() ?? null,
+        lastPaymentDate: e.lastPaymentDate?.toISOString() ?? null,
+      }))
+      .sort((a, b) => b.totalSpend - a.totalSpend);
+  }
+
   // ---------------------------------------------------------------------
   // CRON-Hook: Status für alle offenen Rechnungen neu berechnen
   // ---------------------------------------------------------------------
@@ -350,3 +414,5 @@ export class InvoiceService {
     return prev !== next;
   }
 }
+
+function round2(n: number) { return Math.round(n * 100) / 100; }

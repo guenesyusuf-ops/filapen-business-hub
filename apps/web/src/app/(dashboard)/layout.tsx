@@ -290,6 +290,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.invoicesDueSoon', href: '/invoices?tab=due_soon', icon: AlertCircle },
       { labelKey: 'nav.invoicesOverdue', href: '/invoices?tab=overdue', icon: AlertTriangle },
       { labelKey: 'nav.invoicesPaid', href: '/invoices?tab=paid', icon: CheckCircle2 },
+      { labelKey: 'nav.invoicesSuppliers', href: '/invoices/suppliers', icon: Building2 },
       { labelKey: 'nav.invoicesArchive', href: '/invoices/archive', icon: Archive },
       { labelKey: 'nav.invoicesStats', href: '/invoices/stats', icon: BarChart2 },
       { labelKey: 'nav.invoicesSettings', href: '/invoices/settings', icon: Settings },

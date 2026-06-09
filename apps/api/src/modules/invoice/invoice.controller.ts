@@ -8,6 +8,8 @@ import type { Response } from 'express';
 import { InvoiceService, InvoiceListQuery } from './invoice.service';
 import { InvoiceUploadService } from './invoice-upload.service';
 import { InvoiceOcrService } from './invoice-ocr.service';
+import { InvoiceSettingsService } from './invoice-settings.service';
+import { InvoiceStatsService } from './invoice-stats.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,6 +20,8 @@ export class InvoiceController {
     private readonly svc: InvoiceService,
     private readonly uploadSvc: InvoiceUploadService,
     private readonly ocr: InvoiceOcrService,
+    private readonly settingsSvc: InvoiceSettingsService,
+    private readonly statsSvc: InvoiceStatsService,
     private readonly storage: StorageService,
     private readonly auth: AuthService,
     private readonly prisma: PrismaService,
@@ -53,7 +57,25 @@ export class InvoiceController {
   @Get('suppliers')
   async suppliers(@Headers('authorization') authHeader: string) {
     const { orgId } = await this.ctx(authHeader);
-    return this.svc.suppliers(orgId);
+    return this.svc.suppliersDetailed(orgId);
+  }
+
+  @Get('stats/dashboard')
+  async statsDashboard(@Headers('authorization') authHeader: string) {
+    const { orgId } = await this.ctx(authHeader);
+    return this.statsSvc.dashboard(orgId);
+  }
+
+  @Get('settings')
+  async getSettings(@Headers('authorization') authHeader: string) {
+    const { orgId } = await this.ctx(authHeader);
+    return this.settingsSvc.getOrCreate(orgId);
+  }
+
+  @Put('settings')
+  async updateSettings(@Headers('authorization') authHeader: string, @Body() body: any) {
+    const { orgId } = await this.ctx(authHeader);
+    return this.settingsSvc.update(orgId, body);
   }
 
   @Post('upload')

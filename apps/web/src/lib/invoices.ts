@@ -105,6 +105,50 @@ export interface InvoiceStatusCounts {
   all: number;
 }
 
+export interface InvoiceSettings {
+  id: string;
+  orgId: string;
+  reminderDaysBefore: number[];
+  reminderRecipients: string[];
+  defaultCategory: string;
+  retentionMonths: number;
+  customCategories: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupplierEntry {
+  supplierName: string;
+  invoiceCount: number;
+  totalSpend: number;
+  openSpend: number;
+  paidSpend: number;
+  avgInvoice: number;
+  lastInvoiceDate: string | null;
+  lastPaymentDate: string | null;
+}
+
+export interface InvoiceStatsDashboard {
+  kpis: {
+    open: number;
+    due_soon: number;
+    due_today: number;
+    overdue: number;
+    paid: number;
+    sumOpen: number;
+    sumPaid: number;
+  };
+  monthly: Array<{ month: string; paid: number; unpaid: number; total: number }>;
+  byCategory: Array<{ category: string; total: number; count: number }>;
+  topSuppliers: Array<{ supplierName: string; total: number; count: number }>;
+  cashflow: {
+    next7d: { total: number; count: number };
+    next30d: { total: number; count: number };
+    overdue: { total: number; count: number };
+    thisMonth: { total: number; count: number };
+  };
+}
+
 // -----------------------------------------------------------------------------
 // API
 // -----------------------------------------------------------------------------
@@ -116,7 +160,7 @@ export const invoicesApi = {
     return call<InvoiceListResult>(`${p.toString() ? `?${p.toString()}` : ''}`);
   },
   statusCounts: () => call<InvoiceStatusCounts>('/status-counts'),
-  suppliers: () => call<Array<{ supplierName: string; invoiceCount: number; totalSpend: number }>>('/suppliers'),
+  suppliers: () => call<SupplierEntry[]>('/suppliers'),
   get: (id: string) => call<Invoice>(`/${id}`),
   update: (id: string, data: Partial<Invoice>) =>
     call<Invoice>(`/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -127,6 +171,14 @@ export const invoicesApi = {
   restore: (id: string) => call(`/${id}/restore`, { method: 'POST' }),
   remove: (id: string) => call(`/${id}`, { method: 'DELETE' }),
   duplicates: (id: string) => call<Array<{ id: string; invoiceNumber: string | null; supplierName: string | null; invoiceDate: string | null; grossAmount: string | null }>>(`/${id}/duplicates`),
+
+  // Stats / Dashboard
+  statsDashboard: () => call<InvoiceStatsDashboard>('/stats/dashboard'),
+
+  // Settings
+  getSettings: () => call<InvoiceSettings>('/settings'),
+  updateSettings: (data: Partial<InvoiceSettings>) =>
+    call<InvoiceSettings>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
 
   upload: async (file: File): Promise<{ id: string; ocrStatus: string }> => {
     const form = new FormData();
