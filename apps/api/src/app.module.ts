@@ -24,6 +24,7 @@ import { EmailMarketingModule } from './modules/email-marketing/email-marketing.
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { FilapenSendModule } from './modules/filapen-send/send.module';
+import { InvoiceModule } from './modules/invoice/invoice.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -91,6 +92,7 @@ import { HealthController } from './health.controller';
     ShippingModule,
     SalesModule,
     FilapenSendModule,
+    InvoiceModule,
   ],
   controllers: [HealthController],
   providers: [],

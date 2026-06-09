@@ -72,6 +72,14 @@ import {
   PencilRuler,
   Monitor,
   Calculator,
+  ReceiptText,
+  Inbox,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Archive,
+  BarChart2,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -271,6 +279,23 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.invoices',
+    href: '/invoices',
+    icon: ReceiptText,
+    permissionKey: 'invoices',
+    accent: 'text-accent-purchase',
+    children: [
+      { labelKey: 'nav.invoicesAll', href: '/invoices', icon: Inbox },
+      { labelKey: 'nav.invoicesOpen', href: '/invoices?tab=open', icon: Clock },
+      { labelKey: 'nav.invoicesDueSoon', href: '/invoices?tab=due_soon', icon: AlertCircle },
+      { labelKey: 'nav.invoicesOverdue', href: '/invoices?tab=overdue', icon: AlertTriangle },
+      { labelKey: 'nav.invoicesPaid', href: '/invoices?tab=paid', icon: CheckCircle2 },
+      { labelKey: 'nav.invoicesArchive', href: '/invoices/archive', icon: Archive },
+      { labelKey: 'nav.invoicesStats', href: '/invoices/stats', icon: BarChart2 },
+      { labelKey: 'nav.invoicesSettings', href: '/invoices/settings', icon: Settings },
+    ],
+  },
+  {
     labelKey: 'nav.documents',
     href: '/documents',
     icon: FolderOpen,
@@ -346,6 +371,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
     }
     if (pathname.startsWith('/shipping')) {
       initial.add('nav.shipping');
+    }
+    if (pathname.startsWith('/invoices')) {
+      initial.add('nav.invoices');
     }
     if (pathname.startsWith('/settings') || pathname.startsWith('/finance/integrations')) {
       initial.add('nav.settings');

@@ -3516,3 +3516,126 @@ model InfluencerPerformanceEntry {
   @@index([orgId, campaignName])
   @@map("influencer_performance_entries")
 }
+
+// ---------------------------------------------------------------------------
+// Rechnungen / Invoices module
+// ---------------------------------------------------------------------------
+// Eingangsrechnungen (supplier invoices) — der Filapen-Workflow ist:
+//   1. Datei hochladen (PDF/JPG/PNG) → R2-Storage
+//   2. Claude Vision OCR füllt extrahierte Felder + setzt ocr_status = success
+//   3. User reviewed Felder, korrigiert, speichert
+//   4. Cron-Job aktualisiert status (open → due_soon → due_today → overdue)
+//   5. User markiert als bezahlt → status = paid, paidAt gesetzt
+// Jeder Schritt erzeugt einen InvoiceEvent für die Audit-Historie.
+
+model Invoice {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String   @map("org_id") @db.Uuid
+
+  // Lieferant (Supplier) — alle Felder optional, OCR füllt nach
+  supplierName      String?  @map("supplier_name") @db.VarChar(255)
+  supplierAddress   String?  @map("supplier_address") @db.Text
+  supplierEmail     String?  @map("supplier_email") @db.VarChar(255)
+  supplierPhone     String?  @map("supplier_phone") @db.VarChar(64)
+  supplierWebsite   String?  @map("supplier_website") @db.VarChar(255)
+  supplierVatId     String?  @map("supplier_vat_id") @db.VarChar(64)
+
+  // Rechnungs-Header
+  invoiceNumber     String?  @map("invoice_number") @db.VarChar(128)
+  invoiceDate       DateTime? @map("invoice_date") @db.Date
+  serviceDate       DateTime? @map("service_date") @db.Date
+  dueDate           DateTime? @map("due_date") @db.Date
+  paymentTerms      String?  @map("payment_terms") @db.VarChar(255)
+  currency          String   @default("EUR") @db.VarChar(3)
+
+  // Beträge
+  netAmount         Decimal? @map("net_amount") @db.Decimal(12, 2)
+  vatAmount         Decimal? @map("vat_amount") @db.Decimal(12, 2)
+  grossAmount       Decimal? @map("gross_amount") @db.Decimal(12, 2)
+  taxRate           Decimal? @map("tax_rate") @db.Decimal(5, 2)
+  discountAmount    Decimal? @map("discount_amount") @db.Decimal(12, 2)
+
+  // Zahlungs-Informationen
+  iban              String?  @db.VarChar(64)
+  bic               String?  @db.VarChar(32)
+  bankName          String?  @map("bank_name") @db.VarChar(255)
+  paymentReference  String?  @map("payment_reference") @db.VarChar(255)
+
+  // Kategorisierung — als String damit User später custom Kategorien anlegen können
+  category          String   @default("other") @db.VarChar(64)
+
+  // Status + Zahlungs-Workflow
+  status            String   @default("open") @db.VarChar(32)
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz
+  paidById          String?  @map("paid_by_id") @db.Uuid
+  paymentProofPath  String?  @map("payment_proof_path") @db.Text
+
+  // Dokument (R2-Storage)
+  fileName          String   @map("file_name") @db.VarChar(255)
+  fileMime          String   @map("file_mime") @db.VarChar(128)
+  fileSize          Int      @map("file_size")
+  storagePath       String   @map("storage_path") @db.Text
+  storageUrl        String?  @map("storage_url") @db.Text
+
+  // OCR / Vision-Extraktion
+  ocrStatus         String   @default("pending") @map("ocr_status") @db.VarChar(32)
+  ocrRawText        String?  @map("ocr_raw_text") @db.Text
+  ocrConfidence     Float?   @map("ocr_confidence")
+  ocrError          String?  @map("ocr_error") @db.Text
+  reviewed          Boolean  @default(false)
+
+  // Sonstiges
+  notes             String?  @db.Text
+  uploadedById      String?  @map("uploaded_by_id") @db.Uuid
+  archived          Boolean  @default(false)
+
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  events            InvoiceEvent[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([orgId, dueDate])
+  @@index([orgId, supplierName])
+  @@index([orgId, archived, status])
+  @@index([orgId, invoiceNumber])
+  @@map("invoices")
+}
+
+model InvoiceEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  invoiceId String   @map("invoice_id") @db.Uuid
+  // type: uploaded, ocr_started, ocr_completed, ocr_failed, edited, status_changed,
+  //       marked_paid, marked_unpaid, archived, restored, deleted, note_added
+  type      String   @db.VarChar(64)
+  actorId   String?  @map("actor_id") @db.Uuid
+  note      String?  @db.Text
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, createdAt(sort: Desc)])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("invoice_events")
+}
+
+model InvoiceSettings {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId               String   @unique @map("org_id") @db.Uuid
+  // Tage vor Fälligkeit für Erinnerungen — z.B. [7, 3, 0] = 7d/3d/Tag-X
+  reminderDaysBefore  Int[]    @default([7, 3, 0]) @map("reminder_days_before")
+  // Empfänger der Erinnerungs-Mails (zusätzlich zum Uploader)
+  reminderRecipients  String[] @default([]) @map("reminder_recipients")
+  defaultCategory     String   @default("other") @map("default_category") @db.VarChar(64)
+  // Aufbewahrungsfrist in Monaten (DE GoBD: 120 = 10 Jahre)
+  retentionMonths     Int      @default(120) @map("retention_months")
+  // Custom Kategorien (zusätzlich zu den Standard-Werten)
+  customCategories    String[] @default([]) @map("custom_categories")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("invoice_settings")
+}
