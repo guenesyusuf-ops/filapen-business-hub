@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ReceiptText, Upload, Loader2, Plus } from 'lucide-react';
 import { invoicesApi, type InvoiceStatusCounts, fmtEUR } from '@/lib/invoices';
+import { InvoiceUploadModal } from './InvoiceUploadModal';
 
 const TABS: Array<{ key: string; label: string; countKey: keyof InvoiceStatusCounts | 'all' }> = [
   { key: 'all', label: 'Alle', countKey: 'all' },
@@ -21,13 +22,16 @@ export default function InvoicesPage() {
 
   const [counts, setCounts] = useState<InvoiceStatusCounts | null>(null);
   const [loading, setLoading] = useState(true);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    setLoading(true);
     invoicesApi.statusCounts()
       .then(setCounts)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   function setTab(next: string) {
     const url = next === 'all' ? '/invoices' : `/invoices?tab=${next}`;
@@ -52,7 +56,7 @@ export default function InvoicesPage() {
           </p>
         </div>
         <button
-          onClick={() => alert('Upload kommt in der nächsten Phase')}
+          onClick={() => setUploadOpen(true)}
           className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-amber-500/20 transition-all"
         >
           <Upload className="h-4 w-4" /> Rechnung hochladen
@@ -106,7 +110,7 @@ export default function InvoicesPage() {
             : 'Lade deine erste Eingangsrechnung hoch — PDF, JPG oder PNG. Die KI extrahiert alle relevanten Daten automatisch.'}
         </p>
         <button
-          onClick={() => alert('Upload kommt in der nächsten Phase')}
+          onClick={() => setUploadOpen(true)}
           className="inline-flex items-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-500 px-4 py-2 text-sm font-medium text-white"
         >
           <Plus className="h-4 w-4" /> Erste Rechnung hochladen
@@ -117,6 +121,14 @@ export default function InvoicesPage() {
           </div>
         )}
       </div>
+
+      {uploadOpen && (
+        <InvoiceUploadModal
+          onClose={() => setUploadOpen(false)}
+          onUploaded={() => setRefreshKey((k) => k + 1)}
+          onOpenInvoice={(id) => router.push(`/invoices/${id}`)}
+        />
+      )}
     </div>
   );
 }

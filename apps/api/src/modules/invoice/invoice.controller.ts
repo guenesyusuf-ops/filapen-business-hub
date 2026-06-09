@@ -1,8 +1,14 @@
 import {
   Controller, Get, Post, Put, Delete, Param, Body, Headers, Query,
-  HttpException, HttpStatus,
+  UploadedFile, UseInterceptors, Res, StreamableFile,
+  HttpException, HttpStatus, BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { InvoiceService, InvoiceListQuery } from './invoice.service';
+import { InvoiceUploadService } from './invoice-upload.service';
+import { InvoiceOcrService } from './invoice-ocr.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -10,6 +16,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class InvoiceController {
   constructor(
     private readonly svc: InvoiceService,
+    private readonly uploadSvc: InvoiceUploadService,
+    private readonly ocr: InvoiceOcrService,
+    private readonly storage: StorageService,
     private readonly auth: AuthService,
     private readonly prisma: PrismaService,
   ) {}
@@ -45,6 +54,53 @@ export class InvoiceController {
   async suppliers(@Headers('authorization') authHeader: string) {
     const { orgId } = await this.ctx(authHeader);
     return this.svc.suppliers(orgId);
+  }
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  async upload(
+    @Headers('authorization') authHeader: string,
+    @UploadedFile() file: any,
+  ) {
+    const { orgId, userId } = await this.ctx(authHeader);
+    if (!file) throw new BadRequestException('Datei fehlt');
+    return this.uploadSvc.upload(orgId, userId, file);
+  }
+
+  @Get(':id/file')
+  async streamFile(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Query('download') download: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { orgId } = await this.ctx(authHeader);
+    const inv = await this.prisma.invoice.findFirst({ where: { id, orgId } });
+    if (!inv) throw new HttpException('Rechnung nicht gefunden', HttpStatus.NOT_FOUND);
+    const obj = await this.storage.getObject(inv.storagePath);
+    res.set({
+      'Content-Type': obj.contentType || inv.fileMime || 'application/octet-stream',
+      'Content-Disposition': `${download === '1' ? 'attachment' : 'inline'}; filename="${inv.fileName}"`,
+      ...(obj.contentLength ? { 'Content-Length': String(obj.contentLength) } : {}),
+      'Cache-Control': 'private, max-age=300',
+    });
+    return new StreamableFile(obj.body);
+  }
+
+  @Get(':id/duplicates')
+  async duplicates(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+  ) {
+    const { orgId } = await this.ctx(authHeader);
+    const inv = await this.prisma.invoice.findFirst({ where: { id, orgId } });
+    if (!inv) throw new HttpException('Rechnung nicht gefunden', HttpStatus.NOT_FOUND);
+    return this.ocr.findDuplicates(orgId, {
+      invoiceNumber: inv.invoiceNumber,
+      supplierName: inv.supplierName,
+      grossAmount: inv.grossAmount ? Number(inv.grossAmount) : null,
+      excludeId: id,
+    });
   }
 
   @Get(':id')

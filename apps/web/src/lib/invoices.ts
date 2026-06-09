@@ -126,6 +126,33 @@ export const invoicesApi = {
   archive: (id: string) => call(`/${id}/archive`, { method: 'POST' }),
   restore: (id: string) => call(`/${id}/restore`, { method: 'POST' }),
   remove: (id: string) => call(`/${id}`, { method: 'DELETE' }),
+  duplicates: (id: string) => call<Array<{ id: string; invoiceNumber: string | null; supplierName: string | null; invoiceDate: string | null; grossAmount: string | null }>>(`/${id}/duplicates`),
+
+  upload: async (file: File): Promise<{ id: string; ocrStatus: string }> => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_URL}/api/invoices/upload`, {
+      method: 'POST',
+      headers: getAuthHeaders(), // KEIN Content-Type — Browser setzt multipart boundary selbst
+      body: form,
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
+      throw new Error(msg);
+    }
+    return res.json();
+  },
+
+  /** Holt die Datei als Blob (via Auth-Proxy) — fuer PDF-/Bild-Viewer. */
+  fetchFileBlob: async (id: string, download = false): Promise<{ blob: Blob; mime: string }> => {
+    const res = await fetch(`${API_URL}/api/invoices/${id}/file${download ? '?download=1' : ''}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    return { blob, mime: blob.type };
+  },
 };
 
 // -----------------------------------------------------------------------------
