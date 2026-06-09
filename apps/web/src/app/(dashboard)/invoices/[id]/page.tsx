@@ -41,14 +41,22 @@ export default function InvoiceDetailPage() {
     staleTime: 60_000,
   });
 
-  // Form aus geladener Rechnung initialisieren (nur einmal, dann nicht überschreiben)
-  const initialized = useRef(false);
+  // Form aus geladener Rechnung initialisieren (nur einmal pro id, dann nicht
+  // ueberschreiben — sonst wuerden Pollings die User-Eingaben verwerfen).
+  const initialized = useRef<string | null>(null);
   useEffect(() => {
-    if (invQuery.data && !initialized.current) {
-      initialized.current = true;
+    // Rechnungs-ID gewechselt → neu initialisieren
+    if (initialized.current !== id) {
+      initialized.current = null;
+      setDirty(false);
+    }
+  }, [id]);
+  useEffect(() => {
+    if (invQuery.data && initialized.current !== id) {
+      initialized.current = id;
       setForm(initialFormFromInvoice(invQuery.data));
     }
-  }, [invQuery.data]);
+  }, [invQuery.data, id]);
 
   // ESC → zurück
   useEffect(() => {
@@ -382,7 +390,7 @@ export default function InvoiceDetailPage() {
             : <span className="text-xs text-gray-600 dark:text-gray-300">Du hast nicht gespeicherte Änderungen.</span>
           }
           <button
-            onClick={() => { initialized.current = false; setForm(initialFormFromInvoice(inv)); setDirty(false); setError(null); }}
+            onClick={() => { initialized.current = null; setForm(initialFormFromInvoice(inv)); initialized.current = id; setDirty(false); setError(null); }}
             className="text-xs text-gray-500 hover:underline"
           >Verwerfen</button>
           <button

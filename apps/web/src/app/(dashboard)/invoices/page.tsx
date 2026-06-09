@@ -48,7 +48,14 @@ const DATE_PRESETS: Array<{ key: string; label: string; range: () => { from?: st
   } },
 ];
 
-function iso(d: Date) { return d.toISOString().slice(0, 10); }
+/** Local-Date in YYYY-MM-DD — toISOString() wuerde UTC ausgeben und das
+ *  "Heute"-Preset waere fuer alle ausserhalb von UTC um bis zu 1 Tag falsch. */
+function iso(d: Date) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 const PAGE_SIZE = 25;
 
@@ -159,10 +166,15 @@ export default function InvoicesPage() {
 
   async function bulkArchive() {
     if (!confirm(`${selected.size} Rechnungen ins Archiv verschieben?`)) return;
-    await Promise.allSettled(Array.from(selected).map((id) => invoicesApi.archive(id)));
+    const ids = Array.from(selected);
+    const results = await Promise.allSettled(ids.map((id) => invoicesApi.archive(id)));
+    const failed = results.filter((r) => r.status === 'rejected').length;
     setSelected(new Set());
     listQuery.refetch();
     countsQuery.refetch();
+    if (failed > 0) {
+      alert(`${failed} von ${ids.length} Rechnungen konnten nicht archiviert werden.`);
+    }
   }
 
   return (

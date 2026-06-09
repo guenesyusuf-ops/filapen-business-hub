@@ -123,7 +123,14 @@ export class InvoiceService {
       updates.status = computeInvoiceStatus({ dueDate: newDue, paidAt: existing.paidAt });
     }
 
-    await this.prisma.invoice.update({ where: { id }, data: updates });
+    // Auf reviewed=true setzen sobald der User editiert — verhindert dass
+    // ein verzögert ankommender OCR-Run die Userdaten ueberschreibt.
+    if (updates.reviewed === undefined) updates.reviewed = true;
+
+    // updateMany mit (id, orgId) als sicherheitsorientierter Filter — kein
+    // Update wenn die Rechnung einer anderen Org gehoert.
+    const res = await this.prisma.invoice.updateMany({ where: { id, orgId }, data: updates });
+    if (res.count === 0) throw new NotFoundException('Rechnung nicht gefunden');
     await this.recordEvent(orgId, id, userId, 'edited', `Bearbeitet: ${changed.join(', ')}`, { fields: changed });
 
     return this.get(orgId, id);
@@ -140,8 +147,8 @@ export class InvoiceService {
     const paidAt = opts.paidAt ? new Date(opts.paidAt) : new Date();
     if (Number.isNaN(paidAt.getTime())) throw new BadRequestException('Zahlungsdatum ungueltig');
 
-    await this.prisma.invoice.update({
-      where: { id },
+    await this.prisma.invoice.updateMany({
+      where: { id, orgId },
       data: {
         status: 'paid',
         paidAt,
@@ -157,8 +164,8 @@ export class InvoiceService {
     if (!existing) throw new NotFoundException('Rechnung nicht gefunden');
 
     const status = computeInvoiceStatus({ dueDate: existing.dueDate, paidAt: null });
-    await this.prisma.invoice.update({
-      where: { id },
+    await this.prisma.invoice.updateMany({
+      where: { id, orgId },
       data: { status, paidAt: null, paidById: null, paymentProofPath: null },
     });
     await this.recordEvent(orgId, id, userId, 'marked_unpaid', 'Zahlung zurückgesetzt', null);
@@ -170,26 +177,22 @@ export class InvoiceService {
   // ---------------------------------------------------------------------
 
   async archive(orgId: string, id: string, userId: string) {
-    const existing = await this.prisma.invoice.findFirst({ where: { id, orgId } });
-    if (!existing) throw new NotFoundException('Rechnung nicht gefunden');
-    await this.prisma.invoice.update({ where: { id }, data: { archived: true } });
+    const res = await this.prisma.invoice.updateMany({ where: { id, orgId }, data: { archived: true } });
+    if (res.count === 0) throw new NotFoundException('Rechnung nicht gefunden');
     await this.recordEvent(orgId, id, userId, 'archived', 'Archiviert', null);
     return { archived: true };
   }
 
   async restore(orgId: string, id: string, userId: string) {
-    const existing = await this.prisma.invoice.findFirst({ where: { id, orgId } });
-    if (!existing) throw new NotFoundException('Rechnung nicht gefunden');
-    await this.prisma.invoice.update({ where: { id }, data: { archived: false } });
+    const res = await this.prisma.invoice.updateMany({ where: { id, orgId }, data: { archived: false } });
+    if (res.count === 0) throw new NotFoundException('Rechnung nicht gefunden');
     await this.recordEvent(orgId, id, userId, 'restored', 'Wiederhergestellt', null);
     return { archived: false };
   }
 
   async remove(orgId: string, id: string) {
-    const existing = await this.prisma.invoice.findFirst({ where: { id, orgId } });
-    if (!existing) throw new NotFoundException('Rechnung nicht gefunden');
-    // File-Cleanup übernehmen wir in P2 wenn Storage drin ist
-    await this.prisma.invoice.delete({ where: { id } });
+    const res = await this.prisma.invoice.deleteMany({ where: { id, orgId } });
+    if (res.count === 0) throw new NotFoundException('Rechnung nicht gefunden');
     return { deleted: true };
   }
 

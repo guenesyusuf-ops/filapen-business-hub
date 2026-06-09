@@ -26,14 +26,16 @@ export class InvoiceSettingsService {
     await this.getOrCreate(orgId);
     const data: any = {};
     if (Array.isArray(body.reminderDaysBefore)) {
+      // Range: -30 (max 30 Tage nach Faelligkeit) bis +30 (max 30T vorher)
       data.reminderDaysBefore = body.reminderDaysBefore
         .map((n) => Math.floor(Number(n)))
-        .filter((n) => Number.isFinite(n));
+        .filter((n) => Number.isFinite(n) && n >= -30 && n <= 30);
     }
     if (Array.isArray(body.reminderRecipients)) {
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       data.reminderRecipients = body.reminderRecipients
-        .map((s) => String(s).trim())
-        .filter((s) => /.+@.+/.test(s));
+        .map((s) => String(s).trim().toLowerCase())
+        .filter((s) => emailRe.test(s));
     }
     if (typeof body.defaultCategory === 'string') data.defaultCategory = body.defaultCategory.trim() || 'other';
     if (Number.isFinite(body.retentionMonths)) data.retentionMonths = Math.max(12, Math.floor(Number(body.retentionMonths)));

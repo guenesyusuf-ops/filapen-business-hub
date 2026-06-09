@@ -99,7 +99,15 @@ export class InvoiceController {
     const { orgId } = await this.ctx(authHeader);
     const inv = await this.prisma.invoice.findFirst({ where: { id, orgId } });
     if (!inv) throw new HttpException('Rechnung nicht gefunden', HttpStatus.NOT_FOUND);
-    const obj = await this.storage.getObject(inv.storagePath);
+    let obj;
+    try {
+      obj = await this.storage.getObject(inv.storagePath);
+    } catch (err: any) {
+      throw new HttpException(
+        `Datei konnte nicht geladen werden: ${err?.message ?? 'Unbekannter Fehler'}`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
     res.set({
       'Content-Type': obj.contentType || inv.fileMime || 'application/octet-stream',
       'Content-Disposition': `${download === '1' ? 'attachment' : 'inline'}; filename="${inv.fileName}"`,

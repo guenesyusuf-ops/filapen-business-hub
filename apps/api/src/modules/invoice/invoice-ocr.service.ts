@@ -162,8 +162,28 @@ export class InvoiceOcrService {
 
       const confidence = Number(parsed.confidence ?? 0.7);
 
-      // Felder mappen + Decimals/Datums konvertieren
-      const data: any = {
+      // Aktuellen Stand der Rechnung holen — falls der User in der
+      // Zwischenzeit schon editiert hat (reviewed=true), dann nur die
+      // noch leeren Felder fuellen. Sonst koennten User-Eingaben
+      // vom verzoegerten OCR-Lauf ueberschrieben werden.
+      const current = await this.prisma.invoice.findUnique({
+        where: { id: invoiceId },
+        select: {
+          orgId: true, reviewed: true,
+          supplierName: true, supplierAddress: true, supplierEmail: true,
+          supplierPhone: true, supplierWebsite: true, supplierVatId: true,
+          invoiceNumber: true, invoiceDate: true, serviceDate: true, dueDate: true,
+          paymentTerms: true, currency: true,
+          netAmount: true, vatAmount: true, grossAmount: true, taxRate: true, discountAmount: true,
+          iban: true, bic: true, bankName: true, paymentReference: true,
+          category: true, paidAt: true,
+        },
+      });
+      if (!current) return;
+
+      const onlyFillEmpty = current.reviewed === true;
+
+      const ocrValues: Record<string, any> = {
         supplierName: this.s(parsed.supplierName),
         supplierAddress: this.s(parsed.supplierAddress),
         supplierEmail: this.s(parsed.supplierEmail),
@@ -186,14 +206,25 @@ export class InvoiceOcrService {
         bankName: this.s(parsed.bankName),
         paymentReference: this.s(parsed.paymentReference),
         category: this.normalizeCategory(parsed.category),
+      };
+
+      const data: any = {
         ocrStatus: 'success',
         ocrConfidence: confidence,
         ocrError: null,
         ocrRawText: text.slice(0, 8000),
       };
 
-      // Status aus dem extrahierten Faelligkeitsdatum ableiten
-      data.status = computeInvoiceStatus({ dueDate: data.dueDate, paidAt: null });
+      for (const [key, ocrVal] of Object.entries(ocrValues)) {
+        if (ocrVal == null) continue;
+        if (onlyFillEmpty && this.isFilled((current as any)[key])) continue;
+        data[key] = ocrVal;
+      }
+
+      // Status nur neu berechnen wenn wir das dueDate gesetzt haben
+      if ('dueDate' in data) {
+        data.status = computeInvoiceStatus({ dueDate: data.dueDate, paidAt: current.paidAt });
+      }
 
       await this.prisma.invoice.update({ where: { id: invoiceId }, data });
       await this.prisma.invoiceEvent.create({
@@ -304,5 +335,19 @@ export class InvoiceOcrService {
     const allowed = ['marketing', 'software', 'office', 'vehicles', 'rent', 'personnel', 'insurance', 'other'];
     if (typeof v === 'string' && allowed.includes(v.toLowerCase())) return v.toLowerCase();
     return 'other';
+  }
+
+  private isFilled(v: any): boolean {
+    if (v == null) return false;
+    if (typeof v === 'string') return v.trim().length > 0;
+    if (v instanceof Date) return true;
+    if (typeof v === 'number') return Number.isFinite(v);
+    // Prisma.Decimal hat toString()
+    if (typeof v === 'object' && typeof v.toString === 'function') {
+      const s = v.toString();
+      // category default ist 'other' — gilt fuer uns nicht als "vom User gefuellt"
+      return s !== '' && s !== 'other';
+    }
+    return !!v;
   }
 }
