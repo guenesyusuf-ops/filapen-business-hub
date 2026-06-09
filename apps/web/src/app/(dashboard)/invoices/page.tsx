@@ -14,6 +14,7 @@ import {
   fmtEUR, fmtDate,
 } from '@/lib/invoices';
 import { InvoiceUploadModal } from './InvoiceUploadModal';
+import { MarkPaidDialog } from './MarkPaidDialog';
 
 const TABS: Array<{ key: string; label: string; countKey: keyof InvoiceStatusCounts | 'all' }> = [
   { key: 'all', label: 'Alle', countKey: 'all' },
@@ -59,7 +60,7 @@ function iso(d: Date) {
 
 const PAGE_SIZE = 25;
 
-type SortKey = 'invoiceDate' | 'dueDate' | 'grossAmount' | 'supplierName' | 'invoiceNumber' | 'createdAt' | 'status';
+type SortKey = 'invoiceDate' | 'dueDate' | 'grossAmount' | 'supplierName' | 'invoiceNumber' | 'createdAt' | 'status' | 'paidAt';
 
 export default function InvoicesPage() {
   const router = useRouter();
@@ -67,6 +68,7 @@ export default function InvoicesPage() {
   const tab = params.get('tab') ?? 'all';
 
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [payDialogFor, setPayDialogFor] = useState<Invoice | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [supplierFilter, setSupplierFilter] = useState<string>('');
@@ -360,6 +362,7 @@ export default function InvoicesPage() {
                     <SortHeader label="Rechnungsnr" k="invoiceNumber" current={sortKey} dir={sortDir} onToggle={toggleSort} />
                     <SortHeader label="Rechnungsdatum" k="invoiceDate" current={sortKey} dir={sortDir} onToggle={toggleSort} />
                     <SortHeader label="Fällig" k="dueDate" current={sortKey} dir={sortDir} onToggle={toggleSort} />
+                    <SortHeader label="Bezahlt am" k="paidAt" current={sortKey} dir={sortDir} onToggle={toggleSort} />
                     <SortHeader label="Betrag" k="grossAmount" current={sortKey} dir={sortDir} onToggle={toggleSort} align="right" />
                     <th className="px-3 py-3 text-left">Kategorie</th>
                     <th className="w-12 px-3 py-3"></th>
@@ -373,6 +376,7 @@ export default function InvoicesPage() {
                       checked={selected.has(inv.id)}
                       onToggleSelect={() => toggleSelect(inv.id)}
                       onOpen={() => router.push(`/invoices/${inv.id}`)}
+                      onMarkPaid={() => setPayDialogFor(inv)}
                       onChanged={() => { listQuery.refetch(); countsQuery.refetch(); }}
                     />
                   ))}
@@ -410,6 +414,14 @@ export default function InvoicesPage() {
           onClose={() => setUploadOpen(false)}
           onUploaded={() => { listQuery.refetch(); countsQuery.refetch(); suppliersQuery.refetch(); }}
           onOpenInvoice={(id) => router.push(`/invoices/${id}`)}
+        />
+      )}
+
+      {payDialogFor && (
+        <MarkPaidDialog
+          invoice={payDialogFor}
+          onClose={() => setPayDialogFor(null)}
+          onPaid={() => { listQuery.refetch(); countsQuery.refetch(); }}
         />
       )}
     </div>
@@ -464,11 +476,12 @@ function SortHeader({ label, k, current, dir, onToggle, align = 'left' }: {
   );
 }
 
-function Row({ inv, checked, onToggleSelect, onOpen, onChanged }: {
+function Row({ inv, checked, onToggleSelect, onOpen, onMarkPaid, onChanged }: {
   inv: Invoice;
   checked: boolean;
   onToggleSelect: () => void;
   onOpen: () => void;
+  onMarkPaid: () => void;
   onChanged: () => void;
 }) {
   const status = inv.status as InvoiceStatus;
@@ -477,15 +490,6 @@ function Row({ inv, checked, onToggleSelect, onOpen, onChanged }: {
   const ocrPending = inv.ocrStatus === 'pending' || inv.ocrStatus === 'processing';
   const ocrFailed = inv.ocrStatus === 'failed';
 
-  async function quickMarkPaid(e: React.MouseEvent) {
-    e.stopPropagation();
-    try {
-      await invoicesApi.markPaid(inv.id);
-      onChanged();
-    } catch (err: any) {
-      alert(err?.message ?? 'Fehler');
-    }
-  }
   async function quickArchive(e: React.MouseEvent) {
     e.stopPropagation();
     if (!confirm('Rechnung ins Archiv verschieben?')) return;
@@ -562,6 +566,14 @@ function Row({ inv, checked, onToggleSelect, onOpen, onChanged }: {
           </span>
         ) : <span className="text-gray-400">—</span>}
       </td>
+      <td className="px-3 py-3 tabular-nums whitespace-nowrap">
+        {inv.paidAt ? (
+          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+            <CheckCircle2 className="h-3 w-3" />
+            {fmtDate(inv.paidAt)}
+          </span>
+        ) : <span className="text-gray-400">—</span>}
+      </td>
       <td className="px-3 py-3 text-right font-semibold tabular-nums whitespace-nowrap text-gray-900 dark:text-white">
         {fmtEUR(inv.grossAmount as any)}
       </td>
@@ -577,7 +589,7 @@ function Row({ inv, checked, onToggleSelect, onOpen, onChanged }: {
       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           {status !== 'paid' && (
-            <button onClick={quickMarkPaid} title="Als bezahlt markieren" className="p-1.5 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+            <button onClick={(e) => { e.stopPropagation(); onMarkPaid(); }} title="Als bezahlt markieren" className="p-1.5 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
               <CheckCircle2 className="h-3.5 w-3.5" />
             </button>
           )}

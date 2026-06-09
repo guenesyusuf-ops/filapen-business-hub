@@ -13,6 +13,7 @@ import {
   invoicesApi, type Invoice, type InvoiceStatus, type InvoiceEvent,
   STATUS_META, DEFAULT_CATEGORIES, categoryLabel, fmtEUR, fmtDate, fmtDateTime,
 } from '@/lib/invoices';
+import { MarkPaidDialog } from '../MarkPaidDialog';
 
 export default function InvoiceDetailPage() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function InvoiceDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
 
   const invQuery = useQuery({
     queryKey: ['invoice', id],
@@ -89,13 +91,8 @@ export default function InvoiceDetailPage() {
     }
   }
 
-  async function markPaid() {
-    try {
-      await invoicesApi.markPaid(id, { paidAt: new Date().toISOString().slice(0, 10) });
-      invQuery.refetch();
-    } catch (err: any) {
-      alert(err?.message ?? 'Fehler');
-    }
+  function openPayDialog() {
+    setPayDialogOpen(true);
   }
 
   async function markUnpaid() {
@@ -189,7 +186,7 @@ export default function InvoiceDetailPage() {
         <div className="flex items-center gap-1.5">
           {!isPaid && (
             <button
-              onClick={markPaid}
+              onClick={openPayDialog}
               className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-700 px-3 py-1.5 text-xs font-medium text-white shadow shadow-emerald-500/20"
             >
               <CheckCircle2 className="h-3.5 w-3.5" /> Als bezahlt markieren
@@ -346,6 +343,7 @@ export default function InvoiceDetailPage() {
               <div className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-500/30 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200">
                 <CheckCircle2 className="h-3 w-3 inline-block mr-1" />
                 Bezahlt am <strong>{fmtDate(inv.paidAt)}</strong>
+                {inv.paidBy && <> von <strong>{inv.paidBy.name}</strong></>}
               </div>
             )}
           </SectionCard>
@@ -381,6 +379,15 @@ export default function InvoiceDetailPage() {
           <HistoryPanel events={inv.events ?? []} />
         </div>
       </div>
+
+      {/* Mark as Paid Dialog */}
+      {payDialogOpen && (
+        <MarkPaidDialog
+          invoice={inv}
+          onClose={() => setPayDialogOpen(false)}
+          onPaid={() => invQuery.refetch()}
+        />
+      )}
 
       {/* Sticky Save Bar */}
       {(dirty || saving || error) && (
@@ -508,21 +515,41 @@ function HistoryPanel({ events }: { events: InvoiceEvent[] }) {
   }
   return (
     <SectionCard icon={<History className="h-3.5 w-3.5" />} title="Historie">
-      <div className="space-y-2.5">
-        {events.map((ev) => (
-          <div key={ev.id} className="flex items-start gap-2.5 text-xs">
-            <div className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-gray-800 dark:text-gray-200">
-                <strong className="font-medium">{EVENT_LABELS[ev.type] ?? ev.type}</strong>
-                {ev.note && <span className="text-gray-500 dark:text-gray-400"> — {ev.note}</span>}
-              </div>
-              <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-                {fmtDateTime(ev.createdAt)}
+      <div className="space-y-3">
+        {events.map((ev) => {
+          const actorName = ev.actor?.name;
+          const initial = (actorName ?? 'S').charAt(0).toUpperCase();
+          return (
+            <div key={ev.id} className="flex items-start gap-2.5 text-xs">
+              {/* Avatar — Initiale oder System-Punkt */}
+              {actorName ? (
+                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[10px] font-bold text-white">{initial}</span>
+                </div>
+              ) : (
+                <div className="h-6 w-6 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center flex-shrink-0" title="System">
+                  <span className="text-[10px] font-bold text-gray-400">S</span>
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-gray-800 dark:text-gray-200">
+                  {actorName ? (
+                    <strong className="font-semibold">{actorName}</strong>
+                  ) : (
+                    <strong className="font-semibold text-gray-500 dark:text-gray-400">System</strong>
+                  )}
+                  <span className="text-gray-600 dark:text-gray-300"> · {EVENT_LABELS[ev.type] ?? ev.type}</span>
+                </div>
+                {ev.note && (
+                  <div className="text-gray-500 dark:text-gray-400 mt-0.5 break-words">{ev.note}</div>
+                )}
+                <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                  {fmtDateTime(ev.createdAt)}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </SectionCard>
   );

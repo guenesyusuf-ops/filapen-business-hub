@@ -89,7 +89,42 @@ export class InvoiceService {
       },
     });
     if (!inv) throw new NotFoundException('Rechnung nicht gefunden');
-    return inv;
+
+    // Bearbeiter-Infos auf Events anreichern + Uploader/PaidBy aufloesen
+    const actorIds = new Set<string>();
+    for (const ev of inv.events) {
+      if (ev.actorId) actorIds.add(ev.actorId);
+    }
+    if (inv.uploadedById) actorIds.add(inv.uploadedById);
+    if (inv.paidById) actorIds.add(inv.paidById);
+
+    const users = actorIds.size > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: Array.from(actorIds) } },
+          select: { id: true, name: true, firstName: true, lastName: true, email: true },
+        })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const enrichActor = (uid: string | null | undefined) => {
+      if (!uid) return null;
+      const u = userMap.get(uid);
+      if (!u) return null;
+      const display = u.name
+        || [u.firstName, u.lastName].filter(Boolean).join(' ').trim()
+        || u.email;
+      return { id: u.id, name: display, email: u.email };
+    };
+
+    return {
+      ...inv,
+      uploadedBy: enrichActor(inv.uploadedById),
+      paidBy: enrichActor(inv.paidById),
+      events: inv.events.map((ev) => ({
+        ...ev,
+        actor: enrichActor(ev.actorId),
+      })),
+    };
   }
 
   // ---------------------------------------------------------------------

@@ -70,6 +70,8 @@ export interface Invoice {
 
   notes: string | null;
   uploadedById: string | null;
+  uploadedBy?: InvoiceActor | null;
+  paidBy?: InvoiceActor | null;
   archived: boolean;
 
   createdAt: string;
@@ -78,11 +80,18 @@ export interface Invoice {
   events?: InvoiceEvent[];
 }
 
+export interface InvoiceActor {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface InvoiceEvent {
   id: string;
   invoiceId: string;
   type: string;
   actorId: string | null;
+  actor: InvoiceActor | null;
   note: string | null;
   metadata: any;
   createdAt: string;
