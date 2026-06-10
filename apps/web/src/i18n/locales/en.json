@@ -113,6 +113,11 @@
     "invoicesArchive": "Archive",
     "invoicesStats": "Statistics",
     "invoicesSettings": "Settings",
+    "returns": "Returns",
+    "returnsAll": "All Returns",
+    "returnsTiktok": "TikTok",
+    "returnsShopify": "Shopify",
+    "returnsToReview": "To Review",
     "screenShare": "Screen Share",
     "filapenSend": "Filapen Send",
     "performanceTracking": "Performance Tracking"

@@ -21,6 +21,6 @@ import { EmailModule } from '../../common/email/email.module';
     InvoiceStatsService,
     InvoiceReminderService,
   ],
-  exports: [InvoiceService],
+  exports: [InvoiceService, InvoiceStatsService],
 })
 export class InvoiceModule {}

@@ -25,6 +25,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { FilapenSendModule } from './modules/filapen-send/send.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
+import { ReturnModule } from './modules/return/return.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -93,6 +94,7 @@ import { HealthController } from './health.controller';
     SalesModule,
     FilapenSendModule,
     InvoiceModule,
+    ReturnModule,
   ],
   controllers: [HealthController],
   providers: [],

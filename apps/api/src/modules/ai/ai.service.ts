@@ -4,6 +4,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrderShipmentService } from '../shipping/order-shipment.service';
 import { StorageService } from '../../common/storage/storage.service';
+import { InvoiceService } from '../invoice/invoice.service';
+import { InvoiceStatsService } from '../invoice/invoice-stats.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -598,6 +600,150 @@ const TOOLS: Anthropic.Tool[] = [
       required: ['taskId'],
     },
   },
+  // ============================================================
+  // RECHNUNGEN (Eingangsrechnungen) — vollstaendiger Admin-Zugriff
+  // ============================================================
+  {
+    name: 'list_invoices',
+    description:
+      'Listet Eingangsrechnungen mit OCR-extrahierten Daten. Filter: status (open/due_soon/due_today/overdue/paid), Lieferant, Kategorie, Zeitraum, Betragsspanne, Volltextsuche. Nutze fuer "welche Rechnungen sind faellig", "ueberfaellige Rechnungen", "Rechnungen von DHL", "unbezahlte Rechnungen ueber 1000 EUR".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', enum: ['open', 'due_soon', 'due_today', 'overdue', 'paid', 'unpaid', 'all'], description: 'Status-Filter. unpaid = alles ausser paid.' },
+        supplier: { type: 'string', description: 'Lieferantenname (partial match)' },
+        category: { type: 'string', description: 'Kategorie (marketing/software/office/vehicles/rent/personnel/insurance/other)' },
+        search: { type: 'string', description: 'Volltextsuche in Lieferant/Rechnungsnr/Verwendungszweck/Datei' },
+        from: { type: 'string', description: 'Rechnungsdatum >= YYYY-MM-DD' },
+        to: { type: 'string', description: 'Rechnungsdatum <= YYYY-MM-DD' },
+        amountMin: { type: 'number', description: 'Brutto-Betrag >= X' },
+        amountMax: { type: 'number', description: 'Brutto-Betrag <= X' },
+        archived: { type: 'boolean', description: 'true = nur Archiv, false/omit = nicht-archivierte' },
+        limit: { type: 'number', description: 'Max Treffer (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'get_invoice',
+    description:
+      'Liefert eine einzelne Eingangsrechnung mit Lieferantendaten, Betraegen, IBAN, Status, Faelligkeit und Historie (inkl. Bearbeiter-Namen). Identifikation via Rechnungsnummer oder Invoice-UUID.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        invoiceNumber: { type: 'string', description: 'Rechnungsnummer (z.B. "RE-2026-042") ODER Invoice-UUID' },
+      },
+      required: ['invoiceNumber'],
+    },
+  },
+  {
+    name: 'invoice_dashboard',
+    description:
+      'Rechnungs-KPIs: Anzahl offen/bald/heute/ueberfaellig/bezahlt, Summen offen/bezahlt, Liquiditaets-Widget (faellig in 7T/30T, Ueberfaellig gesamt, dieser Monat), Top 5 Lieferanten, Monatsausgaben. Nutze fuer "Ueberblick Rechnungen", "wieviel muss ich diesen Monat zahlen".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'list_invoice_suppliers',
+    description:
+      'Listet Lieferanten der Eingangsrechnungen mit Anzahl, Gesamtausgaben, Offen-/Bezahlt-Summen, durchschnittlicher Rechnungsbetrag, letzte Rechnung + letzte Zahlung. Nutze fuer "Top Lieferanten", "wieviel haben wir bei Lieferant X ausgegeben".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'mark_invoice_paid',
+    description:
+      'Markiert eine Eingangsrechnung als bezahlt. Identifikation via Rechnungsnummer ODER Lieferantenname. paidAt default heute, Notiz optional. Nutze fuer "Rechnung X bezahlt", "habe gerade ueberwiesen", "DHL-Rechnung bezahlt gestern".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        invoiceNumber: { type: 'string', description: 'Rechnungsnummer ODER Invoice-UUID' },
+        supplierName: { type: 'string', description: 'Alternativ: Lieferant — nimmt die einzige unbezahlte Rechnung von dem Lieferanten (wenn eindeutig)' },
+        paidAt: { type: 'string', description: 'Zahlungsdatum YYYY-MM-DD. Weglassen = heute.' },
+        note: { type: 'string', description: 'Optionale Notiz, z.B. "SEPA-Ueberweisung"' },
+      },
+    },
+  },
+  {
+    name: 'mark_invoice_unpaid',
+    description: 'Setzt eine bereits bezahlte Eingangsrechnung zurueck auf offen (paidAt + paidById werden geleert).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        invoiceNumber: { type: 'string', description: 'Rechnungsnummer oder UUID' },
+      },
+      required: ['invoiceNumber'],
+    },
+  },
+  {
+    name: 'archive_invoice',
+    description: 'Archiviert eine Eingangsrechnung (verschwindet aus der Standardliste, im Archiv weiter abrufbar). Nutze wenn der User eine Rechnung "ablegen" oder "aus der Liste raushaben" will.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        invoiceNumber: { type: 'string', description: 'Rechnungsnummer oder UUID' },
+      },
+      required: ['invoiceNumber'],
+    },
+  },
+  {
+    name: 'restore_invoice',
+    description: 'Holt eine archivierte Eingangsrechnung zurueck in die aktive Liste.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        invoiceNumber: { type: 'string', description: 'Rechnungsnummer oder UUID' },
+      },
+      required: ['invoiceNumber'],
+    },
+  },
+  {
+    name: 'update_invoice',
+    description:
+      'Aktualisiert Felder einer Eingangsrechnung: Lieferant, Faelligkeit, Betraege, Kategorie, Notizen, IBAN, Verwendungszweck. Nutze fuer "aendere Faelligkeit auf X", "Lieferant heisst eigentlich Y", "der Betrag stimmt nicht, ist 540 statt 450", "Kategorie ist Marketing".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        invoiceNumber: { type: 'string', description: 'Rechnungsnummer oder UUID' },
+        supplierName: { type: 'string' },
+        supplierEmail: { type: 'string' },
+        supplierAddress: { type: 'string' },
+        invoiceDate: { type: 'string', description: 'YYYY-MM-DD' },
+        dueDate: { type: 'string', description: 'YYYY-MM-DD' },
+        netAmount: { type: 'number' },
+        vatAmount: { type: 'number' },
+        grossAmount: { type: 'number' },
+        taxRate: { type: 'number', description: 'MwSt-Satz in Prozent (z.B. 19)' },
+        iban: { type: 'string' },
+        bic: { type: 'string' },
+        paymentReference: { type: 'string', description: 'Verwendungszweck' },
+        category: { type: 'string', description: 'marketing/software/office/vehicles/rent/personnel/insurance/other' },
+        notes: { type: 'string' },
+      },
+      required: ['invoiceNumber'],
+    },
+  },
+  {
+    name: 'categorize_invoice',
+    description: 'Aendert nur die Kategorie einer Rechnung. Schneller als update_invoice wenn nur die Kategorie betroffen ist.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        invoiceNumber: { type: 'string', description: 'Rechnungsnummer oder UUID' },
+        category: { type: 'string', enum: ['marketing', 'software', 'office', 'vehicles', 'rent', 'personnel', 'insurance', 'other'] },
+      },
+      required: ['invoiceNumber', 'category'],
+    },
+  },
+  {
+    name: 'delete_invoice',
+    description:
+      'Loescht eine Eingangsrechnung DAUERHAFT. NICHT umkehrbar — File aus R2 wird ebenfalls geloescht. Nur ausfuehren wenn der User explizit "loeschen" oder "endgueltig entfernen" sagt. Sonst archive_invoice nutzen.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        invoiceNumber: { type: 'string', description: 'Rechnungsnummer oder UUID' },
+      },
+      required: ['invoiceNumber'],
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `Du bist "Filapen Assistant", der KI-Copilot fuer die Filapen Business Hub Software. Du hast ADMIN-Einsicht UND Bearbeitungsrechte in alle Module — du kannst Daten lesen, anlegen und aendern wie ein Admin. Antworte immer auf Deutsch, knapp und handlungsorientiert.
@@ -607,6 +753,7 @@ Abgedeckte Module + passende Tools:
 - Finanzen/Shopify: shopify_today_summary, dashboard_kpis, order_revenue_summary, list_products
 - Versand: list_unshipped_orders, list_shipments, list_labels, shipping_dashboard, list_carrier_accounts
 - Einkauf: list_purchase_orders, list_suppliers, purchase_dashboard, mark_purchase_order_received, update_purchase_order_notes
+- Rechnungen (Eingangsrechnungen, separat von Einkauf!): list_invoices, get_invoice, invoice_dashboard, list_invoice_suppliers, mark_invoice_paid, mark_invoice_unpaid, archive_invoice, restore_invoice, update_invoice, categorize_invoice, delete_invoice
 - Email-Marketing: list_email_campaigns, list_email_contacts, list_email_flows
 - Aufgabenverwaltung: list_tasks, list_projects, list_approval_tasks, create_task, complete_task, update_task
 - Creators/Influencer/Content: list_creators, list_creator_uploads, list_deals, list_briefings, list_influencers, list_content_pieces
@@ -618,6 +765,7 @@ Regeln:
 - Nutze die bereitgestellten Tools, wenn du echte Daten brauchst — niemals Zahlen erfinden.
 - Sag NIE "habe kein Tool dafuer", wenn es zum Thema ein Tool gibt. Frag lieber nach den Filtern, die dir fehlen, und ruf dann das passende Tool auf.
 - Bei Bearbeitungs-Wuenschen ("setze das Ankunftsdatum auf X", "aendere die Notiz", "Task umbenennen", "Ordner umbenennen") fuehre die Aenderung aus, anstatt zu sagen "geh in das Modul".
+- Eingangsrechnungen ("Rechnung von DHL", "ueberfaellige Rechnungen", "habe DHL bezahlt") → IMMER die invoice-Tools nutzen, NICHT die purchase-Tools. Einkauf = unsere ausgehenden Bestellungen, Rechnungen = eingehende Lieferantenrechnungen.
 - Fragen wie "nicht versendete Bestellungen", "welche Labels sind offen", "Versandstatus" → IMMER list_unshipped_orders / list_shipments / shipping_dashboard aufrufen.
 - Verkaufs-Bestellungen (B2B, "Kundenbestellungen", "Verkauf") → list_sales_orders / get_sales_order / sales_dashboard. NICHT mit Einkauf verwechseln (das sind Bestellungen die WIR aufgeben).
 - Wenn der User Labels downloaden/drucken will → download_shipping_labels aufrufen. Frontend startet Download automatisch.
@@ -637,6 +785,8 @@ export class AiService {
     private readonly prisma: PrismaService,
     private readonly shipments: OrderShipmentService,
     private readonly storage: StorageService,
+    private readonly invoices: InvoiceService,
+    private readonly invoiceStats: InvoiceStatsService,
   ) {
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
     this.client = apiKey ? new Anthropic({ apiKey }) : null;
@@ -792,6 +942,11 @@ export class AiService {
       {
         patterns: ['einkauf', 'einkäufe', 'einkaeufe', 'lieferant', 'supplier', 'po ', 'purchase', 'beschaffung', 'unbezahlt', 'rechnung'],
         tools: ['list_purchase_orders', 'list_suppliers', 'purchase_dashboard', 'mark_purchase_order_received', 'update_purchase_order_notes'],
+      },
+      {
+        // Eingangsrechnungen — separat von Einkauf
+        patterns: ['rechnung', 'rechnungen', 'eingangsrechnung', 'lieferantenrechnung', 'fällig', 'faellig', 'überfällig', 'ueberfaellig', 'bezahlt', 'unbezahlt', 'iban', 'mwst', 'brutto', 'netto', 'skonto', 'zahlungsziel', 'bezahlen', 'überwiesen', 'ueberwiesen'],
+        tools: ['list_invoices', 'get_invoice', 'invoice_dashboard', 'list_invoice_suppliers', 'mark_invoice_paid', 'mark_invoice_unpaid', 'archive_invoice', 'restore_invoice', 'update_invoice', 'categorize_invoice', 'delete_invoice'],
       },
       {
         patterns: ['email', 'mail', 'kampagne', 'kampagnen', 'campaign', 'newsletter', 'subscriber', 'abonnent', 'kontakt', 'flow', 'flows'],
@@ -981,6 +1136,29 @@ export class AiService {
           return this.action_renameFolder(input);
         case 'update_task':
           return this.action_updateTask(input, userId);
+        // Invoices
+        case 'list_invoices':
+          return this.tool_listInvoices(input);
+        case 'get_invoice':
+          return this.tool_getInvoice(input);
+        case 'invoice_dashboard':
+          return this.tool_invoiceDashboard();
+        case 'list_invoice_suppliers':
+          return this.tool_listInvoiceSuppliers();
+        case 'mark_invoice_paid':
+          return this.action_markInvoicePaid(input, userId);
+        case 'mark_invoice_unpaid':
+          return this.action_markInvoiceUnpaid(input, userId);
+        case 'archive_invoice':
+          return this.action_archiveInvoice(input, userId);
+        case 'restore_invoice':
+          return this.action_restoreInvoice(input, userId);
+        case 'update_invoice':
+          return this.action_updateInvoice(input, userId);
+        case 'categorize_invoice':
+          return this.action_categorizeInvoice(input, userId);
+        case 'delete_invoice':
+          return this.action_deleteInvoice(input);
         default:
           return { error: `Unknown tool: ${name}` };
       }
@@ -2307,5 +2485,183 @@ export class AiService {
     });
     this.logger.log(`AI: ${userId} updated task ${taskId} fields=${Object.keys(data).join(',')}`);
     return { ok: true, task: updated };
+  }
+
+  // ============================================================
+  // INVOICES (Eingangsrechnungen) — Volle Admin-Rechte
+  // ============================================================
+
+  /** Resolved invoice by ID (UUID) ODER Rechnungsnummer (auch partial match) */
+  private async resolveInvoice(query: { invoiceNumber?: string; supplierName?: string }): Promise<{ id: string; orgId: string } | { error: string }> {
+    const orgId = DEV_ORG_ID;
+    const q = (query.invoiceNumber ?? '').trim();
+    // UUID?
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q)) {
+      const inv = await this.prisma.invoice.findFirst({ where: { id: q, orgId }, select: { id: true, orgId: true } });
+      if (!inv) return { error: `Keine Rechnung mit ID ${q} gefunden` };
+      return inv;
+    }
+    // Rechnungsnummer — exakt, sonst partial
+    if (q) {
+      const exact = await this.prisma.invoice.findFirst({
+        where: { orgId, invoiceNumber: q },
+        select: { id: true, orgId: true },
+      });
+      if (exact) return exact;
+      const partial = await this.prisma.invoice.findMany({
+        where: { orgId, invoiceNumber: { contains: q, mode: 'insensitive' } },
+        select: { id: true, invoiceNumber: true },
+        take: 3,
+      });
+      if (partial.length === 1) return { id: partial[0].id, orgId };
+      if (partial.length > 1) {
+        return { error: `Mehrere Rechnungen passen zu "${q}": ${partial.map((p) => p.invoiceNumber).join(', ')}. Bitte spezifischer.` };
+      }
+    }
+    // Fallback: ueber Lieferant — fuer "DHL-Rechnung bezahlt"
+    if (query.supplierName) {
+      const matches = await this.prisma.invoice.findMany({
+        where: {
+          orgId,
+          supplierName: { contains: query.supplierName, mode: 'insensitive' },
+          archived: false,
+        },
+        select: { id: true, invoiceNumber: true, status: true },
+        orderBy: { dueDate: 'asc' },
+        take: 5,
+      });
+      const unpaid = matches.filter((m) => m.status !== 'paid');
+      if (unpaid.length === 1) return { id: unpaid[0].id, orgId };
+      if (unpaid.length > 1) {
+        return { error: `Mehrere offene Rechnungen von "${query.supplierName}": ${unpaid.map((m) => m.invoiceNumber ?? '(ohne Nr)').join(', ')}. Bitte Rechnungsnummer angeben.` };
+      }
+    }
+    return { error: 'Rechnung nicht gefunden' };
+  }
+
+  private async tool_listInvoices(input: any) {
+    const orgId = DEV_ORG_ID;
+    const result = await this.invoices.list(orgId, {
+      status: input?.status,
+      supplier: input?.supplier,
+      category: input?.category,
+      search: input?.search,
+      from: input?.from,
+      to: input?.to,
+      amountMin: input?.amountMin != null ? String(input.amountMin) : undefined,
+      amountMax: input?.amountMax != null ? String(input.amountMax) : undefined,
+      archived: input?.archived === true ? 'true' : undefined,
+      limit: String(Math.min(20, input?.limit ?? 20)),
+    });
+    return {
+      total: result.total,
+      items: result.items.map((i: any) => ({
+        id: i.id,
+        invoiceNumber: i.invoiceNumber,
+        supplier: i.supplierName,
+        invoiceDate: i.invoiceDate?.toISOString?.()?.slice(0, 10) ?? null,
+        dueDate: i.dueDate?.toISOString?.()?.slice(0, 10) ?? null,
+        grossAmount: i.grossAmount ? Number(i.grossAmount.toString()) : null,
+        status: i.status,
+        category: i.category,
+        paidAt: i.paidAt?.toISOString?.()?.slice(0, 10) ?? null,
+      })),
+    };
+  }
+
+  private async tool_getInvoice(input: any) {
+    const r = await this.resolveInvoice({ invoiceNumber: input?.invoiceNumber });
+    if ('error' in r) return r;
+    const inv: any = await this.invoices.get(r.orgId, r.id);
+    return {
+      id: inv.id,
+      supplier: { name: inv.supplierName, email: inv.supplierEmail, vatId: inv.supplierVatId },
+      invoiceNumber: inv.invoiceNumber,
+      invoiceDate: inv.invoiceDate,
+      dueDate: inv.dueDate,
+      paidAt: inv.paidAt,
+      paidBy: inv.paidBy?.name ?? null,
+      currency: inv.currency,
+      amounts: {
+        net: inv.netAmount ? Number(inv.netAmount.toString()) : null,
+        vat: inv.vatAmount ? Number(inv.vatAmount.toString()) : null,
+        gross: inv.grossAmount ? Number(inv.grossAmount.toString()) : null,
+        taxRate: inv.taxRate ? Number(inv.taxRate.toString()) : null,
+      },
+      payment: { iban: inv.iban, bic: inv.bic, bankName: inv.bankName, reference: inv.paymentReference },
+      category: inv.category,
+      status: inv.status,
+      notes: inv.notes,
+      reviewed: inv.reviewed,
+      historyCount: (inv.events ?? []).length,
+    };
+  }
+
+  private async tool_invoiceDashboard() {
+    return this.invoiceStats.dashboard(DEV_ORG_ID);
+  }
+
+  private async tool_listInvoiceSuppliers() {
+    return this.invoices.suppliersDetailed(DEV_ORG_ID);
+  }
+
+  private async action_markInvoicePaid(input: any, userId: string) {
+    const r = await this.resolveInvoice({ invoiceNumber: input?.invoiceNumber, supplierName: input?.supplierName });
+    if ('error' in r) return r;
+    const inv: any = await this.invoices.markPaid(r.orgId, r.id, userId, {
+      paidAt: input?.paidAt,
+      note: input?.note,
+    });
+    this.logger.log(`AI: ${userId} marked invoice ${r.id} as paid`);
+    return { ok: true, id: r.id, invoiceNumber: inv.invoiceNumber, status: inv.status, paidAt: inv.paidAt };
+  }
+
+  private async action_markInvoiceUnpaid(input: any, userId: string) {
+    const r = await this.resolveInvoice({ invoiceNumber: input?.invoiceNumber });
+    if ('error' in r) return r;
+    const inv: any = await this.invoices.markUnpaid(r.orgId, r.id, userId);
+    return { ok: true, id: r.id, invoiceNumber: inv.invoiceNumber, status: inv.status };
+  }
+
+  private async action_archiveInvoice(input: any, userId: string) {
+    const r = await this.resolveInvoice({ invoiceNumber: input?.invoiceNumber });
+    if ('error' in r) return r;
+    await this.invoices.archive(r.orgId, r.id, userId);
+    return { ok: true, id: r.id, archived: true };
+  }
+
+  private async action_restoreInvoice(input: any, userId: string) {
+    const r = await this.resolveInvoice({ invoiceNumber: input?.invoiceNumber });
+    if ('error' in r) return r;
+    await this.invoices.restore(r.orgId, r.id, userId);
+    return { ok: true, id: r.id, archived: false };
+  }
+
+  private async action_updateInvoice(input: any, userId: string) {
+    const r = await this.resolveInvoice({ invoiceNumber: input?.invoiceNumber });
+    if ('error' in r) return r;
+    const body: any = {};
+    const fields = ['supplierName', 'supplierEmail', 'supplierAddress', 'invoiceDate', 'dueDate',
+      'netAmount', 'vatAmount', 'grossAmount', 'taxRate',
+      'iban', 'bic', 'paymentReference', 'category', 'notes'];
+    for (const f of fields) if (input?.[f] !== undefined) body[f] = input[f];
+    if (Object.keys(body).length === 0) return { error: 'Keine Aenderungen angegeben' };
+    const inv: any = await this.invoices.update(r.orgId, r.id, userId, body);
+    return { ok: true, id: r.id, updated: Object.keys(body), invoiceNumber: inv.invoiceNumber };
+  }
+
+  private async action_categorizeInvoice(input: any, userId: string) {
+    const r = await this.resolveInvoice({ invoiceNumber: input?.invoiceNumber });
+    if ('error' in r) return r;
+    const inv: any = await this.invoices.update(r.orgId, r.id, userId, { category: input.category });
+    return { ok: true, id: r.id, category: inv.category };
+  }
+
+  private async action_deleteInvoice(input: any) {
+    const r = await this.resolveInvoice({ invoiceNumber: input?.invoiceNumber });
+    if ('error' in r) return r;
+    await this.invoices.remove(r.orgId, r.id);
+    this.logger.warn(`AI: deleted invoice ${r.id}`);
+    return { ok: true, id: r.id, deleted: true };
   }
 }

@@ -3639,3 +3639,130 @@ model InvoiceSettings {
 
   @@map("invoice_settings")
 }
+
+// ---------------------------------------------------------------------------
+// Retouren / Returns module
+// ---------------------------------------------------------------------------
+// Interner Workflow: Office legt Retoure an → Lager lädt Bilder hoch →
+// Backoffice entscheidet (akzeptieren/ablehnen) → ggf. Erstattung tracken.
+// Keine API-Anbindung, alles manuell.
+//
+// Status-Flow:
+//   open → in_review (Lager hat Bilder hochgeladen + zur Pruefung geschoben)
+//        → accepted | rejected (Backoffice-Entscheidung)
+//        → refunded (Geld zurueck, optional Folge-Status zu accepted)
+//
+// Eine Retoure kann mehrere Positionen enthalten (ReturnItem).
+// Bilder gelten auf Retouren-Ebene (Gesamtfotos, nicht pro Position).
+
+model Return {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String   @map("org_id") @db.Uuid
+
+  // Plattform: 'tiktok' | 'shopify'
+  platform        String   @db.VarChar(32)
+
+  // Bestellung
+  orderNumber     String   @map("order_number") @db.VarChar(128)
+  requestDate     DateTime @map("request_date") @db.Date
+
+  // Kunde
+  customerName    String?  @map("customer_name") @db.VarChar(255)
+  customerEmail   String?  @map("customer_email") @db.VarChar(255)
+
+  // Optional: Tracking der Retoure-Sendung (vom Kunden zu uns)
+  trackingNumber  String?  @map("tracking_number") @db.VarChar(128)
+
+  // Workflow
+  status          String   @default("open") @db.VarChar(32)
+  // open | in_review | accepted | rejected | refunded
+
+  // Ablehnung
+  rejectionReason String?  @map("rejection_reason") @db.VarChar(64)
+  // used | customer_damaged | incomplete | wrong_product | other
+  rejectionNote   String?  @map("rejection_note") @db.Text
+
+  // Erstattung (optional)
+  refundAmount    Decimal? @map("refund_amount") @db.Decimal(12, 2)
+  refundDate      DateTime? @map("refund_date") @db.Date
+
+  // Sonstiges
+  damaged         Boolean  @default(false)
+  notes           String?  @db.Text
+
+  // Audit
+  createdById     String?  @map("created_by_id") @db.Uuid
+  decidedById     String?  @map("decided_by_id") @db.Uuid
+  decidedAt       DateTime? @map("decided_at") @db.Timestamptz
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  items           ReturnItem[]
+  images          ReturnImage[]
+  events          ReturnEvent[]
+
+  @@index([orgId])
+  @@index([orgId, platform, status])
+  @@index([orgId, requestDate])
+  @@index([orgId, orderNumber])
+  @@index([orgId, customerName])
+  @@index([orgId, status])
+  @@map("returns")
+}
+
+model ReturnItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  returnId        String   @map("return_id") @db.Uuid
+
+  // Produkt: entweder FK auf Katalog (productId) ODER freier Text — exklusiv
+  productId       String?  @map("product_id") @db.Uuid
+  productFreetext String?  @map("product_freetext") @db.VarChar(255)
+  quantity        Int      @default(1)
+  notes           String?  @db.Text
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  return          Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@index([returnId])
+  @@map("return_items")
+}
+
+model ReturnImage {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  returnId        String   @map("return_id") @db.Uuid
+
+  fileName        String   @map("file_name") @db.VarChar(255)
+  fileMime        String   @map("file_mime") @db.VarChar(128)
+  fileSize        Int      @map("file_size")
+  storagePath     String   @map("storage_path") @db.Text
+  storageUrl      String?  @map("storage_url") @db.Text
+
+  uploadedById    String?  @map("uploaded_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  return          Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@index([returnId, createdAt])
+  @@map("return_images")
+}
+
+model ReturnEvent {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  returnId  String   @map("return_id") @db.Uuid
+  // type: created, status_changed, image_added, image_removed, item_added,
+  //       item_removed, edited, accepted, rejected, refunded, note_added
+  type      String   @db.VarChar(64)
+  actorId   String?  @map("actor_id") @db.Uuid
+  note      String?  @db.Text
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  return    Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@index([returnId, createdAt(sort: Desc)])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("return_events")
+}

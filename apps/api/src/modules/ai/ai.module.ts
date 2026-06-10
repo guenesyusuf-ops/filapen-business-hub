@@ -4,9 +4,10 @@ import { AiService } from './ai.service';
 import { AuthModule } from '../auth/auth.module';
 import { ShippingModule } from '../shipping/shipping.module';
 import { StorageModule } from '../../common/storage/storage.module';
+import { InvoiceModule } from '../invoice/invoice.module';
 
 @Module({
-  imports: [AuthModule, ShippingModule, StorageModule],
+  imports: [AuthModule, ShippingModule, StorageModule, InvoiceModule],
   controllers: [AiController],
   providers: [AiService],
 })

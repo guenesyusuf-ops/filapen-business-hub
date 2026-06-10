@@ -80,6 +80,8 @@ import {
   Archive,
   BarChart2,
   Clock,
+  Undo2,
+  Music2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -279,6 +281,19 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.returns',
+    href: '/returns',
+    icon: Undo2,
+    permissionKey: 'returns',
+    accent: 'text-accent-sales',
+    children: [
+      { labelKey: 'nav.returnsAll', href: '/returns', icon: Inbox },
+      { labelKey: 'nav.returnsTiktok', href: '/returns?platform=tiktok', icon: Music2 },
+      { labelKey: 'nav.returnsShopify', href: '/returns?platform=shopify', icon: ShoppingBag },
+      { labelKey: 'nav.returnsToReview', href: '/returns?tab=in_review', icon: AlertCircle },
+    ],
+  },
+  {
     labelKey: 'nav.invoices',
     href: '/invoices',
     icon: ReceiptText,
@@ -375,6 +390,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
     }
     if (pathname.startsWith('/invoices')) {
       initial.add('nav.invoices');
+    }
+    if (pathname.startsWith('/returns')) {
+      initial.add('nav.returns');
     }
     if (pathname.startsWith('/settings') || pathname.startsWith('/finance/integrations')) {
       initial.add('nav.settings');
