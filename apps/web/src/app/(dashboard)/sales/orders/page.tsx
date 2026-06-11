@@ -146,22 +146,22 @@ export default function SalesOrdersPage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] table-scroll">
-          <table className="w-full text-sm min-w-[720px]">
-            <thead className="border-b border-gray-200/80 dark:border-white/8 text-left text-xs uppercase tracking-wide text-gray-500">
+          <table className="w-full text-sm sm:min-w-[720px]">
+            <thead className="border-b border-gray-200/80 dark:border-white/8 text-left text-xs uppercase tracking-wide text-gray-500 hidden sm:table-header-group">
               <tr>
                 <th className="px-4 py-2">Bestellnr.</th>
                 <th className="px-4 py-2">Kunde</th>
-                <th className="px-4 py-2">Produkte</th>
-                <th className="px-4 py-2">Liefertermin</th>
+                <th className="px-4 py-2 hidden md:table-cell">Produkte</th>
+                <th className="px-4 py-2 hidden md:table-cell">Liefertermin</th>
                 {tab === 'done' && (
                   <>
-                    <th className="px-4 py-2 whitespace-nowrap">Versendet</th>
-                    <th className="px-4 py-2 whitespace-nowrap">Bezahlt</th>
+                    <th className="px-4 py-2 whitespace-nowrap hidden lg:table-cell">Versendet</th>
+                    <th className="px-4 py-2 whitespace-nowrap hidden lg:table-cell">Bezahlt</th>
                   </>
                 )}
                 <th className="px-4 py-2 text-right">Betrag</th>
                 <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2" />
+                <th className="px-4 py-2 hidden sm:table-cell" />
               </tr>
             </thead>
             <tbody>
@@ -181,10 +181,10 @@ export default function SalesOrdersPage() {
                       <div className="text-gray-900 dark:text-gray-100">{o.customer?.companyName ?? '—'}</div>
                       <div className="text-[11px] text-gray-500">{o.customer?.customerNumber ?? ''}</div>
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 hidden md:table-cell">
                       <ProductTiles items={o.lineItems ?? []} />
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 hidden md:table-cell">
                       <div className="flex items-center gap-1.5">
                         {urg === 'overdue' && <Badge color="bg-red-100 text-red-700"><AlertTriangle className="inline h-3 w-3 mr-0.5" />In Verzug</Badge>}
                         {urg === 'urgent' && <Badge color="bg-amber-100 text-amber-700"><Clock className="inline h-3 w-3 mr-0.5" />Dringend</Badge>}
@@ -196,14 +196,14 @@ export default function SalesOrdersPage() {
                     </td>
                     {tab === 'done' && (
                       <>
-                        <td className="px-4 py-2 whitespace-nowrap">
+                        <td className="px-4 py-2 whitespace-nowrap hidden lg:table-cell">
                           {o.shippedAt ? (
                             <span className="text-emerald-700 dark:text-emerald-400">{fmtDate(o.shippedAt)}</span>
                           ) : (
                             <span className="text-xs text-gray-400">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 whitespace-nowrap">
+                        <td className="px-4 py-2 whitespace-nowrap hidden lg:table-cell">
                           {o.paidAt ? (
                             <span className="text-emerald-700 dark:text-emerald-400">{fmtDate(o.paidAt)}</span>
                           ) : (
@@ -221,7 +221,7 @@ export default function SalesOrdersPage() {
                         <StatusDot on={!!o.paidAt} label="Bez." />
                       </div>
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 hidden sm:table-cell">
                       <Link href={`/sales/orders/${o.id}`} className="text-xs text-primary-600 hover:underline">
                         Details →
                       </Link>

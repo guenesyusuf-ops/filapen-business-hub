@@ -53,26 +53,29 @@ export default function SalesCustomersPage() {
         <Empty icon={<Users2 className="h-10 w-10" />} title="Keine Kunden" hint="Lege einen neuen Kunden an oder importiere eine Bestellung, dann wird der Kunde automatisch erkannt." />
       ) : (
         <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] table-scroll">
-          <table className="w-full text-sm min-w-[640px]">
+          <table className="w-full text-sm sm:min-w-[640px]">
             <thead className="border-b border-gray-200/80 dark:border-white/8 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="px-4 py-2">Kundennr.</th>
+                <th className="px-4 py-2 hidden sm:table-cell">Kundennr.</th>
                 <th className="px-4 py-2">Firma</th>
-                <th className="px-4 py-2">Ansprechpartner</th>
-                <th className="px-4 py-2">E-Mail</th>
-                <th className="px-4 py-2">Telefon</th>
+                <th className="px-4 py-2 hidden md:table-cell">Ansprechpartner</th>
+                <th className="px-4 py-2 hidden sm:table-cell">E-Mail</th>
+                <th className="px-4 py-2 hidden lg:table-cell">Telefon</th>
               </tr>
             </thead>
             <tbody>
               {items.map((c) => (
                 <tr key={c.id} className="border-t border-gray-200/60 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
-                  <td className="px-4 py-2 font-mono text-xs">
+                  <td className="px-4 py-2 font-mono text-xs hidden sm:table-cell">
                     <Link href={`/sales/customers/${c.id}`} className="text-primary-600 hover:underline">{c.customerNumber}</Link>
                   </td>
-                  <td className="px-4 py-2">{c.companyName}</td>
-                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{c.contactPerson ?? '—'}</td>
-                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{c.email ?? '—'}</td>
-                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{c.phone ?? '—'}</td>
+                  <td className="px-4 py-2">
+                    <Link href={`/sales/customers/${c.id}`} className="text-gray-900 dark:text-gray-100 hover:text-primary-600 hover:underline sm:no-underline">{c.companyName}</Link>
+                    <div className="text-[11px] text-gray-500 sm:hidden font-mono">{c.customerNumber} · {c.email ?? '—'}</div>
+                  </td>
+                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300 hidden md:table-cell">{c.contactPerson ?? '—'}</td>
+                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300 hidden sm:table-cell">{c.email ?? '—'}</td>
+                  <td className="px-4 py-2 text-gray-700 dark:text-gray-300 hidden lg:table-cell">{c.phone ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

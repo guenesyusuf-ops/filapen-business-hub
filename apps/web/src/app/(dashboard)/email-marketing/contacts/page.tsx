@@ -71,16 +71,16 @@ export default function ContactsPage() {
         ) : (
           <>
             <div className="table-scroll">
-              <table className="min-w-[640px] w-full text-sm">
+              <table className="w-full text-sm sm:min-w-[640px]">
                 <thead className="bg-gray-50/80 dark:bg-white/[0.02]">
                   <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     <th className="px-3 py-2.5 text-left">Email</th>
-                    <th className="px-3 py-2.5 text-left">Name</th>
-                    <th className="px-3 py-2.5 text-left">Land</th>
+                    <th className="px-3 py-2.5 text-left hidden md:table-cell">Name</th>
+                    <th className="px-3 py-2.5 text-left hidden lg:table-cell">Land</th>
                     <th className="px-3 py-2.5">Consent</th>
-                    <th className="px-3 py-2.5 text-right">Bestellungen</th>
-                    <th className="px-3 py-2.5 text-right">Gesamt-Umsatz</th>
-                    <th className="px-3 py-2.5 text-left">Letzte Bestellung</th>
+                    <th className="px-3 py-2.5 text-right hidden md:table-cell">Bestellungen</th>
+                    <th className="px-3 py-2.5 text-right">Umsatz</th>
+                    <th className="px-3 py-2.5 text-left hidden lg:table-cell">Letzte Bestellung</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-white/5">
@@ -92,15 +92,20 @@ export default function ContactsPage() {
                         onClick={() => router.push(`/email-marketing/contacts/${c.id}`)}
                         className="hover:bg-gray-50/80 dark:hover:bg-white/[0.04] cursor-pointer transition-colors"
                       >
-                        <td className="px-3 py-3 font-medium text-gray-900 dark:text-white truncate max-w-[280px]">{c.email}</td>
-                        <td className="px-3 py-3 text-gray-700 dark:text-gray-300">
+                        <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">
+                          <div className="truncate max-w-[200px] sm:max-w-[280px]">{c.email}</div>
+                          <div className="md:hidden text-[11px] text-gray-500 truncate">
+                            {[c.firstName, c.lastName].filter(Boolean).join(' ') || ''}{c.country ? ` · ${c.country}` : ''}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-gray-700 dark:text-gray-300 hidden md:table-cell">
                           {[c.firstName, c.lastName].filter(Boolean).join(' ') || '—'}
                         </td>
-                        <td className="px-3 py-3 text-xs text-gray-500 uppercase">{c.country || '—'}</td>
+                        <td className="px-3 py-3 text-xs text-gray-500 uppercase hidden lg:table-cell">{c.country || '—'}</td>
                         <td className="px-3 py-3"><Badge color={cl.color}>{cl.label}</Badge></td>
-                        <td className="px-3 py-3 text-right tabular-nums">{c.ordersCount}</td>
+                        <td className="px-3 py-3 text-right tabular-nums hidden md:table-cell">{c.ordersCount}</td>
                         <td className="px-3 py-3 text-right whitespace-nowrap"><Money amount={c.totalSpent} /></td>
-                        <td className="px-3 py-3 text-xs text-gray-500">{fmtDate(c.lastOrderAt)}</td>
+                        <td className="px-3 py-3 text-xs text-gray-500 hidden lg:table-cell">{fmtDate(c.lastOrderAt)}</td>
                       </tr>
                     );
                   })}
