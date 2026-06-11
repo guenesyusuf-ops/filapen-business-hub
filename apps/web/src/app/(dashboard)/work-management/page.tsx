@@ -8,6 +8,7 @@ import { useWmProjects, useCreateWmProject, useDeleteWmProject, useWmMembers } f
 import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory, useWmNotifications, useWmUnreadCount, useMarkNotificationRead, useMarkAllNotificationsRead, useWmBucketTasks, type WmBucket } from '@/hooks/work-management/useWmDashboard';
 import { useWmCategories, useCreateWmCategory, useDeleteWmCategory, useCreateApprovalProject } from '@/hooks/work-management/useWmApproval';
 import { CreateProjectModal } from '@/components/work-management/CreateProjectModal';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { CreateApprovalProjectModal } from '@/components/work-management/CreateApprovalProjectModal';
 import { useAuthStore } from '@/stores/auth';
 
@@ -67,6 +68,7 @@ export default function WorkManagementPage() {
   const createProject = useCreateWmProject();
   const deleteProject = useDeleteWmProject();
   const updateCategory = useUpdateProjectCategory();
+  const { confirm: askConfirm, alert: notify } = useConfirm();
   const { data: notifications } = useWmNotifications();
   const { data: unreadCount } = useWmUnreadCount();
   const markRead = useMarkNotificationRead();
@@ -377,14 +379,17 @@ export default function WorkManagementPage() {
 
                 {/* Delete button (hover) */}
                 <button
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    if (confirm(`Projekt "${project.name}" wirklich löschen? Alle Tasks, Spalten und Daten gehen verloren.`)) {
-                      deleteProject.mutate(project.id);
-                    }
+                    const ok = await askConfirm({
+                      title: `Projekt "${project.name}" löschen?`,
+                      message: 'Alle Tasks, Spalten und Daten gehen verloren.',
+                      variant: 'danger', confirmLabel: 'Löschen',
+                    });
+                    if (ok) deleteProject.mutate(project.id);
                   }}
-                  className="absolute top-3 right-3 p-1 rounded-md bg-red-500/80 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10"
+                  className="absolute top-3 right-3 p-1.5 rounded-md bg-red-500/80 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10"
                   title="Projekt löschen"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -483,7 +488,7 @@ export default function WorkManagementPage() {
           createApprovalProject.mutate(data, {
             onSuccess: () => setShowCreateApproval(false),
             onError: (err: any) => {
-              alert(`Fehler: ${err?.message || 'Projekt konnte nicht erstellt werden'}`);
+              void notify('Fehler', err?.message || 'Projekt konnte nicht erstellt werden', 'danger');
             },
           });
         }}
