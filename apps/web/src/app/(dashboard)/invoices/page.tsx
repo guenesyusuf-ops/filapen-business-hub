@@ -16,6 +16,7 @@ import {
 import { InvoiceUploadModal } from './InvoiceUploadModal';
 import { MarkPaidDialog } from './MarkPaidDialog';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { PullToRefresh } from '@/components/shared/PullToRefresh';
 
 const TABS: Array<{ key: string; label: string; countKey: keyof InvoiceStatusCounts | 'all' }> = [
   { key: 'all', label: 'Alle', countKey: 'all' },
@@ -188,6 +189,7 @@ export default function InvoicesPage() {
   }
 
   return (
+    <PullToRefresh onRefresh={async () => { await Promise.all([listQuery.refetch(), countsQuery.refetch(), suppliersQuery.refetch()]); }}>
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -446,6 +448,7 @@ export default function InvoicesPage() {
         />
       )}
     </div>
+    </PullToRefresh>
   );
 }
 

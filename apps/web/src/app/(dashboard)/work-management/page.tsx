@@ -9,6 +9,8 @@ import { useWmDashboard, useUpdateProjectCategory, useWmProjectsWithCategory, us
 import { useWmCategories, useCreateWmCategory, useDeleteWmCategory, useCreateApprovalProject } from '@/hooks/work-management/useWmApproval';
 import { CreateProjectModal } from '@/components/work-management/CreateProjectModal';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { PullToRefresh } from '@/components/shared/PullToRefresh';
+import { useQueryClient } from '@tanstack/react-query';
 import { CreateApprovalProjectModal } from '@/components/work-management/CreateApprovalProjectModal';
 import { useAuthStore } from '@/stores/auth';
 
@@ -69,6 +71,7 @@ export default function WorkManagementPage() {
   const deleteProject = useDeleteWmProject();
   const updateCategory = useUpdateProjectCategory();
   const { confirm: askConfirm, alert: notify } = useConfirm();
+  const queryClient = useQueryClient();
   const { data: notifications } = useWmNotifications();
   const { data: unreadCount } = useWmUnreadCount();
   const markRead = useMarkNotificationRead();
@@ -116,6 +119,7 @@ export default function WorkManagementPage() {
   });
 
   return (
+    <PullToRefresh onRefresh={async () => { await queryClient.invalidateQueries({ queryKey: ['wm'] }); }}>
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="space-y-3">
@@ -495,6 +499,7 @@ export default function WorkManagementPage() {
         loading={createApprovalProject.isPending}
       />
     </div>
+    </PullToRefresh>
   );
 }
 

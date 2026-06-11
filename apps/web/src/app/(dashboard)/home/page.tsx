@@ -1,8 +1,10 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth';
+import { PullToRefresh } from '@/components/shared/PullToRefresh';
 import { useMyWmTasks } from '@/hooks/work-management/useWm';
 import {
   usePersonalNotes,
@@ -844,7 +846,10 @@ function QuickStats() {
 export default function HomePage() {
   const user = useAuthStore((s) => s.user);
   const canReview = user?.role === 'owner' || user?.role === 'admin';
+  const queryClient = useQueryClient();
+
   return (
+    <PullToRefresh onRefresh={async () => { await queryClient.invalidateQueries(); }}>
     <div className="space-y-5 animate-fade-in w-full">
       <GreetingCard />
       <QuickStats />
@@ -863,6 +868,7 @@ export default function HomePage() {
         <CurrencyWidget />
       </div>
     </div>
+    </PullToRefresh>
   );
 }
 

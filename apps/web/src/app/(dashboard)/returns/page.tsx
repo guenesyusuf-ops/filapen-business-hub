@@ -13,6 +13,7 @@ import {
 } from '@/lib/returns';
 import { ReturnFormModal } from './ReturnFormModal';
 import { ReturnDetailModal } from './ReturnDetailModal';
+import { PullToRefresh } from '@/components/shared/PullToRefresh';
 
 const STATUS_TABS: Array<{ key: string; label: string; icon: any }> = [
   { key: 'all', label: 'Alle', icon: Undo2 },
@@ -96,6 +97,7 @@ export default function ReturnsPage() {
   }
 
   return (
+    <PullToRefresh onRefresh={async () => { await Promise.all([listQuery.refetch(), countsQuery.refetch(), statsQuery.refetch()]); }}>
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -262,6 +264,7 @@ export default function ReturnsPage() {
         />
       )}
     </div>
+    </PullToRefresh>
   );
 }
 

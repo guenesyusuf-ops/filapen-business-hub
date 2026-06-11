@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Calculator, Plus, Trash2, Copy, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { profitabilityApi, compute, fmtEUR, fmtPct, type ProfitCalculation } from '@/lib/profitability';
 import { ProfitabilityModal } from './ProfitabilityModal';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 export default function ProfitabilityPage() {
   const [items, setItems] = useState<ProfitCalculation[]>([]);
   const [loading, setLoading] = useState(true);
   const [edit, setEdit] = useState<ProfitCalculation | null | 'new'>(null);
+  const { confirm: askConfirm, alert: notify } = useConfirm();
 
   async function load() {
     setLoading(true);
@@ -21,11 +23,16 @@ export default function ProfitabilityPage() {
   useEffect(() => { load(); }, []);
 
   async function deleteOne(id: string) {
-    if (!confirm('Diese Berechnung wirklich loeschen?')) return;
+    const ok = await askConfirm({
+      title: 'Berechnung löschen?',
+      message: 'Diese Aktion kann nicht rückgängig gemacht werden.',
+      variant: 'danger', confirmLabel: 'Löschen',
+    });
+    if (!ok) return;
     try {
       await profitabilityApi.remove(id);
       setItems((prev) => prev.filter((x) => x.id !== id));
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { await notify('Fehler', e.message, 'danger'); }
   }
 
   async function duplicate(item: ProfitCalculation) {
@@ -45,7 +52,7 @@ export default function ProfitabilityPage() {
       });
       setItems((prev) => [newItem, ...prev]);
       setEdit(newItem);
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { await notify('Fehler', e.message, 'danger'); }
   }
 
   // Aggregierte Stats fuer Header

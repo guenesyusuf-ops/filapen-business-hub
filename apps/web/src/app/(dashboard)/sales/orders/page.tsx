@@ -7,6 +7,7 @@ import { Plus, Upload, AlertTriangle, Clock, FileText, Inbox, CheckCircle2 } fro
 import { salesApi, STATUS_LABELS, fmtDate, fmtMoney, urgencyOf, SalesOrderStatus } from '@/lib/sales';
 import { PageHeader, Empty, btn, Badge } from '@/components/sales/SalesUI';
 import { cn } from '@/lib/utils';
+import { PullToRefresh } from '@/components/shared/PullToRefresh';
 
 type UrgencyFilter = 'all' | 'urgent' | 'overdue';
 type Tab = 'open' | 'done';
@@ -60,6 +61,7 @@ export default function SalesOrdersPage() {
   }), [items, total]);
 
   return (
+    <PullToRefresh onRefresh={async () => { await Promise.all([listQuery.refetch(), openCountQuery.refetch(), doneCountQuery.refetch()]); }}>
     <div className="space-y-4">
       <PageHeader
         title="Verkauf"
@@ -234,6 +236,7 @@ export default function SalesOrdersPage() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 }
 

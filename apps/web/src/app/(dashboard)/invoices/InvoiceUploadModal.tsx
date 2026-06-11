@@ -136,7 +136,7 @@ export function InvoiceUploadModal({ onClose, onOpenInvoice, onUploaded }: Props
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
             onClick={() => inputRef.current?.click()}
-            className={`rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
+            className={`rounded-2xl border-2 border-dashed p-5 sm:p-8 text-center cursor-pointer transition-all ${
               dragging
                 ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-900/20'
                 : 'border-gray-300 dark:border-white/15 hover:border-amber-400 hover:bg-gray-50/60 dark:hover:bg-white/[0.03]'
