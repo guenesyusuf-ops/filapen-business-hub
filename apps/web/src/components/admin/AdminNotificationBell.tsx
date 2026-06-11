@@ -177,7 +177,7 @@ export function AdminNotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-96 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] shadow-xl z-50 overflow-hidden">
+        <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto top-14 sm:top-full mt-0 sm:mt-2 w-auto sm:w-96 max-w-[calc(100vw-1rem)] rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] shadow-xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5">
             <span className="text-sm font-semibold text-gray-900 dark:text-white">
               Benachrichtigungen

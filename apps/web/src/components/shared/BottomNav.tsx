@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Home, CheckSquare, FolderOpen, MessageCircle, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTotalUnread } from '@/hooks/useHome';
 
 const TABS = [
@@ -15,14 +15,27 @@ const TABS = [
   { href: '#more', icon: Menu, label: 'Mehr', isMore: true },
 ];
 
-const MORE_ITEMS: { href: string; label: string; isAI?: boolean }[] = [
+const MORE_ITEMS: { href: string; label: string; isAI?: boolean; section?: string }[] = [
   { href: '#ask-filapen', label: '✨ Ask Filapen (KI)', isAI: true },
-  { href: '/finance', label: 'Finanzen' },
+
+  { href: '/finance', label: 'Finanzen', section: 'Business' },
+  { href: '/sales', label: 'Verkauf' },
+  { href: '/purchases', label: 'Einkauf' },
+  { href: '/invoices', label: 'Rechnungen' },
+  { href: '/returns', label: 'Retouren' },
+  { href: '/shipping', label: 'Versand' },
   { href: '/channels', label: 'Channels' },
-  { href: '/creators', label: 'Creator Hub' },
+
+  { href: '/creators', label: 'Creator Hub', section: 'Hub' },
   { href: '/influencers', label: 'Influencer Hub' },
   { href: '/content', label: 'Content Hub' },
-  { href: '/settings/profile', label: 'Profil' },
+  { href: '/email-marketing', label: 'Email Marketing' },
+
+  { href: '/whiteboard', label: 'Whiteboard', section: 'Tools' },
+  { href: '/send', label: 'Filapen Send' },
+  { href: '/screen-share', label: 'Bildschirm teilen' },
+
+  { href: '/settings/profile', label: 'Profil', section: 'Settings' },
   { href: '/settings/team', label: 'Team' },
   { href: '/settings/general', label: 'Einstellungen' },
 ];
@@ -32,6 +45,14 @@ export function BottomNav() {
   const { data: unread } = useTotalUnread();
   const [showMore, setShowMore] = useState(false);
   const totalUnread = unread?.count ?? 0;
+
+  // ESC schliesst das "More"-Menue
+  useEffect(() => {
+    if (!showMore) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowMore(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showMore]);
 
   function isActive(href: string): boolean {
     if (href === '/home') return pathname === '/home';
@@ -47,36 +68,41 @@ export function BottomNav() {
         <div className="fixed inset-0 z-[75]">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowMore(false)} />
           <div className="absolute bottom-16 left-0 right-0 z-[91] mx-3 mb-1 rounded-2xl bg-white dark:bg-[#1a1d2e] shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden animate-scale-in">
-            <div className="py-2 max-h-[50vh] overflow-y-auto">
-              {MORE_ITEMS.map((item) =>
-                item.isAI ? (
-                  <button
-                    key={item.href}
-                    onClick={() => {
-                      setShowMore(false);
-                      // Trigger Cmd+K
-                      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
-                    }}
-                    className="flex items-center w-full px-5 py-3 text-sm font-semibold text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors border-b border-gray-100 dark:border-white/5"
-                  >
-                    {item.label}
-                  </button>
-                ) : (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setShowMore(false)}
-                    className={cn(
-                      'flex items-center px-5 py-3 text-sm font-medium transition-colors',
-                      pathname.startsWith(item.href)
-                        ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5',
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                )
-              )}
+            <div className="py-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
+              {MORE_ITEMS.map((item) => (
+                <div key={item.href}>
+                  {item.section && (
+                    <div className="px-5 pt-3 pb-1 text-[10px] uppercase tracking-wider font-bold text-gray-400 dark:text-gray-500">
+                      {item.section}
+                    </div>
+                  )}
+                  {item.isAI ? (
+                    <button
+                      onClick={() => {
+                        setShowMore(false);
+                        // Trigger Cmd+K
+                        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+                      }}
+                      className="flex items-center w-full px-5 py-3 text-sm font-semibold text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors border-b border-gray-100 dark:border-white/5"
+                    >
+                      {item.label}
+                    </button>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      onClick={() => setShowMore(false)}
+                      className={cn(
+                        'flex items-center px-5 py-3 text-sm font-medium transition-colors',
+                        pathname.startsWith(item.href)
+                          ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5',
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>

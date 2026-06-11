@@ -15,6 +15,7 @@ import {
 } from '@/lib/invoices';
 import { InvoiceUploadModal } from './InvoiceUploadModal';
 import { MarkPaidDialog } from './MarkPaidDialog';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 const TABS: Array<{ key: string; label: string; countKey: keyof InvoiceStatusCounts | 'all' }> = [
   { key: 'all', label: 'Alle', countKey: 'all' },
@@ -69,6 +70,7 @@ export default function InvoicesPage() {
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [payDialogFor, setPayDialogFor] = useState<Invoice | null>(null);
+  const { confirm, alert: notify } = useConfirm();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [supplierFilter, setSupplierFilter] = useState<string>('');
@@ -167,7 +169,13 @@ export default function InvoicesPage() {
   }
 
   async function bulkArchive() {
-    if (!confirm(`${selected.size} Rechnungen ins Archiv verschieben?`)) return;
+    const ok = await confirm({
+      title: `${selected.size} Rechnungen archivieren?`,
+      message: 'Sie verschwinden aus der Übersicht, bleiben aber im Archiv abrufbar.',
+      variant: 'warning',
+      confirmLabel: 'Archivieren',
+    });
+    if (!ok) return;
     const ids = Array.from(selected);
     const results = await Promise.allSettled(ids.map((id) => invoicesApi.archive(id)));
     const failed = results.filter((r) => r.status === 'rejected').length;
@@ -175,7 +183,7 @@ export default function InvoicesPage() {
     listQuery.refetch();
     countsQuery.refetch();
     if (failed > 0) {
-      alert(`${failed} von ${ids.length} Rechnungen konnten nicht archiviert werden.`);
+      await notify('Teil-Fehler', `${failed} von ${ids.length} Rechnungen konnten nicht archiviert werden.`, 'warning');
     }
   }
 
@@ -345,7 +353,8 @@ export default function InvoicesPage() {
           <EmptyState onUpload={() => setUploadOpen(true)} filtered={hasActiveFilters || tab !== 'all'} />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop: klassische Tabelle */}
+            <div className="hidden sm:block overflow-x-auto table-scroll">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50/80 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/8 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   <tr>
@@ -382,6 +391,18 @@ export default function InvoicesPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile: Karten-Stack */}
+            <div className="sm:hidden divide-y divide-gray-100 dark:divide-white/5">
+              {items.map((inv) => (
+                <InvoiceMobileCard
+                  key={inv.id}
+                  inv={inv}
+                  onOpen={() => router.push(`/invoices/${inv.id}`)}
+                  onMarkPaid={() => setPayDialogFor(inv)}
+                />
+              ))}
             </div>
 
             {/* Pagination Footer */}
@@ -489,25 +510,32 @@ function Row({ inv, checked, onToggleSelect, onOpen, onMarkPaid, onChanged }: {
   const isImage = inv.fileMime?.startsWith('image/');
   const ocrPending = inv.ocrStatus === 'pending' || inv.ocrStatus === 'processing';
   const ocrFailed = inv.ocrStatus === 'failed';
+  const { confirm, alert: notify } = useConfirm();
 
   async function quickArchive(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm('Rechnung ins Archiv verschieben?')) return;
+    const ok = await confirm({ title: 'Rechnung archivieren?', variant: 'warning', confirmLabel: 'Archivieren' });
+    if (!ok) return;
     try {
       await invoicesApi.archive(inv.id);
       onChanged();
     } catch (err: any) {
-      alert(err?.message ?? 'Fehler');
+      await notify('Fehler', err?.message ?? '', 'danger');
     }
   }
   async function quickDelete(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm('Rechnung dauerhaft löschen?')) return;
+    const ok = await confirm({
+      title: 'Rechnung dauerhaft löschen?',
+      message: 'Diese Aktion kann nicht rückgängig gemacht werden.',
+      variant: 'danger', confirmLabel: 'Löschen',
+    });
+    if (!ok) return;
     try {
       await invoicesApi.remove(inv.id);
       onChanged();
     } catch (err: any) {
-      alert(err?.message ?? 'Fehler');
+      await notify('Fehler', err?.message ?? '', 'danger');
     }
   }
 
@@ -634,6 +662,70 @@ function EmptyState({ onUpload, filtered }: { onUpload: () => void; filtered: bo
       >
         <Plus className="h-4 w-4" /> Erste Rechnung hochladen
       </button>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Mobile-Card fuer Invoices-Liste
+// -----------------------------------------------------------------------------
+function InvoiceMobileCard({ inv, onOpen, onMarkPaid }: {
+  inv: Invoice;
+  onOpen: () => void;
+  onMarkPaid: () => void;
+}) {
+  const status = inv.status as InvoiceStatus;
+  const meta = STATUS_META[status] ?? STATUS_META.open;
+  const ocrPending = inv.ocrStatus === 'pending' || inv.ocrStatus === 'processing';
+
+  return (
+    <div className="px-4 py-3 active:bg-amber-50/40 dark:active:bg-amber-900/10">
+      <button type="button" onClick={onOpen} className="w-full text-left">
+        {/* Top: Lieferant + Status */}
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+            {inv.supplierName ?? <span className="italic text-gray-400">Unbekannt</span>}
+          </div>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full border whitespace-nowrap ${meta.badge} ${meta.badgeDark}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+            {meta.label}
+          </span>
+        </div>
+        {/* Mittlere Zeile: Rechnungsnr + OCR-Indikator */}
+        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 truncate">
+          {inv.invoiceNumber ?? <span className="italic">ohne Nummer</span>}
+          {ocrPending && (
+            <span className="ml-2 inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+              <Loader2 className="h-2.5 w-2.5 animate-spin" /> OCR …
+            </span>
+          )}
+        </div>
+        {/* Bottom: Datum + Faellig + Betrag */}
+        <div className="flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="tabular-nums">{fmtDate(inv.invoiceDate)}</span>
+            {inv.dueDate && (
+              <span className={`tabular-nums ${status === 'overdue' ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>
+                · fällig {fmtDate(inv.dueDate)}
+              </span>
+            )}
+          </div>
+          <span className="text-base font-bold tabular-nums text-gray-900 dark:text-white">
+            {fmtEUR(inv.grossAmount as any)}
+          </span>
+        </div>
+      </button>
+      {/* Mobile-Actions */}
+      {status !== 'paid' && (
+        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-100 dark:border-white/5">
+          <button
+            onClick={(e) => { e.stopPropagation(); onMarkPaid(); }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-medium text-white"
+          >
+            <CheckCircle2 className="h-3 w-3" /> Bezahlt
+          </button>
+        </div>
+      )}
     </div>
   );
 }

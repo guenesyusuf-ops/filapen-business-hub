@@ -204,7 +204,8 @@ export default function ReturnsPage() {
           <EmptyState filtered={!!(debouncedSearch || tab !== 'all' || platformFilter !== 'all')} onCreate={() => setCreateOpen(true)} />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop: klassische Tabelle */}
+            <div className="hidden sm:block overflow-x-auto table-scroll">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50/80 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/8 text-[11px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
                   <tr>
@@ -222,6 +223,11 @@ export default function ReturnsPage() {
                   {items.map((ret) => <Row key={ret.id} ret={ret} onOpen={() => setDetailId(ret.id)} />)}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile: Karten-Stack */}
+            <div className="sm:hidden divide-y divide-gray-100 dark:divide-white/5">
+              {items.map((ret) => <MobileCard key={ret.id} ret={ret} onOpen={() => setDetailId(ret.id)} />)}
             </div>
 
             {/* Pagination */}
@@ -260,7 +266,69 @@ export default function ReturnsPage() {
 }
 
 // -----------------------------------------------------------------------------
-// Row
+// Mobile Card (sm-)
+// -----------------------------------------------------------------------------
+function MobileCard({ ret, onOpen }: { ret: Return; onOpen: () => void }) {
+  const status = ret.status as ReturnStatus;
+  const meta = STATUS_META[status] ?? STATUS_META.open;
+  const platMeta = PLATFORM_META[ret.platform];
+  const productLabel = ret.items.length === 1
+    ? (ret.items[0].product?.title ?? ret.items[0].productFreetext ?? '—')
+    : `${ret.items.length} Positionen`;
+  const imageCount = ret._count?.images ?? ret.images.length;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full text-left px-4 py-3 active:bg-purple-50/40 dark:active:bg-purple-900/10"
+    >
+      {/* Top-Row: Platform-Badge + Status-Badge */}
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded text-white flex-shrink-0"
+            style={{ background: platMeta.color }}
+          >{platMeta.label}</span>
+          <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+            #{ret.orderNumber}
+          </span>
+        </div>
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full border whitespace-nowrap ${meta.badge} ${meta.badgeDark}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+          {meta.label}
+        </span>
+      </div>
+
+      {/* Kunde + Produkt */}
+      <div className="text-sm text-gray-700 dark:text-gray-300 truncate mb-1">
+        {ret.customerName ?? <span className="italic text-gray-400">Kunde unbekannt</span>}
+      </div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 truncate mb-2">
+        {productLabel}
+      </div>
+
+      {/* Bottom-Row: Datum + Erstattung + Bilder */}
+      <div className="flex items-center justify-between gap-3 text-[11px] text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-100 dark:border-white/5">
+        <span className="tabular-nums">{fmtDate(ret.requestDate)}</span>
+        {ret.refundAmount && (
+          <span className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{fmtEUR(ret.refundAmount as any)}</span>
+        )}
+        <span className="inline-flex items-center gap-1">
+          <ImageIcon className="h-3 w-3" /> {imageCount}
+        </span>
+        {ret.damaged && (
+          <span className="inline-flex items-center gap-0.5 text-red-600 dark:text-red-400">
+            <AlertTriangle className="h-2.5 w-2.5" /> Beschädigt
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Row (Desktop-Tabelle)
 // -----------------------------------------------------------------------------
 function Row({ ret, onOpen }: { ret: Return; onOpen: () => void }) {
   const status = ret.status as ReturnStatus;

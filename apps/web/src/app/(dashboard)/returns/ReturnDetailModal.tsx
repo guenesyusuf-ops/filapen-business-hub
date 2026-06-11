@@ -12,6 +12,7 @@ import {
   STATUS_META, PLATFORM_META, REJECTION_REASONS, reasonLabel,
   fmtEUR, fmtDate, fmtDateTime, todayLocal,
 } from '@/lib/returns';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 interface Props {
   returnId: string;
@@ -22,6 +23,7 @@ interface Props {
 export function ReturnDetailModal({ returnId, onClose, onChanged }: Props) {
   const [view, setView] = useState<'main' | 'reject' | 'accept' | 'refund'>('main');
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const { confirm, alert } = useConfirm();
 
   const q = useQuery({
     queryKey: ['return', returnId],
@@ -65,12 +67,20 @@ export function ReturnDetailModal({ returnId, onClose, onChanged }: Props) {
   function reload() { q.refetch(); onChanged(); }
 
   async function deleteReturn() {
-    if (!confirm('Retoure dauerhaft löschen? Inkl. Bilder, kann nicht rückgängig gemacht werden.')) return;
+    const ok = await confirm({
+      title: 'Retoure löschen?',
+      message: 'Inkl. aller Bilder. Diese Aktion kann nicht rückgängig gemacht werden.',
+      variant: 'danger',
+      confirmLabel: 'Endgültig löschen',
+    });
+    if (!ok) return;
     try {
       await returnsApi.remove(returnId);
       onChanged();
       onClose();
-    } catch (err: any) { alert(err?.message ?? 'Fehler'); }
+    } catch (err: any) {
+      await alert('Fehler', err?.message ?? 'Bitte erneut versuchen', 'danger');
+    }
   }
 
   return (
@@ -166,6 +176,7 @@ function MainView({ ret, onReload, onOpenLightbox, onAcceptClick, onRejectClick,
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const status = ret.status as ReturnStatus;
+  const { confirm, alert } = useConfirm();
 
   async function uploadFiles(files: FileList | File[]) {
     const arr = Array.from(files);
@@ -175,33 +186,35 @@ function MainView({ ret, onReload, onOpenLightbox, onAcceptClick, onRejectClick,
       await returnsApi.uploadImages(ret.id, arr);
       onReload();
     } catch (err: any) {
-      alert(err?.message ?? 'Upload fehlgeschlagen');
+      await alert('Upload fehlgeschlagen', err?.message ?? '', 'danger');
     } finally {
       setUploading(false);
     }
   }
 
   async function removeImage(imageId: string) {
-    if (!confirm('Bild entfernen?')) return;
+    const ok = await confirm({ title: 'Bild entfernen?', variant: 'danger', confirmLabel: 'Entfernen' });
+    if (!ok) return;
     try {
       await returnsApi.removeImage(ret.id, imageId);
       onReload();
-    } catch (err: any) { alert(err?.message ?? 'Fehler'); }
+    } catch (err: any) { await alert('Fehler', err?.message ?? '', 'danger'); }
   }
 
   async function submitForReview() {
     try {
       await returnsApi.submitForReview(ret.id);
       onReload();
-    } catch (err: any) { alert(err?.message ?? 'Fehler'); }
+    } catch (err: any) { await alert('Fehler', err?.message ?? '', 'danger'); }
   }
 
   async function revertToOpen() {
-    if (!confirm('Status zurück auf Offen setzen?')) return;
+    const ok = await confirm({ title: 'Status zurück auf Offen setzen?', variant: 'warning' });
+    if (!ok) return;
     try {
       await returnsApi.revert(ret.id, 'open');
       onReload();
-    } catch (err: any) { alert(err?.message ?? 'Fehler'); }
+    } catch (err: any) { await alert('Fehler', err?.message ?? '', 'danger'); }
   }
 
   return (

@@ -14,6 +14,7 @@ import {
   STATUS_META, DEFAULT_CATEGORIES, categoryLabel, fmtEUR, fmtDate, fmtDateTime,
 } from '@/lib/invoices';
 import { MarkPaidDialog } from '../MarkPaidDialog';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 export default function InvoiceDetailPage() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function InvoiceDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const { confirm, alert: notify } = useConfirm();
 
   const invQuery = useQuery({
     queryKey: ['invoice', id],
@@ -96,32 +98,39 @@ export default function InvoiceDetailPage() {
   }
 
   async function markUnpaid() {
-    if (!confirm('Zahlungs-Markierung zurücksetzen?')) return;
+    const ok = await confirm({ title: 'Zahlungs-Markierung zurücksetzen?', variant: 'warning' });
+    if (!ok) return;
     try {
       await invoicesApi.markUnpaid(id);
       invQuery.refetch();
     } catch (err: any) {
-      alert(err?.message ?? 'Fehler');
+      await notify('Fehler', err?.message ?? '', 'danger');
     }
   }
 
   async function doArchive() {
-    if (!confirm('Rechnung ins Archiv verschieben?')) return;
+    const ok = await confirm({ title: 'Rechnung archivieren?', variant: 'warning', confirmLabel: 'Archivieren' });
+    if (!ok) return;
     try {
       await invoicesApi.archive(id);
       router.push('/invoices');
     } catch (err: any) {
-      alert(err?.message ?? 'Fehler');
+      await notify('Fehler', err?.message ?? '', 'danger');
     }
   }
 
   async function doDelete() {
-    if (!confirm('Rechnung dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+    const ok = await confirm({
+      title: 'Rechnung dauerhaft löschen?',
+      message: 'Diese Aktion kann nicht rückgängig gemacht werden.',
+      variant: 'danger', confirmLabel: 'Löschen',
+    });
+    if (!ok) return;
     try {
       await invoicesApi.remove(id);
       router.push('/invoices');
     } catch (err: any) {
-      alert(err?.message ?? 'Fehler');
+      await notify('Fehler', err?.message ?? '', 'danger');
     }
   }
 
@@ -137,7 +146,7 @@ export default function InvoiceDetailPage() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err: any) {
-      alert(err?.message ?? 'Download fehlgeschlagen');
+      await notify('Download fehlgeschlagen', err?.message ?? '', 'danger');
     }
   }
 

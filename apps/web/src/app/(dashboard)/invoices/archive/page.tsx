@@ -11,6 +11,7 @@ import {
   invoicesApi, type Invoice, type InvoiceStatus,
   STATUS_META, fmtEUR, fmtDate,
 } from '@/lib/invoices';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 type SortKey = 'invoiceDate' | 'dueDate' | 'grossAmount' | 'supplierName' | 'createdAt' | 'updatedAt';
 
@@ -22,6 +23,7 @@ export default function InvoiceArchivePage() {
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(0);
+  const { confirm, alert: notify } = useConfirm();
 
   const q = useQuery({
     queryKey: ['invoices-archive', { search, sortKey, sortDir, page }],
@@ -50,18 +52,23 @@ export default function InvoiceArchivePage() {
       await invoicesApi.restore(id);
       q.refetch();
     } catch (err: any) {
-      alert(err?.message ?? 'Wiederherstellen fehlgeschlagen');
+      await notify('Wiederherstellen fehlgeschlagen', err?.message ?? '', 'danger');
     }
   }
 
   async function deleteOne(e: React.MouseEvent, id: string) {
     e.stopPropagation();
-    if (!confirm('Rechnung dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+    const ok = await confirm({
+      title: 'Rechnung dauerhaft löschen?',
+      message: 'Diese Aktion kann nicht rückgängig gemacht werden.',
+      variant: 'danger', confirmLabel: 'Löschen',
+    });
+    if (!ok) return;
     try {
       await invoicesApi.remove(id);
       q.refetch();
     } catch (err: any) {
-      alert(err?.message ?? 'Loeschen fehlgeschlagen');
+      await notify('Löschen fehlgeschlagen', err?.message ?? '', 'danger');
     }
   }
 

@@ -529,7 +529,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
                   className={cn(
                     'ml-4 mt-0.5 space-y-0.5 pl-2.5 overflow-hidden transition-all duration-200 ease-in-out',
                     'border-l-[1.5px] border-gray-200/80 dark:border-white/10',
-                    expanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0',
+                    expanded
+                      ? 'max-h-[60vh] sm:max-h-[500px] opacity-100 overflow-y-auto scrollbar-thin'
+                      : 'max-h-0 opacity-0',
                   )}
                 >
                   {item.children!.map((child) => {
@@ -648,25 +650,33 @@ function TopBar({ onToggleSidebar, sidebarCollapsed, user, onLogout, onOpenComma
         )}
       </button>
 
-      {/* Breadcrumbs */}
-      <nav className="flex items-center gap-1.5 text-sm">
-        {breadcrumbs.map((crumb, i) => (
-          <span key={crumb.href} className="flex items-center gap-1.5">
-            {i > 0 && (
-              <ChevronRight className="h-3 w-3 text-gray-300" />
-            )}
-            {crumb.isLast ? (
-              <span className="font-medium text-gray-900 dark:text-white">{crumb.label}</span>
-            ) : (
-              <Link
-                href={crumb.href}
-                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors duration-150"
-              >
-                {crumb.label}
-              </Link>
-            )}
-          </span>
-        ))}
+      {/* Breadcrumbs — auf Mobile nur das letzte Element zeigen */}
+      <nav className="flex items-center gap-1.5 text-sm min-w-0 flex-shrink overflow-hidden">
+        {breadcrumbs.map((crumb, i) => {
+          const isLast = crumb.isLast;
+          const isHidden = !isLast && breadcrumbs.length > 2;
+          return (
+            <span
+              key={crumb.href}
+              className={cn(
+                'flex items-center gap-1.5 min-w-0',
+                isHidden && 'hidden sm:flex',
+              )}
+            >
+              {i > 0 && <ChevronRight className="h-3 w-3 text-gray-300 flex-shrink-0" />}
+              {isLast ? (
+                <span className="font-medium text-gray-900 dark:text-white truncate">{crumb.label}</span>
+              ) : (
+                <Link
+                  href={crumb.href}
+                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors duration-150 truncate"
+                >
+                  {crumb.label}
+                </Link>
+              )}
+            </span>
+          );
+        })}
       </nav>
 
       {/* Spacer */}
