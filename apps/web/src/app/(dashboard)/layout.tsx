@@ -106,6 +106,7 @@ const GlobalMessenger = dynamic(() => import('@/components/shared/GlobalMessenge
   loading: () => null,
 });
 import { OrgPresenceProvider } from '@/components/screen-share/OrgPresenceProvider';
+import { ConfirmProvider } from '@/components/shared/ConfirmDialog';
 
 // ---------------------------------------------------------------------------
 // Sidebar navigation definition
@@ -884,6 +885,7 @@ export default function DashboardLayout({
 
   return (
     <OrgPresenceProvider>
+    <ConfirmProvider>
     <div className="flex h-[100dvh] md:h-screen overflow-hidden bg-surface-secondary dark:bg-[#0f1117]">
       {/* Sidebar */}
       <Sidebar collapsed={sidebarCollapsed} user={currentUser} pendingApprovalCount={pendingApprovalCount} toggleSidebar={toggleSidebar} />
@@ -921,6 +923,7 @@ export default function DashboardLayout({
       {/* Mobile bottom navigation */}
       <BottomNav />
     </div>
+    </ConfirmProvider>
     </OrgPresenceProvider>
   );
 }

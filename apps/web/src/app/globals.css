@@ -482,3 +482,120 @@ html {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ====================================================================== */
+/* MOBILE-OPTIMIERUNG VOLLPROGRAMM — Phase 0 Foundation                   */
+/* Diese Regeln greifen NUR auf Touch-Devices ODER Mobile-Viewport.        */
+/* Desktop bleibt 100% unberuehrt.                                         */
+/* ====================================================================== */
+
+/* (1) Hover-Only Action-Patterns sichtbar machen auf Touch-Devices.
+       Hunderte von Listen-Zeilen nutzen group-hover:opacity-100 fuer
+       Action-Icons — auf Mobil (kein Hover) waren die Icons unsichtbar.
+       Diese Regel zeigt sie immer wenn der Browser keinen Hover hat. */
+@media (hover: none) {
+  .group .group-hover\:opacity-100,
+  .group .group-hover\:opacity-70,
+  .hover\:opacity-100,
+  .opacity-0.group-hover\:opacity-100 {
+    opacity: 1 !important;
+  }
+}
+
+/* (2) WCAG-konformes 44x44 Tap-Target auf Mobile fuer alle Buttons.
+       Auch bei kleinen visuellen Icons bleibt die Hit-Area touch-tauglich.
+       Inhalt zentriert weiter visuell — nur die Klick-Flaeche waechst. */
+@media (max-width: 640px) {
+  /* Standard-Buttons (text-button) — Mindesthöhe 44px */
+  button:not([data-no-min-tap]):not(.no-min-tap):not([class*="absolute"]) {
+    min-height: 44px;
+  }
+  /* Icon-only Buttons (typisch p-1.5 mit nur Icon) — quadratisch 44x44 */
+  button.p-1, button.p-1\.5, button.p-2,
+  a.p-1, a.p-1\.5, a.p-2 {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* (3) Sticky Bottom-Action-Bar mit Mobile-Keyboard-Schutz.
+       Sobald das mobile Keyboard aufgeht, schiebt es die Action-Bar nach
+       oben statt sie zu verstecken. Funktioniert mit dvh + safe-area. */
+.mobile-safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.75rem);
+}
+.mobile-action-bar {
+  position: sticky;
+  bottom: 0;
+  background: inherit;
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem);
+  z-index: 30;
+}
+
+/* (4) Touch-Action fuer haeufige Gesten-Bereiche — verhindert
+       Standard-Browser-Gesten (zoom by double-tap, scroll-while-tap). */
+.touch-pan-y { touch-action: pan-y; }
+.touch-pan-x { touch-action: pan-x; }
+.touch-pinch-zoom { touch-action: pinch-zoom; }
+.touch-manipulation { touch-action: manipulation; }
+
+/* (5) BottomSheet-Animation-Klassen — wird vom BottomSheet-Component genutzt. */
+@keyframes slideUpFromBottom {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes slideDownToBottom {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+.animate-slide-up   { animation: slideUpFromBottom   0.25s ease-out; }
+.animate-slide-down { animation: slideDownToBottom   0.2s  ease-in;  }
+
+/* (6) Multi-Column Form-Grids: auf <sm immer 1-spaltig.
+       Findet alle grid-cols-2 und brichts auf Mobile auf 1-Col runter.
+       Affecting ONLY non-prefixed grid-cols-2 (i.e. without sm:/md:).
+       Pages die explizit sm:grid-cols-2 nutzen sind safe. */
+@media (max-width: 639px) {
+  form .grid.grid-cols-2:not(.\!grid-cols-2),
+  .modal-panel .grid.grid-cols-2:not(.\!grid-cols-2),
+  [role="dialog"] .grid.grid-cols-2:not(.\!grid-cols-2) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  form .grid.grid-cols-3:not(.\!grid-cols-3),
+  .modal-panel .grid.grid-cols-3:not(.\!grid-cols-3),
+  [role="dialog"] .grid.grid-cols-3:not(.\!grid-cols-3) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* (7) Mobile-Card-Pattern: standardisierter Stil fuer ResponsiveTable-
+       Karten-Modus damit jedes Modul gleich aussieht. */
+.mobile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  background: rgb(var(--color-surface) / 1);
+  border: 1px solid rgb(var(--color-border) / 1);
+  border-radius: 0.75rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.mobile-card:active {
+  border-color: rgb(var(--color-primary-300) / 0.8);
+  background: rgb(var(--color-primary-50) / 0.4);
+}
+
+/* (8) Verstecke Native-Scroll-Bars auf Mobile-Pill-Container (Tabs etc) — sieht
+       sauberer aus als 6px-thumb. Auf Desktop bleibt scrollbar-thin (Default). */
+@media (max-width: 767px) {
+  .scrollbar-mobile-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-mobile-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
