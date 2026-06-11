@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ChevronDown } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Standardisierte Form-Inputs fuer Filapen.
@@ -293,21 +293,22 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(funct
 ) {
   return (
     <Wrap label={label} hint={hint} error={error} required={required} wrapperClassName={wrapperClassName}>
-      <select
-        ref={ref}
-        className={cn(
-          BASE_INPUT_CLS(accent, !!error),
-          'appearance-none pr-9 bg-no-repeat',
-          // Custom dropdown arrow
-          'bg-[url(\'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23999%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22/%3E%3C/svg%3E\')] bg-[length:12px_12px] bg-[right_0.75rem_center]',
-          className,
-        )}
-        {...rest}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          ref={ref}
+          className={cn(
+            BASE_INPUT_CLS(accent, !!error),
+            'appearance-none pr-9',
+            className,
+          )}
+          {...rest}
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+      </div>
     </Wrap>
   );
 });
