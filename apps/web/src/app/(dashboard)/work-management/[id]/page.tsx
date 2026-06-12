@@ -8,6 +8,7 @@ import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
 import { Columns3, List, ArrowLeft, Plus, X, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
+import { useToast } from '@/components/shared/Toast';
 import {
   useWmProject,
   useCreateWmTask,
@@ -133,6 +134,7 @@ export default function ProjectDetailPage() {
   const searchParams = useSearchParams();
   const projectId = params.id as string;
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const { data: project, isLoading, error } = useWmProject(projectId);
   const createTask = useCreateWmTask();
@@ -453,7 +455,10 @@ export default function ProjectDetailPage() {
             onMoveTask={handleMoveTask}
             onAddTask={handleAddTask}
             onTaskClick={handleTaskClick}
-            onDeleteTask={(taskId) => deleteTask.mutate({ id: taskId, projectId })}
+            onDeleteTask={(taskId) => deleteTask.mutate({ id: taskId, projectId }, {
+              onSuccess: () => toast.success('Aufgabe gelöscht'),
+              onError: (err: any) => toast.error('Löschen fehlgeschlagen', err?.message ?? 'Backend nicht erreichbar'),
+            })}
             onAddColumn={handleAddColumn}
             onMoveColumn={handleMoveColumn}
             onDeleteColumn={isApprovalProject ? undefined : handleDeleteColumn}
@@ -529,9 +534,7 @@ export default function ProjectDetailPage() {
                   ? { ...prev, attachments: previousAttachments }
                   : prev,
               );
-              alert(
-                `Anhang konnte nicht gelöscht werden:\n${err?.message || 'Unbekannter Fehler'}\n\nDie Datei ist noch da.`,
-              );
+              toast.error('Anhang konnte nicht gelöscht werden', err?.message || 'Die Datei ist noch da.');
             }
           }}
           onAddLabel={(taskId, labelId) => addLabelToTask.mutate({ taskId, labelId, projectId })}
@@ -540,8 +543,10 @@ export default function ProjectDetailPage() {
           onAddSubtask={(taskId, title) => createSubtask.mutate({ taskId, title, projectId })}
           onToggleSubtask={(taskId, subtaskId) => toggleSubtaskMutation.mutate({ taskId, subtaskId, projectId })}
           onDeleteTask={(taskId) => {
-            deleteTask.mutate({ id: taskId, projectId });
-            setSelectedTask(null);
+            deleteTask.mutate({ id: taskId, projectId }, {
+              onSuccess: () => { setSelectedTask(null); toast.success('Aufgabe gelöscht'); },
+              onError: (err: any) => toast.error('Löschen fehlgeschlagen', err?.message ?? 'Backend nicht erreichbar'),
+            });
           }}
         />
       )}

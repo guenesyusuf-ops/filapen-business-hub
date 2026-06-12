@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import type { WmTask } from '@/hooks/work-management/useWm';
 import { Calendar, CheckSquare, Star, X, ShieldCheck } from 'lucide-react';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 const PRIORITY_STARS: Record<string, number> = {
   urgent: 3,
@@ -43,6 +44,7 @@ interface KanbanTaskCardProps {
 }
 
 export function KanbanTaskCard({ task, onClick, onDelete }: KanbanTaskCardProps) {
+  const { confirm: askConfirm } = useConfirm();
   const {
     attributes,
     listeners,
@@ -92,9 +94,13 @@ export function KanbanTaskCard({ task, onClick, onDelete }: KanbanTaskCardProps)
       {/* Delete button (hover) */}
       {onDelete && (
         <button
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
-            if (confirm('Aufgabe löschen?')) onDelete(task.id);
+            const ok = await askConfirm({
+              title: 'Aufgabe löschen?',
+              variant: 'danger', confirmLabel: 'Löschen',
+            });
+            if (ok) onDelete(task.id);
           }}
           className="absolute top-1.5 right-1.5 p-0.5 rounded bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
           title="Löschen"

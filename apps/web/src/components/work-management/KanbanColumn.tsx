@@ -8,6 +8,7 @@ import type { WmTask, WmColumn } from '@/hooks/work-management/useWm';
 import { KanbanTaskCard } from './KanbanTaskCard';
 import { InlineTaskCreate } from './InlineTaskCreate';
 import { Plus, X, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
 
 interface KanbanColumnProps {
   column: WmColumn;
@@ -51,6 +52,7 @@ function groupTasksBySections(tasks: WmTask[]): { name: string; tasks: WmTask[] 
 }
 
 export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, onDeleteTask, onMoveColumn, onDeleteColumn, isFirst, isLast }: KanbanColumnProps) {
+  const { confirm: askConfirm } = useConfirm();
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${column.id}`,
     data: { type: 'column', column },
@@ -126,10 +128,13 @@ export function KanbanColumn({ column, tasks, members, onAddTask, onTaskClick, o
         )}
         {onDeleteColumn && (
           <button
-            onClick={() => {
-              if (confirm(`Spalte "${column.name}" löschen? Tasks in dieser Spalte werden ebenfalls gelöscht.`)) {
-                onDeleteColumn(column.id);
-              }
+            onClick={async () => {
+              const ok = await askConfirm({
+                title: `Spalte "${column.name}" löschen?`,
+                message: 'Tasks in dieser Spalte werden ebenfalls gelöscht.',
+                variant: 'danger', confirmLabel: 'Löschen',
+              });
+              if (ok) onDeleteColumn(column.id);
             }}
             className="p-1 rounded text-gray-400 hover:text-red-500 transition-colors"
             title="Spalte löschen"

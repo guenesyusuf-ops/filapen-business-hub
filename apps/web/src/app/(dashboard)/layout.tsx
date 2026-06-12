@@ -108,6 +108,7 @@ const GlobalMessenger = dynamic(() => import('@/components/shared/GlobalMessenge
 import { OrgPresenceProvider } from '@/components/screen-share/OrgPresenceProvider';
 import { ConfirmProvider } from '@/components/shared/ConfirmDialog';
 import { ToastProvider } from '@/components/shared/Toast';
+import { GlobalErrorBridge } from '@/components/shared/GlobalErrorBridge';
 
 // ---------------------------------------------------------------------------
 // Sidebar navigation definition
@@ -897,6 +898,7 @@ export default function DashboardLayout({
   return (
     <OrgPresenceProvider>
     <ToastProvider>
+    <GlobalErrorBridge />
     <ConfirmProvider>
     <div className="flex h-[100dvh] md:h-screen overflow-hidden bg-surface-secondary dark:bg-[#0f1117]">
       {/* Sidebar */}

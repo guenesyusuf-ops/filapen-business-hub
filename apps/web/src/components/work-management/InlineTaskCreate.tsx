@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, Star, X, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/shared/Toast';
 
 interface Member {
   id: string;
@@ -33,6 +34,7 @@ export function InlineTaskCreate({ onSubmit, members = [] }: InlineTaskCreatePro
   const [title, setTitle] = useState('');
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [showPicker, setShowPicker] = useState(false);
+  const toast = useToast();
   const [stars, setStars] = useState(2); // default medium
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -70,7 +72,7 @@ export function InlineTaskCreate({ onSubmit, members = [] }: InlineTaskCreatePro
       setAssigneeIds(snapshot.assigneeIds);
       setStars(snapshot.stars);
       setIsOpen(true);
-      alert(`Aufgabe konnte nicht erstellt werden: ${err?.message || 'Unbekannter Fehler'}`);
+      toast.error('Aufgabe konnte nicht erstellt werden', err?.message || 'Unbekannter Fehler');
     }
   }
 

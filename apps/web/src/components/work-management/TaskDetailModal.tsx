@@ -10,6 +10,8 @@ import {
 import type { WmTask, WmSubtask, WmComment, WmAttachment, WmColumn, WmMember, WmLabel, WmActivity } from '@/hooks/work-management/useWm';
 import { AttachmentPreview, AttachmentRow } from './AttachmentPreview';
 import { ApprovalPanel } from './ApprovalPanel';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { useToast } from '@/components/shared/Toast';
 
 const PRIORITY_OPTIONS: { value: WmTask['priority']; label: string; color: string }[] = [
   { value: 'urgent', label: 'Dringend', color: 'bg-red-500' },
@@ -215,6 +217,8 @@ export function TaskDetailModal({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<WmAttachment | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { confirm: askConfirm } = useConfirm();
+  const toast = useToast();
   const commentInputRef = useRef<HTMLInputElement>(null);
 
   // Slide-in animation
@@ -293,7 +297,7 @@ export function TaskDetailModal({
       // Surface the real error message so the user knows why the save failed
       // (e.g. 413 Payload Too Large, 504 Timeout, DB-error) — silent failure is the worst UX.
       const msg = err?.message || 'Unbekannter Fehler beim Speichern';
-      alert(`Speichern fehlgeschlagen: ${msg}`);
+      toast.error('Speichern fehlgeschlagen', msg);
       setTimeout(() => setSaveState('idle'), 3000);
     }
   }
@@ -348,7 +352,7 @@ export function TaskDetailModal({
       await Promise.resolve(onAddComment(trimmed));
     } catch (err: any) {
       setCommentText(previousText);
-      alert(`Kommentar konnte nicht gesendet werden: ${err?.message || 'Unbekannter Fehler'}`);
+      toast.error('Kommentar konnte nicht gesendet werden', err?.message || 'Unbekannter Fehler');
     }
   }
 
@@ -424,9 +428,12 @@ export function TaskDetailModal({
     try {
       await Promise.resolve(onUploadAttachment(file));
       setUploadState('idle');
+      toast.success('Datei hochgeladen', file.name);
     } catch (err: any) {
-      setUploadError(err?.message || 'Upload fehlgeschlagen');
+      const msg = err?.message || 'Upload fehlgeschlagen';
+      setUploadError(msg);
       setUploadState('error');
+      toast.error('Upload fehlgeschlagen', msg);
       setTimeout(() => { setUploadState('idle'); setUploadError(null); }, 4000);
     }
   }
@@ -449,24 +456,26 @@ export function TaskDetailModal({
       } catch (err: any) {
         // Save fehlgeschlagen → Modal NICHT schließen, User soll retryen
         setSaveState('error');
-        alert(
-          `Beschreibung konnte nicht gespeichert werden:\n${err?.message || 'Unbekannter Fehler'}\n\nBitte erneut versuchen oder mit "Speichern"-Button manuell speichern.`,
-        );
+        toast.error('Beschreibung konnte nicht gespeichert werden', err?.message || 'Bitte erneut versuchen');
         return;
       }
     }
     // Ungespeicherter Kommentar-Text → User explizit fragen, sonst leise weg
     if (commentText.trim()) {
-      const proceed = window.confirm(
-        'Du hast einen ungespeicherten Kommentar. Trotzdem schließen? Der Text geht verloren.',
-      );
+      const proceed = await askConfirm({
+        title: 'Trotzdem schließen?',
+        message: 'Du hast einen ungespeicherten Kommentar. Der Text geht verloren.',
+        variant: 'warning', confirmLabel: 'Verwerfen',
+      });
       if (!proceed) return;
     }
     // Ungespeicherter neuer Subtask-Text → ebenfalls nachfragen
     if (newSubtask.trim()) {
-      const proceed = window.confirm(
-        'Du hast einen ungespeicherten Subtask. Trotzdem schließen? Der Text geht verloren.',
-      );
+      const proceed = await askConfirm({
+        title: 'Trotzdem schließen?',
+        message: 'Du hast einen ungespeicherten Subtask. Der Text geht verloren.',
+        variant: 'warning', confirmLabel: 'Verwerfen',
+      });
       if (!proceed) return;
     }
     setVisible(false);
@@ -521,10 +530,20 @@ export function TaskDetailModal({
             </span>
             {onDeleteTask && (
               <button
-                onClick={() => {
-                  if (confirm('Aufgabe wirklich löschen? Das kann nicht rückgängig gemacht werden.')) {
-                    onDeleteTask(task.id);
-                    handleClose();
+                onClick={async () => {
+                  const ok = await askConfirm({
+                    title: 'Aufgabe löschen?',
+                    message: 'Das kann nicht rückgängig gemacht werden.',
+                    variant: 'danger', confirmLabel: 'Löschen',
+                  });
+                  if (ok) {
+                    try {
+                      await onDeleteTask(task.id);
+                      handleClose();
+                      toast.success('Aufgabe gelöscht');
+                    } catch (err: any) {
+                      toast.error('Löschen fehlgeschlagen', err?.message ?? 'Bitte erneut versuchen');
+                    }
                   }
                 }}
                 className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0"

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send } from 'lucide-react';
 import { useProjectChat, useSendChatMessage } from '@/hooks/work-management/useWmChat';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/shared/Toast';
 
 interface ProjectChatProps {
   projectId: string;
@@ -24,6 +25,7 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
   const sendMessage = useSendChatMessage();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,7 +42,7 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
       await sendMessage.mutateAsync({ projectId, message: trimmed });
     } catch (err: any) {
       setInput(previousInput);
-      alert(`Nachricht konnte nicht gesendet werden: ${err?.message || 'Unbekannter Fehler'}`);
+      toast.error('Nachricht konnte nicht gesendet werden', err?.message || 'Unbekannter Fehler');
     }
   }
 
