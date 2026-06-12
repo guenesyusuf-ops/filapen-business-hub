@@ -12,6 +12,7 @@ import {
   type PerformanceEntry, type EntryStatus,
 } from '@/lib/influencer-performance';
 import { EntryFormModal } from './EntryFormModal';
+import { EntryDetailModal } from './EntryDetailModal';
 import {
   PipelineKanbanView, PlatformGroupView, CampaignGroupView,
   TimelineView, RankingView,
@@ -70,6 +71,7 @@ export default function PerformanceTrackingPage() {
   // Modal-State
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<PerformanceEntry | null>(null);
+  const [detailEntry, setDetailEntry] = useState<PerformanceEntry | null>(null);
 
   // View-Presets — Server-side Filter:
   // Jede View kann Server-Filter ueberschreiben (z.B. "Whitelist" forciert
@@ -284,15 +286,15 @@ export default function PerformanceTrackingPage() {
           <EmptyState onCreate={() => { setEditing(null); setShowForm(true); }} hasFilters={activeFilterCount > 0 || !!search || viewMode !== 'table'} />
         </div>
       ) : viewMode === 'pipeline' ? (
-        <PipelineKanbanView items={viewItems} onEdit={(e) => { setEditing(e); setShowForm(true); }} />
+        <PipelineKanbanView items={viewItems} onEdit={(e) => setDetailEntry(e)} />
       ) : viewMode === 'platforms' ? (
         <PlatformGroupView items={viewItems} />
       ) : viewMode === 'campaigns' ? (
-        <CampaignGroupView items={viewItems} onEdit={(e) => { setEditing(e); setShowForm(true); }} />
+        <CampaignGroupView items={viewItems} onEdit={(e) => setDetailEntry(e)} />
       ) : viewMode === 'timeline' ? (
-        <TimelineView items={viewItems} onEdit={(e) => { setEditing(e); setShowForm(true); }} />
+        <TimelineView items={viewItems} onEdit={(e) => setDetailEntry(e)} />
       ) : viewMode === 'rankings' ? (
-        <RankingView items={viewItems} onEdit={(e) => { setEditing(e); setShowForm(true); }} />
+        <RankingView items={viewItems} onEdit={(e) => setDetailEntry(e)} />
       ) : (
         // 'table', 'top-performer', 'worst', 'rebookable', 'whitelist', 'blacklist' — alle nutzen die Standard-Tabelle
         <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[var(--card-bg)] overflow-hidden">
@@ -318,6 +320,7 @@ export default function PerformanceTrackingPage() {
                   <Row
                     key={e.id}
                     entry={e}
+                    onOpen={() => setDetailEntry(e)}
                     onEdit={() => { setEditing(e); setShowForm(true); }}
                     onDelete={() => handleDelete(e)}
                     onWhitelist={() => quickToggleWhitelist(e)}
@@ -337,6 +340,29 @@ export default function PerformanceTrackingPage() {
           onSaved={() => { setShowForm(false); load(); }}
         />
       )}
+
+      {detailEntry && (
+        <EntryDetailModal
+          entry={detailEntry}
+          onClose={() => setDetailEntry(null)}
+          onEdit={() => { setEditing(detailEntry); setDetailEntry(null); setShowForm(true); }}
+          onDelete={async () => {
+            await handleDelete(detailEntry);
+            setDetailEntry(null);
+          }}
+          onToggleWhitelist={async () => {
+            await quickToggleWhitelist(detailEntry);
+            // Aktualisierten Eintrag aus dem refreshten items-State holen
+            const updated = items.find((i) => i.id === detailEntry.id);
+            setDetailEntry(updated ?? null);
+          }}
+          onToggleBlacklist={async () => {
+            await quickToggleBlacklist(detailEntry);
+            const updated = items.find((i) => i.id === detailEntry.id);
+            setDetailEntry(updated ?? null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -346,9 +372,10 @@ export default function PerformanceTrackingPage() {
 // ---------------------------------------------------------------------------
 
 function Row({
-  entry, onEdit, onDelete, onWhitelist, onBlacklist,
+  entry, onOpen, onEdit, onDelete, onWhitelist, onBlacklist,
 }: {
   entry: PerformanceEntry;
+  onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onWhitelist: () => void;
@@ -360,7 +387,7 @@ function Row({
   const roasColor = entry.roas == null ? 'text-gray-400' : entry.roas >= (entry.breakEvenRoas ?? 1) * 2 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : entry.profit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
 
   return (
-    <tr className="hover:bg-gray-50/60 dark:hover:bg-white/[0.02] group">
+    <tr onClick={onOpen} className="hover:bg-gray-50/60 dark:hover:bg-white/[0.02] group cursor-pointer transition-colors">
       <td className="px-3 py-2.5">
         <div className="flex items-center gap-2">
           <span className="text-base">{entry.perfFlag ?? '·'}</span>
@@ -388,14 +415,14 @@ function Row({
       <td className={cn('px-3 py-2.5 text-right font-mono text-xs tabular-nums', profitColor)}>
         {entry.roi == null ? '—' : `${entry.roi.toFixed(1)}%`}
       </td>
-      <td className="px-3 py-2.5 text-center">
+      <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
         {entry.profileUrl && (
           <a href={entry.profileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:text-violet-600">
             <ExternalLink className="h-3 w-3" />
           </a>
         )}
       </td>
-      <td className="px-3 py-2.5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+      <td className="px-3 py-2.5 text-right opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
         <div className="inline-flex items-center gap-0.5">
           <button onClick={onWhitelist} title={entry.whitelist ? 'Aus Whitelist' : 'Whitelist'} className="rounded p-1 text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20">
             <Star className={cn('h-3.5 w-3.5', entry.whitelist && 'text-amber-500 fill-amber-500')} />
