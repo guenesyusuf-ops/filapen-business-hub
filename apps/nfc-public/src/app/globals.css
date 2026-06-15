@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mobile-first defaults — 16px Inputs verhindert iOS Auto-Zoom */
+@media (max-width: 639px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="password"],
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+html, body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%);
+  min-height: 100dvh;
+  color: #0f172a;
+}
+
+/* Tap-Targets */
+button, a {
+  min-height: 44px;
+}
