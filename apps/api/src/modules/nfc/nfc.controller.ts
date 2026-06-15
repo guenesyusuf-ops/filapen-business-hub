@@ -6,6 +6,7 @@ import type { Request, Response } from 'express';
 import { NfcService } from './nfc.service';
 import { NfcPublicService } from './nfc-public.service';
 import { NfcCustomerDataService } from './nfc-customer-data.service';
+import { NfcPreActivationService } from './nfc-preactivation.service';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -25,6 +26,7 @@ export class NfcController {
     private readonly nfc: NfcService,
     private readonly pub: NfcPublicService,
     private readonly customers: NfcCustomerDataService,
+    private readonly preActivation: NfcPreActivationService,
     private readonly auth: AuthService,
     private readonly prisma: PrismaService,
   ) {}
@@ -193,6 +195,53 @@ export class NfcController {
     @Req() req: Request,
   ) {
     return this.pub.activate(code, body, getIp(req), req.get('user-agent'));
+  }
+
+  @Post('public/:code/request-pin-reset')
+  async publicRequestReset(
+    @Param('code') code: string,
+    @Body() body: { email: string },
+    @Req() req: Request,
+  ) {
+    if (!body?.email) throw new BadRequestException('Email fehlt');
+    return this.pub.requestPinReset(code, body.email, getIp(req), req.get('user-agent'));
+  }
+
+  @Post('public/:code/reset-pin')
+  async publicResetPin(
+    @Param('code') code: string,
+    @Body() body: { token: string; newPin: string },
+    @Req() req: Request,
+  ) {
+    if (!body?.token || !body?.newPin) throw new BadRequestException('Token oder PIN fehlt');
+    return this.pub.resetPin(code, body.token, body.newPin, getIp(req), req.get('user-agent'));
+  }
+
+  // -------------------------------------------------------------------
+  // PRE-ACTIVATION (Hub) — Codes einem Kaeufer zuweisen + Mail
+  // -------------------------------------------------------------------
+
+  @Get('pre-activation/stats')
+  async preActivationStats(@Headers('authorization') authHeader: string) {
+    const { orgId, role, perms } = await this.ctx(authHeader);
+    if (!userHasPermission(role, perms, 'nfc')) throw new ForbiddenException();
+    return this.preActivation.stats(orgId);
+  }
+
+  @Post('pre-activation/assign')
+  async preActivationAssign(
+    @Headers('authorization') authHeader: string,
+    @Body() body: {
+      customerEmail: string;
+      customerName?: string;
+      count: number;
+      batchId?: string;
+      note?: string;
+    },
+  ) {
+    const { orgId, userId, role, perms } = await this.ctx(authHeader);
+    if (!userHasPermission(role, perms, 'nfc')) throw new ForbiddenException();
+    return this.preActivation.assignAndSend(orgId, userId, body);
   }
 
   @Post('public/:code/auth')

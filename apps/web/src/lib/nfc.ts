@@ -151,6 +151,16 @@ export const nfcApi = {
     call(`/customer-data/${id}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
 
   auditLog: (limit = 100) => call<NfcAuditEntry[]>(`/audit-log?limit=${limit}`),
+
+  preActivationStats: () => call<{
+    unassigned: number;
+    assigned: number;
+    recentAssignments: Array<{ email: string | null; count: number; assignedAt: string | null }>;
+  }>('/pre-activation/stats'),
+  preActivationAssign: (data: { customerEmail: string; customerName?: string; count: number; batchId?: string; note?: string }) =>
+    call<{ ok: true; assignedCount: number; emailSent: boolean; codes: string[] }>('/pre-activation/assign', {
+      method: 'POST', body: JSON.stringify(data),
+    }),
 };
 
 // -----------------------------------------------------------------------------

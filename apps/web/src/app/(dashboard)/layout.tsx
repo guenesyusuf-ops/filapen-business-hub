@@ -296,6 +296,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.nfcOverview', href: '/nfc', icon: BarChart3 },
       { labelKey: 'nav.nfcGenerate', href: '/nfc/generate', icon: Hash },
       { labelKey: 'nav.nfcBands', href: '/nfc/bands', icon: ListIcon },
+      { labelKey: 'nav.nfcPreActivate', href: '/nfc/pre-activate', icon: Send },
       { labelKey: 'nav.nfcCustomerData', href: '/nfc/customer-data', icon: Users },
     ],
   },

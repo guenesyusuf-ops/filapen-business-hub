@@ -188,6 +188,184 @@ export class EmailService {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // NFC4you Emails
+  // ---------------------------------------------------------------------
+
+  /** PIN-Reset Magic-Link (15 Min gueltig) */
+  async sendNfcPinReset(params: { to: string; code: string; resetLink: string }): Promise<boolean> {
+    if (!this.apiKey) {
+      this.logger.warn(`Email not sent (no RESEND_API_KEY): NFC PIN-Reset ${params.code} → ${params.to}`);
+      this.logger.log(`Reset-Link: ${params.resetLink}`);
+      return false;
+    }
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: this.fromEmail,
+          to: [params.to],
+          subject: `NFC4you — PIN zurücksetzen (Code ${params.code})`,
+          html: this.buildNfcPinResetHtml(params),
+        }),
+      });
+      return res.ok;
+    } catch (err) {
+      this.logger.error(`NFC PIN-Reset error: ${err}`);
+      return false;
+    }
+  }
+
+  /** 24-Monats-Inaktivitaets-Reminder (DSGVO Aufbewahrung) */
+  async sendNfcInactivityReminder(params: { to: string; code: string; profileLink: string }): Promise<boolean> {
+    if (!this.apiKey) {
+      this.logger.warn(`Email not sent: NFC Inactivity-Reminder ${params.code} → ${params.to}`);
+      return false;
+    }
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: this.fromEmail,
+          to: [params.to],
+          subject: `NFC4you — Daten in 30 Tagen automatisch gelöscht`,
+          html: this.buildNfcInactivityReminderHtml(params),
+        }),
+      });
+      return res.ok;
+    } catch (err) {
+      this.logger.error(`NFC Inactivity-Reminder error: ${err}`);
+      return false;
+    }
+  }
+
+  /** Pre-Aktivierung: an Kaeufer mit Liste aller gekauften Codes */
+  async sendNfcActivationLinks(params: {
+    to: string;
+    customerName?: string;
+    bands: Array<{ code: string; url: string }>;
+  }): Promise<boolean> {
+    if (!this.apiKey) {
+      this.logger.warn(`Email not sent: NFC Activation-Links (${params.bands.length}) → ${params.to}`);
+      params.bands.forEach((b) => this.logger.log(`  ${b.code}: ${b.url}`));
+      return false;
+    }
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: this.fromEmail,
+          to: [params.to],
+          subject: `Deine NFC4you-Bänder sind bereit zur Aktivierung`,
+          html: this.buildNfcActivationLinksHtml(params),
+        }),
+      });
+      return res.ok;
+    } catch (err) {
+      this.logger.error(`NFC Activation-Links error: ${err}`);
+      return false;
+    }
+  }
+
+  private buildNfcPinResetHtml(params: { code: string; resetLink: string }): string {
+    return `
+      <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="display: inline-block; width: 48px; height: 48px; background: #0ea5e9; border-radius: 12px; line-height: 48px; color: white; font-weight: bold; font-size: 20px;">🔑</div>
+        </div>
+        <h1 style="font-size: 20px; font-weight: 600; color: #111; text-align: center; margin: 0 0 8px 0;">PIN zurücksetzen</h1>
+        <p style="font-size: 14px; color: #555; text-align: center; line-height: 1.5; margin: 0 0 24px 0;">
+          Du hast eine neue PIN für dein NFC-Band <strong>${params.code}</strong> angefordert.
+        </p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${params.resetLink}" style="display: inline-block; background: #0ea5e9; color: white; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-weight: 600;">
+            Neue PIN festlegen
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #888; text-align: center; line-height: 1.5;">
+          Der Link ist <strong>15 Minuten</strong> gültig. Wenn du diese Anfrage nicht gestellt hast, ignoriere diese Mail — deine alte PIN bleibt aktiv.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+        <p style="font-size: 11px; color: #aaa; text-align: center;">NFC4you · Sicherheitsbänder für Kinder</p>
+      </div>`;
+  }
+
+  private buildNfcInactivityReminderHtml(params: { code: string; profileLink: string }): string {
+    return `
+      <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="display: inline-block; width: 48px; height: 48px; background: #f59e0b; border-radius: 12px; line-height: 48px; color: white; font-weight: bold; font-size: 22px;">⚠️</div>
+        </div>
+        <h1 style="font-size: 20px; font-weight: 600; color: #111; text-align: center; margin: 0 0 8px 0;">Deine NFC-Daten werden bald gelöscht</h1>
+        <p style="font-size: 14px; color: #555; text-align: center; line-height: 1.6; margin: 0 0 16px 0;">
+          Dein NFC-Band <strong>${params.code}</strong> wurde seit 24 Monaten nicht mehr aktualisiert.
+          Aus DSGVO-Gründen werden die Daten in <strong>30 Tagen automatisch gelöscht</strong>.
+        </p>
+        <p style="font-size: 14px; color: #555; text-align: center; line-height: 1.6;">
+          Möchtest du die Daten behalten? Besuche dein Profil und ändere ggf. einen Wert oder verlängere damit die Aufbewahrung.
+        </p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${params.profileLink}" style="display: inline-block; background: #0ea5e9; color: white; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-weight: 600;">
+            Profil ansehen
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #888; text-align: center;">
+          Wenn du nichts tust, werden die Daten in 30 Tagen automatisch gelöscht. Das Band kann danach jederzeit neu aktiviert werden.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+        <p style="font-size: 11px; color: #aaa; text-align: center;">NFC4you · Sicherheitsbänder für Kinder</p>
+      </div>`;
+  }
+
+  private buildNfcActivationLinksHtml(params: {
+    customerName?: string;
+    bands: Array<{ code: string; url: string }>;
+  }): string {
+    const rows = params.bands.map((b) => `
+      <li style="margin-bottom: 10px; list-style: none;">
+        <a href="${b.url}" style="display: inline-block; padding: 12px 18px; background: #f0f9ff; border: 1.5px solid #0ea5e9; border-radius: 10px; color: #0369a1; text-decoration: none; font-family: monospace; font-weight: 600; font-size: 15px;">
+          ${b.code} →
+        </a>
+      </li>
+    `).join('');
+
+    const greeting = params.customerName ? `Hallo ${params.customerName},` : 'Hallo,';
+    return `
+      <div style="font-family: 'Inter', -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="display: inline-block; width: 56px; height: 56px; background: #0ea5e9; border-radius: 14px; line-height: 56px; color: white; font-weight: bold; font-size: 24px;">📲</div>
+        </div>
+        <h1 style="font-size: 22px; font-weight: 600; color: #111; text-align: center; margin: 0 0 12px 0;">
+          Deine NFC4you-Bänder sind bereit
+        </h1>
+        <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 16px 0;">${greeting}</p>
+        <p style="font-size: 14px; color: #555; line-height: 1.6; margin: 0 0 16px 0;">
+          Vielen Dank für deinen Kauf! Du hast <strong>${params.bands.length} NFC-Band${params.bands.length === 1 ? '' : 'er'}</strong> erhalten.
+          Klicke auf einen der Codes unten, um die Daten für dieses Band einzutragen.
+        </p>
+        <p style="font-size: 13px; color: #777; line-height: 1.6; margin: 0 0 20px 0;">
+          Alle Felder sind freiwillig. Wir empfehlen, eine <strong>PIN</strong> festzulegen, damit du später ändern kannst.
+        </p>
+        <ul style="padding: 0; margin: 24px 0;">
+          ${rows}
+        </ul>
+        <div style="background: #f9fafb; border-radius: 10px; padding: 16px; margin-top: 24px;">
+          <strong style="font-size: 13px; color: #111;">So funktioniert es:</strong>
+          <ol style="font-size: 13px; color: #555; line-height: 1.7; margin: 8px 0 0 16px;">
+            <li>Klicke auf einen Code-Link oben.</li>
+            <li>Trage Kontakt-Daten und ggf. PIN ein.</li>
+            <li>Halte das physische Band ans Kinder-Outfit.</li>
+            <li>Wenn jemand das Band scannt, sieht er sofort einen Anruf-Button mit deiner Nummer.</li>
+          </ol>
+        </div>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+        <p style="font-size: 11px; color: #aaa; text-align: center;">NFC4you · Sicherheitsbänder für Kinder</p>
+      </div>`;
+  }
+
   private buildInvoiceReminderHtml(params: {
     supplierName: string;
     invoiceNumber: string;

@@ -81,4 +81,16 @@ export const nfcPublicApi = {
       method: 'DELETE',
       body: JSON.stringify({ pin }),
     }),
+
+  requestPinReset: (code: string, email: string) =>
+    call<{ ok: true }>(`/public/${code}/request-pin-reset`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPin: (code: string, token: string, newPin: string) =>
+    call<{ ok: true }>(`/public/${code}/reset-pin`, {
+      method: 'POST',
+      body: JSON.stringify({ token, newPin }),
+    }),
 };

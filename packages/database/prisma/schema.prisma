@@ -3813,6 +3813,12 @@ model NfcBand {
   lastScanAt  DateTime? @map("last_scan_at") @db.Timestamptz
   scanCount   Int       @default(0) @map("scan_count")
 
+  // Pre-Aktivierung: Band einem Kaeufer zugewiesen (per E-Mail)
+  // → Hub kann Bulk-Mail mit Aktivierungs-URLs versenden
+  assignedEmail   String?   @map("assigned_email") @db.VarChar(320)
+  assignedAt      DateTime? @map("assigned_at") @db.Timestamptz
+  assignmentNote  String?   @map("assignment_note") @db.VarChar(255)
+
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -3823,6 +3829,7 @@ model NfcBand {
   @@index([orgId, status])
   @@index([batchId])
   @@index([orgId, lastScanAt(sort: Desc)])
+  @@index([assignedEmail])
   @@map("nfc_bands")
 }
 
@@ -3852,6 +3859,11 @@ model NfcActivation {
   editPinSetAt      DateTime? @map("edit_pin_set_at") @db.Timestamptz
   editPinFailedAttempts Int   @default(0) @map("edit_pin_failed_attempts")
   editPinLockedUntil DateTime? @map("edit_pin_locked_until") @db.Timestamptz
+
+  // Magic-Link-Reset bei vergessener PIN — wird per E-Mail an die hinterlegte
+  // Adresse versendet, 15 min gueltig, ein-Mal-verwendbar
+  pinResetTokenHash      String?   @map("pin_reset_token_hash") @db.VarChar(120)
+  pinResetTokenExpiresAt DateTime? @map("pin_reset_token_expires_at") @db.Timestamptz
 
   // Consent (DSGVO)
   consentGivenAt    DateTime @map("consent_given_at") @db.Timestamptz

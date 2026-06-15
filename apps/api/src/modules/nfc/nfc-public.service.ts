@@ -1,6 +1,9 @@
 import { Injectable, BadRequestException, NotFoundException, UnauthorizedException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../../common/email/email.service';
 import { NfcService } from './nfc.service';
 
 const PIN_HASH_ROUNDS = 10;
@@ -8,6 +11,7 @@ const PIN_MIN = 4;
 const PIN_MAX = 6;
 const PIN_MAX_ATTEMPTS = 10;
 const PIN_LOCK_MINUTES = 60;
+const RESET_TOKEN_TTL_MIN = 15;
 const CONSENT_VERSION = '2026-06-15-v1';
 
 export interface ActivationInput {
@@ -27,11 +31,16 @@ export interface ActivationInput {
 @Injectable()
 export class NfcPublicService {
   private readonly logger = new Logger(NfcPublicService.name);
+  private readonly publicBaseUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly nfc: NfcService,
-  ) {}
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
+  ) {
+    this.publicBaseUrl = (this.config.get<string>('NFC_PUBLIC_URL') ?? 'https://nfc4you.de').replace(/\/$/, '');
+  }
 
   // ---------------------------------------------------------------------
   // STATUS / SCAN — was rendert das Frontend
@@ -279,6 +288,85 @@ export class NfcPublicService {
       }),
     ]);
     await this.nfc.audit(band.orgId, band.id, null, 'customer_delete', null, ip, userAgent);
+    return { ok: true };
+  }
+
+  // ---------------------------------------------------------------------
+  // PIN-Reset via Magic-Link (wenn User PIN vergessen hat)
+  // ---------------------------------------------------------------------
+
+  /** Schritt 1: User gibt seine Email an, wir senden Magic-Link mit Token */
+  async requestPinReset(code: string, email: string, ip?: string, userAgent?: string) {
+    const band = await this.nfc.findBandByCode(code);
+    if (!band || !band.activation) {
+      // Nicht enthuellen ob Band existiert (Privacy)
+      return { ok: true };
+    }
+    const a = band.activation;
+    if (!a.email || a.email.toLowerCase() !== email.trim().toLowerCase()) {
+      // Email passt nicht — wir geben aber TROTZDEM ok zurueck (User-Enumeration verhindern)
+      return { ok: true };
+    }
+
+    // Token generieren + Hash speichern
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = await bcrypt.hash(token, PIN_HASH_ROUNDS);
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MIN * 60_000);
+
+    await this.prisma.nfcActivation.update({
+      where: { id: a.id },
+      data: {
+        pinResetTokenHash: tokenHash,
+        pinResetTokenExpiresAt: expiresAt,
+      },
+    });
+
+    // Magic-Link senden
+    const resetLink = `${this.publicBaseUrl}/${code}/reset?token=${token}`;
+    const sent = await this.email.sendNfcPinReset({ to: a.email, code, resetLink });
+    await this.nfc.audit(band.orgId, band.id, null, 'pin_reset_requested', { emailSent: sent }, ip, userAgent);
+
+    return { ok: true };
+  }
+
+  /** Schritt 2: User folgt Link, gibt neue PIN ein. Token wird verbraucht. */
+  async resetPin(code: string, token: string, newPin: string, ip?: string, userAgent?: string) {
+    if (!token) throw new BadRequestException('Token fehlt');
+    if (!/^[0-9]+$/.test(newPin)) throw new BadRequestException('PIN nur Ziffern');
+    if (newPin.length < PIN_MIN || newPin.length > PIN_MAX) {
+      throw new BadRequestException(`PIN muss ${PIN_MIN}-${PIN_MAX} Ziffern haben`);
+    }
+
+    const band = await this.nfc.findBandByCode(code);
+    if (!band || !band.activation) throw new NotFoundException();
+    const a = band.activation;
+
+    if (!a.pinResetTokenHash || !a.pinResetTokenExpiresAt) {
+      throw new BadRequestException('Kein Reset angefordert');
+    }
+    if (a.pinResetTokenExpiresAt < new Date()) {
+      throw new BadRequestException('Reset-Link abgelaufen — bitte neu anfordern');
+    }
+    const ok = await bcrypt.compare(token, a.pinResetTokenHash);
+    if (!ok) {
+      await this.nfc.audit(band.orgId, band.id, null, 'pin_reset_invalid_token', null, ip, userAgent);
+      throw new UnauthorizedException('Ungültiger Token');
+    }
+
+    const newHash = await bcrypt.hash(newPin, PIN_HASH_ROUNDS);
+    await this.prisma.nfcActivation.update({
+      where: { id: a.id },
+      data: {
+        editPinHash: newHash,
+        editPinSetAt: new Date(),
+        editPinFailedAttempts: 0,
+        editPinLockedUntil: null,
+        // Token verbrauchen
+        pinResetTokenHash: null,
+        pinResetTokenExpiresAt: null,
+      },
+    });
+    await this.nfc.audit(band.orgId, band.id, null, 'pin_reset_success', null, ip, userAgent);
     return { ok: true };
   }
 }

@@ -122,6 +122,7 @@
     "nfcOverview": "Overview",
     "nfcGenerate": "Generate Codes",
     "nfcBands": "All Bands",
+    "nfcPreActivate": "Send to Customer",
     "nfcCustomerData": "Customer Data",
     "screenShare": "Screen Share",
     "filapenSend": "Filapen Send",

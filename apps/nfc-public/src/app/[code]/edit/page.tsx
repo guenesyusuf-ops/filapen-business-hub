@@ -143,6 +143,11 @@ export default function EditPage({ params }: { params: { code: string } }) {
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <KeyRound className="h-5 w-5" />}
             {loading ? 'Prüft …' : 'Einloggen'}
           </button>
+          <div className="mt-4 text-center">
+            <a href={`/${params.code}/forgot-pin`} className="text-xs text-slate-500 hover:text-brand-600 underline">
+              PIN vergessen?
+            </a>
+          </div>
         </div>
       </div>
     );
