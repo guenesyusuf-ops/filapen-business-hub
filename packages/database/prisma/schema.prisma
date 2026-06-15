@@ -3766,3 +3766,129 @@ model ReturnEvent {
   @@index([orgId, createdAt(sort: Desc)])
   @@map("return_events")
 }
+
+// ---------------------------------------------------------------------------
+// NFC4you — NFC-Baender fuer Kinder mit Notfall-Kontaktdaten
+// ---------------------------------------------------------------------------
+// Workflow:
+//   1. Hub-User generiert Batch mit N Codes (z.B. 100 Stueck)
+//   2. CSV-Export → an NFC-Tag-Lieferanten geben (vorprogrammierte Tags)
+//   3. Verkauft Tags → Eltern aktivieren via Public-Frontend nfc4you.de
+//   4. Verlorenes Kind: Finder scannt Band → Profil + Anruf-Button
+//
+// DSGVO:
+//   - Kundendaten in eigener Tabelle nfc_activations
+//   - Zugriff nur ueber 'nfc-customer-data' Permission
+//   - Vollstaendiger Audit-Log fuer alle Zugriffe
+//   - 24-Monate-Inaktivitaet → Auto-Reminder + 30 Tage spaeter Loeschung
+
+model NfcBatch {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String?  @db.VarChar(255)
+  count       Int
+  createdById String?  @map("created_by_id") @db.Uuid
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  bands       NfcBand[]
+
+  @@index([orgId])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("nfc_batches")
+}
+
+model NfcBand {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String    @map("org_id") @db.Uuid
+  batchId     String    @map("batch_id") @db.Uuid
+
+  // 6-stelliger Code (a-z, 2-9 ohne O/0, I/1, l) — global eindeutig
+  code        String    @unique @db.VarChar(32)
+
+  // inactive (frisch) | active (aktiviert) | deleted (Daten geloescht, Band weiter scanbar)
+  status      String    @default("inactive") @db.VarChar(32)
+
+  activatedAt DateTime? @map("activated_at") @db.Timestamptz
+  lastScanAt  DateTime? @map("last_scan_at") @db.Timestamptz
+  scanCount   Int       @default(0) @map("scan_count")
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  batch       NfcBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  activation  NfcActivation?
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([batchId])
+  @@index([orgId, lastScanAt(sort: Desc)])
+  @@map("nfc_bands")
+}
+
+model NfcActivation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bandId    String   @unique @map("band_id") @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+
+  // Kunden-Daten — ALLE optional, Kunde fuellt was er will
+  firstName String?  @map("first_name") @db.VarChar(120)
+  lastName  String?  @map("last_name") @db.VarChar(120)
+  phone     String?  @db.VarChar(64)
+  phone2    String?  @db.VarChar(64)
+  notes     String?  @db.Text
+  street    String?  @db.VarChar(255)
+  zip       String?  @db.VarChar(32)
+  city      String?  @db.VarChar(120)
+
+  // Optional — fuer Notifications oder spaetere PIN-Reset-Funktion
+  email     String?  @db.VarChar(320)
+
+  // PIN-basiertes Edit-System:
+  // Wenn Kunde bei Aktivierung eine PIN vergibt (optional), kann er sich
+  // spaeter unter /[code]/edit mit Code+PIN einloggen und Daten aendern/loeschen.
+  // Bcrypt-Hash; Rate-Limiting via failedAttempts + lockedUntil.
+  editPinHash       String?   @map("edit_pin_hash") @db.VarChar(120)
+  editPinSetAt      DateTime? @map("edit_pin_set_at") @db.Timestamptz
+  editPinFailedAttempts Int   @default(0) @map("edit_pin_failed_attempts")
+  editPinLockedUntil DateTime? @map("edit_pin_locked_until") @db.Timestamptz
+
+  // Consent (DSGVO)
+  consentGivenAt    DateTime @map("consent_given_at") @db.Timestamptz
+  consentVersion    String?  @map("consent_version") @db.VarChar(32)
+  // IP+UA bei Aktivierung — DSGVO-Audit + Schutz vor Missbrauch
+  activationIp      String?  @map("activation_ip") @db.VarChar(64)
+  activationUa      String?  @map("activation_ua") @db.Text
+
+  // Auto-Cleanup: bei 24 Monaten ohne Edit → Reminder, 30 Tage spaeter Loeschung
+  inactivityReminderSentAt DateTime? @map("inactivity_reminder_sent_at") @db.Timestamptz
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  band      NfcBand  @relation(fields: [bandId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([email])
+  @@map("nfc_activations")
+}
+
+model NfcAuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  bandId    String?  @map("band_id") @db.Uuid
+  // batch_created, band_activated, public_scan, customer_view, customer_edit,
+  // customer_delete, edit_link_sent, edit_link_used, auto_reminder, auto_delete
+  type      String   @db.VarChar(64)
+  actorId   String?  @map("actor_id") @db.Uuid     // null = public/anonymous
+  ipAddress String?  @map("ip_address") @db.VarChar(64)
+  userAgent String?  @map("user_agent") @db.Text
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([bandId, createdAt(sort: Desc)])
+  @@index([orgId, type, createdAt(sort: Desc)])
+  @@map("nfc_audit_log")
+}

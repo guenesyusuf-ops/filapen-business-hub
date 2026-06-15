@@ -118,6 +118,11 @@
     "returnsTiktok": "TikTok",
     "returnsShopify": "Shopify",
     "returnsToReview": "To Review",
+    "nfc": "NFC",
+    "nfcOverview": "Overview",
+    "nfcGenerate": "Generate Codes",
+    "nfcBands": "All Bands",
+    "nfcCustomerData": "Customer Data",
     "screenShare": "Screen Share",
     "filapenSend": "Filapen Send",
     "performanceTracking": "Performance Tracking"

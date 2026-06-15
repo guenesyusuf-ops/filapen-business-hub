@@ -82,6 +82,9 @@ import {
   Clock,
   Undo2,
   Music2,
+  Radio,
+  Hash,
+  ListChecks as ListIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -284,6 +287,19 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.nfc',
+    href: '/nfc',
+    icon: Radio,
+    permissionKey: 'nfc',
+    accent: 'text-accent-work',
+    children: [
+      { labelKey: 'nav.nfcOverview', href: '/nfc', icon: BarChart3 },
+      { labelKey: 'nav.nfcGenerate', href: '/nfc/generate', icon: Hash },
+      { labelKey: 'nav.nfcBands', href: '/nfc/bands', icon: ListIcon },
+      { labelKey: 'nav.nfcCustomerData', href: '/nfc/customer-data', icon: Users },
+    ],
+  },
+  {
     labelKey: 'nav.returns',
     href: '/returns',
     icon: Undo2,
@@ -396,6 +412,9 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
     }
     if (pathname.startsWith('/returns')) {
       initial.add('nav.returns');
+    }
+    if (pathname.startsWith('/nfc')) {
+      initial.add('nav.nfc');
     }
     if (pathname.startsWith('/settings') || pathname.startsWith('/finance/integrations')) {
       initial.add('nav.settings');
