@@ -95,6 +95,9 @@ async function bootstrap() {
       .map((o) => new RegExp('^' + o.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$'));
     // Always accept *.vercel.app so preview deployments work without manual env changes.
     patternOrigins.push(/^https:\/\/[a-z0-9-]+\.vercel\.app$/);
+    // Always accept the public NFC domain (apex + www) — production user-facing site.
+    exactOrigins.add('https://nfc4you.de');
+    exactOrigins.add('https://www.nfc4you.de');
     console.log(`[Startup] CORS exact origins: ${[...exactOrigins].join(', ') || '(none)'}`);
     console.log(`[Startup] CORS pattern origins: ${patternOrigins.map(String).join(', ')}`);
 
