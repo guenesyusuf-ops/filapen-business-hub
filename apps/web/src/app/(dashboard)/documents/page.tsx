@@ -5,8 +5,9 @@ import { cn } from '@/lib/utils';
 import {
   Folder, FolderPlus, Upload, Search, Grid3X3, List, Star, Trash2,
   ChevronRight, MoreVertical, Lock, Unlock, FileText, Image, Video,
-  File as FileIcon, ArrowLeft, X, Plus, Download, Eye, Edit3,
+  File as FileIcon, ArrowLeft, X, Plus, Download, Eye, Edit3, Share2,
 } from 'lucide-react';
+import DocShareModal from '@/components/documents/DocShareModal';
 import {
   useDocFolders, useDocFiles, useCreateDocFolder, useUploadDocFile,
   useTrashDocFolder, useTrashDocFile, useToggleFavorite,
@@ -53,6 +54,7 @@ export default function DocumentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [shareFolder, setShareFolder] = useState<{ id: string; name: string } | null>(null);
 
   const { data: folders = [], isLoading: foldersLoading } = useDocFolders(currentFolderId);
   const { data: files = [], isLoading: filesLoading, refetch: refetchFiles } = useDocFiles(currentFolderId, searchQuery || undefined);
@@ -451,6 +453,13 @@ export default function DocumentsPage() {
                       >
                         <Edit3 className="h-3 w-3" />
                       </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShareFolder({ id: folder.id, name: folder.name }); }}
+                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-indigo-600"
+                        title="Ordner teilen"
+                      >
+                        <Share2 className="h-3 w-3" />
+                      </button>
                       {isAdmin && (
                         <button
                           onClick={(e) => {
@@ -570,6 +579,13 @@ export default function DocumentsPage() {
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
                   <button
+                    onClick={() => setShareFolder({ id: folder.id, name: folder.name })}
+                    className="p-1 rounded text-gray-400 hover:text-indigo-500"
+                    title="Ordner teilen"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
                     onClick={() => { if (confirm(`"${folder.name}" in Papierkorb?`)) trashFolder.mutate(folder.id); }}
                     className="p-1 rounded text-gray-400 hover:text-red-500"
                     title="In Papierkorb"
@@ -608,6 +624,14 @@ export default function DocumentsPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {shareFolder && (
+        <DocShareModal
+          folderId={shareFolder.id}
+          folderName={shareFolder.name}
+          onClose={() => setShareFolder(null)}
+        />
       )}
     </div>
   );

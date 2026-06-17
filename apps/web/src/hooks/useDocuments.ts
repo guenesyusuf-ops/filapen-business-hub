@@ -243,3 +243,47 @@ export function useDocTrash() {
     queryFn: () => docFetch('/trash'),
   });
 }
+
+// ---------- Share-Links ----------
+
+export interface DocShareLink {
+  id: string;
+  token: string;
+  url: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  viewCount: number;
+  lastViewedAt: string | null;
+  createdAt: string;
+  createdById: string;
+  isActive: boolean;
+}
+
+export function useDocShareLinks(folderId: string | null) {
+  return useQuery<DocShareLink[]>({
+    queryKey: ['docs', 'share-links', folderId],
+    queryFn: () => docFetch(`/folders/${folderId}/share-links`),
+    enabled: !!folderId && isAuthReady(),
+  });
+}
+
+export function useCreateDocShareLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { folderId: string; durationDays: number | null }) =>
+      docFetch<DocShareLink>(`/folders/${input.folderId}/share-links`, {
+        method: 'POST',
+        body: JSON.stringify({ durationDays: input.durationDays }),
+      }),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ['docs', 'share-links', vars.folderId] }),
+  });
+}
+
+export function useRevokeDocShareLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; folderId: string }) =>
+      docFetch(`/share-links/${input.id}`, { method: 'DELETE' }),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ['docs', 'share-links', vars.folderId] }),
+  });
+}

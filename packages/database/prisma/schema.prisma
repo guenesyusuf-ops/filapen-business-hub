@@ -1881,12 +1881,36 @@ model DocFolder {
   permissions  DocPermission[]
   activities   DocActivity[]   @relation("FolderActivities")
   favorites    DocFavorite[]   @relation("FolderFavorites")
+  shareLinks   DocShareLink[]
 
   @@index([orgId])
   @@index([orgId, parentId])
   @@index([orgId, trashedAt])
   @@index([createdBy])
   @@map("doc_folders")
+}
+
+// Public-Share-Links — externer Read-Only-Zugriff auf Ordner + Unterordner.
+// Token wird in URL eingebaut: APP_URL/share/docs/{token}
+model DocShareLink {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String    @map("org_id") @db.Uuid
+  folderId    String    @map("folder_id") @db.Uuid
+  token       String    @unique @db.VarChar(64)
+  createdById String    @map("created_by_id") @db.Uuid
+  // null = unbefristet
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz
+  // null = aktiv; gesetzt = manuell widerrufen
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz
+  viewCount   Int       @default(0) @map("view_count")
+  lastViewedAt DateTime? @map("last_viewed_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  folder DocFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([folderId])
+  @@map("doc_share_links")
 }
 
 model DocFile {
