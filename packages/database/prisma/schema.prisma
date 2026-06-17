@@ -3854,6 +3854,7 @@ model NfcBand {
   @@index([orgId, status])
   @@index([batchId])
   @@index([orgId, lastScanAt(sort: Desc)])
+  @@index([orgId, createdAt(sort: Desc)])
   @@index([assignedEmail])
   @@map("nfc_bands")
 }
