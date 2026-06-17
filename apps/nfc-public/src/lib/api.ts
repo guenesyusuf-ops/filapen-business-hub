@@ -38,7 +38,10 @@ export interface PublicStatus {
 }
 
 async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
+  // cache: 'no-store' — sonst cached Next.js die getStatus-Antwort und der
+  // Scanner sieht nach Aktivierung minutenlang noch die alte "inactive"-Antwort.
   const res = await fetch(`${API_URL}/api/nfc${path}`, {
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
     ...init,
   });
