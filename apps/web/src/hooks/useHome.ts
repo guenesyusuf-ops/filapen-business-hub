@@ -169,7 +169,7 @@ export function useChatThread(partnerId: string | null) {
     queryKey: ['home', 'chat', partnerId],
     queryFn: () => homeFetch<DirectMessage[]>(`/chat/${partnerId}`),
     enabled: !!partnerId,
-    refetchInterval: partnerId ? 5_000 : false,
+    refetchInterval: partnerId ? 10_000 : false,
   });
 }
 
