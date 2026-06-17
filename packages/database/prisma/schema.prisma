@@ -3274,6 +3274,7 @@ model SalesOrder {
   @@index([orgId, requiredDeliveryDate])
   @@index([orgId, customerId])
   @@index([orgId, createdAt])
+  @@index([orgId, paidAt])
   @@map("sales_orders")
 }
 
