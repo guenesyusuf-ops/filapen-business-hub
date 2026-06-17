@@ -169,7 +169,9 @@ export function useWmUnreadCount() {
   return useQuery<{ count: number }>({
     queryKey: ['wm', 'notifications', 'unread-count'],
     queryFn: () => wmFetch('/notifications/unread-count'),
-    refetchInterval: 30000,
+    // 60s analog zu useWmNotifications — Window-Focus-Refetch
+    // (React-Query-Default) holt den Badge sofort beim Tab-Wechsel nach.
+    refetchInterval: 60000,
   });
 }
 
