@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useFinanceUI } from '@/stores/finance-ui';
 import { formatDate } from '@filapen/shared/src/utils/date';
@@ -60,6 +60,13 @@ export function useProducts() {
   const { dateRange } = useFinanceUI();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  // Debounced fuer die Query — sonst feuert jeder Tastendruck einen Request.
+  // Sichtbarer Input-Wert bleibt unverzoegert (das ist `search`).
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [sortBy, setSortBy] = useState<SortField>('revenue');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -70,7 +77,7 @@ export function useProducts() {
       dateRange.start.toISOString(),
       dateRange.end.toISOString(),
       page,
-      search,
+      debouncedSearch,
       sortBy,
       sortOrder,
     ],
@@ -80,7 +87,7 @@ export function useProducts() {
         endDate: formatDate(dateRange.end),
         page: String(page),
         pageSize: '25',
-        search,
+        search: debouncedSearch,
         sortBy,
         sortOrder,
       }),
