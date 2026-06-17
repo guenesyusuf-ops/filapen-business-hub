@@ -64,7 +64,8 @@ export class NfcPublicService {
       where: { id: band.id },
       data: { lastScanAt: new Date(), scanCount: { increment: 1 } },
     }).catch(() => undefined);
-    await this.nfc.audit(band.orgId, band.id, null, 'public_scan', { code }, ip, userAgent);
+    // Audit fire-and-forget — internes try/catch in audit()
+    void this.nfc.audit(band.orgId, band.id, null, 'public_scan', { code }, ip, userAgent);
 
     if (band.status === 'inactive' || !band.activation) {
       return { status: 'inactive' as const, code: band.code };

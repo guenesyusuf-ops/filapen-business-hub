@@ -87,7 +87,8 @@ export class NfcService {
       return b;
     });
 
-    await this.audit(orgId, null, userId, 'batch_created', {
+    // Audit-Log fire-and-forget — internes try/catch in audit() faengt Fehler
+    void this.audit(orgId, null, userId, 'batch_created', {
       batchId: batch.id, count, name: data.name,
     });
 
