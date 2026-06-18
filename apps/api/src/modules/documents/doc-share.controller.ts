@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Delete,
-  Param, Body, Headers,
+  Param, Body, Headers, Query,
   Logger, HttpException, HttpStatus, BadRequestException,
   Res, StreamableFile,
 } from '@nestjs/common';
@@ -70,6 +70,7 @@ export class DocShareController {
   async downloadFile(
     @Param('token') token: string,
     @Param('fileId') fileId: string,
+    @Query('inline') inline: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     const file = await this.share.getFileForToken(token, fileId);
@@ -80,9 +81,11 @@ export class DocShareController {
     } catch (err: any) {
       throw new HttpException(`Datei konnte nicht geladen werden: ${err?.message ?? 'Unbekannt'}`, HttpStatus.NOT_FOUND);
     }
+    // inline=1 → Browser zeigt die Datei (PDF/Bild/Video) statt sie zu speichern.
+    const disposition = inline === '1' ? 'inline' : 'attachment';
     res.set({
       'Content-Type': obj.contentType || file.mimeType || 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${file.fileName}"`,
+      'Content-Disposition': `${disposition}; filename="${file.fileName}"`,
       ...(obj.contentLength ? { 'Content-Length': String(obj.contentLength) } : {}),
       'Cache-Control': 'private, no-store',
     });

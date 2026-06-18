@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Folder, FileText, Image as ImageIcon, Video, File as FileIcon,
-  Download, Loader2, AlertCircle, ChevronRight, Home, Calendar, Clock,
+  Download, Loader2, AlertCircle, ChevronRight, Home, Calendar, Clock, Eye,
 } from 'lucide-react';
 import { API_URL } from '@/lib/api';
 
@@ -59,6 +59,13 @@ function getFileIcon(t: string | null) {
     case 'spreadsheet': return <FileText className="h-4 w-4 text-emerald-500" />;
     default: return <FileIcon className="h-4 w-4 text-gray-400" />;
   }
+}
+
+// Browser kann diese Typen nativ inline darstellen — sonst nur Download anbieten.
+function canPreview(type: string | null, mimeType: string | null): boolean {
+  if (type === 'image' || type === 'pdf' || type === 'video') return true;
+  if (mimeType && (mimeType.startsWith('image/') || mimeType.startsWith('video/') || mimeType === 'application/pdf')) return true;
+  return false;
 }
 
 export default function PublicDocSharePage() {
@@ -178,22 +185,38 @@ export default function PublicDocSharePage() {
                   </button>
                 </li>
               ))}
-              {current.files.map((file) => (
+              {current.files.map((file) => {
+                const baseUrl = `${API_URL}/api/share/docs/${token}/files/${file.id}/download`;
+                const previewable = canPreview(file.type, file.mimeType);
+                return (
                 <li key={file.id} className="flex items-center gap-3 px-4 sm:px-5 py-3">
                   <div className="flex-shrink-0">{getFileIcon(file.type)}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">{file.name}</p>
                     <p className="text-[11px] text-slate-500">{fmtSize(file.size)} · {fmtDate(file.createdAt)}</p>
                   </div>
+                  {previewable && (
+                    <a
+                      href={`${baseUrl}?inline=1`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 px-3 py-1.5 text-xs font-medium"
+                      title="In neuem Tab oeffnen"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Vorschau</span>
+                    </a>
+                  )}
                   <a
-                    href={`${API_URL}/api/share/docs/${token}/files/${file.id}/download`}
+                    href={baseUrl}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-white px-3 py-1.5 text-xs font-medium"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Download
+                    <span className="hidden sm:inline">Download</span>
                   </a>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
