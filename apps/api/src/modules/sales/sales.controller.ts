@@ -294,11 +294,11 @@ export class SalesController {
   async togglePaid(
     @Headers('authorization') authHeader: string,
     @Param('id') id: string,
-    @Body() body: { on?: boolean },
+    @Body() body: { on?: boolean; at?: string },
   ) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    return this.orders.toggleStatus(orgId, userId, id, 'paid', body.on ?? true);
+    return this.orders.toggleStatus(orgId, userId, id, 'paid', body.on ?? true, body.at);
   }
 
   @Put('orders/:id/shipping')

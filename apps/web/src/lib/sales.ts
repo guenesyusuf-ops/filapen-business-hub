@@ -85,8 +85,8 @@ export const salesApi = {
     call<any>(`/orders/${id}/status/shipped`, { method: 'POST', body: JSON.stringify({ on }) }),
   toggleInvoice: (id: string, on: boolean) =>
     call<any>(`/orders/${id}/status/invoice-sent`, { method: 'POST', body: JSON.stringify({ on }) }),
-  togglePaid: (id: string, on: boolean) =>
-    call<any>(`/orders/${id}/status/paid`, { method: 'POST', body: JSON.stringify({ on }) }),
+  togglePaid: (id: string, on: boolean, at?: string) =>
+    call<any>(`/orders/${id}/status/paid`, { method: 'POST', body: JSON.stringify({ on, at }) }),
   updateShipping: (id: string, data: { trackingNumbers?: string[]; shippingCarrierNote?: string | null; shippedAt?: string | null }) =>
     call<any>(`/orders/${id}/shipping`, { method: 'PUT', body: JSON.stringify(data) }),
 

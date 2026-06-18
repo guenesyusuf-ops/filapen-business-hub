@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useMemo, useState, useRef, useEffect } from 'react';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Plus, Upload, AlertTriangle, Clock, FileText, Inbox, CheckCircle2 } from 'lucide-react';
 import { salesApi, STATUS_LABELS, fmtDate, fmtMoney, urgencyOf, SalesOrderStatus } from '@/lib/sales';
@@ -214,13 +214,17 @@ export default function SalesOrdersPage() {
                         </td>
                       </>
                     )}
-                    <td className="px-4 py-2 text-right font-medium">{fmtMoney(o.totalNet, o.currency)}</td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap leading-tight">
+                      <div className="font-semibold text-gray-900 dark:text-gray-100">{fmtMoney(o.totalNet, o.currency)}<span className="text-[9px] text-gray-400 font-normal ml-1">netto</span></div>
+                      <div className="text-xs text-gray-700 dark:text-gray-300">{fmtMoney(o.totalGross ?? Number(o.totalNet) * 1.19, o.currency)}<span className="text-[9px] text-gray-400 ml-1">brutto</span></div>
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400">{fmtMoney((o.totalGross ?? Number(o.totalNet) * 1.19) * 0.97, o.currency)}<span className="text-[9px] text-emerald-500/70 ml-1">-3% Skonto</span></div>
+                    </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-1">
                         <StatusDot on={!!o.confirmationSentAt} label="AB" />
                         <StatusDot on={!!o.shippedAt} label="Versand" />
                         <StatusDot on={!!o.invoiceSentAt} label="Rg." />
-                        <StatusDot on={!!o.paidAt} label="Bez." />
+                        <PaidBadge order={o} />
                       </div>
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell">
@@ -290,6 +294,106 @@ function StatusDot({ on, label }: { on: boolean; label: string }) {
     >
       <span className={`h-1.5 w-1.5 rounded-full ${on ? 'bg-green-500' : 'bg-gray-400'}`} />
       {label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bez.-Badge mit Quick-Aktion: Click auf offenen Bez. oeffnet ein kleines
+// Popover mit Datum-Picker und Buchen-Button. Bereits bezahlt = nur Anzeige.
+// ---------------------------------------------------------------------------
+function PaidBadge({ order }: { order: any }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  // Click-outside schliesst den Popover.
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const isPaid = !!order.paidAt;
+
+  async function confirm() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await salesApi.togglePaid(order.id, true, new Date(date).toISOString());
+      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: ['sales-orders-count'] });
+      setOpen(false);
+    } catch (e: any) {
+      alert(`Bezahlt-Buchung fehlgeschlagen: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Bereits bezahlt → Anzeige wie normaler StatusDot
+  if (isPaid) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+        title={`Bezahlt am ${fmtDate(order.paidAt)}`}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+        Bez.
+      </span>
+    );
+  }
+
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-300 cursor-pointer transition-colors"
+        title="Als bezahlt markieren"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+        Bez.
+      </button>
+      {open && (
+        <div
+          ref={popoverRef}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-1 w-56 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] shadow-lg p-3 space-y-2"
+        >
+          <div className="text-[10px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Bezahldatum</div>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1.5 text-sm"
+          />
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={confirm}
+              disabled={busy}
+              className="flex-1 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 text-xs font-medium text-white"
+            >
+              {busy ? 'Buche …' : 'Als bezahlt buchen'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-md px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </span>
   );
 }

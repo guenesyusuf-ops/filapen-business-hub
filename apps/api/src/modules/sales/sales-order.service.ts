@@ -142,7 +142,41 @@ export class SalesOrderService {
       this.logger.warn(`enrichLineItemVariants failed (non-fatal): ${err.message}`);
     }
 
+    // Brutto pro Order on-the-fly berechnen — VAT kommt aus product_variants.vat_rate,
+    // default 19% falls Line-Item nicht gematched ist. Eine Aggregation fuer
+    // alle Order-IDs auf einmal — kein N+1.
+    try {
+      await this.attachTotalGross(items as any[]);
+    } catch (err: any) {
+      this.logger.warn(`attachTotalGross failed (non-fatal): ${err.message}`);
+    }
+
     return { items, total };
+  }
+
+  /**
+   * Berechnet totalGross je Order als Summe(lineNet * (1 + vatRate/100)).
+   * vatRate kommt aus product_variants.vat_rate falls matchedVariant gesetzt,
+   * sonst 19 (Default). Eine SQL-Aggregation fuer alle Order-IDs.
+   */
+  private async attachTotalGross(orders: any[]): Promise<void> {
+    if (!orders.length) return;
+    const orderIds = orders.map((o) => o.id);
+    const rows = await this.prisma.$queryRaw<Array<{ order_id: string; total_gross: string }>>`
+      SELECT
+        soli.order_id,
+        SUM(soli.line_net * (1 + COALESCE(pv.vat_rate, 19) / 100)) AS total_gross
+      FROM sales_order_line_items soli
+      LEFT JOIN product_variants pv ON soli.matched_product_variant_id = pv.id
+      WHERE soli.order_id = ANY(${orderIds}::uuid[])
+      GROUP BY soli.order_id
+    `;
+    const byId = new Map(rows.map((r) => [r.order_id, Number(r.total_gross)]));
+    for (const o of orders) {
+      // Round to 2 decimals (Cent-genau, JS-float Workaround)
+      const g = byId.get(o.id);
+      o.totalGross = g !== undefined ? Math.round(g * 100) / 100 : Number(o.totalNet);
+    }
   }
 
   /**
@@ -230,7 +264,14 @@ export class SalesOrderService {
       this.logger.warn(`Shipments-Query failed (non-fatal): ${err.message}`);
     }
 
-    return { ...order, shipments };
+    // totalGross attach — gleiche Logik wie in list()
+    const wrap: any = { ...order, shipments };
+    try {
+      await this.attachTotalGross([wrap]);
+    } catch (err: any) {
+      this.logger.warn(`attachTotalGross failed (non-fatal): ${err.message}`);
+    }
+    return wrap;
   }
 
   async create(orgId: string, userId: string, data: SalesOrderInput) {
@@ -368,9 +409,17 @@ export class SalesOrderService {
     id: string,
     kind: 'confirmation_sent' | 'shipped' | 'invoice_sent' | 'paid',
     on: boolean,
+    /** Optionales Bezahldatum (nur fuer 'paid' relevant). ISO-String. */
+    at?: string,
   ) {
     const order = await this.get(orgId, id);
     const now = new Date();
+    // at-Parameter parsen, NUR wenn gueltiges Datum — sonst now.
+    let customDate: Date | null = null;
+    if (at) {
+      const d = new Date(at);
+      if (!isNaN(d.getTime())) customDate = d;
+    }
     const data: any = { events: { create: { orgId, type: kind, actorId: userId } } };
 
     if (kind === 'confirmation_sent') {
@@ -387,7 +436,11 @@ export class SalesOrderService {
       if (on && order.status === 'shipped') data.status = 'invoiced';
     }
     if (kind === 'paid') {
-      data.paidAt = on ? (order.paidAt ?? now) : null;
+      // Bei 'on': wenn paidAt schon gesetzt UND kein custom date → behalten,
+      // sonst customDate oder now. Bei 'off': zurueck auf null.
+      data.paidAt = on
+        ? (customDate ?? order.paidAt ?? now)
+        : null;
       // Paid implies the order is fully closed out — advance to completed when
       // it was invoiced. Otherwise leave status alone (user might mark paid
       // early before the invoice flow).

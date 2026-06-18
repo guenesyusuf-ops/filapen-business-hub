@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   ArrowLeft, Save, Trash2, FileText, Upload, Download, Send, FilePlus,
@@ -13,6 +14,7 @@ import { PageHeader, btn, Badge } from '@/components/sales/SalesUI';
 export default function SalesOrderDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const qc = useQueryClient();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,12 +41,23 @@ export default function SalesOrderDetailPage() {
       });
       setItems(o.lineItems ?? []);
       setDirtyItems(false);
+      // Cache der Listenseite invalidieren — laesst die Liste beim
+      // Zurueckwechseln automatisch frische Daten ziehen.
+      qc.invalidateQueries({ queryKey: ['sales-orders'] });
+      qc.invalidateQueries({ queryKey: ['sales-orders-count'] });
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => { load(); }, [params.id]);
+
+  // Auto-Refresh bei Fenster-Focus — Standard-SaaS-Pattern.
+  useEffect(() => {
+    function onFocus() { load(); }
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [params.id]);
 
   async function saveHeader() {
     setSaving(true);
@@ -160,6 +173,10 @@ export default function SalesOrderDetailPage() {
 
   const urg = urgencyOf(order);
   const total = items.reduce((s, i) => s + (Number(i.lineNet ?? i.quantity * i.unitPriceNet) || 0), 0);
+  // Brutto kommt vom Backend (per Produkt-VAT-Rate berechnet). Falls noch
+  // nicht geladen oder Order ohne Positionen: Fallback netto*1.19.
+  const totalGross = Number((order as any).totalGross ?? total * 1.19);
+  const totalSkonto = totalGross * 0.97;
 
   return (
     <div className="space-y-4">
@@ -325,6 +342,16 @@ export default function SalesOrderDetailPage() {
                   <tr className="border-t border-gray-200 dark:border-white/10">
                     <td colSpan={7} className="py-1.5 text-right text-xs font-semibold">Gesamt Netto</td>
                     <td className="py-1.5 text-right font-semibold">{fmtMoney(total, order.currency)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                  <tr>
+                    <td colSpan={7} className="py-1.5 text-right text-xs">Gesamt Brutto</td>
+                    <td className="py-1.5 text-right">{fmtMoney(totalGross, order.currency)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                  <tr>
+                    <td colSpan={7} className="py-1.5 text-right text-xs text-emerald-700 dark:text-emerald-400">Brutto abzgl. 3% Skonto</td>
+                    <td className="py-1.5 text-right text-emerald-700 dark:text-emerald-400 font-medium">{fmtMoney(totalSkonto, order.currency)}</td>
                     <td colSpan={2} />
                   </tr>
                 </tfoot>
