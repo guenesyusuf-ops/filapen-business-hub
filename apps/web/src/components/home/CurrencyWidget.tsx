@@ -21,6 +21,105 @@ const POPULAR_CURRENCIES = [
 
 type Mode = 'currency' | 'vat' | 'calc';
 
+// -----------------------------------------------------------------------------
+// Geteilte "Paper"-Styles — wie der Taschenrechner. Alle 3 Tabs sehen gleich aus.
+// -----------------------------------------------------------------------------
+const paperPanelStyle: React.CSSProperties = {
+  background: '#f3f0ea',
+  borderRadius: 34,
+  padding: 18,
+  boxShadow: '0 15px 35px rgba(20,18,15,0.275), 0 2px 6px rgba(0,0,0,0.18)',
+  color: '#1a1a1a',
+  width: '100%',
+  maxWidth: 340,
+  margin: '0 auto',
+};
+const displayCard: React.CSSProperties = {
+  background: '#ffffff',
+  borderRadius: 18,
+  padding: '12px 14px',
+  boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+};
+const displayInput: React.CSSProperties = {
+  flex: 1,
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  fontFamily: "'Space Grotesk', sans-serif",
+  fontSize: 28,
+  fontWeight: 500,
+  letterSpacing: '-0.02em',
+  color: '#1a1a1a',
+  textAlign: 'right',
+  width: '100%',
+  minWidth: 0,
+};
+const currencyPill: React.CSSProperties = {
+  background: '#111111',
+  color: '#ffffff',
+  border: 'none',
+  borderRadius: 999,
+  padding: '6px 10px',
+  fontFamily: "'Space Grotesk', sans-serif",
+  fontWeight: 500,
+  fontSize: 13,
+  cursor: 'pointer',
+  boxShadow: '0 4px 14px color-mix(in srgb, #111111 45%, transparent)',
+  appearance: 'none',
+  textAlign: 'center',
+  paddingRight: 14,
+};
+const swapBtn: React.CSSProperties = {
+  background: '#111111',
+  color: '#ffffff',
+  border: 'none',
+  width: 40,
+  height: 40,
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  boxShadow: '0 4px 14px color-mix(in srgb, #111111 45%, transparent)',
+  transition: 'transform .07s',
+};
+const paperIconBtn: React.CSSProperties = {
+  background: 'color-mix(in srgb, #ffffff 78%, #1a1a1a 22%)',
+  color: '#1a1a1a',
+  border: 'none',
+  width: 28,
+  height: 28,
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  boxShadow: '0 4px 10px rgba(0,0,0,0.11)',
+};
+const pillToggle = (active: boolean): React.CSSProperties => ({
+  background: active ? '#111111' : '#ffffff',
+  color: active ? '#ffffff' : '#1a1a1a',
+  border: 'none',
+  borderRadius: 999,
+  padding: '8px 14px',
+  fontFamily: "'Space Grotesk', sans-serif",
+  fontWeight: 500,
+  fontSize: 13,
+  cursor: 'pointer',
+  boxShadow: active
+    ? '0 4px 14px color-mix(in srgb, #111111 45%, transparent)'
+    : '0 2px 6px rgba(0,0,0,0.08)',
+  transition: 'transform .07s',
+});
+const subtleLabel: React.CSSProperties = {
+  fontSize: 10,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  fontWeight: 700,
+  color: '#7a7468',
+  marginBottom: 6,
+};
+
 /**
  * Kombiniertes Widget: Waehrungsrechner + MwSt-Rechner + Taschenrechner.
  */
@@ -126,78 +225,83 @@ function CurrencyMode() {
   const fromCurrency = POPULAR_CURRENCIES.find((c) => c.code === from);
   const toCurrency = POPULAR_CURRENCIES.find((c) => c.code === to);
 
+  useSpaceGroteskFont();
+
   return (
-    <div className="p-4 sm:p-5 space-y-4">
-      <div className="flex justify-end">
-        <button
-          onClick={convert}
-          disabled={loading}
-          className="text-gray-400 hover:text-primary-500 transition-colors"
-          title="Aktualisieren"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-        </button>
-      </div>
-
-      <div className="flex gap-2">
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="flex-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/30"
-          min="0"
-          step="0.01"
-        />
-        <select
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          className="w-24 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-2 py-2.5 text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/30"
-        >
-          {POPULAR_CURRENCIES.map((c) => (
-            <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex items-center justify-center">
-        <button
-          onClick={swap}
-          className="p-2 rounded-full bg-gray-100 dark:bg-white/5 hover:bg-primary-50 dark:hover:bg-primary-900/20 text-gray-500 hover:text-primary-600 transition-all active:scale-95"
-        >
-          <ArrowRightLeft className="h-4 w-4 rotate-90" />
-        </button>
-      </div>
-
-      <div className="flex gap-2">
-        <div className="flex-1 rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] px-3 py-2.5">
-          {loading ? (
-            <div className="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-          ) : result !== null ? (
-            <span className="text-sm font-bold text-gray-900 dark:text-white">
-              {result.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          ) : (
-            <span className="text-sm text-gray-400">—</span>
-          )}
+    <div className="p-4 sm:p-5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div style={paperPanelStyle}>
+        {/* Refresh oben rechts */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+          <button
+            onClick={convert}
+            disabled={loading}
+            style={paperIconBtn}
+            title="Aktualisieren"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+          </button>
         </div>
-        <select
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          className="w-24 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-2 py-2.5 text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/30"
-        >
-          {POPULAR_CURRENCIES.map((c) => (
-            <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
-          ))}
-        </select>
+
+        {/* From: Display-Stil — Betrag (gross) + Currency (Pill) */}
+        <div style={{ ...displayCard, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            min="0"
+            step="0.01"
+            style={displayInput}
+          />
+          <select
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            style={currencyPill}
+          >
+            {POPULAR_CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Swap-Button — schwarz wie Operator-Tasten */}
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '10px 0' }}>
+          <button onClick={swap} style={swapBtn} title="Vertauschen">
+            <ArrowRightLeft className="h-4 w-4 rotate-90" />
+          </button>
+        </div>
+
+        {/* To: Display-Stil */}
+        <div style={{ ...displayCard, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1, textAlign: 'right', overflow: 'hidden' }}>
+            {loading ? (
+              <span style={{ fontSize: 28, opacity: 0.4 }}>…</span>
+            ) : result !== null ? (
+              <span style={{ fontSize: 28, fontWeight: 500, letterSpacing: '-0.02em', color: '#1a1a1a' }}>
+                {result.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            ) : (
+              <span style={{ fontSize: 28, color: '#bdb8ad' }}>—</span>
+            )}
+          </div>
+          <select
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            style={currencyPill}
+          >
+            {POPULAR_CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Footer: Rate + Fehler */}
+        {rate !== null && !error && (
+          <p style={{ fontSize: 11, color: '#7a7468', textAlign: 'center', marginTop: 12, opacity: 0.7 }}>
+            1 {fromCurrency?.flag} {from} = {rate.toLocaleString('de-DE', { minimumFractionDigits: 4 })} {toCurrency?.flag} {to}
+          </p>
+        )}
+        {error && <p style={{ fontSize: 12, color: '#c53030', textAlign: 'center', marginTop: 10 }}>{error}</p>}
       </div>
-
-      {rate !== null && !error && (
-        <p className="text-[11px] text-gray-400 text-center">
-          1 {fromCurrency?.flag} {from} = {rate.toLocaleString('de-DE', { minimumFractionDigits: 4 })} {toCurrency?.flag} {to}
-        </p>
-      )}
-
-      {error && <p className="text-xs text-red-500 text-center">{error}</p>}
     </div>
   );
 }
@@ -225,82 +329,65 @@ function VatMode() {
     return { primary: gross, vat: gross - n, label: 'Brutto' };
   }, [amount, rate, direction]);
 
+  useSpaceGroteskFont();
+
   return (
-    <div className="p-4 sm:p-5 space-y-3">
-      <div className="flex items-center justify-end">
-        <div className="inline-flex rounded-lg border border-gray-200 dark:border-white/10 overflow-hidden">
+    <div className="p-4 sm:p-5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div style={paperPanelStyle}>
+        {/* Rate-Toggle 7% / 19% — Pillen */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
           {([7, 19] as const).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRate(r)}
-              className={cn(
-                'px-2.5 py-1 text-[11px] font-semibold transition-colors',
-                rate === r
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-white dark:bg-white/[0.03] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5',
-              )}
-            >
+            <button key={r} onClick={() => setRate(r)} style={pillToggle(rate === r)}>
               {r}%
             </button>
           ))}
         </div>
-      </div>
 
-      <div className="flex items-center gap-1.5 text-[11px]">
-        <button
-          onClick={() => setDirection('gross-to-net')}
-          className={cn(
-            'flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 font-medium transition-colors',
-            direction === 'gross-to-net'
-              ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
-              : 'bg-gray-50 dark:bg-white/[0.03] text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 border border-gray-200 dark:border-white/10',
-          )}
-        >
-          <ArrowDown className="h-3 w-3" /> Brutto → Netto
-        </button>
-        <button
-          onClick={() => setDirection('net-to-gross')}
-          className={cn(
-            'flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 font-medium transition-colors',
-            direction === 'net-to-gross'
-              ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
-              : 'bg-gray-50 dark:bg-white/[0.03] text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 border border-gray-200 dark:border-white/10',
-          )}
-        >
-          <ArrowUp className="h-3 w-3" /> Netto → Brutto
-        </button>
-      </div>
-
-      <div>
-        <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">
-          {direction === 'gross-to-net' ? 'Brutto-Betrag (€)' : 'Netto-Betrag (€)'}
-        </label>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-        />
-      </div>
-
-      <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] p-3 space-y-1.5">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500 dark:text-gray-400">{result?.label}</span>
-          <span className="font-bold text-gray-900 dark:text-white tabular-nums">
-            {result
-              ? result.primary.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
-              : '—'}
-          </span>
+        {/* Richtungs-Toggle als 2 grosse Pillen */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <button
+            onClick={() => setDirection('gross-to-net')}
+            style={{ ...pillToggle(direction === 'gross-to-net'), flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          >
+            <ArrowDown className="h-3 w-3" /> Brutto → Netto
+          </button>
+          <button
+            onClick={() => setDirection('net-to-gross')}
+            style={{ ...pillToggle(direction === 'net-to-gross'), flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          >
+            <ArrowUp className="h-3 w-3" /> Netto → Brutto
+          </button>
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-400">MwSt ({rate}%)</span>
-          <span className="text-gray-600 dark:text-gray-300 tabular-nums">
-            {result
-              ? result.vat.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
-              : '—'}
-          </span>
+
+        {/* Input-Card im Display-Stil */}
+        <div style={{ ...displayCard, marginBottom: 12 }}>
+          <div style={subtleLabel}>
+            {direction === 'gross-to-net' ? 'Brutto-Betrag' : 'Netto-Betrag'}
+          </div>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            style={displayInput}
+          />
+        </div>
+
+        {/* Resultat-Card */}
+        <div style={{ ...displayCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#7a7468', fontWeight: 600 }}>{result?.label}</span>
+            <span style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', color: '#1a1a1a' }}>
+              {result ? result.primary.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '—'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 11, color: '#7a7468', opacity: 0.7 }}>MwSt ({rate}%)</span>
+            <span style={{ fontSize: 14, color: '#3a3530', fontWeight: 500 }}>
+              {result ? result.vat.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '—'}
+            </span>
+          </div>
         </div>
       </div>
     </div>
