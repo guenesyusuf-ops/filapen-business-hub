@@ -65,7 +65,7 @@ export function CurrencyWidget() {
           )}
         >
           <Calculator className="h-4 w-4" />
-          Taschen
+          Rechner
         </button>
       </div>
 
