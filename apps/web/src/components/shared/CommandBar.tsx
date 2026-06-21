@@ -143,8 +143,9 @@ export function CommandBar({ open, onClose }: CommandBarProps) {
     const updatedMessages = [...messages, { role: 'user' as const, content: userQuery }];
     setMessages(updatedMessages);
 
-    // Build conversation history for the API (last 10 messages for context)
-    const history = updatedMessages.slice(-10).map((m) => ({
+    // Build conversation history for the API (last 20 messages for context).
+    // 20 deckt mehrere Rueckfragen ab ohne Token-Cost zu sprengen.
+    const history = updatedMessages.slice(-20).map((m) => ({
       role: m.role,
       content: m.content,
     }));
