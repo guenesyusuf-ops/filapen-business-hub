@@ -117,9 +117,9 @@ export default function PublicDocSharePage() {
 
   return (
     <div className="min-h-[100dvh] bg-slate-50">
-      <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
+      <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-10">
         {/* Header */}
-        <div className="mb-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <div className="mb-4 sm:mb-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Geteilter Ordner</p>
@@ -200,18 +200,18 @@ export default function PublicDocSharePage() {
                       href={`${baseUrl}?inline=1`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 px-3 py-1.5 text-xs font-medium"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 active:bg-slate-200 text-slate-700 px-2.5 sm:px-3 min-w-[44px] min-h-[40px] sm:min-h-0 sm:py-1.5 text-xs font-medium flex-shrink-0"
                       title="In neuem Tab oeffnen"
                     >
-                      <Eye className="h-3.5 w-3.5" />
+                      <Eye className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                       <span className="hidden sm:inline">Vorschau</span>
                     </a>
                   )}
                   <a
                     href={baseUrl}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-white px-3 py-1.5 text-xs font-medium"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 hover:bg-slate-700 active:bg-slate-600 text-white px-2.5 sm:px-3 min-w-[44px] min-h-[40px] sm:min-h-0 sm:py-1.5 text-xs font-medium flex-shrink-0"
                   >
-                    <Download className="h-3.5 w-3.5" />
+                    <Download className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     <span className="hidden sm:inline">Download</span>
                   </a>
                 </li>
