@@ -400,7 +400,9 @@ export default function InvoiceDetailPage() {
 
       {/* Sticky Save Bar */}
       {(dirty || saving || error) && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 inline-flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] shadow-2xl px-4 py-2.5">
+        <div
+          className="fixed bottom-20 md:bottom-4 left-1/2 -translate-x-1/2 z-40 inline-flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0f1117] shadow-2xl px-4 py-2.5 max-w-[calc(100vw-1rem)] mobile-safe-bottom"
+        >
           {error
             ? <span className="text-xs text-red-600 dark:text-red-400">{error}</span>
             : <span className="text-xs text-gray-600 dark:text-gray-300">Du hast nicht gespeicherte Änderungen.</span>
