@@ -67,7 +67,7 @@ function AddColumnPopover({ onAdd, onClose }: { onAdd: (name: string, color: str
   }, [onClose]);
 
   return (
-    <div ref={ref} className="relative w-72 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl p-4 space-y-3">
+    <div ref={ref} className="relative w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1d2e] shadow-xl p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Neue Spalte</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -92,8 +92,8 @@ function AddColumnPopover({ onAdd, onClose }: { onAdd: (name: string, color: str
               onClick={() => setColor(c.value)}
               title={c.label}
               className={cn(
-                'h-7 w-7 rounded-full border-2 transition-all',
-                color === c.value ? 'border-gray-900 dark:border-white scale-110' : 'border-transparent hover:scale-105',
+                'h-9 w-9 sm:h-7 sm:w-7 rounded-full border-2 transition-all',
+                color === c.value ? 'border-gray-900 dark:border-white scale-110' : 'border-transparent hover:scale-105 active:scale-110',
               )}
               style={{ backgroundColor: c.value }}
             />
