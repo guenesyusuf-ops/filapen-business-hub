@@ -31,8 +31,10 @@ const paperPanelStyle: React.CSSProperties = {
   boxShadow: '0 15px 35px rgba(20,18,15,0.275), 0 2px 6px rgba(0,0,0,0.18)',
   color: '#1a1a1a',
   width: '100%',
+  // 100% sorgt fuer 320px-Devices, maxWidth cap't bei 340 — unveraendert.
   maxWidth: 340,
   margin: '0 auto',
+  boxSizing: 'border-box',
 };
 const displayCard: React.CSSProperties = {
   background: '#ffffff',
@@ -552,6 +554,7 @@ function CalcMode() {
           width: '100%',
           maxWidth: 340,
           margin: '0 auto',
+          boxSizing: 'border-box',
         }}
       >
         {/* Display */}
