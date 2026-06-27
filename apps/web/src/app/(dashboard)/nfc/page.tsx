@@ -35,7 +35,7 @@ export default function NfcOverviewPage() {
       ) : q.data ? (
         <>
           {/* KPI-Kacheln */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
             <Kpi label="Gesamt" value={q.data.totalBands} icon={<Radio className="h-3.5 w-3.5" />} />
             <Kpi label="Aktiviert" value={q.data.active} accent="text-emerald-600 dark:text-emerald-400" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
             <Kpi label="Noch nicht" value={q.data.inactive} accent="text-gray-600 dark:text-gray-300" icon={<AlertCircle className="h-3.5 w-3.5" />} />
@@ -59,10 +59,10 @@ export default function NfcOverviewPage() {
 function Kpi({ label, value, accent, icon }: { label: string; value: number; accent?: string; icon?: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 mb-1">
-        {icon} {label}
+      <div className="flex items-center gap-1.5 text-[10px] sm:text-[10px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 mb-1">
+        {icon} <span className="truncate">{label}</span>
       </div>
-      <div className={`text-2xl font-bold tabular-nums ${accent ?? 'text-gray-900 dark:text-white'}`}>{value}</div>
+      <div className={`text-xl sm:text-2xl font-bold tabular-nums ${accent ?? 'text-gray-900 dark:text-white'}`}>{value}</div>
     </div>
   );
 }
