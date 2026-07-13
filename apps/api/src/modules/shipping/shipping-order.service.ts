@@ -119,15 +119,40 @@ export class ShippingOrderService {
       }
     }
     // Product variant filters (combinable: nur mit X + nicht mit Y)
+    //
+    // Fallback-Match per SKU: einige order_line_items haben product_variant_id=NULL
+    // (Sync-Race oder SKU-Aenderung nachdem die Bestellung importiert wurde). Damit
+    // MIT-/OHNE-Filter auch dort greifen, matchen wir bei NULL-Zeilen zusaetzlich
+    // auf sku. Sonst waeren solche Bestellungen im OHNE-Filter faelschlich sichtbar.
     const lineItemConditions: any[] = [];
+    const collectSkusForVariants = async (variantIds: string[]): Promise<string[]> => {
+      if (!variantIds.length) return [];
+      const rows = await this.prisma.productVariant.findMany({
+        where: { id: { in: variantIds }, orgId },
+        select: { sku: true },
+      });
+      return rows.map((r) => r.sku).filter((s): s is string => !!s);
+    };
     if (filters.includedProductVariantIds?.length) {
+      const skus = await collectSkusForVariants(filters.includedProductVariantIds);
       lineItemConditions.push({
-        some: { productVariantId: { in: filters.includedProductVariantIds } },
+        some: {
+          OR: [
+            { productVariantId: { in: filters.includedProductVariantIds } },
+            ...(skus.length ? [{ productVariantId: null, sku: { in: skus } }] : []),
+          ],
+        },
       });
     }
     if (filters.excludedProductVariantIds?.length) {
+      const skus = await collectSkusForVariants(filters.excludedProductVariantIds);
       lineItemConditions.push({
-        none: { productVariantId: { in: filters.excludedProductVariantIds } },
+        none: {
+          OR: [
+            { productVariantId: { in: filters.excludedProductVariantIds } },
+            ...(skus.length ? [{ productVariantId: null, sku: { in: skus } }] : []),
+          ],
+        },
       });
     }
     // SKU-Filter: zwei Modi je nach Operator.
