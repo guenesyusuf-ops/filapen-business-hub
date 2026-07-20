@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { getModule, MANUAL_MODULES } from '@/lib/manual/modules';
 import { loadModuleContent } from '@/content/manual/_registry';
-import { extractSections } from '@/components/manual/Markdown';
+import { extractSections } from '@/components/manual/markdown-utils';
 import { ModuleContent } from '@/components/manual/ModuleContent';
 
 interface Props {

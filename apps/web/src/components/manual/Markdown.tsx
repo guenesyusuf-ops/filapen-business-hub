@@ -1,6 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
+import { slugify } from './markdown-utils';
+
+export { slugify, extractSections } from './markdown-utils';
 
 // Minimaler Markdown-Renderer fuer unseren kontrollierten Anleitungs-Content.
 // Unterstuetzt: H1-H4, Absaetze, ungeordnete + geordnete Listen, **fett**,
@@ -161,19 +164,3 @@ export function Markdown({ text }: { text: string }) {
   );
 }
 
-export function slugify(s: string): string {
-  return s.toLowerCase()
-    .replace(/[äöüß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' } as any)[c])
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-/** Extrahiert alle H2-Ueberschriften — fuer Sidebar-Navigation. */
-export function extractSections(text: string): Array<{ id: string; title: string }> {
-  const sections: Array<{ id: string; title: string }> = [];
-  for (const line of text.split('\n')) {
-    const m = /^##\s+(.+)$/.exec(line);
-    if (m) sections.push({ id: slugify(m[1].trim()), title: m[1].trim() });
-  }
-  return sections;
-}
