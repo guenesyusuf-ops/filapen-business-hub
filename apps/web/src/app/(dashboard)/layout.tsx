@@ -346,6 +346,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.team', href: '/settings/team', icon: Users },
       { labelKey: 'nav.approvals', href: '/settings/approvals', icon: ShieldCheck },
       { labelKey: 'nav.integrations', href: '/finance/integrations', icon: Plug },
+      { labelKey: 'nav.manual', href: '/settings/manual', icon: BookOpen },
     ],
   },
   {
