@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes, Search, Save, Ban, CheckCircle2 } from 'lucide-react';
+import { Boxes, Search, Save, Ban, CheckCircle2, RefreshCw } from 'lucide-react';
 import { shippingApi } from '@/lib/shipping';
 import { PageHeader, Empty, btn, input as inputCls, label as labelCls, Badge } from '@/components/shipping/ShippingUI';
 
@@ -34,6 +34,24 @@ export default function ShippingProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ products: number } | null>(null);
+
+  async function runShopifySync(): Promise<void> {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const r = await shippingApi.syncProductsFromShopify();
+      setSyncResult({ products: r.products });
+      const fresh = await shippingApi.listProductProfiles(search || undefined);
+      setRows(fresh as any);
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncResult(null), 6000);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -85,7 +103,28 @@ export default function ShippingProductsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Produkte & Versanddaten" subtitle="Gewicht, Maße, Zoll-Codes pro Variante" />
+      <PageHeader
+        title="Produkte & Versanddaten"
+        subtitle="Gewicht, Maße, Zoll-Codes pro Variante"
+        actions={
+          <div className="flex items-center gap-2">
+            {syncResult && (
+              <span className="text-xs text-emerald-700 dark:text-emerald-300">
+                {syncResult.products} Produkte aktualisiert
+              </span>
+            )}
+            <button
+              onClick={runShopifySync}
+              disabled={syncing}
+              className={btn('secondary')}
+              title="Zieht alle aktuellen Produkte + Varianten frisch aus Shopify (inkl. neu angelegter)."
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Synchronisiere…' : 'Aus Shopify nachladen'}
+            </button>
+          </div>
+        }
+      />
 
       <div className="rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3">
         <div className="relative flex-1">

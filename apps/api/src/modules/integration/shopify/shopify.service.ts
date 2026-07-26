@@ -184,6 +184,7 @@ export class ShopifyService {
       'orders/updated',
       'orders/cancelled',
       'refunds/create',
+      'products/create',
       'products/update',
       'app/uninstalled',
       // Email Marketing topics
@@ -751,6 +752,59 @@ export class ShopifyService {
    * Initial backfill: fetch all products then 12 months of orders
    * using cursor-based pagination.
    */
+  /**
+   * Dedizierter Product-only Sync (kein Order-Backfill).
+   * Zieht alle aktiven + archivierten Shopify-Produkte und macht upsert.
+   * Deutlich billiger als backfill() — Sekunden statt Minuten, keine 12
+   * Monate Order-Historie noch mal.
+   */
+  async syncProducts(
+    integrationId: string,
+  ): Promise<{ products: number }> {
+    const integration = await this.prisma.integration.findUniqueOrThrow({
+      where: { id: integrationId },
+    });
+    const orgId = integration.orgId;
+    const { accessToken, shopDomain } = this.decryptCredentials(
+      integration.credentials as Record<string, string>,
+    );
+    const rateLimiter = this.getRateLimiter(shopDomain);
+
+    let totalProducts = 0;
+    for (const status of ['active', 'archived'] as const) {
+      let nextUrl: string | null =
+        `/admin/api/2024-01/products.json?limit=250&status=${status}`;
+      while (nextUrl) {
+        await rateLimiter.waitIfNeeded();
+        const response = await this.shopifyApiGetWithPagination<{
+          products: ShopifyProduct[];
+        }>(shopDomain, accessToken, nextUrl);
+        for (const product of response.data.products) {
+          await this.upsertProduct(orgId, integrationId, product);
+          totalProducts++;
+        }
+        nextUrl = response.pagination.nextPageUrl;
+      }
+    }
+
+    // Self-heal: Webhooks neu registrieren. Falls diese Integration noch
+    // vor Einfuehrung des products/create Topics verbunden wurde, faellt der
+    // Topic hier nachtraeglich auf den Shop. Ohne diesen Aufruf wuerde die
+    // Shopify-Seite weiterhin bei neuen Produkten keinen Event senden.
+    try {
+      await this.registerWebhooks(shopDomain, accessToken);
+    } catch (err) {
+      this.logger.warn(
+        `syncProducts: webhook re-registration failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    this.logger.log(
+      `syncProducts: integration=${integrationId} products=${totalProducts}`,
+    );
+    return { products: totalProducts };
+  }
+
   async backfill(
     integrationId: string,
   ): Promise<{ orders: number; products: number }> {

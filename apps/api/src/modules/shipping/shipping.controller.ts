@@ -216,6 +216,34 @@ export class ShippingController {
     return this.profiles.listWithProducts(orgId, search);
   }
 
+  /**
+   * Zieht die aktuellen Produkte + Varianten der ersten verbundenen
+   * Shopify-Integration in den Hub. Wird vom Frontend-Button
+   * "Aus Shopify nachladen" auf /shipping/products aufgerufen. Neue
+   * Produkte (die zwischen Backfill + jetzt in Shopify angelegt wurden)
+   * landen hierueber im Hub, ohne dass wir auf den `products/create`-
+   * Webhook oder den naechtlichen Cron warten muessen.
+   */
+  @Post('product-profiles/sync-from-shopify')
+  async syncProductsFromShopify(
+    @Headers('authorization') authHeader: string,
+  ): Promise<{ products: number; integrations: number }> {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const integrations = await this.prisma.integration.findMany({
+      where: { orgId, type: 'shopify', status: 'connected' },
+    });
+    if (integrations.length === 0) {
+      throw new BadRequestException('Keine verbundene Shopify-Integration gefunden.');
+    }
+    let total = 0;
+    for (const integration of integrations) {
+      const r = await this.shopify.syncProducts(integration.id);
+      total += r.products;
+    }
+    return { products: total, integrations: integrations.length };
+  }
+
   @Get('product-profiles/manual')
   async listManualProfiles(@Headers('authorization') authHeader: string) {
     const { orgId } = extractAuthContext(authHeader, this.auth);

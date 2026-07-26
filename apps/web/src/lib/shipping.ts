@@ -50,6 +50,11 @@ export const shippingApi = {
 
   // Product profiles
   listProductProfiles: (search?: string) => call(`/product-profiles${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  syncProductsFromShopify: () =>
+    call<{ products: number; integrations: number }>(
+      '/product-profiles/sync-from-shopify',
+      { method: 'POST' },
+    ),
   upsertVariantProfile: (variantId: string, data: any) =>
     call(`/product-profiles/variant/${variantId}`, { method: 'POST', body: JSON.stringify(data) }),
   updateProfile: (id: string, data: any) =>

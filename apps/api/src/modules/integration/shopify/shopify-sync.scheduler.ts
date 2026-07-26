@@ -71,6 +71,36 @@ export class ShopifySyncScheduler {
   }
 
   /**
+   * Every night at 03:15: sync all Shopify products.
+   * Fallback fuer den products/create Webhook — falls Shopify mal
+   * einen Event verliert oder ein Shop erst spaeter den Topic
+   * abonniert hat, faengt dieser Sync neue Produkte am naechsten
+   * Morgen ein.
+   */
+  @Cron('15 3 * * *')
+  async nightlyProductSync(): Promise<void> {
+    const integrations = await this.prisma.integration.findMany({
+      where: { type: 'shopify', status: 'connected' },
+    });
+    for (const integration of integrations) {
+      try {
+        this.logger.log(
+          `Nightly product sync starting for integration ${integration.id}`,
+        );
+        const r = await this.shopifyService.syncProducts(integration.id);
+        this.logger.log(
+          `Nightly product sync done: integration=${integration.id} products=${r.products}`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Nightly product sync failed for integration ${integration.id}`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
+    }
+  }
+
+  /**
    * Every night at 03:00: full reconciliation of the last 7 days
    * and aggregate rebuild for the same range.
    */

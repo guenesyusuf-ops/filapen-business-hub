@@ -149,6 +149,7 @@ export class WebhookProcessor extends WorkerHost {
           return { processed: true, refundId: refund.id };
         }
 
+        case 'products/create':
         case 'products/update': {
           const product = payload as unknown as ShopifyProduct;
           await this.shopifyService.upsertProduct(
@@ -156,7 +157,7 @@ export class WebhookProcessor extends WorkerHost {
             integrationId,
             product,
           );
-          this.logger.log(`Product ${product.id} updated via webhook`);
+          this.logger.log(`Product ${product.id} ${topic === 'products/create' ? 'created' : 'updated'} via webhook`);
           return { processed: true, productId: product.id };
         }
 
