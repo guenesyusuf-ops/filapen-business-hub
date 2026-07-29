@@ -104,6 +104,31 @@ export class OrderShipmentService {
   }
 
   async create(orgId: string, userId: string, data: CreateShipmentInput) {
+    // Idempotenz-Check: Wenn fuer diese Order schon ein aktives Shipment
+    // existiert (irgendein Status ausser cancelled), das bestehende
+    // zurueckgeben statt ein neues zu erstellen.
+    // Schuetzt gegen:
+    //   - Doppelklick auf "DHL Label erstellen"
+    //   - HTTP-Retry am Reverse-Proxy nach ~100s Timeout waehrend Bulk
+    //   - Frontend-Reload waehrend eines langen Bulk-Loops
+    // Der Cancel-Fall bleibt bewusst offen: wenn ein Label storniert wurde,
+    // muss der User ein neues erstellen koennen.
+    const existingShipment = await this.prisma.orderShipment.findFirst({
+      where: {
+        orgId,
+        orderId: data.orderId,
+        status: { not: 'cancelled' as const },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existingShipment) {
+      this.logger.log(
+        `create(): skip duplicate — order ${data.orderId} already has shipment ${existingShipment.id} (status=${existingShipment.status})`,
+      );
+      const existing = await this.get(orgId, existingShipment.id);
+      return { ...existing, _skipped: true } as any;
+    }
+
     const order = await this.prisma.order.findFirst({
       where: { id: data.orderId, orgId },
       include: {
@@ -129,14 +154,21 @@ export class OrderShipmentService {
       throw new BadRequestException('Lieferadresse fehlt — Shopify-Order ohne shipping_address');
     }
 
+    // Weight-Berechnung einmal machen — Ergebnis wird sowohl von Rule-Eval
+    // als auch vom Weight-Guard-Check weiter unten genutzt. Frueher wurde
+    // computeOrderWeight() zweimal aufgerufen (jede DB-Query 100-200ms).
+    let cachedWeight: { totalG: number; unknownCount: number; unknownItems: any[] } | null = null;
+    if (!data.weightG) {
+      cachedWeight = await this.orders.computeOrderWeight(orgId, data.orderId);
+    }
+
     // ----- Rule evaluation (optional — auto-select carrier/method/package) -----
     let resolvedCarrier = data.carrier;
     let resolvedMethod = data.shippingMethod || null;
     let resolvedPackageId = data.packageId || null;
     try {
-      const weightEstimate = await this.orders.computeOrderWeight(orgId, data.orderId);
       const rule = await this.rules.evaluate(orgId, {
-        weightG: weightEstimate.totalG,
+        weightG: cachedWeight?.totalG ?? data.weightG ?? 0,
         totalPriceCents: Math.round(Number(order.totalPrice) * 100),
         countryCode: order.countryCode,
         productVariantIds: (order.lineItems || []).map((li: any) => li.productVariantId).filter(Boolean),
@@ -180,19 +212,18 @@ export class OrderShipmentService {
     // shipments with 0 weight anyway, and silently assuming 1 kg makes the
     // merchant pay for the wrong postage tier.
     let weightG = data.weightG ?? 0;
-    if (!weightG) {
-      const computed = await this.orders.computeOrderWeight(orgId, data.orderId);
-      if (computed.unknownCount > 0) {
-        const items = computed.unknownItems
+    if (!weightG && cachedWeight) {
+      if (cachedWeight.unknownCount > 0) {
+        const items = cachedWeight.unknownItems
           .map((i) => `${i.title}${i.sku ? ` (SKU ${i.sku})` : ''}`)
           .slice(0, 5)
           .join(', ');
-        const more = computed.unknownCount > 5 ? ` … und ${computed.unknownCount - 5} weitere` : '';
+        const more = cachedWeight.unknownCount > 5 ? ` … und ${cachedWeight.unknownCount - 5} weitere` : '';
         throw new BadRequestException(
-          `Versandgewicht nicht ermittelbar: bei ${computed.unknownCount} Artikel(n) fehlt das Gewicht — ${items}${more}. Bitte in Shopify oder im Versand-Modul (Produkte) Gewichte pflegen und Bestellung neu laden.`,
+          `Versandgewicht nicht ermittelbar: bei ${cachedWeight.unknownCount} Artikel(n) fehlt das Gewicht — ${items}${more}. Bitte in Shopify oder im Versand-Modul (Produkte) Gewichte pflegen und Bestellung neu laden.`,
         );
       }
-      weightG = computed.totalG;
+      weightG = cachedWeight.totalG;
     }
     if (weightG <= 0) {
       throw new BadRequestException(
@@ -343,17 +374,55 @@ export class OrderShipmentService {
     return map[carrier] || carrier.toUpperCase();
   }
 
-  async createBulk(orgId: string, userId: string, orderIds: string[], carrier: 'dhl' | 'custom', carrierAccountId?: string | null) {
-    const results: Array<{ orderId: string; shipmentId?: string; error?: string }> = [];
-    for (const orderId of orderIds) {
-      try {
-        const ship = await this.create(orgId, userId, { orderId, carrier, carrierAccountId });
-        results.push({ orderId, shipmentId: ship.id });
-      } catch (err: any) {
-        results.push({ orderId, error: err.message });
+  async createBulk(
+    orgId: string,
+    userId: string,
+    orderIds: string[],
+    carrier: 'dhl' | 'custom',
+    carrierAccountId?: string | null,
+    onProgress?: () => void,
+  ) {
+    // Concurrency-Chunks statt strikte for-Loop: bei 100 Orders reduziert
+    // sich die Wall-Clock-Zeit von ~30 Min auf ~4-6 Min. Wichtig:
+    //   - Reihenfolge bleibt erhalten (results werden per Index gefuellt)
+    //   - Jeder Fehler wird pro Order isoliert, andere laufen weiter
+    //   - _skipped-Flag aus create() wird propagiert damit Frontend
+    //     "X neu, Y schon vorhanden" anzeigen kann
+    // Concurrency 6 gewaehlt: DHL Parcel DE Shipping v2 vertraegt gut
+    // parallele Requests bei realistischen Volumen, R2-Upload/DB-Writes
+    // sind ohnehin unproblematisch bei dem Fanout.
+    const CONCURRENCY = 6;
+    type ResultRow = { orderId: string; shipmentId?: string; error?: string; skipped?: boolean };
+    const results: ResultRow[] = new Array(orderIds.length);
+
+    let cursor = 0;
+    const runOne = async (): Promise<void> => {
+      while (true) {
+        const myIndex = cursor++;
+        if (myIndex >= orderIds.length) return;
+        const orderId = orderIds[myIndex];
+        try {
+          const ship: any = await this.create(orgId, userId, { orderId, carrier, carrierAccountId });
+          results[myIndex] = {
+            orderId,
+            shipmentId: ship.id,
+            skipped: ship._skipped === true,
+          };
+        } catch (err: any) {
+          results[myIndex] = { orderId, error: err.message };
+        }
+        onProgress?.();
       }
-    }
-    return { results, total: orderIds.length, succeeded: results.filter((r) => r.shipmentId).length };
+    };
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, orderIds.length) }, runOne));
+
+    return {
+      results,
+      total: orderIds.length,
+      succeeded: results.filter((r) => r.shipmentId).length,
+      created: results.filter((r) => r.shipmentId && !r.skipped).length,
+      skipped: results.filter((r) => r.skipped).length,
+    };
   }
 
   // ---------------------------------------------------------------------

@@ -78,6 +78,28 @@ export const shippingApi = {
   getShipment: (id: string) => call(`/shipments/${id}`),
   createShipment: (data: any) => call('/shipments', { method: 'POST', body: JSON.stringify(data) }),
   bulkCreateShipments: (data: any) => call('/shipments/bulk', { method: 'POST', body: JSON.stringify(data) }),
+  /** Asynchron: startet den Bulk-Job und gibt sofort eine jobId zurueck.
+   *  Fortschritt via getBulkJob(jobId) pollen. Verhindert HTTP-Timeouts
+   *  bei grossen Batches (kein 30-Min-Request mehr am Proxy). */
+  startBulkJob: (data: { orderIds: string[]; carrier: 'dhl' | 'custom'; carrierAccountId?: string | null }) =>
+    call<{ jobId: string; total: number }>('/shipments/bulk-async', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getBulkJob: (jobId: string) =>
+    call<{
+      id: string;
+      status: 'running' | 'done' | 'failed';
+      progress: { done: number; total: number };
+      result?: {
+        results: Array<{ orderId: string; shipmentId?: string; error?: string; skipped?: boolean }>;
+        total: number;
+        succeeded: number;
+        created?: number;
+        skipped?: number;
+      };
+      error?: string;
+    }>(`/shipments/bulk-jobs/${jobId}`),
   setShipmentStatus: (id: string, status: string, note?: string) =>
     call(`/shipments/${id}/status`, { method: 'POST', body: JSON.stringify({ status, note }) }),
   setTracking: (id: string, trackingNumber: string, trackingUrl?: string) =>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw, Filter, X, MapPin, Save, Check } from 'lucide-react';
+import { ClipboardList, Search, ChevronLeft, ChevronRight, Package, AlertCircle, RefreshCw, Filter, X, MapPin, Save, Check, Loader2 } from 'lucide-react';
 import { shippingApi, fmtDate, fmtDateTime } from '@/lib/shipping';
 import { PageHeader, Empty, btn, input as inputCls, label as labelCls, SectionCard, Badge, Money } from '@/components/shipping/ShippingUI';
 import { cn } from '@/lib/utils';
@@ -65,6 +65,15 @@ export default function ShippingOrdersPage() {
 
   // Address-Correction-Modal
   const [correctingOrder, setCorrectingOrder] = useState<any | null>(null);
+
+  // Bulk-Label-Job State: waehrend der Erstellung Button disabled +
+  // Progress-Balken sichtbar. Polling laeuft alle 1.5s bis status=done.
+  const [bulkJob, setBulkJob] = useState<{
+    jobId: string;
+    done: number;
+    total: number;
+    status: 'running' | 'done' | 'failed';
+  } | null>(null);
 
   useEffect(() => { setOffset(0); setSelectedIds(new Set()); }, [search, hasShipment, fulfillmentFilter, filterMode, selectedVariantIds, exclusiveVariantIds, exclusiveOp, exclusiveQuantity, tab]);
 
@@ -187,34 +196,76 @@ export default function ShippingOrdersPage() {
             </button>
             {selectedIds.size > 0 && (
               <button
+                disabled={!!bulkJob && bulkJob.status === 'running'}
                 onClick={async () => {
+                  if (bulkJob?.status === 'running') return;
                   if (!confirm(`${selectedIds.size} Label(s) mit DHL erstellen?`)) return;
                   try {
-                    const res: any = await shippingApi.bulkCreateShipments({
+                    const start = await shippingApi.startBulkJob({
                       orderIds: Array.from(selectedIds),
                       carrier: 'dhl',
                     });
-                    // Surface the actual carrier errors instead of only the summary —
-                    // "0 von 1" alone hides the DHL validation message we need to act on.
-                    const failed = (res.results || []).filter((r: any) => r.error);
-                    if (res.succeeded === res.total) {
-                      alert(`${res.succeeded} von ${res.total} Labels erstellt.`);
-                    } else if (failed.length === 1) {
-                      alert(`${res.succeeded} von ${res.total} Labels erstellt.\n\nFehler:\n${failed[0].error}`);
-                    } else {
-                      const preview = failed.slice(0, 5).map((r: any) => `• ${r.error}`).join('\n');
-                      const more = failed.length > 5 ? `\n… und ${failed.length - 5} weitere` : '';
-                      alert(`${res.succeeded} von ${res.total} Labels erstellt.\n\nFehler:\n${preview}${more}`);
+                    setBulkJob({ jobId: start.jobId, done: 0, total: start.total, status: 'running' });
+
+                    // Polling-Loop: alle 1.5s Fortschritt abfragen bis done/failed.
+                    // Async-Endpoint verhindert HTTP-Timeout am Proxy (war Ursache
+                    // der Doppel-Labels). Kein Client-Timeout mehr moeglich.
+                    while (true) {
+                      await new Promise((r) => setTimeout(r, 1500));
+                      const job = await shippingApi.getBulkJob(start.jobId);
+                      setBulkJob({
+                        jobId: job.id,
+                        done: job.progress.done,
+                        total: job.progress.total,
+                        status: job.status,
+                      });
+                      if (job.status === 'done') {
+                        const r = job.result!;
+                        const failed = (r.results || []).filter((x) => x.error);
+                        const parts: string[] = [];
+                        if ((r.created ?? r.succeeded) > 0) parts.push(`${r.created ?? r.succeeded} Label(s) neu erstellt`);
+                        if ((r.skipped ?? 0) > 0) parts.push(`${r.skipped} schon vorhanden (uebersprungen)`);
+                        if (failed.length > 0) parts.push(`${failed.length} Fehler`);
+                        const summary = parts.join(' · ') || `${r.succeeded} von ${r.total}`;
+                        if (failed.length === 0) {
+                          alert(summary);
+                        } else if (failed.length === 1) {
+                          alert(`${summary}\n\nFehler:\n${failed[0].error}`);
+                        } else {
+                          const preview = failed.slice(0, 5).map((x) => `• ${x.error}`).join('\n');
+                          const more = failed.length > 5 ? `\n… und ${failed.length - 5} weitere` : '';
+                          alert(`${summary}\n\nFehler:\n${preview}${more}`);
+                        }
+                        setSelectedIds(new Set());
+                        const fresh = await shippingApi.listOrders(params);
+                        setItems(fresh.items);
+                        setTotal(fresh.total);
+                        setBulkJob(null);
+                        break;
+                      }
+                      if (job.status === 'failed') {
+                        alert(`Bulk-Job abgebrochen: ${job.error ?? 'Unbekannter Fehler'}`);
+                        setBulkJob(null);
+                        break;
+                      }
                     }
-                    setSelectedIds(new Set());
-                    const fresh = await shippingApi.listOrders(params);
-                    setItems(fresh.items);
-                    setTotal(fresh.total);
-                  } catch (e: any) { alert(e.message); }
+                  } catch (e: any) {
+                    alert(e.message);
+                    setBulkJob(null);
+                  }
                 }}
                 className={btn('primary')}
               >
-                <Package className="h-4 w-4" /> {selectedIds.size} × DHL Label erstellen
+                {bulkJob?.status === 'running' ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {bulkJob.done}/{bulkJob.total} Labels …
+                  </>
+                ) : (
+                  <>
+                    <Package className="h-4 w-4" /> {selectedIds.size} × DHL Label erstellen
+                  </>
+                )}
               </button>
             )}
           </>

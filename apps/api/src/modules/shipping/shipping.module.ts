@@ -14,6 +14,7 @@ import { ShippingStatusPoller } from './shipping-status-poller.service';
 import { CarrierRegistry } from './carriers/carrier-registry.service';
 import { DhlCarrierAdapter } from './carriers/dhl-carrier.adapter';
 import { ManualCarrierAdapter } from './carriers/manual-carrier.adapter';
+import { BulkJobService } from './bulk-job.service';
 
 @Module({
   imports: [AuthModule, StorageModule, EmailMarketingModule, IntegrationModule],
@@ -29,6 +30,7 @@ import { ManualCarrierAdapter } from './carriers/manual-carrier.adapter';
     CarrierRegistry,
     DhlCarrierAdapter,
     ManualCarrierAdapter,
+    BulkJobService,
   ],
   exports: [
     ShippingOrderService,

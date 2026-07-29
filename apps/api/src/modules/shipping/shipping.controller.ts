@@ -11,6 +11,7 @@ import { ShippingOrderService } from './shipping-order.service';
 import { ShippingProductProfileService, ProfileInput } from './shipping-product-profile.service';
 import { CarrierAccountService, CarrierAccountInput } from './carrier-account.service';
 import { OrderShipmentService, CreateShipmentInput } from './order-shipment.service';
+import { BulkJobService } from './bulk-job.service';
 import { ShippingRuleService, RuleInput } from './shipping-rule.service';
 import { ShippingEmailAutomationService, AutomationInput } from './shipping-email-automation.service';
 import { CarrierRegistry } from './carriers/carrier-registry.service';
@@ -31,6 +32,7 @@ export class ShippingController {
     private readonly emailAuto: ShippingEmailAutomationService,
     private readonly registry: CarrierRegistry,
     private readonly shopify: ShopifyService,
+    private readonly bulkJobs: BulkJobService,
   ) {}
 
   @Get('dashboard')
@@ -376,6 +378,10 @@ export class ShippingController {
     return this.shipments.create(orgId, userId, body);
   }
 
+  /**
+   * Legacy Sync-Endpoint — wartet bis alle Labels erstellt sind.
+   * Bleibt fuer Rueckwaertskompatibilitaet + kleine Batches (<10).
+   */
   @Post('shipments/bulk')
   async bulkCreateShipments(
     @Headers('authorization') authHeader: string,
@@ -385,6 +391,49 @@ export class ShippingController {
     assertCanWrite(role);
     if (!body.orderIds?.length || !body.carrier) throw new BadRequestException('orderIds und carrier erforderlich');
     return this.shipments.createBulk(orgId, userId, body.orderIds, body.carrier, body.carrierAccountId);
+  }
+
+  /**
+   * Job-basierter Bulk-Endpoint: startet den Bulk asynchron, gibt sofort
+   * eine jobId zurueck. Frontend polled GET /shipments/bulk-jobs/:jobId
+   * fuer Fortschritt + Ergebnis. Verhindert HTTP-Timeouts am
+   * Reverse-Proxy (waren die Ursache fuer Doppel-Labels) und ermoeglicht
+   * eine Live-Progressbar.
+   */
+  @Post('shipments/bulk-async')
+  async startBulkJob(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { orderIds: string[]; carrier: 'dhl' | 'custom'; carrierAccountId?: string | null },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body.orderIds?.length || !body.carrier) {
+      throw new BadRequestException('orderIds und carrier erforderlich');
+    }
+    const job = this.bulkJobs.create(orgId, body.orderIds.length);
+    // Fire-and-forget: der Job laeuft im Hintergrund weiter waehrend
+    // der HTTP-Request sofort mit der jobId antwortet. Kein await.
+    this.shipments
+      .createBulk(
+        orgId,
+        userId,
+        body.orderIds,
+        body.carrier,
+        body.carrierAccountId,
+        () => this.bulkJobs.incrementProgress(job.id),
+      )
+      .then((result) => this.bulkJobs.finish(job.id, result))
+      .catch((err) => this.bulkJobs.fail(job.id, err?.message ?? String(err)));
+    return { jobId: job.id, total: body.orderIds.length };
+  }
+
+  @Get('shipments/bulk-jobs/:jobId')
+  async getBulkJob(
+    @Headers('authorization') authHeader: string,
+    @Param('jobId') jobId: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.bulkJobs.get(orgId, jobId);
   }
 
   // ==========================================================
