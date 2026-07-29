@@ -656,6 +656,21 @@ export class ShopifyService {
       shopifyProduct.image?.src ?? shopifyProduct.images?.[0]?.src ?? null;
     const description = shopifyProduct.body_html ?? null;
 
+    // Variant-Bild-Aufloesung: Shopify verknuepft Varianten mit Bildern auf
+    // zwei Wegen — variant.image_id ODER image.variant_ids. Wir bauen eine
+    // Map imageId->src + variantId->imageId, damit der Variant-Upsert unten
+    // direkt seinen Bild-URL kennt. Fallback ist das Produkt-Default-Bild.
+    const imageById = new Map<number, string>();
+    const variantToImageId = new Map<number, number>();
+    for (const img of shopifyProduct.images ?? []) {
+      if (img.id && img.src) imageById.set(img.id, img.src);
+      for (const vid of img.variant_ids ?? []) {
+        // Nur ueberschreiben wenn noch nichts gesetzt — image.position sortiert
+        // die Bilder nach User-Reihenfolge in Shopify.
+        if (!variantToImageId.has(vid)) variantToImageId.set(vid, img.id);
+      }
+    }
+
     await this.prisma.$transaction(async (tx) => {
       // Upsert product
       const product = await tx.product.upsert({
@@ -700,6 +715,16 @@ export class ShopifyService {
 
         const variantWeightG = this.shopifyVariantWeightGrams(sv);
 
+        // Variant-Bild bestimmen: 1. image_id direkt am Variant, sonst
+        // 2. eine Auflistung ueber image.variant_ids, sonst 3. null (Frontend
+        // faellt dann auf product.imageUrl zurueck).
+        const explicitImageId = sv.image_id ?? null;
+        const linkedImageId = variantToImageId.get(sv.id) ?? null;
+        const variantImageUrl =
+          (explicitImageId && imageById.get(explicitImageId)) ||
+          (linkedImageId && imageById.get(linkedImageId)) ||
+          null;
+
         await tx.productVariant.upsert({
           where: {
             orgId_externalId: { orgId, externalId: externalVariantId },
@@ -714,6 +739,7 @@ export class ShopifyService {
               : null,
             inventoryQuantity: sv.inventory_quantity ?? 0,
             weightG: variantWeightG,
+            imageUrl: variantImageUrl,
             // Preserve existing COGS - do not overwrite
             updatedAt: new Date(),
           },
@@ -730,6 +756,7 @@ export class ShopifyService {
               : null,
             inventoryQuantity: sv.inventory_quantity ?? 0,
             weightG: variantWeightG,
+            imageUrl: variantImageUrl,
             // No COGS on initial creation - user must supply manually or via CSV
             cogs: existingVariant?.cogs ?? null,
             cogsCurrency: existingVariant?.cogsCurrency ?? null,

@@ -293,8 +293,10 @@ export class ShippingOrderService {
               lineTotal: true,
               // Produkt-Image via Variant→Product, damit Versand-Liste Produktbilder
               // anzeigen kann (inkl. Stückzahl-Badge wenn quantity > 1)
+              // variant.imageUrl (z.B. "blaue Smartwatch") gewinnt gegen product.imageUrl
               productVariant: {
                 select: {
+                  imageUrl: true,
                   product: {
                     select: { id: true, imageUrl: true, title: true },
                   },
@@ -310,20 +312,20 @@ export class ShippingOrderService {
       }),
       this.prisma.order.count({ where }),
     ]);
-    // Flatten productVariant.product.imageUrl onto the lineItem for easier frontend use.
-    // Fallback-Chain für Bild-Matching:
-    //   1. lineItem.productVariantId → ProductVariant.product.imageUrl (direkter Join)
-    //   2. lineItem.sku → ProductVariant.sku → Product.imageUrl
+    // Flatten variant/product image onto the lineItem for frontend use.
+    // Fallback-Chain fuer Bild-Matching (erstes gewinnt):
+    //   0. lineItem.productVariantId → ProductVariant.imageUrl (z.B. blaue Smartwatch)
+    //   1. lineItem.productVariantId → ProductVariant.product.imageUrl (Produkt-Default)
+    //   2. lineItem.sku → ProductVariant.imageUrl / .product.imageUrl
     //      (rettet alte Orders die vor dem Variant-Matching importiert wurden)
-    //   3. lineItem.title fuzzy match → Product.title (letzte Notlösung)
-    //
-    // Wir sammeln erst alle fehlenden SKUs + Titel in einem Batch-Query statt
-    // pro Order einzeln zu fragen.
+    //   3. lineItem.title → Product.title Batch-Lookup (letzte Notloesung)
     const missingSkus = new Set<string>();
     const missingTitles = new Set<string>();
     for (const o of items) {
       for (const li of o.lineItems || []) {
-        const hasImage = (li as any).productVariant?.product?.imageUrl;
+        const hasImage =
+          (li as any).productVariant?.imageUrl ||
+          (li as any).productVariant?.product?.imageUrl;
         if (!hasImage) {
           if (li.sku) missingSkus.add(li.sku);
           else if (li.title) missingTitles.add(li.title);
@@ -331,23 +333,24 @@ export class ShippingOrderService {
       }
     }
 
-    // Batch-Lookup via SKU (schneller + präziser als Fuzzy-Match)
+    // Batch-Lookup via SKU — nimmt variant.imageUrl mit, damit auch fuer
+    // Orders ohne verlinkte productVariantId das Variant-Bild greift.
     const skuMatches = missingSkus.size
       ? await this.prisma.productVariant.findMany({
           where: { orgId, sku: { in: Array.from(missingSkus) } },
           select: {
             sku: true,
+            imageUrl: true,
             product: { select: { id: true, imageUrl: true, title: true } },
           },
         })
       : [];
     const skuMap = new Map(
       skuMatches
-        .filter((v) => v.sku && v.product?.imageUrl)
-        .map((v) => [v.sku!, v.product]),
+        .filter((v) => v.sku && (v.imageUrl || v.product?.imageUrl))
+        .map((v) => [v.sku!, v]),
     );
 
-    // Batch-Lookup via Produkt-Titel (nur für Line-Items ohne SKU)
     const titleMatches = missingTitles.size
       ? await this.prisma.product.findMany({
           where: { orgId, title: { in: Array.from(missingTitles) } },
@@ -360,18 +363,27 @@ export class ShippingOrderService {
 
     const flattened = items.map((o) => ({
       ...o,
-      // Address-Status-Marker (für Frontend-Badge und Filter)
       hasAddressError: !isAddressValid(o.shippingAddress),
       lineItems: (o.lineItems || []).map((li: any) => {
-        const direct = li.productVariant?.product;
-        const fallbackSku = li.sku ? skuMap.get(li.sku) : null;
-        const fallbackTitle = !li.sku ? titleMap.get(li.title) : null;
-        const match = (direct?.imageUrl ? direct : null) || fallbackSku || fallbackTitle;
+        const variant = li.productVariant;
+        const directProduct = variant?.product;
+        const fallbackViaSku = li.sku ? skuMap.get(li.sku) : null;
+        const fallbackViaTitle = !li.sku ? titleMap.get(li.title) : null;
+
+        const imageUrl =
+          variant?.imageUrl ||
+          directProduct?.imageUrl ||
+          fallbackViaSku?.imageUrl ||
+          fallbackViaSku?.product?.imageUrl ||
+          fallbackViaTitle?.imageUrl ||
+          null;
+
+        const productMeta = directProduct || fallbackViaSku?.product || fallbackViaTitle;
         return {
           ...li,
-          productImageUrl: match?.imageUrl ?? null,
-          productId: match?.id ?? direct?.id ?? null,
-          productTitle: match?.title ?? direct?.title ?? li.title,
+          productImageUrl: imageUrl,
+          productId: productMeta?.id ?? null,
+          productTitle: productMeta?.title ?? li.title,
           productVariant: undefined,
         };
       }),

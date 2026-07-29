@@ -163,6 +163,9 @@ export interface ShopifyProductImage {
   src: string;
   position: number;
   alt?: string;
+  // Verknuepft dieses Bild mit bestimmten Varianten (z.B. Farbe Blau).
+  // Wenn leer, ist es ein Produkt-Default-Bild.
+  variant_ids?: number[];
 }
 
 export interface ShopifyProductVariant {
@@ -178,6 +181,9 @@ export interface ShopifyProductVariant {
   weight?: number;
   weight_unit?: string;
   grams?: number;
+  // Bevorzugtes Bild fuer diese Variante — Shopify setzt das wenn im
+  // Editor ein Bild an die Variante gepinnt wurde.
+  image_id?: number | null;
 }
 
 export interface ShopifyProduct {
