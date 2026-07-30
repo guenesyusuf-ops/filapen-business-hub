@@ -194,8 +194,21 @@ export class ShippingController {
       return { checked: 0, fixed: 0, skipped: 0, note: 'Kein Shopify verbunden' };
     }
     try {
+      // Schritt 1: neue Orders aus Shopify holen (60min-Fenster).
+      // Faengt verlorene orders/create-Webhooks ab — bis vor diesem Fix
+      // waren neu erstellte Bestellungen im Hub unsichtbar, wenn
+      // Shopifys Webhook mal verpasst wurde. Fehler hier duerfen den
+      // Reconcile nicht blocken, daher separat gefangen.
+      let pulled = 0;
+      try {
+        const s = await this.shopify.syncRecentOrders(integration.id, 60);
+        pulled = s.pulled;
+      } catch (err: any) {
+        this.logger.warn(`syncRecentOrders skipped: ${err?.message}`);
+      }
+      // Schritt 2: bestehende Orders auf Drift pruefen (fulfilled/cancelled/refunded)
       const result = await this.shopify.reconcileShippingOrders(integration.id);
-      return result;
+      return { ...result, pulled };
     } catch (err: any) {
       this.logger.error(`reconcileShippingOrders failed: ${err?.message ?? err}`);
       throw new HttpException(

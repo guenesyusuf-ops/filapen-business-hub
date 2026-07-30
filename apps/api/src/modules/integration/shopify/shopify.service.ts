@@ -1157,6 +1157,53 @@ export class ShopifyService {
   }
 
   /**
+   * Holt aus Shopify ALLE Orders die in den letzten N Minuten erstellt
+   * ODER aktualisiert wurden — unabhaengig davon ob sie schon lokal
+   * existieren. Faengt verlorene orders/create-Webhooks ab.
+   *
+   * Wird vom Button "Aus Shopify nachladen" vor reconcileShippingOrders
+   * aufgerufen. Idempotent (upsertOrder), safe als Blocking-Call.
+   */
+  async syncRecentOrders(
+    integrationId: string,
+    minutes: number = 60,
+  ): Promise<{ pulled: number }> {
+    const integration = await this.prisma.integration.findUnique({
+      where: { id: integrationId },
+    });
+    if (!integration || integration.type !== 'shopify' || integration.status !== 'connected') {
+      return { pulled: 0 };
+    }
+    const orgId = integration.orgId;
+    const { accessToken, shopDomain } = this.decryptCredentials(
+      integration.credentials as Record<string, string>,
+    );
+    const rateLimiter = this.getRateLimiter(shopDomain);
+
+    const since = new Date(Date.now() - minutes * 60_000).toISOString();
+    let nextUrl: string | null =
+      `/admin/api/2024-01/orders.json?limit=250&status=any&updated_at_min=${encodeURIComponent(since)}`;
+    let pulled = 0;
+    while (nextUrl) {
+      await rateLimiter.waitIfNeeded();
+      const response = await this.shopifyApiGetWithPagination<{
+        orders: ShopifyOrder[];
+      }>(shopDomain, accessToken, nextUrl);
+      for (const so of response.data.orders) {
+        try {
+          await this.upsertOrder(orgId, integrationId, so);
+          pulled++;
+        } catch (err: any) {
+          this.logger.warn(`syncRecentOrders: upsert failed for ${so.id}: ${err?.message}`);
+        }
+      }
+      nextUrl = response.pagination.nextPageUrl;
+    }
+    this.logger.log(`syncRecentOrders: pulled ${pulled} orders (last ${minutes}min)`);
+    return { pulled };
+  }
+
+  /**
    * Gezielter Resync fuer das Versand-Modul:
    * Holt ALLE lokal-noch-unfulfilled-und-open Orders by-ID frisch von Shopify
    * und upsertet sie. Faengt alle Drift-Faelle ab in denen wir Webhooks
