@@ -1185,36 +1185,28 @@ export class ShopifyService {
       `/admin/api/2024-01/orders.json?limit=250&status=any&updated_at_min=${encodeURIComponent(since)}`;
     let pulled = 0;
 
-    // Concurrency 8: Prod-Messungen zeigten sequenziellen for-await als
-    // Bottleneck (45s bei ~30 Orders). upsertOrder ist idempotent per
-    // (orgId, externalId), Race-Frei bei paralleler Ausfuehrung.
-    // Rate-Limiting bezieht sich auf Shopify API-Calls — upserts sind
-    // rein DB-Writes, kein Shopify-Traffic.
-    const CONCURRENCY = 8;
+    // STABILISIERUNG (Rollback von 4be882b):
+    // Concurrency 8 verursachte Prisma-Pool-Timeouts (P2024) durch >24
+    // konkurrierende Prisma-Verbindungen (Bulk × create-Reads × Sync).
+    // Zurueck auf sequenziell, bis die Connection-Architektur (Region,
+    // Pool-Modus, Client-Singleton) sauber ist. Danach kontrolliert
+    // wieder erhoehen — begleitet durch echte Messwerte, nicht auf Verdacht.
     while (nextUrl) {
       await rateLimiter.waitIfNeeded();
       const response = await this.shopifyApiGetWithPagination<{
         orders: ShopifyOrder[];
       }>(shopDomain, accessToken, nextUrl);
-      const orders = response.data.orders;
-      let cursor = 0;
-      const runOne = async (): Promise<void> => {
-        while (true) {
-          const idx = cursor++;
-          if (idx >= orders.length) return;
-          const so = orders[idx];
-          try {
-            await this.upsertOrder(orgId, integrationId, so);
-            pulled++;
-          } catch (err: any) {
-            this.logger.warn(`syncRecentOrders: upsert failed for ${so.id}: ${err?.message}`);
-          }
+      for (const so of response.data.orders) {
+        try {
+          await this.upsertOrder(orgId, integrationId, so);
+          pulled++;
+        } catch (err: any) {
+          this.logger.warn(`syncRecentOrders: upsert failed for ${so.id}: ${err?.message}`);
         }
-      };
-      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, orders.length) }, runOne));
+      }
       nextUrl = response.pagination.nextPageUrl;
     }
-    this.logger.log(`syncRecentOrders: pulled ${pulled} orders (last ${minutes}min, concurrency=${CONCURRENCY})`);
+    this.logger.log(`syncRecentOrders: pulled ${pulled} orders (last ${minutes}min, sequential)`);
     return { pulled };
   }
 

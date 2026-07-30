@@ -156,14 +156,11 @@ export default function ShippingOrdersPage() {
     }
   }
 
-  // Beim ersten Mount automatisch einen Sync — User sieht innerhalb
-  // weniger Sekunden eine bereinigte Liste ohne extra Klick.
-  useEffect(() => {
-    runReconcile();
-    // Nur einmal — params aendert sich pro Filterklick und wuerde sonst
-    // jedesmal einen Sync ausloesen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // STABILISIERUNG: kein Auto-Sync beim Seiten-Mount mehr.
+  // Grund: bei React Strict Mode + Navigation zurueck + mehreren Tabs
+  // wurden mehrere Reconciles parallel gestartet, was den Prisma-Pool
+  // ueberlastete. Der Nutzer startet Sync jetzt explizit ueber den
+  // Button "Aus Shopify nachladen".
 
   const toggleAll = () => {
     if (selectedIds.size === items.length) setSelectedIds(new Set());
