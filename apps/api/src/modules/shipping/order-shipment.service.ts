@@ -106,15 +106,48 @@ export class OrderShipmentService {
   }
 
   async create(orgId: string, userId: string, data: CreateShipmentInput, flowId?: string) {
-    // Fuer Einzel-Label ohne bulkJob (direct create) einen neuen Flow starten.
     const fid = flowId ?? this.timer.newFlow('label');
-    const existingShipment = await this.timer.time('label', fid, 'idempotency_check', () =>
-      this.prisma.orderShipment.findFirst({
-        where: { orgId, orderId: data.orderId, status: { not: 'cancelled' as const } },
-        orderBy: { createdAt: 'asc' },
-      }),
-      { orderId: data.orderId },
-    );
+
+    // Parallel-Phase 1: 4 unabhaengige DB-Reads gleichzeitig starten.
+    // Fruehere sequenzielle Ausfuehrung dauerte 700+1000+1500+2300 = ~5.5s
+    // (weil jede Query 700-2300ms Latenz zu Supabase hatte). Parallel:
+    // wall-clock = max(alle) statt sum(alle). Erwartete Ersparnis ~3s pro Label.
+    //
+    // Alle 4 Reads sind fachlich unabhaengig:
+    //  - idempotency_check: findet ggf. existierendes Shipment
+    //  - load_order_and_lines: braucht nur data.orderId (bekannt vor Aufruf)
+    //  - compute_weight: braucht nur data.orderId, liest own lineItems
+    //  - default_carrier_account: braucht nur carrier (bekannt), keine order-Daten
+    const carrierForLookup = data.carrier;
+    const [existingShipment, order, computedWeightOrNull, defaultAccount] = await Promise.all([
+      this.timer.time('label', fid, 'idempotency_check', () =>
+        this.prisma.orderShipment.findFirst({
+          where: { orgId, orderId: data.orderId, status: { not: 'cancelled' as const } },
+          orderBy: { createdAt: 'asc' },
+        }),
+        { orderId: data.orderId },
+      ),
+      this.timer.time('label', fid, 'load_order_and_lines', () =>
+        this.prisma.order.findFirst({
+          where: { id: data.orderId, orgId },
+          include: {
+            lineItems: {
+              select: { productVariantId: true, sku: true, title: true, quantity: true },
+            },
+          },
+        }),
+      ),
+      data.weightG
+        ? Promise.resolve(null)
+        : this.timer.time('label', fid, 'compute_weight', () =>
+            this.orders.computeOrderWeight(orgId, data.orderId),
+          ),
+      data.carrierAccountId
+        ? Promise.resolve(null)
+        : this.timer.time('label', fid, 'find_default_carrier', () =>
+            this.accounts.findDefault(orgId, carrierForLookup),
+          ),
+    ]);
     if (existingShipment) {
       this.logger.log(
         `create(): skip duplicate — order ${data.orderId} already has shipment ${existingShipment.id} (status=${existingShipment.status})`,
@@ -123,16 +156,6 @@ export class OrderShipmentService {
       return { ...existing, _skipped: true } as any;
     }
 
-    const order = await this.timer.time('label', fid, 'load_order_and_lines', () =>
-      this.prisma.order.findFirst({
-        where: { id: data.orderId, orgId },
-        include: {
-          lineItems: {
-            select: { productVariantId: true, sku: true, title: true, quantity: true },
-          },
-        },
-      }),
-    );
     if (!order) throw new NotFoundException('Bestellung nicht gefunden');
     if (order.status === 'cancelled') {
       throw new BadRequestException('Stornierte Bestellung kann nicht versendet werden');
@@ -144,12 +167,8 @@ export class OrderShipmentService {
     // Weight-Berechnung einmal machen — Ergebnis wird sowohl von Rule-Eval
     // als auch vom Weight-Guard-Check weiter unten genutzt. Frueher wurde
     // computeOrderWeight() zweimal aufgerufen (jede DB-Query 100-200ms).
-    let cachedWeight: { totalG: number; unknownCount: number; unknownItems: any[] } | null = null;
-    if (!data.weightG) {
-      cachedWeight = await this.timer.time('label', fid, 'compute_weight', () =>
-        this.orders.computeOrderWeight(orgId, data.orderId),
-      );
-    }
+    // Weight kommt aus Parallel-Phase 1 (oben) — kein zweiter Query mehr.
+    const cachedWeight = computedWeightOrNull;
 
     // ----- Rule evaluation (optional — auto-select carrier/method/package) -----
     let resolvedCarrier = data.carrier;
@@ -183,20 +202,21 @@ export class OrderShipmentService {
     let accountId = data.carrierAccountId;
     let credentials: any = null;
     let senderData: any = null;
-    await this.timer.time('label', fid, 'load_carrier_account', async () => {
+    // Carrier-Account laden. Bei Bulk-Runs mit gleichem Carrier kann
+    // eine geteilte Cache-Instanz spaeter zusaetzlich helfen — aktuell
+    // laedt loadForUse jedes Mal neu (inkl. AES-GCM Decryption). Das ist
+    // ein Kandidat fuer Fix 5.
+    await this.timer.time('label', fid, 'load_carrier_credentials', async () => {
       if (accountId) {
         const loaded = await this.accounts.loadForUse(orgId, accountId);
         if (!loaded) throw new BadRequestException('Carrier-Konto nicht gefunden');
         credentials = loaded.credentialsDecrypted;
         senderData = loaded.senderData;
-      } else {
-        const def = await this.accounts.findDefault(orgId, resolvedCarrier);
-        if (def) {
-          accountId = def.id;
-          const loaded = await this.accounts.loadForUse(orgId, def.id);
-          credentials = loaded?.credentialsDecrypted || null;
-          senderData = loaded?.senderData || null;
-        }
+      } else if (defaultAccount) {
+        accountId = defaultAccount.id;
+        const loaded = await this.accounts.loadForUse(orgId, defaultAccount.id);
+        credentials = loaded?.credentialsDecrypted || null;
+        senderData = loaded?.senderData || null;
       }
     });
 

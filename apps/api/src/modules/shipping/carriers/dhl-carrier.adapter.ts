@@ -85,22 +85,23 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     // Fallback: API-Key/Secret (new Parcel DE Shipping v2 style for some setups).
     // We'll try one, and if 401, retry with the other automatically — logs will make
     // clear which one finally worked.
-    const authAttempts: Array<{ label: string; basic: string }> = [];
+    // Basic-Auth: EINE Methode auswaehlen (kein Auto-Retry mit zweiter Methode).
+    // Frueher wurde bei 401 auf die zweite Auth-Methode gewechselt — Risiko:
+    // bei falschen Zugangsdaten loesten 2 fehlgeschlagene Logins in kurzer
+    // Folge die DHL-Account-Sperrung aus (schon einmal passiert). Jetzt
+    // Prioritaet user/pwd wenn beide vorhanden, sonst apiKey+secret, sonst Fehler.
+    let authLabel: string;
+    let authBasic: string;
     if (credentials.username && credentials.password) {
-      authAttempts.push({
-        label: `user="${credentials.username}"`,
-        basic: Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64'),
-      });
-    }
-    if (credentials.apiSecret) {
-      authAttempts.push({
-        label: `apiKey+apiSecret`,
-        basic: Buffer.from(`${credentials.apiKey}:${credentials.apiSecret}`).toString('base64'),
-      });
-    }
-    if (authAttempts.length === 0) {
+      authLabel = `user="${credentials.username}"`;
+      authBasic = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
+    } else if (credentials.apiSecret) {
+      authLabel = 'apiKey+apiSecret';
+      authBasic = Buffer.from(`${credentials.apiKey}:${credentials.apiSecret}`).toString('base64');
+    } else {
       throw new Error('Keine Basic-Auth-Credentials konfiguriert (weder user/pwd noch apiSecret)');
     }
+    const authAttempts = [{ label: authLabel, basic: authBasic }];
 
     // Redigiertes Debug-Log: enthaelt Produkt + maskierte Nummer + Verfahren,
     // damit im Fehlerfall eindeutig nachvollziehbar ist welche Kombination
@@ -153,14 +154,18 @@ export class DhlCarrierAdapter implements CarrierAdapter {
 
       lastError = this.formatDhlError(response.status, data);
       this.logger.warn(`DHL auth via ${attempt.label} failed: ${response.status} ${lastError}`);
-
-      // Only retry on 401/403 — validation errors are not auth issues.
-      if (response.status !== 401 && response.status !== 403) break;
+      // KEIN Auto-Retry mehr — bei 401/403 sofort abbrechen (Account-Sperr-Schutz).
+      break;
     }
 
     if (!response || !response.ok) {
       const status = response?.status ?? 0;
       this.logger.error(`DHL API ${status}: ${lastError}`);
+      if (status === 401 || status === 403) {
+        throw new Error(
+          `DHL Authentifizierung fehlgeschlagen (${status}). Bitte Zugangsdaten unter Versand > Integrationen > DHL pruefen. Kein Auto-Retry zum Schutz vor Account-Sperrung.`,
+        );
+      }
       throw new Error(`DHL (${status}): ${lastError}`);
     }
 
