@@ -65,6 +65,9 @@ export const shippingApi = {
   listCarriers: () => call<Array<{ key: string; humanName: string; requiresCredentials: boolean; implemented: boolean }>>('/carriers'),
   listCarrierAccounts: () => call<any[]>('/carrier-accounts'),
   getCarrierAccount: (id: string) => call(`/carrier-accounts/${id}`),
+  /** Volle nicht-sensitive Credentials fuer den Edit-Dialog.
+   *  Passwoerter/Secrets werden aus Sicherheitsgruenden nicht mitgegeben. */
+  getCarrierAccountForEdit: (id: string) => call<any>(`/carrier-accounts/${id}/edit`),
   createCarrierAccount: (data: any) => call('/carrier-accounts', { method: 'POST', body: JSON.stringify(data) }),
   updateCarrierAccount: (id: string, data: any) => call(`/carrier-accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCarrierAccount: (id: string) => call(`/carrier-accounts/${id}`, { method: 'DELETE' }),

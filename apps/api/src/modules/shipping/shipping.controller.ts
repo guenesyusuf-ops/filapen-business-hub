@@ -325,6 +325,35 @@ export class ShippingController {
     return this.accounts.get(orgId, id);
   }
 
+  /**
+   * Volle Credentials fuer den Edit-Dialog. Enthaelt Klartext-EKPs,
+   * API-Key, Sandbox/Prod-Mode. Passwoerter/API-Secrets werden aus
+   * Sicherheitsgruenden trotzdem nicht mitgegeben — die bleiben nur
+   * im Backend und der User traegt sie beim Aendern neu ein.
+   */
+  @Get('carrier-accounts/:id/edit')
+  async getCarrierAccountForEdit(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const account = await this.accounts.get(orgId, id, true);
+    const c = (account as any).credentials || {};
+    // Nur nicht-sensitive Felder mitgeben. Passwoerter/Secrets bleiben leer.
+    const safeCredentials = {
+      mode: c.mode ?? null,
+      billingNumber: c.billingNumber ?? null,
+      billingNumberEu: c.billingNumberEu ?? null,
+      billingNumberIntl: c.billingNumberIntl ?? null,
+      apiKey: c.apiKey ?? null,
+      username: c.username ?? null,
+      hasPassword: !!c.password,
+      hasApiSecret: !!c.apiSecret,
+    };
+    return { ...account, credentials: safeCredentials };
+  }
+
   @Post('carrier-accounts')
   async createCarrierAccount(
     @Headers('authorization') authHeader: string,

@@ -73,6 +73,13 @@ export default function ShippingIntegrationsPage() {
                   <div className="min-w-0">
                     <div className="font-semibold text-sm text-gray-900 dark:text-white truncate">{a.accountName}</div>
                     <div className="text-xs text-gray-500 truncate">{CARRIER_LABELS[a.carrier as ShippingCarrier]}</div>
+                    {a.carrier === 'dhl' && a.ekpMasked && (
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                        <span>National: <strong className={a.ekpMasked.national ? 'text-gray-800 dark:text-gray-200 font-mono' : 'text-red-600 dark:text-red-400'}>{a.ekpMasked.national ?? 'leer'}</strong></span>
+                        <span>Europaket: <strong className={a.ekpMasked.eu ? 'text-gray-800 dark:text-gray-200 font-mono' : 'text-red-600 dark:text-red-400'}>{a.ekpMasked.eu ?? 'leer'}</strong></span>
+                        <span>Weltpaket: <strong className={a.ekpMasked.intl ? 'text-gray-800 dark:text-gray-200 font-mono' : 'text-gray-400'}>{a.ekpMasked.intl ?? 'leer'}</strong></span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -138,6 +145,38 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [prefillLoaded, setPrefillLoaded] = useState(mode === 'create');
+  const [hasStoredPassword, setHasStoredPassword] = useState(false);
+  const [hasStoredApiSecret, setHasStoredApiSecret] = useState(false);
+
+  // Beim Edit: bestehende (nicht-sensitive) Credentials aus dem Backend
+  // laden und in die Felder prefillen. Passwoerter/Secrets bleiben leer —
+  // Badge zeigt "gespeichert" damit User weiss dass da was liegt.
+  useEffect(() => {
+    if (mode !== 'edit' || !account?.id) return;
+    let active = true;
+    shippingApi.getCarrierAccountForEdit(account.id)
+      .then((full) => {
+        if (!active) return;
+        const c = full.credentials || {};
+        if (c.mode === 'production' || c.mode === 'sandbox') setDhlMode(c.mode);
+        if (c.billingNumber) setBillingNumber(c.billingNumber);
+        if (c.billingNumberEu) setBillingNumberEu(c.billingNumberEu);
+        if (c.billingNumberIntl) setBillingNumberIntl(c.billingNumberIntl);
+        if (c.apiKey) setApiKey(c.apiKey);
+        if (c.username) setUsername(c.username);
+        setHasStoredPassword(!!c.hasPassword);
+        setHasStoredApiSecret(!!c.hasApiSecret);
+        setPrefillLoaded(true);
+      })
+      .catch((e) => {
+        // Fehler nicht fatal — Modal geht auf, User sieht leere Felder
+        // und kriegt beim Save die passende Fehlermeldung falls was klemmt.
+        console.error('prefill failed', e);
+        setPrefillLoaded(true);
+      });
+    return () => { active = false; };
+  }, [mode, account?.id]);
 
   const save = async () => {
     if (!accountName.trim()) { setErr('Kontoname fehlt'); return; }
@@ -257,9 +296,9 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
                 <div><label className={labelCls()}>EKP-Nr Weltpaket (ausserhalb EU)</label><input value={billingNumberIntl} onChange={(e) => setBillingNumberIntl(e.target.value)} className={inputCls()} placeholder="optional, z.B. 22ZZZZZZZZ5301" /></div>
                 <div className="hidden sm:block"></div>
                 <div><label className={labelCls()}>API Key (Client ID)</label><input value={apiKey} onChange={(e) => setApiKey(e.target.value)} className={inputCls()} placeholder="vom Developer Portal" /></div>
-                <div><label className={labelCls()}>API Secret (Client Secret)</label><input type="password" value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(leer = unverändert)' : 'vom Developer Portal'} /></div>
+                <div><label className={labelCls()}>API Secret (Client Secret)</label><input type="password" value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} className={inputCls()} placeholder={hasStoredApiSecret ? '••••••••  (gespeichert — leer lassen um zu behalten)' : 'vom Developer Portal'} /></div>
                 <div><label className={labelCls()}>Username (Geschäftskundenportal)</label><input value={username} onChange={(e) => setUsername(e.target.value)} className={inputCls()} placeholder="optional bei API-Key-Auth" /></div>
-                <div><label className={labelCls()}>Passwort (Geschäftskundenportal)</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls()} placeholder={mode === 'edit' ? '(leer = unverändert)' : 'optional'} /></div>
+                <div><label className={labelCls()}>Passwort (Geschäftskundenportal)</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls()} placeholder={hasStoredPassword ? '••••••••  (gespeichert — leer lassen um zu behalten)' : 'optional'} /></div>
               </div>
               <div className="mt-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2 text-[11px] text-amber-800 dark:text-amber-300">
                 <strong>Wichtig zu EKPs:</strong> DHL vergibt pro Produkt eigene Vertraege. Eine EKP fuer <em>Paket National</em> funktioniert nicht fuer <em>Europaket</em>. Fuer Bestellungen ins EU-Ausland brauchst du eine separate EKP-Nummer (endet meist auf <code>54..</code>). Ohne die EU-EKP schlaegt jedes EU-Label mit "product unknown" fehl.

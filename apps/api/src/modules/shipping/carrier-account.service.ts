@@ -44,11 +44,29 @@ export class CarrierAccountService {
     // (e.g. sandbox/production mode) so the edit form can pre-select the right toggle.
     return accounts.map((a) => {
       let credentialsMode: 'sandbox' | 'production' | null = null;
+      // Maskierte EKPs: nur letzte 4 Zeichen sichtbar (z.B. "…5401") oder null wenn leer.
+      // Damit der User im UI faktisch sieht welche EKPs wirklich hinterlegt sind
+      // ohne die vollen Nummern preiszugeben.
+      let ekpMasked: { national: string | null; eu: string | null; intl: string | null } = {
+        national: null, eu: null, intl: null,
+      };
+      const mask = (v: any): string | null => {
+        if (typeof v !== 'string' || !v.trim()) return null;
+        const s = v.trim();
+        return s.length <= 4 ? '****' : `…${s.slice(-4)}`;
+      };
       try {
         if (a.credentials && Object.keys(a.credentials as any).length > 0) {
           const decrypted = decryptCredentials(a.credentials, this.secret);
           if (decrypted?.mode === 'production' || decrypted?.mode === 'sandbox') {
             credentialsMode = decrypted.mode;
+          }
+          if (a.carrier === 'dhl' && decrypted) {
+            ekpMasked = {
+              national: mask(decrypted.billingNumber),
+              eu: mask(decrypted.billingNumberEu),
+              intl: mask(decrypted.billingNumberIntl),
+            };
           }
         }
       } catch {
@@ -59,6 +77,7 @@ export class CarrierAccountService {
         credentials: undefined,
         credentialsSet: !!(a.credentials && Object.keys(a.credentials as any).length > 0),
         credentialsMode,
+        ekpMasked,
       };
     });
   }
