@@ -64,8 +64,19 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     const product = this.pickProduct(input);
     const billingNumber = this.pickBillingNumber(product, credentials);
     if (!billingNumber) {
+      const productName =
+        product === 'V01PAK' ? 'Paket National'
+        : product === 'V54EPAK' ? 'Europaket (EU-Ausland)'
+        : product === 'V53WPAK' ? 'Weltpaket (ausserhalb EU)'
+        : product;
+      const fieldName =
+        product === 'V54EPAK' ? '"EKP-Nr Europaket (EU-Ausland)"'
+        : product === 'V53WPAK' ? '"EKP-Nr Weltpaket (ausserhalb EU)"'
+        : '"EKP-Nr Paket National (DE)"';
+      const country = input.recipient.address.country || '??';
       throw new Error(
-        `Keine EKP-Nummer fuer DHL-Produkt ${product} hinterlegt. Bitte unter Versand > Integrationen die passende EKP eintragen (National / Europaket / Weltpaket).`,
+        `Fuer Bestellung nach ${country} wird DHL-Produkt "${productName}" verwendet. ` +
+        `Feld ${fieldName} ist leer. Bitte unter Versand > Integrationen > DHL eintragen.`,
       );
     }
     const body = this.buildRequestBody(input, billingNumber, product);
@@ -234,17 +245,18 @@ export class DhlCarrierAdapter implements CarrierAdapter {
   /**
    * Waehlt die passende EKP-Nummer je nach DHL-Produkt.
    * DHL vergibt pro Produkt separate Vertraege — die EKP fuer Paket National
-   * ist meistens nicht fuer Europaket freigeschaltet und umgekehrt.
+   * ist NIE fuer Europaket/Weltpaket freigeschaltet.
    *
-   * Backwards-Compat: wenn nur die alte `billingNumber` gepflegt ist
-   * (Zeit vor Multi-EKP-Support), wird sie fuer alle Produkte verwendet.
+   * Wichtig: bei V54EPAK/V53WPAK gibt es KEINEN Fallback auf die
+   * National-EKP. Wenn das spezifische Feld leer ist, wird explizit null
+   * zurueckgegeben — der Aufrufer wirft dann eine klare Fehlermeldung.
+   * Ein stiller Fallback wuerde DHL mit dem kryptischen "product unknown"
+   * antworten lassen, was schwer zu debuggen ist.
    */
   private pickBillingNumber(product: string, credentials: any): string | null {
-    const isEu = product === 'V54EPAK';
-    const isIntl = product === 'V53WPAK';
-    if (isEu && credentials.billingNumberEu) return credentials.billingNumberEu;
-    if (isIntl && credentials.billingNumberIntl) return credentials.billingNumberIntl;
-    // National ODER kein spezielles Feld hinterlegt → alte EKP als Default
+    if (product === 'V54EPAK') return credentials.billingNumberEu || null;
+    if (product === 'V53WPAK') return credentials.billingNumberIntl || null;
+    // Alles andere (V01PAK etc.) → National-EKP
     return credentials.billingNumber || null;
   }
 
