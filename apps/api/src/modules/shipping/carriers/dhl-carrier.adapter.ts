@@ -62,7 +62,13 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     const endpoint = `${baseUrl}/parcel/de/shipping/v2/orders`;
 
     const product = this.pickProduct(input);
-    const body = this.buildRequestBody(input, credentials.billingNumber, product);
+    const billingNumber = this.pickBillingNumber(product, credentials);
+    if (!billingNumber) {
+      throw new Error(
+        `Keine EKP-Nummer fuer DHL-Produkt ${product} hinterlegt. Bitte unter Versand > Integrationen die passende EKP eintragen (National / Europaket / Weltpaket).`,
+      );
+    }
+    const body = this.buildRequestBody(input, billingNumber, product);
 
     // Pick Basic-Auth strategy. Prefer user/password (legacy, Geschäftskundenportal).
     // Fallback: API-Key/Secret (new Parcel DE Shipping v2 style for some setups).
@@ -223,6 +229,23 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     const EU_COUNTRIES = ['AT','BE','BG','CY','CZ','DK','EE','ES','FI','FR','GR','HR','HU','IE','IT','LT','LU','LV','MT','NL','PL','PT','RO','SE','SI','SK'];
     if (EU_COUNTRIES.includes(country)) return 'V54EPAK'; // Europaket
     return 'V53WPAK'; // Weltpaket
+  }
+
+  /**
+   * Waehlt die passende EKP-Nummer je nach DHL-Produkt.
+   * DHL vergibt pro Produkt separate Vertraege — die EKP fuer Paket National
+   * ist meistens nicht fuer Europaket freigeschaltet und umgekehrt.
+   *
+   * Backwards-Compat: wenn nur die alte `billingNumber` gepflegt ist
+   * (Zeit vor Multi-EKP-Support), wird sie fuer alle Produkte verwendet.
+   */
+  private pickBillingNumber(product: string, credentials: any): string | null {
+    const isEu = product === 'V54EPAK';
+    const isIntl = product === 'V53WPAK';
+    if (isEu && credentials.billingNumberEu) return credentials.billingNumberEu;
+    if (isIntl && credentials.billingNumberIntl) return credentials.billingNumberIntl;
+    // National ODER kein spezielles Feld hinterlegt → alte EKP als Default
+    return credentials.billingNumber || null;
   }
 
   private buildRequestBody(input: ShipmentCreateInput, billingNumber: string, product: string) {
