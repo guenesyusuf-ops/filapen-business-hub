@@ -13,6 +13,7 @@ import { CarrierAccountService, CarrierAccountInput } from './carrier-account.se
 import { OrderShipmentService, CreateShipmentInput } from './order-shipment.service';
 import { BulkJobService } from './bulk-job.service';
 import { parseBillingNumber } from './carriers/dhl-billing';
+import { StepTimerService } from '../../common/telemetry/step-timer';
 import { ShippingRuleService, RuleInput } from './shipping-rule.service';
 import { ShippingEmailAutomationService, AutomationInput } from './shipping-email-automation.service';
 import { CarrierRegistry } from './carriers/carrier-registry.service';
@@ -34,6 +35,7 @@ export class ShippingController {
     private readonly registry: CarrierRegistry,
     private readonly shopify: ShopifyService,
     private readonly bulkJobs: BulkJobService,
+    private readonly timer: StepTimerService,
   ) {}
 
   @Get('dashboard')
@@ -184,32 +186,35 @@ export class ShippingController {
    */
   @Post('orders/reconcile-shipping')
   async reconcileShippingOrders(@Headers('authorization') authHeader: string) {
+    const flowId = this.timer.newFlow('sync');
+    const t0 = Date.now();
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    const integration = await this.prisma.integration.findFirst({
-      where: { orgId, type: 'shopify', status: 'connected' },
-    });
+    const integration = await this.timer.time('sync', flowId, 'find_integration', () =>
+      this.prisma.integration.findFirst({
+        where: { orgId, type: 'shopify', status: 'connected' },
+      }),
+    );
     if (!integration) {
-      // Kein Shopify? Dann ist nichts zu syncen. Kein Fehler — UI nutzt
-      // diesen Endpoint auch automatisch beim Oeffnen der Liste.
-      return { checked: 0, fixed: 0, skipped: 0, note: 'Kein Shopify verbunden' };
+      return { checked: 0, fixed: 0, skipped: 0, note: 'Kein Shopify verbunden', flowId };
     }
     try {
-      // Schritt 1: neue Orders aus Shopify holen (60min-Fenster).
-      // Faengt verlorene orders/create-Webhooks ab — bis vor diesem Fix
-      // waren neu erstellte Bestellungen im Hub unsichtbar, wenn
-      // Shopifys Webhook mal verpasst wurde. Fehler hier duerfen den
-      // Reconcile nicht blocken, daher separat gefangen.
       let pulled = 0;
       try {
-        const s = await this.shopify.syncRecentOrders(integration.id, 60);
+        const s = await this.timer.time('sync', flowId, 'sync_recent_orders',
+          () => this.shopify.syncRecentOrders(integration.id, 60),
+          { windowMinutes: 60 },
+        );
         pulled = s.pulled;
       } catch (err: any) {
         this.logger.warn(`syncRecentOrders skipped: ${err?.message}`);
       }
-      // Schritt 2: bestehende Orders auf Drift pruefen (fulfilled/cancelled/refunded)
-      const result = await this.shopify.reconcileShippingOrders(integration.id);
-      return { ...result, pulled };
+      const result = await this.timer.time('sync', flowId, 'reconcile_shipping_orders',
+        () => this.shopify.reconcileShippingOrders(integration.id),
+      );
+      const totalMs = Date.now() - t0;
+      this.logger.log(`sync_flow_done flowId=${flowId} totalMs=${totalMs} pulled=${pulled} checked=${result.checked} fixed=${result.fixed}`);
+      return { ...result, pulled, flowId, totalMs };
     } catch (err: any) {
       this.logger.error(`reconcileShippingOrders failed: ${err?.message ?? err}`);
       throw new HttpException(
@@ -500,8 +505,12 @@ export class ShippingController {
       throw new BadRequestException('orderIds und carrier erforderlich');
     }
     const job = this.bulkJobs.create(orgId, body.orderIds.length);
-    // Fire-and-forget: der Job laeuft im Hintergrund weiter waehrend
-    // der HTTP-Request sofort mit der jobId antwortet. Kein await.
+    // flowId = job.id — damit alle Timings dieses Bulk unter einer ID auffindbar sind
+    const flowId = job.id;
+    this.timer.timeSync('label', flowId, 'bulk_job_accepted', () => undefined, {
+      orderCount: body.orderIds.length,
+      carrier: body.carrier,
+    });
     this.shipments
       .createBulk(
         orgId,
@@ -510,10 +519,11 @@ export class ShippingController {
         body.carrier,
         body.carrierAccountId,
         () => this.bulkJobs.incrementProgress(job.id),
+        flowId,
       )
       .then((result) => this.bulkJobs.finish(job.id, result))
       .catch((err) => this.bulkJobs.fail(job.id, err?.message ?? String(err)));
-    return { jobId: job.id, total: body.orderIds.length };
+    return { jobId: job.id, total: body.orderIds.length, flowId };
   }
 
   @Get('shipments/bulk-jobs/:jobId')

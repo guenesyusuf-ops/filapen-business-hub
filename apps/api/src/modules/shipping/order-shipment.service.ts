@@ -8,6 +8,7 @@ import { ShippingRuleService } from './shipping-rule.service';
 import { ShippingEmailAutomationService } from './shipping-email-automation.service';
 import { ShopifyService } from '../integration/shopify/shopify.service';
 import type { ShipmentCreateInput } from './carriers/carrier-adapter.interface';
+import { StepTimerService } from '../../common/telemetry/step-timer';
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib';
 
 export interface CreateShipmentInput {
@@ -44,6 +45,7 @@ export class OrderShipmentService {
     private readonly rules: ShippingRuleService,
     private readonly emailAuto: ShippingEmailAutomationService,
     private readonly shopify: ShopifyService,
+    private readonly timer: StepTimerService,
   ) {}
 
   async list(orgId: string, filters: ListFilters = {}) {
@@ -103,24 +105,16 @@ export class OrderShipmentService {
     return shipment;
   }
 
-  async create(orgId: string, userId: string, data: CreateShipmentInput) {
-    // Idempotenz-Check: Wenn fuer diese Order schon ein aktives Shipment
-    // existiert (irgendein Status ausser cancelled), das bestehende
-    // zurueckgeben statt ein neues zu erstellen.
-    // Schuetzt gegen:
-    //   - Doppelklick auf "DHL Label erstellen"
-    //   - HTTP-Retry am Reverse-Proxy nach ~100s Timeout waehrend Bulk
-    //   - Frontend-Reload waehrend eines langen Bulk-Loops
-    // Der Cancel-Fall bleibt bewusst offen: wenn ein Label storniert wurde,
-    // muss der User ein neues erstellen koennen.
-    const existingShipment = await this.prisma.orderShipment.findFirst({
-      where: {
-        orgId,
-        orderId: data.orderId,
-        status: { not: 'cancelled' as const },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+  async create(orgId: string, userId: string, data: CreateShipmentInput, flowId?: string) {
+    // Fuer Einzel-Label ohne bulkJob (direct create) einen neuen Flow starten.
+    const fid = flowId ?? this.timer.newFlow('label');
+    const existingShipment = await this.timer.time('label', fid, 'idempotency_check', () =>
+      this.prisma.orderShipment.findFirst({
+        where: { orgId, orderId: data.orderId, status: { not: 'cancelled' as const } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      { orderId: data.orderId },
+    );
     if (existingShipment) {
       this.logger.log(
         `create(): skip duplicate — order ${data.orderId} already has shipment ${existingShipment.id} (status=${existingShipment.status})`,
@@ -129,23 +123,16 @@ export class OrderShipmentService {
       return { ...existing, _skipped: true } as any;
     }
 
-    const order = await this.prisma.order.findFirst({
-      where: { id: data.orderId, orgId },
-      include: {
-        // All scalar fields plus the lineItem fields we need downstream:
-        //   productVariantId → rule evaluation + weight lookup
-        //   sku + title       → shipment reference + unknown-weight error message
-        //   quantity          → weight computation
-        lineItems: {
-          select: {
-            productVariantId: true,
-            sku: true,
-            title: true,
-            quantity: true,
+    const order = await this.timer.time('label', fid, 'load_order_and_lines', () =>
+      this.prisma.order.findFirst({
+        where: { id: data.orderId, orgId },
+        include: {
+          lineItems: {
+            select: { productVariantId: true, sku: true, title: true, quantity: true },
           },
         },
-      },
-    });
+      }),
+    );
     if (!order) throw new NotFoundException('Bestellung nicht gefunden');
     if (order.status === 'cancelled') {
       throw new BadRequestException('Stornierte Bestellung kann nicht versendet werden');
@@ -159,7 +146,9 @@ export class OrderShipmentService {
     // computeOrderWeight() zweimal aufgerufen (jede DB-Query 100-200ms).
     let cachedWeight: { totalG: number; unknownCount: number; unknownItems: any[] } | null = null;
     if (!data.weightG) {
-      cachedWeight = await this.orders.computeOrderWeight(orgId, data.orderId);
+      cachedWeight = await this.timer.time('label', fid, 'compute_weight', () =>
+        this.orders.computeOrderWeight(orgId, data.orderId),
+      );
     }
 
     // ----- Rule evaluation (optional — auto-select carrier/method/package) -----
@@ -167,14 +156,16 @@ export class OrderShipmentService {
     let resolvedMethod = data.shippingMethod || null;
     let resolvedPackageId = data.packageId || null;
     try {
-      const rule = await this.rules.evaluate(orgId, {
-        weightG: cachedWeight?.totalG ?? data.weightG ?? 0,
-        totalPriceCents: Math.round(Number(order.totalPrice) * 100),
-        countryCode: order.countryCode,
-        productVariantIds: (order.lineItems || []).map((li: any) => li.productVariantId).filter(Boolean),
-        tags: order.tags || [],
-        lineCount: (order.lineItems || []).length,
-      });
+      const rule = await this.timer.time('label', fid, 'rule_evaluate', () =>
+        this.rules.evaluate(orgId, {
+          weightG: cachedWeight?.totalG ?? data.weightG ?? 0,
+          totalPriceCents: Math.round(Number(order.totalPrice) * 100),
+          countryCode: order.countryCode,
+          productVariantIds: (order.lineItems || []).map((li: any) => li.productVariantId).filter(Boolean),
+          tags: order.tags || [],
+          lineCount: (order.lineItems || []).length,
+        }),
+      );
       if (rule) {
         if (rule.type === 'block_shipment') {
           throw new BadRequestException(`Versand blockiert (Regel): ${rule.reason || 'keine Begründung'}`);
@@ -192,20 +183,22 @@ export class OrderShipmentService {
     let accountId = data.carrierAccountId;
     let credentials: any = null;
     let senderData: any = null;
-    if (accountId) {
-      const loaded = await this.accounts.loadForUse(orgId, accountId);
-      if (!loaded) throw new BadRequestException('Carrier-Konto nicht gefunden');
-      credentials = loaded.credentialsDecrypted;
-      senderData = loaded.senderData;
-    } else {
-      const def = await this.accounts.findDefault(orgId, resolvedCarrier);
-      if (def) {
-        accountId = def.id;
-        const loaded = await this.accounts.loadForUse(orgId, def.id);
-        credentials = loaded?.credentialsDecrypted || null;
-        senderData = loaded?.senderData || null;
+    await this.timer.time('label', fid, 'load_carrier_account', async () => {
+      if (accountId) {
+        const loaded = await this.accounts.loadForUse(orgId, accountId);
+        if (!loaded) throw new BadRequestException('Carrier-Konto nicht gefunden');
+        credentials = loaded.credentialsDecrypted;
+        senderData = loaded.senderData;
+      } else {
+        const def = await this.accounts.findDefault(orgId, resolvedCarrier);
+        if (def) {
+          accountId = def.id;
+          const loaded = await this.accounts.loadForUse(orgId, def.id);
+          credentials = loaded?.credentialsDecrypted || null;
+          senderData = loaded?.senderData || null;
+        }
       }
-    }
+    });
 
     // Compute weight strictly from the product database (Shipping-Profile >
     // ProductVariant.weightG from Shopify sync). No fallback — DHL rejects
@@ -262,10 +255,13 @@ export class OrderShipmentService {
     };
 
     const adapter = this.registry.get(data.carrier);
-    const result = await adapter.createShipment(input, credentials);
+    const result = await this.timer.time('label', fid, 'carrier_create_shipment', () =>
+      adapter.createShipment(input, credentials),
+      { carrier: data.carrier, country: input.recipient.address.country },
+    );
 
-    // Persist shipment
-    const shipment = await this.prisma.orderShipment.create({
+    const shipment = await this.timer.time('label', fid, 'db_persist_shipment', () =>
+      this.prisma.orderShipment.create({
       data: {
         orgId,
         orderId: data.orderId,
@@ -291,21 +287,27 @@ export class OrderShipmentService {
         notes: data.notes || null,
         createdById: userId,
       },
-    });
+    }),
+    );
 
     // Persist label (HTML → R2 for print access)
-    await this.saveLabel(shipment.id, result.labelHtml, result.labelPdfBase64, result.labelContent, result.labelFormat, result.trackingNumber);
+    await this.timer.time('label', fid, 'save_label_r2', () =>
+      this.saveLabel(shipment.id, result.labelHtml, result.labelPdfBase64, result.labelContent, result.labelFormat, result.trackingNumber),
+      { hasPdf: !!result.labelPdfBase64 },
+    );
 
     // Initial status event
-    await this.prisma.orderShipmentStatusEvent.create({
-      data: {
-        shipmentId: shipment.id,
-        status: 'label_created',
-        occurredAt: new Date(),
-        source: 'api',
-        note: 'Shipment erstellt',
-      },
-    });
+    await this.timer.time('label', fid, 'db_status_event', () =>
+      this.prisma.orderShipmentStatusEvent.create({
+        data: {
+          shipmentId: shipment.id,
+          status: 'label_created',
+          occurredAt: new Date(),
+          source: 'api',
+          note: 'Shipment erstellt',
+        },
+      }),
+    );
 
     // Trigger automation email (if configured for label_created)
     this.emailAuto.triggerForStatus(orgId, shipment.id, 'label_created').catch((e) =>
@@ -381,6 +383,7 @@ export class OrderShipmentService {
     carrier: 'dhl' | 'custom',
     carrierAccountId?: string | null,
     onProgress?: () => void,
+    parentFlowId?: string,
   ) {
     // Concurrency-Chunks statt strikte for-Loop: bei 100 Orders reduziert
     // sich die Wall-Clock-Zeit von ~30 Min auf ~4-6 Min. Wichtig:
@@ -402,7 +405,7 @@ export class OrderShipmentService {
         if (myIndex >= orderIds.length) return;
         const orderId = orderIds[myIndex];
         try {
-          const ship: any = await this.create(orgId, userId, { orderId, carrier, carrierAccountId });
+          const ship: any = await this.create(orgId, userId, { orderId, carrier, carrierAccountId }, parentFlowId);
           results[myIndex] = {
             orderId,
             shipmentId: ship.id,

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { performance } from 'perf_hooks';
 import type { CarrierAdapter, CarrierShipmentResult, CarrierTrackingResult, ShipmentCreateInput } from './carrier-adapter.interface';
 import { buildLabelHtml } from './label-html-builder';
 import { resolveDhlProduct } from './dhl-billing';
@@ -112,7 +113,11 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     let response: Response | null = null;
     let data: any = {};
     let lastError = '';
+    let attemptIndex = 0;
     for (const attempt of authAttempts) {
+      attemptIndex++;
+      const t0 = performance.now();
+      let fetchMs = 0, readMs = 0;
       try {
         response = await fetch(endpoint, {
           method: 'POST',
@@ -124,12 +129,22 @@ export class DhlCarrierAdapter implements CarrierAdapter {
           },
           body: JSON.stringify(body),
         });
+        fetchMs = Math.round(performance.now() - t0);
       } catch (err: any) {
+        this.logger.error(`DHL fetch failed after ${Math.round(performance.now() - t0)}ms: ${err.message}`);
         throw new Error(`DHL API nicht erreichbar: ${err.message}`);
       }
 
+      const t1 = performance.now();
       const text = await response.text();
+      readMs = Math.round(performance.now() - t1);
       try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+
+      // Redigiertes Timing-Log fuer diesen Auth-Attempt
+      this.logger.log(
+        `dhl_call_timing attempt=${attemptIndex}/${authAttempts.length} status=${response.status} ` +
+        `fetchMs=${fetchMs} readMs=${readMs} totalMs=${fetchMs + readMs} ok=${response.ok}`,
+      );
 
       if (response.ok) {
         this.logger.log(`DHL auth OK via ${attempt.label}`);

@@ -28,6 +28,7 @@ import { InvoiceModule } from './modules/invoice/invoice.module';
 import { ReturnModule } from './modules/return/return.module';
 import { NfcModule } from './modules/nfc/nfc.module';
 import { HealthController } from './health.controller';
+import { TelemetryModule } from './common/telemetry/telemetry.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { HealthController } from './health.controller';
     }),
 
     PrismaModule,
+    TelemetryModule,
     EmailModule,
     FinanceModule,
     CreatorModule,
