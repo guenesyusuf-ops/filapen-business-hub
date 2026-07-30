@@ -23,13 +23,6 @@ import { ShopifyService } from '../integration/shopify/shopify.service';
 export class ShippingController {
   private readonly logger = new Logger(ShippingController.name);
 
-  // Single-Flight-Gate fuer /orders/reconcile-shipping.
-  // TEMPORAER (Stabilisierung nach Pool-Timeout): verhindert dass mehrere
-  // Reconcile-Vorgaenge fuer dieselbe Org gleichzeitig laufen. In-Process,
-  // valide solange nur EINE Railway-Replika lebt. Bei Multi-Replika muss
-  // eine verteilte Sperre (z.B. DB-Advisory-Lock) her.
-  private readonly reconcileInFlight = new Map<string, Promise<any>>();
-
   constructor(
     private readonly auth: AuthService,
     private readonly prisma: PrismaService,
@@ -193,61 +186,41 @@ export class ShippingController {
    */
   @Post('orders/reconcile-shipping')
   async reconcileShippingOrders(@Headers('authorization') authHeader: string) {
+    const flowId = this.timer.newFlow('sync');
+    const t0 = Date.now();
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-
-    // Single-Flight-Gate (siehe Feldkommentar oben). Wenn bereits ein
-    // Reconcile fuer diese Org laeuft, gib die laufende Promise zurueck.
-    // Das verhindert dass Doppelklicks, mehrere Tabs oder React Strict
-    // Mode einen zweiten Sync starten und den Pool belasten.
-    const existing = this.reconcileInFlight.get(orgId);
-    if (existing) {
-      this.logger.log(`reconcile: already in-flight for org=${orgId}, joining existing run`);
-      return existing;
+    const integration = await this.timer.time('sync', flowId, 'find_integration', () =>
+      this.prisma.integration.findFirst({
+        where: { orgId, type: 'shopify', status: 'connected' },
+      }),
+    );
+    if (!integration) {
+      return { checked: 0, fixed: 0, skipped: 0, note: 'Kein Shopify verbunden', flowId };
     }
-
-    const run = (async () => {
-      const flowId = this.timer.newFlow('sync');
-      const t0 = Date.now();
-      const integration = await this.timer.time('sync', flowId, 'find_integration', () =>
-        this.prisma.integration.findFirst({
-          where: { orgId, type: 'shopify', status: 'connected' },
-        }),
-      );
-      if (!integration) {
-        return { checked: 0, fixed: 0, skipped: 0, note: 'Kein Shopify verbunden', flowId };
-      }
-      try {
-        let pulled = 0;
-        try {
-          const s = await this.timer.time('sync', flowId, 'sync_recent_orders',
-            () => this.shopify.syncRecentOrders(integration.id, 60),
-            { windowMinutes: 60 },
-          );
-          pulled = s.pulled;
-        } catch (err: any) {
-          this.logger.warn(`syncRecentOrders skipped: ${err?.message}`);
-        }
-        const result = await this.timer.time('sync', flowId, 'reconcile_shipping_orders',
-          () => this.shopify.reconcileShippingOrders(integration.id),
-        );
-        const totalMs = Date.now() - t0;
-        this.logger.log(`sync_flow_done flowId=${flowId} totalMs=${totalMs} pulled=${pulled} checked=${result.checked} fixed=${result.fixed}`);
-        return { ...result, pulled, flowId, totalMs };
-      } catch (err: any) {
-        this.logger.error(`reconcileShippingOrders failed: ${err?.message ?? err}`);
-        throw new HttpException(
-          'Versand-Sync fehlgeschlagen — bitte erneut versuchen',
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        );
-      }
-    })();
-
-    this.reconcileInFlight.set(orgId, run);
     try {
-      return await run;
-    } finally {
-      this.reconcileInFlight.delete(orgId);
+      let pulled = 0;
+      try {
+        const s = await this.timer.time('sync', flowId, 'sync_recent_orders',
+          () => this.shopify.syncRecentOrders(integration.id, 60),
+          { windowMinutes: 60 },
+        );
+        pulled = s.pulled;
+      } catch (err: any) {
+        this.logger.warn(`syncRecentOrders skipped: ${err?.message}`);
+      }
+      const result = await this.timer.time('sync', flowId, 'reconcile_shipping_orders',
+        () => this.shopify.reconcileShippingOrders(integration.id),
+      );
+      const totalMs = Date.now() - t0;
+      this.logger.log(`sync_flow_done flowId=${flowId} totalMs=${totalMs} pulled=${pulled} checked=${result.checked} fixed=${result.fixed}`);
+      return { ...result, pulled, flowId, totalMs };
+    } catch (err: any) {
+      this.logger.error(`reconcileShippingOrders failed: ${err?.message ?? err}`);
+      throw new HttpException(
+        'Versand-Sync fehlgeschlagen — bitte erneut versuchen',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 

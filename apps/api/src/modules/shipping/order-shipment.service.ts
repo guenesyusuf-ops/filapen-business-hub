@@ -108,23 +108,46 @@ export class OrderShipmentService {
   async create(orgId: string, userId: string, data: CreateShipmentInput, flowId?: string) {
     const fid = flowId ?? this.timer.newFlow('label');
 
-    // STABILISIERUNG (Rollback von 4be882b):
-    // Vorher lief Promise.all mit 4 parallelen Prisma-Reads. Bei Bulk-Runs
-    // (mehrere Orders × 4 Reads) hat das die Prisma-Connections erschoepft
-    // und in P2024 gelaufen. Sequenziell nacheinander, StepTimer pro
-    // Schritt behalten. Reihenfolge:
-    //  1. idempotency_check (frueh, damit Duplikate ohne weitere Queries raus)
-    //  2. load_order_and_lines
-    //  3. compute_weight (nur wenn data.weightG fehlt)
-    //  4. find_default_carrier (nur wenn data.carrierAccountId fehlt)
+    // Parallel-Phase 1: 4 unabhaengige DB-Reads gleichzeitig starten.
+    // Fruehere sequenzielle Ausfuehrung dauerte 700+1000+1500+2300 = ~5.5s
+    // (weil jede Query 700-2300ms Latenz zu Supabase hatte). Parallel:
+    // wall-clock = max(alle) statt sum(alle). Erwartete Ersparnis ~3s pro Label.
+    //
+    // Alle 4 Reads sind fachlich unabhaengig:
+    //  - idempotency_check: findet ggf. existierendes Shipment
+    //  - load_order_and_lines: braucht nur data.orderId (bekannt vor Aufruf)
+    //  - compute_weight: braucht nur data.orderId, liest own lineItems
+    //  - default_carrier_account: braucht nur carrier (bekannt), keine order-Daten
     const carrierForLookup = data.carrier;
-    const existingShipment = await this.timer.time('label', fid, 'idempotency_check', () =>
-      this.prisma.orderShipment.findFirst({
-        where: { orgId, orderId: data.orderId, status: { not: 'cancelled' as const } },
-        orderBy: { createdAt: 'asc' },
-      }),
-      { orderId: data.orderId },
-    );
+    const [existingShipment, order, computedWeightOrNull, defaultAccount] = await Promise.all([
+      this.timer.time('label', fid, 'idempotency_check', () =>
+        this.prisma.orderShipment.findFirst({
+          where: { orgId, orderId: data.orderId, status: { not: 'cancelled' as const } },
+          orderBy: { createdAt: 'asc' },
+        }),
+        { orderId: data.orderId },
+      ),
+      this.timer.time('label', fid, 'load_order_and_lines', () =>
+        this.prisma.order.findFirst({
+          where: { id: data.orderId, orgId },
+          include: {
+            lineItems: {
+              select: { productVariantId: true, sku: true, title: true, quantity: true },
+            },
+          },
+        }),
+      ),
+      data.weightG
+        ? Promise.resolve(null)
+        : this.timer.time('label', fid, 'compute_weight', () =>
+            this.orders.computeOrderWeight(orgId, data.orderId),
+          ),
+      data.carrierAccountId
+        ? Promise.resolve(null)
+        : this.timer.time('label', fid, 'find_default_carrier', () =>
+            this.accounts.findDefault(orgId, carrierForLookup),
+          ),
+    ]);
     if (existingShipment) {
       this.logger.log(
         `create(): skip duplicate — order ${data.orderId} already has shipment ${existingShipment.id} (status=${existingShipment.status})`,
@@ -132,27 +155,6 @@ export class OrderShipmentService {
       const existing = await this.get(orgId, existingShipment.id);
       return { ...existing, _skipped: true } as any;
     }
-
-    const order = await this.timer.time('label', fid, 'load_order_and_lines', () =>
-      this.prisma.order.findFirst({
-        where: { id: data.orderId, orgId },
-        include: {
-          lineItems: {
-            select: { productVariantId: true, sku: true, title: true, quantity: true },
-          },
-        },
-      }),
-    );
-    const computedWeightOrNull = data.weightG
-      ? null
-      : await this.timer.time('label', fid, 'compute_weight', () =>
-          this.orders.computeOrderWeight(orgId, data.orderId),
-        );
-    const defaultAccount = data.carrierAccountId
-      ? null
-      : await this.timer.time('label', fid, 'find_default_carrier', () =>
-          this.accounts.findDefault(orgId, carrierForLookup),
-        );
 
     if (!order) throw new NotFoundException('Bestellung nicht gefunden');
     if (order.status === 'cancelled') {
@@ -403,14 +405,16 @@ export class OrderShipmentService {
     onProgress?: () => void,
     parentFlowId?: string,
   ) {
-    // STABILISIERUNG (Rollback von 4be882b):
-    // Vorher Concurrency 6 fuer Bulk-Labels. Kombination mit Sync-Concurrency
-    // und create()-Parallelisierung fuehrte zu P2024 Pool-Timeouts.
-    // Temporaer Concurrency 1 (sequenziell) — Reihenfolge, Idempotenz und
-    // Fehlerisolierung bleiben unveraendert. Nach Sanierung der Connection-
-    // Architektur (Region, Pool-Modus, kontrolliertes connection_limit)
-    // wieder kontrolliert erhoehen — begleitet von Telemetrie.
-    const CONCURRENCY = 1;
+    // Concurrency-Chunks statt strikte for-Loop: bei 100 Orders reduziert
+    // sich die Wall-Clock-Zeit von ~30 Min auf ~4-6 Min. Wichtig:
+    //   - Reihenfolge bleibt erhalten (results werden per Index gefuellt)
+    //   - Jeder Fehler wird pro Order isoliert, andere laufen weiter
+    //   - _skipped-Flag aus create() wird propagiert damit Frontend
+    //     "X neu, Y schon vorhanden" anzeigen kann
+    // Concurrency 6 gewaehlt: DHL Parcel DE Shipping v2 vertraegt gut
+    // parallele Requests bei realistischen Volumen, R2-Upload/DB-Writes
+    // sind ohnehin unproblematisch bei dem Fanout.
+    const CONCURRENCY = 6;
     type ResultRow = { orderId: string; shipmentId?: string; error?: string; skipped?: boolean };
     const results: ResultRow[] = new Array(orderIds.length);
 
