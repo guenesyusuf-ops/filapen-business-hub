@@ -13,7 +13,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit(): Promise<void> {
-    await this.$connect();
+    // Non-blocking Connect: verhindert dass ein hängender DB-Handshake den
+    // gesamten NestJS-Startup blockiert (Railway Healthcheck failed sonst).
+    // Prisma verbindet sich ohnehin lazy bei der ersten Query — der explizite
+    // $connect ist nur ein "warm up" und kann sicher fire-and-forget laufen.
+    this.$connect().catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn(`[Prisma] initial $connect failed: ${err?.message}. Will connect lazily on first query.`);
+    });
   }
 
   async onModuleDestroy(): Promise<void> {
