@@ -12,6 +12,7 @@ import { ShippingProductProfileService, ProfileInput } from './shipping-product-
 import { CarrierAccountService, CarrierAccountInput } from './carrier-account.service';
 import { OrderShipmentService, CreateShipmentInput } from './order-shipment.service';
 import { BulkJobService } from './bulk-job.service';
+import { parseBillingNumber } from './carriers/dhl-billing';
 import { ShippingRuleService, RuleInput } from './shipping-rule.service';
 import { ShippingEmailAutomationService, AutomationInput } from './shipping-email-automation.service';
 import { CarrierRegistry } from './carriers/carrier-registry.service';
@@ -351,7 +352,53 @@ export class ShippingController {
       hasPassword: !!c.password,
       hasApiSecret: !!c.apiSecret,
     };
-    return { ...account, credentials: safeCredentials };
+    // Migrations-Hinweise: erkennen wenn eine Nummer im "falschen" Feld
+    // gespeichert ist (z.B. billingNumberEu enthaelt Verfahren 53 =
+    // Weltpaket, gehoert eigentlich in billingNumberIntl). UI kann diese
+    // Hinweise anzeigen damit User es korrigieren kann.
+    const hints: string[] = [];
+    const check = (field: string, value: string | null, expectedProcedure: string, humanField: string) => {
+      if (!value) return;
+      const parsed = parseBillingNumber(value);
+      if ('kind' in parsed) {
+        hints.push(`${humanField}: Nummer hat ungueltiges Format (nicht 14 Zeichen).`);
+        return;
+      }
+      if (parsed.procedure !== expectedProcedure) {
+        const actualName =
+          parsed.procedure === '01' ? 'Paket National'
+          : parsed.procedure === '53' ? 'Weltpaket / Paket International'
+          : parsed.procedure === '54' ? 'Europaket'
+          : `Verfahren ${parsed.procedure}`;
+        hints.push(
+          `${humanField}: Verfahren ${parsed.procedure} (${actualName}) statt ${expectedProcedure}. ` +
+          `Die Nummer wird trotzdem verwendet — sortiert wird nach Verfahren, nicht nach Feldname.`,
+        );
+      }
+    };
+    check('billingNumber', c.billingNumber, '01', 'Paket National');
+    check('billingNumberEu', c.billingNumberEu, '54', 'Europaket');
+    check('billingNumberIntl', c.billingNumberIntl, '53', 'Weltpaket');
+    return { ...account, credentials: safeCredentials, migrationHints: hints };
+  }
+
+  /**
+   * Diagnose: Fuehrt einen validate=true Aufruf gegen DHL fuer eine
+   * konkrete Order aus. KEIN kostenpflichtiger Label-Kauf. Antwortet mit
+   * der vollstaendigen DHL-Validation-Response (nur maskierte EKPs im
+   * Debug-Info-Block, DHL Response bleibt originalgetreu).
+   *
+   * Wichtig: dieser Endpoint ist Admin-Only (assertCanWrite) und darf
+   * nur temporaer verwendet werden. Er umgeht den ueblichen create-Pfad.
+   */
+  @Post('shipments/dry-run/:orderId')
+  async dryRunShipment(
+    @Headers('authorization') authHeader: string,
+    @Param('orderId') orderId: string,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.shipments.dryRunDhl(orgId, userId, orderId);
   }
 
   @Post('carrier-accounts')

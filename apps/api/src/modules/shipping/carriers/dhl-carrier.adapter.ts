@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { CarrierAdapter, CarrierShipmentResult, CarrierTrackingResult, ShipmentCreateInput } from './carrier-adapter.interface';
 import { buildLabelHtml } from './label-html-builder';
+import { resolveDhlProduct } from './dhl-billing';
 import * as crypto from 'crypto';
 
 /**
@@ -61,24 +62,22 @@ export class DhlCarrierAdapter implements CarrierAdapter {
       : 'https://api-sandbox.dhl.com';
     const endpoint = `${baseUrl}/parcel/de/shipping/v2/orders`;
 
-    const product = this.pickProduct(input);
-    const billingNumber = this.pickBillingNumber(product, credentials);
-    if (!billingNumber) {
-      const productName =
-        product === 'V01PAK' ? 'Paket National'
-        : product === 'V54EPAK' ? 'Europaket (EU-Ausland)'
-        : product === 'V53WPAK' ? 'Weltpaket (ausserhalb EU)'
-        : product;
-      const fieldName =
-        product === 'V54EPAK' ? '"EKP-Nr Europaket (EU-Ausland)"'
-        : product === 'V53WPAK' ? '"EKP-Nr Weltpaket (ausserhalb EU)"'
-        : '"EKP-Nr Paket National (DE)"';
-      const country = input.recipient.address.country || '??';
-      throw new Error(
-        `Fuer Bestellung nach ${country} wird DHL-Produkt "${productName}" verwendet. ` +
-        `Feld ${fieldName} ist leer. Bitte unter Versand > Integrationen > DHL eintragen.`,
-      );
+    // Zentrale Produkt- + Abrechnungsnummer-Aufloesung.
+    // Diese Funktion:
+    //  - waehlt das Produkt nach dem Verfahren der Nummer (nicht Geografie)
+    //  - lehnt AT/CH/etc. als Absender ab (DHL Paket DE kann nur DE-Absender)
+    //  - liefert klare Fehler-Codes fuer die verschiedenen Konfigurationsprobleme
+    const resolution = resolveDhlProduct({
+      originCountry: input.sender.address.country,
+      destinationCountry: input.recipient.address.country,
+      credentials,
+      requestedShippingMethod: input.shippingMethod,
+    });
+    if (resolution.ok === false) {
+      this.logger.warn(`DHL resolve failed [${resolution.errorCode}]: ${resolution.message}`);
+      throw new Error(resolution.message);
     }
+    const { product, billingNumber, procedure, masked } = resolution;
     const body = this.buildRequestBody(input, billingNumber, product);
 
     // Pick Basic-Auth strategy. Prefer user/password (legacy, Geschäftskundenportal).
@@ -102,7 +101,13 @@ export class DhlCarrierAdapter implements CarrierAdapter {
       throw new Error('Keine Basic-Auth-Credentials konfiguriert (weder user/pwd noch apiSecret)');
     }
 
-    this.logger.log(`DHL [${mode}] POST ${endpoint} — product=${product}, ref=${input.reference ?? input.orderId}, authAttempts=[${authAttempts.map((a) => a.label).join(', ')}]`);
+    // Redigiertes Debug-Log: enthaelt Produkt + maskierte Nummer + Verfahren,
+    // damit im Fehlerfall eindeutig nachvollziehbar ist welche Kombination
+    // an DHL ging. Keine Secrets, keine vollen EKPs, keine PII.
+    this.logger.log(
+      `DHL [${mode}] POST ${endpoint} — product=${product} procedure=${procedure} billing=${masked} ` +
+      `ref=${input.reference ?? input.orderId} route=${input.sender.address.country || '?'}->${input.recipient.address.country || '?'}`,
+    );
 
     let response: Response | null = null;
     let data: any = {};
@@ -230,35 +235,10 @@ export class DhlCarrierAdapter implements CarrierAdapter {
   }
 
   /**
-   * Auto-pick DHL product based on recipient country.
-   * User can override via input.shippingMethod.
+   * pickProduct + pickBillingNumber wurden durch resolveDhlProduct aus
+   * ./dhl-billing.ts ersetzt. Die Aufloesung erfolgt jetzt nach Verfahren
+   * der Abrechnungsnummer statt nach Geografie.
    */
-  private pickProduct(input: ShipmentCreateInput): string {
-    if (input.shippingMethod) return input.shippingMethod;
-    const country = (input.recipient.address.country || 'DE').toUpperCase();
-    if (country === 'DE') return 'V01PAK'; // DHL Paket National
-    const EU_COUNTRIES = ['AT','BE','BG','CY','CZ','DK','EE','ES','FI','FR','GR','HR','HU','IE','IT','LT','LU','LV','MT','NL','PL','PT','RO','SE','SI','SK'];
-    if (EU_COUNTRIES.includes(country)) return 'V54EPAK'; // Europaket
-    return 'V53WPAK'; // Weltpaket
-  }
-
-  /**
-   * Waehlt die passende EKP-Nummer je nach DHL-Produkt.
-   * DHL vergibt pro Produkt separate Vertraege — die EKP fuer Paket National
-   * ist NIE fuer Europaket/Weltpaket freigeschaltet.
-   *
-   * Wichtig: bei V54EPAK/V53WPAK gibt es KEINEN Fallback auf die
-   * National-EKP. Wenn das spezifische Feld leer ist, wird explizit null
-   * zurueckgegeben — der Aufrufer wirft dann eine klare Fehlermeldung.
-   * Ein stiller Fallback wuerde DHL mit dem kryptischen "product unknown"
-   * antworten lassen, was schwer zu debuggen ist.
-   */
-  private pickBillingNumber(product: string, credentials: any): string | null {
-    if (product === 'V54EPAK') return credentials.billingNumberEu || null;
-    if (product === 'V53WPAK') return credentials.billingNumberIntl || null;
-    // Alles andere (V01PAK etc.) → National-EKP
-    return credentials.billingNumber || null;
-  }
 
   private buildRequestBody(input: ShipmentCreateInput, billingNumber: string, product: string) {
     // DHL expects ISO 3166-1 alpha-3 country codes (DEU, FRA, …)
@@ -387,7 +367,10 @@ export class DhlCarrierAdapter implements CarrierAdapter {
   }
 
   private formatDhlError(status: number, data: any): string {
-    // DHL returns detailed validation errors in items[*].validationMessages
+    // DHL returns detailed validation errors in items[*].validationMessages.
+    // Frueher wurden nur die ersten 3 zurueckgegeben — dabei ging die relevante
+    // Meldung oft verloren. Jetzt: alle Messages, und wir loggen die volle
+    // Response zusaetzlich im Server-Log (redigiert) fuer Debugging.
     if (data?.items?.length) {
       const msgs: string[] = [];
       for (const item of data.items) {
@@ -397,8 +380,13 @@ export class DhlCarrierAdapter implements CarrierAdapter {
           }
         }
         if (item.message) msgs.push(item.message);
+        if (item.detail) msgs.push(item.detail);
       }
-      if (msgs.length) return msgs.slice(0, 3).join(' | ');
+      // Volle Response ins Log (Server-side, nicht User-facing).
+      try {
+        this.logger.warn(`DHL full validation response (${status}): ${JSON.stringify(data).slice(0, 2000)}`);
+      } catch { /* JSON stringify safety */ }
+      if (msgs.length) return msgs.join(' | ');
     }
     return data?.detail || data?.title || data?.message || data?.raw || `HTTP ${status}`;
   }

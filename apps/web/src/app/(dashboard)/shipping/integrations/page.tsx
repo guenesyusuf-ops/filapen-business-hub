@@ -148,6 +148,7 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
   const [prefillLoaded, setPrefillLoaded] = useState(mode === 'create');
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const [hasStoredApiSecret, setHasStoredApiSecret] = useState(false);
+  const [migrationHints, setMigrationHints] = useState<string[]>([]);
 
   // Beim Edit: bestehende (nicht-sensitive) Credentials aus dem Backend
   // laden und in die Felder prefillen. Passwoerter/Secrets bleiben leer —
@@ -167,6 +168,7 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
         if (c.username) setUsername(c.username);
         setHasStoredPassword(!!c.hasPassword);
         setHasStoredApiSecret(!!c.hasApiSecret);
+        if (Array.isArray(full.migrationHints)) setMigrationHints(full.migrationHints);
         setPrefillLoaded(true);
       })
       .catch((e) => {
@@ -290,18 +292,37 @@ function CarrierAccountModal({ carriers, mode, account, onClose, onSaved }: {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div><label className={labelCls()}>EKP-Nr Paket National (DE)</label><input value={billingNumber} onChange={(e) => setBillingNumber(e.target.value)} className={inputCls()} placeholder="14-stellig, z.B. 22ZZZZZZZZ0101" /></div>
-                <div><label className={labelCls()}>EKP-Nr Europaket (EU-Ausland)</label><input value={billingNumberEu} onChange={(e) => setBillingNumberEu(e.target.value)} className={inputCls()} placeholder="optional, z.B. 22ZZZZZZZZ5401" /></div>
-                <div><label className={labelCls()}>EKP-Nr Weltpaket (ausserhalb EU)</label><input value={billingNumberIntl} onChange={(e) => setBillingNumberIntl(e.target.value)} className={inputCls()} placeholder="optional, z.B. 22ZZZZZZZZ5301" /></div>
-                <div className="hidden sm:block"></div>
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className={labelCls()}>Abrechnungsnummer DHL Paket National – Verfahren 01</label>
+                  <input value={billingNumber} onChange={(e) => setBillingNumber(e.target.value)} className={inputCls()} placeholder="14-stellig, endet auf 01xx, z.B. 22ZZZZZZZZ0101" />
+                  <p className="text-[11px] text-gray-500 mt-1">Vollstaendige 14-stellige Nummer einschliesslich Verfahren und Teilnahme. Wird fuer alle Sendungen innerhalb Deutschlands verwendet.</p>
+                </div>
+                <div>
+                  <label className={labelCls()}>Abrechnungsnummer DHL Paket International – Verfahren 53</label>
+                  <input value={billingNumberIntl} onChange={(e) => setBillingNumberIntl(e.target.value)} className={inputCls()} placeholder="14-stellig, endet auf 53xx, z.B. 22ZZZZZZZZ5301" />
+                  <p className="text-[11px] text-gray-500 mt-1">Fuer Sendungen ins Ausland (EU + Nicht-EU). Die Stellen 11–12 muessen &quot;53&quot; enthalten. Deckt vertraglich oft beides ab.</p>
+                </div>
+                <div>
+                  <label className={labelCls()}>Abrechnungsnummer DHL Europaket – Verfahren 54 (optional)</label>
+                  <input value={billingNumberEu} onChange={(e) => setBillingNumberEu(e.target.value)} className={inputCls()} placeholder="14-stellig, endet auf 54xx, z.B. 22ZZZZZZZZ5401" />
+                  <p className="text-[11px] text-gray-500 mt-1">Nur verwenden wenn ein aktiver DHL-Europaket-Vertrag besteht. Guenstiger als Paket International, aber nur fuer EU-Laender. Ohne Europaket-Vertrag leer lassen.</p>
+                </div>
+              </div>
+              {migrationHints.length > 0 && (
+                <div className="mt-3 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
+                  <strong>Hinweise zu gespeicherten Abrechnungsnummern:</strong>
+                  <ul className="list-disc ml-4">
+                    {migrationHints.map((h, i) => <li key={i}>{h}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                 <div><label className={labelCls()}>API Key (Client ID)</label><input value={apiKey} onChange={(e) => setApiKey(e.target.value)} className={inputCls()} placeholder="vom Developer Portal" /></div>
                 <div><label className={labelCls()}>API Secret (Client Secret)</label><input type="password" value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} className={inputCls()} placeholder={hasStoredApiSecret ? '••••••••  (gespeichert — leer lassen um zu behalten)' : 'vom Developer Portal'} /></div>
                 <div><label className={labelCls()}>Username (Geschäftskundenportal)</label><input value={username} onChange={(e) => setUsername(e.target.value)} className={inputCls()} placeholder="optional bei API-Key-Auth" /></div>
                 <div><label className={labelCls()}>Passwort (Geschäftskundenportal)</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls()} placeholder={hasStoredPassword ? '••••••••  (gespeichert — leer lassen um zu behalten)' : 'optional'} /></div>
-              </div>
-              <div className="mt-2 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2 text-[11px] text-amber-800 dark:text-amber-300">
-                <strong>Wichtig zu EKPs:</strong> DHL vergibt pro Produkt eigene Vertraege. Eine EKP fuer <em>Paket National</em> funktioniert nicht fuer <em>Europaket</em>. Fuer Bestellungen ins EU-Ausland brauchst du eine separate EKP-Nummer (endet meist auf <code>54..</code>). Ohne die EU-EKP schlaegt jedes EU-Label mit "product unknown" fehl.
               </div>
               <div className="mt-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-2 text-[11px] text-blue-800 dark:text-blue-300">
                 <strong>Basic-Auth:</strong> DHL akzeptiert entweder <code>Username:Passwort</code> (Geschäftskundenportal) ODER <code>API-Key:API-Secret</code> (Developer Portal). Das System probiert automatisch beide durch, falls konfiguriert.

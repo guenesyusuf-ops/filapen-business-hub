@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { CarrierRegistry } from './carriers/carrier-registry.service';
@@ -422,6 +422,180 @@ export class OrderShipmentService {
       succeeded: results.filter((r) => r.shipmentId).length,
       created: results.filter((r) => r.shipmentId && !r.skipped).length,
       skipped: results.filter((r) => r.skipped).length,
+    };
+  }
+
+  /**
+   * Diagnose: fuehrt einen validate=true Aufruf gegen DHL fuer eine
+   * konkrete Order aus. Erstellt kein Label, entstehen keine Kosten.
+   * Antwortet mit der vollstaendigen DHL Response fuer manuelle Analyse.
+   *
+   * Nutzt bewusst nicht den DhlCarrierAdapter — wir wollen die rohe DHL-
+   * Response sehen, nicht die formatierte Fehlermeldung.
+   */
+  async dryRunDhl(
+    orgId: string,
+    userId: string,
+    orderId: string,
+  ): Promise<{
+    request: {
+      endpoint: string;
+      product: string;
+      procedure: string;
+      billingNumberMasked: string;
+      shipperCountry: string | undefined;
+      consigneeCountry: string | undefined;
+    };
+    response: {
+      status: number;
+      ok: boolean;
+      body: any;
+    };
+  }> {
+    const { resolveDhlProduct } = await import('./carriers/dhl-billing');
+
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, orgId },
+    });
+    if (!order) throw new NotFoundException('Bestellung nicht gefunden');
+    if (!order.shippingAddress) {
+      throw new BadRequestException('Lieferadresse fehlt');
+    }
+
+    const def = await this.accounts.findDefault(orgId, 'dhl');
+    const account = def || (await this.prisma.carrierAccount.findFirst({
+      where: { orgId, carrier: 'dhl' as any, status: 'active' },
+    }));
+    if (!account) throw new BadRequestException('Kein DHL-Konto konfiguriert');
+    const loaded = await this.accounts.loadForUse(orgId, account.id);
+    const credentials: any = loaded?.credentialsDecrypted;
+    const senderData: any = loaded?.senderData;
+    if (!credentials?.apiKey) throw new BadRequestException('DHL-Credentials unvollstaendig');
+
+    const addr = order.shippingAddress as any;
+    const senderCountry = senderData?.address?.country || 'DE';
+    const recipientCountry = (addr?.country_code || addr?.country || '').toUpperCase().slice(0, 2);
+
+    const resolution = resolveDhlProduct({
+      originCountry: senderCountry,
+      destinationCountry: recipientCountry,
+      credentials,
+    });
+    if (resolution.ok === false) {
+      // Keinen DHL-Call machen — lokal aussortiert.
+      return {
+        request: {
+          endpoint: '(nicht abgesendet — lokal validiert)',
+          product: '-',
+          procedure: '-',
+          billingNumberMasked: '-',
+          shipperCountry: senderCountry,
+          consigneeCountry: recipientCountry,
+        },
+        response: {
+          status: 0,
+          ok: false,
+          body: { errorCode: resolution.errorCode, message: resolution.message },
+        },
+      };
+    }
+
+    // Volle Payload wie in DhlCarrierAdapter — wir instantiieren den Adapter
+    // NICHT, sondern replizieren die Body-Struktur inline. Der Adapter ist
+    // im Registry als Nest-DI-Component, wir wollen ihn hier nicht doppelt
+    // aufrufen weil er dann den echten create-Call macht.
+    const iso2to3: Record<string, string> = {
+      DE: 'DEU', AT: 'AUT', CH: 'CHE', FR: 'FRA', BE: 'BEL', NL: 'NLD',
+      LU: 'LUX', IT: 'ITA', ES: 'ESP', PT: 'PRT', GB: 'GBR', IE: 'IRL',
+      DK: 'DNK', SE: 'SWE', NO: 'NOR', FI: 'FIN', PL: 'POL', CZ: 'CZE',
+      SK: 'SVK', HU: 'HUN', SI: 'SVN', HR: 'HRV', RO: 'ROU', BG: 'BGR',
+      GR: 'GRC', CY: 'CYP', MT: 'MLT', EE: 'EST', LT: 'LTU', LV: 'LVA',
+    };
+    const dhlProduct = resolution.product;
+    const dhlBilling = resolution.billingNumber;
+    const weightG = 1000; // fester Test-Wert fuer Dry-Run (echtes Label wuerde computeOrderWeight nutzen)
+    const body = {
+      profile: 'STANDARD_GRUPPENPROFIL',
+      shipments: [
+        {
+          product: dhlProduct,
+          billingNumber: dhlBilling,
+          refNo: `DRY-${order.orderNumber || order.id}`.slice(0, 35),
+          shipper: {
+            name1: (senderData?.name || 'Filapen').slice(0, 50),
+            addressStreet: senderData?.address?.street || 'Musterstr.',
+            addressHouse: senderData?.address?.houseNumber || '1',
+            postalCode: senderData?.address?.zip || '12345',
+            city: senderData?.address?.city || 'Musterstadt',
+            country: iso2to3[senderCountry] || 'DEU',
+          },
+          consignee: {
+            name1: (order.customerName || 'Empfaenger').slice(0, 50),
+            addressStreet: addr?.address1 || 'Testgasse',
+            addressHouse: addr?.houseNumber || '1',
+            postalCode: addr?.zip || '',
+            city: addr?.city || '',
+            country: iso2to3[recipientCountry] || recipientCountry,
+          },
+          details: { weight: { uom: 'kg', value: weightG / 1000 } },
+        },
+      ],
+    };
+
+    const mode: 'sandbox' | 'production' = credentials.mode === 'production' ? 'production' : 'sandbox';
+    const baseUrl = mode === 'production' ? 'https://api-eu.dhl.com' : 'https://api-sandbox.dhl.com';
+    const endpoint = `${baseUrl}/parcel/de/shipping/v2/orders?validate=true`;
+
+    // Basic Auth wie im Adapter — bevorzugt user/pwd, sonst apiKey/apiSecret
+    let basic = '';
+    if (credentials.username && credentials.password) {
+      basic = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
+    } else if (credentials.apiSecret) {
+      basic = Buffer.from(`${credentials.apiKey}:${credentials.apiSecret}`).toString('base64');
+    } else {
+      throw new BadRequestException('DHL Basic-Auth-Credentials unvollstaendig');
+    }
+
+    let resp: Response;
+    try {
+      resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${basic}`,
+          'dhl-api-key': credentials.apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err: any) {
+      throw new HttpException(
+        `DHL API nicht erreichbar: ${err?.message}`,
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+    const text = await resp.text();
+    let parsed: any;
+    try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { raw: text }; }
+
+    this.logger.log(
+      `DHL dry-run [${mode}] status=${resp.status} product=${dhlProduct} procedure=${resolution.procedure} billing=${resolution.masked} route=${senderCountry}->${recipientCountry}`,
+    );
+
+    return {
+      request: {
+        endpoint,
+        product: dhlProduct,
+        procedure: resolution.procedure,
+        billingNumberMasked: resolution.masked,
+        shipperCountry: senderCountry,
+        consigneeCountry: recipientCountry,
+      },
+      response: {
+        status: resp.status,
+        ok: resp.ok,
+        body: parsed,
+      },
     };
   }
 
