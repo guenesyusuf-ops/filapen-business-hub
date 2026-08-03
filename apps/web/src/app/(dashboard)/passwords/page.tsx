@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   KeyRound, Search, Plus, Copy, Eye, EyeOff, ExternalLink, Users, Shield,
   Trash2, Pencil, X, ChevronDown, Sparkles, AlertTriangle, RefreshCw, Check, UserMinus,
+  History, Clock,
 } from 'lucide-react';
 import {
   passwordsApi, faviconFor, generatePassword,
@@ -423,6 +424,46 @@ function EntryEditor({
   const [sharedUserIds, setSharedUserIds] = useState<Set<string>>(
     new Set((entry?.sharedWith ?? []).map((u) => u.id)),
   );
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Auto-Lock: nach 10 Min ohne Interaktion wird der Reveal-State im Editor
+  // zurueckgesetzt. Nutzer muss dann erneut "Passwort anzeigen" klicken.
+  useEffect(() => {
+    if (!revealed) return;
+    let lastActivity = Date.now();
+    const onActivity = () => { lastActivity = Date.now(); };
+    const interval = setInterval(() => {
+      if (Date.now() - lastActivity > 10 * 60 * 1000) {
+        setRevealed(false);
+        setPassword('');
+        setNotes('');
+        setTotpSeed('');
+        setPasswordVisible(false);
+      }
+    }, 30_000);
+    window.addEventListener('mousemove', onActivity, { passive: true });
+    window.addEventListener('keydown', onActivity, { passive: true });
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('mousemove', onActivity);
+      window.removeEventListener('keydown', onActivity);
+    };
+  }, [revealed]);
+
+  const toggleHistory = async () => {
+    const next = !showHistory;
+    setShowHistory(next);
+    if (next && entry && historyItems.length === 0) {
+      setHistoryLoading(true);
+      try {
+        const rows = await passwordsApi.audit({ entryId: entry.id, limit: 50 });
+        setHistoryItems(rows);
+      } catch { /* ignore */ }
+      finally { setHistoryLoading(false); }
+    }
+  };
 
   const toggleShare = (uid: string) => {
     setSharedUserIds((prev) => {
@@ -523,13 +564,24 @@ function EntryEditor({
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
       <div className="w-full sm:max-w-lg bg-white dark:bg-[#0f1117] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 max-h-[95dvh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/8 sticky top-0 bg-white dark:bg-[#0f1117]">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/8 sticky top-0 bg-white dark:bg-[#0f1117] z-10">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white truncate">
             {mode === 'create' ? 'Neuer Eintrag' : entry?.title}
           </h2>
-          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/[0.06]">
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-1">
+            {mode === 'edit' && (
+              <button
+                onClick={toggleHistory}
+                className={`p-1.5 rounded ${showHistory ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300' : 'hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500'}`}
+                title="Verlauf"
+              >
+                <History className="h-4 w-4" />
+              </button>
+            )}
+            <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/[0.06]">
+              <X className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
         </div>
         <div className="p-5 space-y-3">
           {err && (
@@ -728,6 +780,39 @@ function EntryEditor({
               <div className="flex items-center gap-1"><Users className="h-3 w-3" /> Sichtbar für {entry.sharedWith.length + 1} Person(en)</div>
             </div>
           )}
+
+          {mode === 'edit' && showHistory && (
+            <div className="pt-3 border-t border-gray-100 dark:border-white/8">
+              <div className="text-[11px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1.5">
+                <History className="h-3 w-3" /> Verlauf (letzte 50 Aktionen)
+              </div>
+              {historyLoading ? (
+                <p className="text-xs text-gray-500">Lädt …</p>
+              ) : historyItems.length === 0 ? (
+                <p className="text-xs text-gray-500">Noch keine Aktionen aufgezeichnet.</p>
+              ) : (
+                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-100 dark:border-white/8 divide-y divide-gray-100 dark:divide-white/8">
+                  {historyItems.map((h) => (
+                    <div key={h.id} className="flex items-center gap-2 px-2.5 py-1.5 text-[11px]">
+                      <span className="inline-flex items-center justify-center h-5 w-5 rounded text-[9px] font-bold bg-gray-100 dark:bg-white/[0.06] text-gray-600 dark:text-gray-300 flex-shrink-0">
+                        {actionIcon(h.action)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-gray-900 dark:text-gray-100 truncate">
+                          <span className="font-medium">{h.user?.name || h.user?.email || 'Unbekannt'}</span>
+                          <span className="text-gray-500 dark:text-gray-400"> · {actionLabel(h.action)}</span>
+                        </div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                          <Clock className="h-2.5 w-2.5" /> {new Date(h.createdAt).toLocaleString('de-DE')}
+                          {h.ip && <span>· {h.ip}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="px-5 py-3 border-t border-gray-100 dark:border-white/8 flex items-center justify-between gap-2 sticky bottom-0 bg-white dark:bg-[#0f1117]">
@@ -857,6 +942,34 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function inputCls(extra?: string) {
   return `w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03] text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${extra ?? ''}`;
+}
+
+function actionIcon(action: string): string {
+  const map: Record<string, string> = {
+    create: '＋',
+    update: '✎',
+    delete: '×',
+    reveal: '👁',
+    reveal_rate_limited: '⏱',
+    access_change: '👥',
+    access_bulk_grant: '↗',
+    access_bulk_revoke: '↙',
+  };
+  return map[action] || '·';
+}
+
+function actionLabel(action: string): string {
+  const map: Record<string, string> = {
+    create: 'angelegt',
+    update: 'bearbeitet',
+    delete: 'gelöscht',
+    reveal: 'Passwort angezeigt',
+    reveal_rate_limited: 'Zugriff durch Rate-Limit blockiert',
+    access_change: 'Freigabe geändert',
+    access_bulk_grant: 'Bulk-Freigabe',
+    access_bulk_revoke: 'Freigabe entzogen',
+  };
+  return map[action] || action;
 }
 
 // --------------------------------------------------------------------------

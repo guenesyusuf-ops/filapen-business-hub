@@ -31,10 +31,40 @@ interface AuditContext {
   userAgent?: string;
 }
 
+/**
+ * Einfacher Sliding-Window-Rate-Limiter im Prozess (Map<key, timestamps[]>).
+ * OK bei 1 Replika. Bei Multi-Replika braucht es Redis o.ae.
+ */
+class RateLimiter {
+  private readonly hits = new Map<string, number[]>();
+
+  hit(key: string, maxPerWindow: number, windowMs: number): { allowed: boolean; retryAfterMs: number } {
+    const now = Date.now();
+    const arr = (this.hits.get(key) ?? []).filter((t) => now - t < windowMs);
+    if (arr.length >= maxPerWindow) {
+      const oldest = arr[0];
+      return { allowed: false, retryAfterMs: windowMs - (now - oldest) };
+    }
+    arr.push(now);
+    this.hits.set(key, arr);
+    return { allowed: true, retryAfterMs: 0 };
+  }
+
+  gc(): void {
+    const now = Date.now();
+    for (const [k, arr] of this.hits) {
+      const filtered = arr.filter((t) => now - t < 60_000);
+      if (filtered.length === 0) this.hits.delete(k);
+      else this.hits.set(k, filtered);
+    }
+  }
+}
+
 @Injectable()
 export class PasswordService {
   private readonly logger = new Logger(PasswordService.name);
   private readonly secret: string;
+  private readonly revealLimiter = new RateLimiter();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -350,6 +380,15 @@ export class PasswordService {
     id: string,
     ctx?: AuditContext,
   ): Promise<{ password: string; totpSeed: string | null; notes: string | null }> {
+    // Rate-Limit: max 20 Reveals pro User pro Minute (schuetzt gegen versehentliche
+    // Skripte / kompromittierte Sessions). Audit sieht trotzdem alles.
+    const rl = this.revealLimiter.hit(`reveal:${userId}`, 20, 60_000);
+    if (!rl.allowed) {
+      await this.recordAudit(orgId, userId, 'reveal_rate_limited', id, ctx);
+      throw new BadRequestException(
+        `Zu viele Passwort-Anfragen. Bitte ${Math.ceil(rl.retryAfterMs / 1000)}s warten.`,
+      );
+    }
     const auth = await this.userCanRead(orgId, userId, userRole, id);
     if (!auth.ok) throw new NotFoundException('Eintrag nicht gefunden');
     const entry = auth.entry;
