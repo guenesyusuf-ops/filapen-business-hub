@@ -85,6 +85,7 @@ import {
   Radio,
   Hash,
   ListChecks as ListIcon,
+  KeyRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -363,6 +364,14 @@ const NAV_ITEMS: NavItem[] = [
     href: '/send',
     icon: Send,
     permissionKey: 'send',
+    accent: 'text-accent-work',
+  },
+  {
+    // Passwort-Management — AES-256-GCM verschluesselte Zugangsdaten fuer Team
+    labelKey: 'nav.passwords',
+    href: '/passwords',
+    icon: KeyRound,
+    permissionKey: 'passwords',
     accent: 'text-accent-work',
   },
 ];
