@@ -204,3 +204,33 @@ export async function totpCode(seed: string, timeStep = 30, digits = 6): Promise
 export function totpSecondsRemaining(timeStep = 30): number {
   return timeStep - (Math.floor(Date.now() / 1000) % timeStep);
 }
+
+// ---------------------------------------------------------------------------
+// HaveIBeenPwned Check (k-anonymity)
+// Wir schicken nur die ersten 5 Zeichen des SHA-1-Hashes an api.pwnedpasswords.com.
+// HIBP liefert alle Hashes die mit diesem Praefix beginnen zurueck, wir suchen
+// den vollen Hash lokal. Das eigentliche Passwort verlaesst NIEMALS den Browser.
+// ---------------------------------------------------------------------------
+export async function checkPwned(password: string): Promise<number | null> {
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuf = await crypto.subtle.digest('SHA-1', data);
+    const hashArr = Array.from(new Uint8Array(hashBuf));
+    const hex = hashArr.map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const prefix = hex.slice(0, 5);
+    const suffix = hex.slice(5);
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: { 'Add-Padding': 'true' },
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    for (const line of text.split(/\r?\n/)) {
+      const [hashSuffix, countStr] = line.split(':');
+      if (hashSuffix === suffix) return parseInt(countStr, 10);
+    }
+    return 0;
+  } catch {
+    return null;
+  }
+}

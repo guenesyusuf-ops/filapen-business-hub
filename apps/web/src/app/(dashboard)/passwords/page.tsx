@@ -7,7 +7,7 @@ import {
   History, Clock,
 } from 'lucide-react';
 import {
-  passwordsApi, faviconFor, generatePassword, totpCode, totpSecondsRemaining,
+  passwordsApi, faviconFor, generatePassword, totpCode, totpSecondsRemaining, checkPwned,
   type PasswordCategory, type PasswordEntryListItem,
 } from '@/lib/passwords';
 
@@ -440,6 +440,18 @@ function EntryEditor({
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showGenerator, setShowGenerator] = useState(false);
+  const [pwned, setPwned] = useState<number | null | 'checking'>(null);
+
+  // HIBP-Check debounced sobald der Nutzer aufhoert zu tippen.
+  useEffect(() => {
+    if (!password) { setPwned(null); return; }
+    const handle = setTimeout(async () => {
+      setPwned('checking');
+      const result = await checkPwned(password);
+      setPwned(result);
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [password]);
 
   // Auto-Lock: nach 10 Min ohne Interaktion wird der Reveal-State im Editor
   // zurueckgesetzt. Nutzer muss dann erneut "Passwort anzeigen" klicken.
@@ -707,12 +719,32 @@ function EntryEditor({
                 </div>
               )}
               {password && (
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
-                    <div className={`h-full ${strengthColor(strengthScore)}`} style={{ width: `${strengthScore ?? 0}%` }} />
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                      <div className={`h-full ${strengthColor(strengthScore)}`} style={{ width: `${strengthScore ?? 0}%` }} />
+                    </div>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">{strengthLabel(strengthScore)}</span>
                   </div>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400">{strengthLabel(strengthScore)}</span>
-                </div>
+                  {pwned === 'checking' && (
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
+                      <RefreshCw className="h-3 w-3 animate-spin" /> Prüfe bekannte Leaks …
+                    </div>
+                  )}
+                  {typeof pwned === 'number' && pwned > 0 && (
+                    <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-2 text-[11px] text-red-800 dark:text-red-300 flex items-start gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong>Bekannter Leak</strong> — dieses Passwort wurde in <strong>{pwned.toLocaleString('de-DE')}</strong> Datenlecks gefunden. Anderes wählen.
+                      </div>
+                    </div>
+                  )}
+                  {typeof pwned === 'number' && pwned === 0 && (
+                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                      <Check className="h-3 w-3" /> Nicht in bekannten Leaks (via HaveIBeenPwned k-anonymity)
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </Field>
