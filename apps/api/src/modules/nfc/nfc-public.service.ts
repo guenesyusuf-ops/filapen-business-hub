@@ -17,6 +17,7 @@ const CONSENT_VERSION = '2026-06-15-v1';
 export interface ActivationInput {
   firstName?: string | null;
   lastName?: string | null;
+  childName?: string | null;
   phone?: string | null;
   phone2?: string | null;
   notes?: string | null;
@@ -82,6 +83,7 @@ export class NfcPublicService {
       data: {
         firstName: a.firstName,
         lastName: a.lastName,
+        childName: a.childName,
         phone: a.phone,
         phone2: a.phone2,
         notes: a.notes,
@@ -131,6 +133,7 @@ export class NfcPublicService {
       orgId: band.orgId,
       firstName: clean(input.firstName, 120),
       lastName:  clean(input.lastName, 120),
+      childName: clean(input.childName, 120),
       phone:     clean(input.phone, 64),
       phone2:    clean(input.phone2, 64),
       notes:     input.notes?.trim() || null,
@@ -217,6 +220,7 @@ export class NfcPublicService {
       data: {
         firstName: a.firstName,
         lastName: a.lastName,
+        childName: a.childName,
         phone: a.phone,
         phone2: a.phone2,
         notes: a.notes,
@@ -261,6 +265,7 @@ export class NfcPublicService {
       data: {
         firstName: clean(input.firstName, 120),
         lastName:  clean(input.lastName, 120),
+        childName: clean(input.childName, 120),
         phone:     clean(input.phone, 64),
         phone2:    clean(input.phone2, 64),
         notes:     input.notes?.trim() || null,

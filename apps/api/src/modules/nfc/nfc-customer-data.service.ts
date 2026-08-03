@@ -97,6 +97,7 @@ export class NfcCustomerDataService {
       bandStatus: activation.band.status,
       firstName: activation.firstName,
       lastName: activation.lastName,
+      childName: activation.childName,
       phone: activation.phone,
       phone2: activation.phone2,
       notes: activation.notes,
