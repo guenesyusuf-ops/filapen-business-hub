@@ -370,6 +370,9 @@ model Organization {
   salesOrderEvents         SalesOrderEvent[]
   salesOrderReminders      SalesOrderReminder[]
   salesOrderShipments      SalesOrderShipment[]
+  passwordCategories       PasswordCategory[]
+  passwordEntries          PasswordEntry[]
+  passwordAuditLogs        PasswordAuditLog[]
 
   @@map("organizations")
 }
@@ -407,6 +410,11 @@ model User {
   vacationReviews   VacationRequest[]  @relation("VacationReviewer")
   filesSent         FileTransfer[]              @relation("FileSender")
   filesReceived     FileTransferRecipient[]     @relation("FileRecipient")
+  passwordEntriesCreated PasswordEntry[]        @relation("PasswordEntryCreator")
+  passwordAccessGranted  PasswordAccess[]       @relation("PasswordAccessGrantor")
+  passwordAccess         PasswordAccess[]       @relation("PasswordAccessee")
+  passwordAuditLogs      PasswordAuditLog[]
+  passwordAttachmentsUploaded PasswordAttachment[] @relation("PasswordAttachmentUploader")
 
   @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
   @@unique([orgId, email], map: "uq_user_org_email")
@@ -3930,4 +3938,114 @@ model NfcAuditLog {
   @@index([bandId, createdAt(sort: Desc)])
   @@index([orgId, type, createdAt(sort: Desc)])
   @@map("nfc_audit_log")
+}
+
+// =============================================================================
+// PASSWORD MANAGER
+// AES-256-GCM verschluesselte Secrets. Zugriff via password_access individuell
+// pro User. Audit-Trail komplett in password_audit_log.
+// =============================================================================
+
+model PasswordCategory {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  name      String   @db.VarChar(80)
+  color     String   @default("#6366f1") @db.VarChar(20)
+  icon      String?  @db.VarChar(40)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  entries      PasswordEntry[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@map("password_categories")
+}
+
+model PasswordEntry {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                String    @map("org_id") @db.Uuid
+  categoryId           String?   @map("category_id") @db.Uuid
+  title                String    @db.VarChar(200)
+  url                  String?   @db.Text
+  username             String?   @db.VarChar(320)
+  passwordEncrypted    Json      @map("password_encrypted") @db.JsonB
+  notesEncrypted       Json?     @map("notes_encrypted") @db.JsonB
+  totpSeedEncrypted    Json?     @map("totp_seed_encrypted") @db.JsonB
+  faviconUrl           String?   @map("favicon_url") @db.Text
+  passwordStrength     Int?      @map("password_strength")
+  passwordUpdatedAt    DateTime  @default(now()) @map("password_updated_at") @db.Timestamptz
+  rotationReminderAt   DateTime? @map("rotation_reminder_at") @db.Timestamptz
+  lastUsedAt           DateTime? @map("last_used_at") @db.Timestamptz
+  createdById          String    @map("created_by_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  category     PasswordCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy    User               @relation("PasswordEntryCreator", fields: [createdById], references: [id])
+  access       PasswordAccess[]
+  auditLogs    PasswordAuditLog[]
+  attachments  PasswordAttachment[]
+
+  @@index([orgId])
+  @@index([categoryId])
+  @@index([orgId, title])
+  @@map("password_entries")
+}
+
+model PasswordAccess {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId      String   @map("entry_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  permission   String   @default("view") @db.VarChar(20)
+  grantedAt    DateTime @default(now()) @map("granted_at") @db.Timestamptz
+  grantedById  String?  @map("granted_by_id") @db.Uuid
+
+  entry     PasswordEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  user      User          @relation("PasswordAccessee", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User?         @relation("PasswordAccessGrantor", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([entryId, userId])
+  @@index([entryId])
+  @@index([userId])
+  @@map("password_access")
+}
+
+model PasswordAuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  entryId   String?  @map("entry_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  action    String   @db.VarChar(40)
+  ip        String?  @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  entry        PasswordEntry?  @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([entryId])
+  @@index([userId])
+  @@map("password_audit_log")
+}
+
+model PasswordAttachment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId        String   @map("entry_id") @db.Uuid
+  name           String   @db.VarChar(255)
+  storageKey     String   @map("storage_key") @db.Text
+  sizeBytes      BigInt   @map("size_bytes")
+  contentType    String   @map("content_type") @db.VarChar(120)
+  uploadedById   String   @map("uploaded_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  entry      PasswordEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  uploadedBy User          @relation("PasswordAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([entryId])
+  @@map("password_attachments")
 }

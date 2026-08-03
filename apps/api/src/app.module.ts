@@ -27,6 +27,7 @@ import { FilapenSendModule } from './modules/filapen-send/send.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
 import { ReturnModule } from './modules/return/return.module';
 import { NfcModule } from './modules/nfc/nfc.module';
+import { PasswordModule } from './modules/password/password.module';
 import { HealthController } from './health.controller';
 import { TelemetryModule } from './common/telemetry/telemetry.module';
 
@@ -99,6 +100,7 @@ import { TelemetryModule } from './common/telemetry/telemetry.module';
     InvoiceModule,
     ReturnModule,
     NfcModule,
+    PasswordModule,
   ],
   controllers: [HealthController],
   providers: [],
