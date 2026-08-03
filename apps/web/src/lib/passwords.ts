@@ -102,6 +102,21 @@ export const passwordsApi = {
     call<{ total: number; weak: number; old: number; neverUsed: number; averageStrength: number }>(
       '/health/summary',
     ),
+
+  // Team + Bulk-Sharing
+  team: () =>
+    call<Array<{ id: string; name: string | null; email: string; avatarUrl: string | null; role: string }>>(
+      '/team/users',
+    ),
+
+  bulkGrant: (data: { entryIds: string[]; userIds: string[] }) =>
+    call<{ granted: number; entries: number; users: number }>(
+      '/bulk/grant',
+      { method: 'POST', body: JSON.stringify(data) },
+    ),
+
+  bulkRevoke: (data: { targetUserId: string; entryIds?: string[] }) =>
+    call<{ removed: number }>('/bulk/revoke', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 // Wandelt eine URL in ein Favicon-URL (Google-Service). Fallback: null.

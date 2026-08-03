@@ -157,6 +157,39 @@ export class PasswordController {
   // Audit + Health
   // ========================================================================
 
+  @Get('team/users')
+  async listTeam(@Headers('authorization') authHeader: string) {
+    const { orgId, userId } = extractAuthContext(authHeader, this.auth);
+    return this.service.listOrgUsers(orgId, userId);
+  }
+
+  @Post('bulk/grant')
+  async bulkGrant(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { entryIds: string[]; userIds: string[] },
+    @Req() req: Request,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.service.bulkGrantAccess(
+      orgId, userId, role, body?.entryIds ?? [], body?.userIds ?? [], auditCtx(req),
+    );
+  }
+
+  @Post('bulk/revoke')
+  async bulkRevoke(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { targetUserId: string; entryIds?: string[] },
+    @Req() req: Request,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body?.targetUserId) throw new BadRequestException('targetUserId erforderlich');
+    return this.service.bulkRevokeAccess(
+      orgId, userId, role, body.targetUserId, body.entryIds, auditCtx(req),
+    );
+  }
+
   @Get('audit/list')
   async listAudit(
     @Headers('authorization') authHeader: string,

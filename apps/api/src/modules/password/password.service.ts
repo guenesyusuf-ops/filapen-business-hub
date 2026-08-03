@@ -455,6 +455,113 @@ export class PasswordService {
   }
 
   // ------------------------------------------------------------
+  // Team-Liste fuer Sharing-UI
+  // ------------------------------------------------------------
+
+  /**
+   * Nicht-sensitive User-Liste (nur id, name, email, avatar, role) fuer
+   * Sharing-Multi-Select. Bewusst hier statt via AdminService, weil der auf
+   * eine hardcodierte DEV_ORG_ID setzt.
+   */
+  async listOrgUsers(orgId: string, excludeUserId?: string) {
+    const users = await this.prisma.user.findMany({
+      where: { orgId, ...(excludeUserId ? { id: { not: excludeUserId } } : {}) },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatarUrl: true,
+        role: true,
+      },
+      orderBy: [{ name: 'asc' }, { email: 'asc' }],
+    });
+    return users;
+  }
+
+  /**
+   * Bulk-Freigabe: teilt mehrere Passwoerter mit einer Liste von Usern (Additiv, per Diff).
+   * Nur der Ersteller oder org-Admin darf.
+   */
+  async bulkGrantAccess(
+    orgId: string,
+    userId: string,
+    userRole: string,
+    entryIds: string[],
+    targetUserIds: string[],
+    ctx?: AuditContext,
+  ) {
+    if (!entryIds?.length || !targetUserIds?.length) {
+      throw new BadRequestException('entryIds und targetUserIds erforderlich');
+    }
+    // Alle betroffenen Entries laden + Zugriff pruefen
+    const entries = await this.prisma.passwordEntry.findMany({
+      where: { orgId, id: { in: entryIds } },
+      select: { id: true, createdById: true },
+    });
+    const isAdmin = userRole === 'owner' || userRole === 'admin';
+    const permittedIds = entries
+      .filter((e) => isAdmin || e.createdById === userId)
+      .map((e) => e.id);
+    if (permittedIds.length === 0) {
+      throw new ForbiddenException('Keine Rechte fuer die gewaehlten Eintraege');
+    }
+    // targetUserIds validieren (nur User derselben Org)
+    const validTargets = await this.prisma.user.findMany({
+      where: { orgId, id: { in: targetUserIds } },
+      select: { id: true },
+    });
+    const validIds = validTargets.map((u) => u.id);
+    if (validIds.length === 0) {
+      throw new BadRequestException('Keine gueltigen Ziel-User');
+    }
+    // Diff pro Entry ermitteln + createMany mit skipDuplicates
+    const rows: Array<{
+      entryId: string;
+      userId: string;
+      permission: string;
+      grantedById: string;
+    }> = [];
+    for (const entryId of permittedIds) {
+      for (const uid of validIds) {
+        // Owner-User nicht doppelt eintragen (er hat implizit Zugriff)
+        const owner = entries.find((e) => e.id === entryId)?.createdById;
+        if (uid === owner) continue;
+        rows.push({ entryId, userId: uid, permission: 'view', grantedById: userId });
+      }
+    }
+    const created = await this.prisma.passwordAccess.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
+    // Audit pro entry
+    for (const entryId of permittedIds) {
+      await this.recordAudit(orgId, userId, 'access_bulk_grant', entryId, ctx);
+    }
+    return { granted: created.count, entries: permittedIds.length, users: validIds.length };
+  }
+
+  /**
+   * Bulk-Revoke: entzieht einem User Zugriff auf ausgewaehlte Eintraege
+   * (oder alle wenn entryIds leer). Fuer Ausscheidens-Szenario.
+   */
+  async bulkRevokeAccess(
+    orgId: string,
+    userId: string,
+    userRole: string,
+    targetUserId: string,
+    entryIds?: string[],
+    ctx?: AuditContext,
+  ) {
+    const isAdmin = userRole === 'owner' || userRole === 'admin';
+    if (!isAdmin) throw new ForbiddenException('Nur Admin darf Bulk-Revoke');
+    const where: any = { userId: targetUserId, entry: { orgId } };
+    if (entryIds?.length) where.entryId = { in: entryIds };
+    const result = await this.prisma.passwordAccess.deleteMany({ where });
+    await this.recordAudit(orgId, userId, 'access_bulk_revoke', null, ctx);
+    return { removed: result.count };
+  }
+
+  // ------------------------------------------------------------
   // Health-Dashboard
   // ------------------------------------------------------------
 

@@ -3,12 +3,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   KeyRound, Search, Plus, Copy, Eye, EyeOff, ExternalLink, Users, Shield,
-  Trash2, Pencil, X, ChevronDown, Sparkles, AlertTriangle, RefreshCw,
+  Trash2, Pencil, X, ChevronDown, Sparkles, AlertTriangle, RefreshCw, Check, UserMinus,
 } from 'lucide-react';
 import {
   passwordsApi, faviconFor, generatePassword,
   type PasswordCategory, type PasswordEntryListItem,
 } from '@/lib/passwords';
+
+interface TeamUser {
+  id: string;
+  name: string | null;
+  email: string;
+  avatarUrl: string | null;
+  role: string;
+}
 
 // --------------------------------------------------------------------------
 // Helper — Zwischenablage mit Auto-Clear nach 30s
@@ -56,12 +64,15 @@ function strengthLabel(score: number | null): string {
 export default function PasswordsPage() {
   const [entries, setEntries] = useState<PasswordEntryListItem[]>([]);
   const [categories, setCategories] = useState<PasswordCategory[]>([]);
+  const [team, setTeam] = useState<TeamUser[]>([]);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [showEdit, setShowEdit] = useState<PasswordEntryListItem | null>(null);
   const [showCatMgmt, setShowCatMgmt] = useState(false);
+  const [showBulkShare, setShowBulkShare] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reloadKey, setReloadKey] = useState(0);
 
   const reload = () => setReloadKey((k) => k + 1);
@@ -69,11 +80,12 @@ export default function PasswordsPage() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([passwordsApi.list(), passwordsApi.listCategories()])
-      .then(([e, c]) => {
+    Promise.all([passwordsApi.list(), passwordsApi.listCategories(), passwordsApi.team()])
+      .then(([e, c, t]) => {
         if (!active) return;
         setEntries(e);
         setCategories(c);
+        setTeam(t);
       })
       .catch(() => {
         if (!active) return;
@@ -83,6 +95,16 @@ export default function PasswordsPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [reloadKey]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -209,7 +231,29 @@ export default function PasswordsPage() {
         <div>
           {loading ? (
             <div className="p-12 text-center text-sm text-gray-500">Lädt …</div>
-          ) : filtered.length === 0 ? (
+          ) : null}
+          {selectedIds.size > 0 && (
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-indigo-200 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 px-4 py-2.5">
+              <div className="text-sm text-indigo-900 dark:text-indigo-200 font-medium">
+                {selectedIds.size} ausgewählt
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowBulkShare(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-sm font-medium"
+                >
+                  <Users className="h-4 w-4" /> Freigeben
+                </button>
+                <button
+                  onClick={clearSelection}
+                  className="inline-flex items-center gap-1.5 rounded-lg text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 px-3 py-1.5 text-sm"
+                >
+                  Auswahl aufheben
+                </button>
+              </div>
+            </div>
+          )}
+          {loading ? null : filtered.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-300 dark:border-white/10 p-10 text-center">
               <KeyRound className="h-10 w-10 text-gray-300 mx-auto mb-3" />
               <p className="text-sm text-gray-500">
@@ -224,7 +268,9 @@ export default function PasswordsPage() {
                 <EntryCard
                   key={entry.id}
                   entry={entry}
+                  selected={selectedIds.has(entry.id)}
                   onOpen={() => setShowEdit(entry)}
+                  onToggleSelect={() => toggleSelect(entry.id)}
                 />
               ))}
             </div>
@@ -236,6 +282,7 @@ export default function PasswordsPage() {
         <EntryEditor
           mode="create"
           categories={categories}
+          team={team}
           onClose={() => setShowNew(false)}
           onSaved={() => { setShowNew(false); reload(); }}
         />
@@ -245,6 +292,7 @@ export default function PasswordsPage() {
           mode="edit"
           entry={showEdit}
           categories={categories}
+          team={team}
           onClose={() => setShowEdit(null)}
           onSaved={() => { setShowEdit(null); reload(); }}
         />
@@ -256,6 +304,14 @@ export default function PasswordsPage() {
           onChange={() => reload()}
         />
       )}
+      {showBulkShare && (
+        <BulkShareModal
+          entryIds={Array.from(selectedIds)}
+          team={team}
+          onClose={() => setShowBulkShare(false)}
+          onDone={() => { setShowBulkShare(false); clearSelection(); reload(); }}
+        />
+      )}
     </div>
   );
 }
@@ -263,17 +319,44 @@ export default function PasswordsPage() {
 // --------------------------------------------------------------------------
 // Kachel — Grid-Element pro Passwort
 // --------------------------------------------------------------------------
-function EntryCard({ entry, onOpen }: { entry: PasswordEntryListItem; onOpen: () => void }) {
+function EntryCard({
+  entry,
+  selected,
+  onOpen,
+  onToggleSelect,
+}: {
+  entry: PasswordEntryListItem;
+  selected: boolean;
+  onOpen: () => void;
+  onToggleSelect: () => void;
+}) {
   const favicon = entry.faviconUrl || faviconFor(entry.url);
   const catColor = entry.category?.color || '#94a3b8';
 
   return (
-    <button
-      onClick={onOpen}
-      className="group text-left rounded-2xl border border-gray-200 dark:border-white/8 bg-white dark:bg-white/[0.03] hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:shadow-md transition-all p-4 relative overflow-hidden"
+    <div
+      className={`group text-left rounded-2xl border ${
+        selected
+          ? 'border-indigo-400 dark:border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-500/30'
+          : 'border-gray-200 dark:border-white/8'
+      } bg-white dark:bg-white/[0.03] hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:shadow-md transition-all p-4 relative overflow-hidden`}
     >
       {/* Farbcode-Streifen oben */}
       <div className="absolute top-0 left-0 right-0 h-1" style={{ background: catColor }} />
+      {/* Checkbox oben rechts fuer Bulk-Auswahl */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
+        className={`absolute top-2 right-2 h-5 w-5 rounded flex items-center justify-center border ${
+          selected
+            ? 'bg-indigo-600 border-indigo-600 text-white'
+            : 'bg-white dark:bg-white/[0.06] border-gray-300 dark:border-white/20 text-transparent hover:border-indigo-400'
+        }`}
+        aria-label="Auswaehlen"
+      >
+        {selected && <Check className="h-3 w-3" />}
+      </button>
+      <button onClick={onOpen} type="button" className="w-full text-left">
       <div className="flex items-start gap-3 mt-1">
         <div className="h-10 w-10 rounded-xl bg-gray-50 dark:bg-white/[0.05] flex items-center justify-center flex-shrink-0 overflow-hidden">
           {favicon ? (
@@ -303,7 +386,8 @@ function EntryCard({ entry, onOpen }: { entry: PasswordEntryListItem; onOpen: ()
         </span>
         <span>{fmtDate(entry.updatedAt)}</span>
       </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -314,12 +398,14 @@ function EntryEditor({
   mode,
   entry,
   categories,
+  team,
   onClose,
   onSaved,
 }: {
   mode: 'create' | 'edit';
   entry?: PasswordEntryListItem;
   categories: PasswordCategory[];
+  team: TeamUser[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -334,6 +420,17 @@ function EntryEditor({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const [sharedUserIds, setSharedUserIds] = useState<Set<string>>(
+    new Set((entry?.sharedWith ?? []).map((u) => u.id)),
+  );
+
+  const toggleShare = (uid: string) => {
+    setSharedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid); else next.add(uid);
+      return next;
+    });
+  };
 
   const reveal = async () => {
     if (!entry) return;
@@ -368,6 +465,7 @@ function EntryEditor({
           notes: notes || null,
           totpSeed: totpSeed || null,
           categoryId,
+          sharedWithUserIds: Array.from(sharedUserIds),
         });
       } else if (entry) {
         const patch: any = {
@@ -382,6 +480,8 @@ function EntryEditor({
           if (password) patch.password = password;
         }
         await passwordsApi.update(entry.id, patch);
+        // Sharing separat aktualisieren (Diff-basiert)
+        await passwordsApi.setAccess(entry.id, Array.from(sharedUserIds));
       }
       onSaved();
     } catch (e: any) {
@@ -573,6 +673,54 @@ function EntryEditor({
             </>
           )}
 
+          {/* Sharing */}
+          <div className="pt-2 border-t border-gray-100 dark:border-white/8">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[11px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Freigegeben für</div>
+              {sharedUserIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSharedUserIds(new Set())}
+                  className="text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline"
+                >
+                  Alle entfernen
+                </button>
+              )}
+            </div>
+            {team.length === 0 ? (
+              <p className="text-xs text-gray-500">Keine anderen Team-Mitglieder gefunden.</p>
+            ) : (
+              <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-100 dark:border-white/8 divide-y divide-gray-100 dark:divide-white/8">
+                {team.map((u) => {
+                  const checked = sharedUserIds.has(u.id);
+                  return (
+                    <label
+                      key={u.id}
+                      className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleShare(u.id)}
+                        className="rounded"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{u.name || u.email}</div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{u.email}</div>
+                      </div>
+                      {u.role === 'owner' || u.role === 'admin' ? (
+                        <span className="text-[9px] text-gray-500 dark:text-gray-400 uppercase tracking-wide">{u.role === 'owner' ? 'Owner' : 'Admin'}</span>
+                      ) : null}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
+              Owner + Admins sehen ohnehin alle Einträge. Freigabe hier nur für Mitarbeiter nötig.
+            </p>
+          </div>
+
           {mode === 'edit' && entry && (
             <div className="pt-2 border-t border-gray-100 dark:border-white/8 space-y-1 text-[11px] text-gray-500 dark:text-gray-400">
               <div>Erstellt von {entry.createdBy.name || entry.createdBy.email}</div>
@@ -709,4 +857,117 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function inputCls(extra?: string) {
   return `w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03] text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${extra ?? ''}`;
+}
+
+// --------------------------------------------------------------------------
+// Bulk-Share — mehrere Passwoerter gleichzeitig an mehrere User freigeben
+// (Team-Onboarding-Sets: "Marketing-Set fuer neue Mitarbeiter")
+// --------------------------------------------------------------------------
+function BulkShareModal({
+  entryIds,
+  team,
+  onClose,
+  onDone,
+}: {
+  entryIds: string[];
+  team: TeamUser[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [result, setResult] = useState<{ granted: number; entries: number; users: number } | null>(null);
+
+  const toggle = (uid: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid); else next.add(uid);
+      return next;
+    });
+  };
+
+  const submit = async () => {
+    if (selected.size === 0) { setErr('Keine User ausgewählt'); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await passwordsApi.bulkGrant({
+        entryIds,
+        userIds: Array.from(selected),
+      });
+      setResult(r);
+      setTimeout(() => onDone(), 1200);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="w-full sm:max-w-md bg-white dark:bg-[#0f1117] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 max-h-[90dvh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/8">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            {entryIds.length} Einträge freigeben
+          </h2>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/[0.06]">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          {result ? (
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-3 text-sm text-emerald-900 dark:text-emerald-200">
+              ✓ {result.granted} neue Freigaben erzeugt ({result.entries} Einträge × {result.users} Nutzer)
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Wähle die Team-Mitglieder aus, die alle {entryIds.length} Einträge sehen sollen. Bestehende Freigaben bleiben erhalten.
+              </p>
+              {err && (
+                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-2.5 text-xs text-red-800 dark:text-red-300">{err}</div>
+              )}
+              {team.length === 0 ? (
+                <p className="text-sm text-gray-500">Keine Team-Mitglieder verfügbar.</p>
+              ) : (
+                <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-100 dark:border-white/8 divide-y divide-gray-100 dark:divide-white/8">
+                  {team.map((u) => {
+                    const checked = selected.has(u.id);
+                    return (
+                      <label
+                        key={u.id}
+                        className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                      >
+                        <input type="checkbox" checked={checked} onChange={() => toggle(u.id)} className="rounded" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{u.name || u.email}</div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{u.email}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {!result && (
+          <div className="px-5 py-3 border-t border-gray-100 dark:border-white/8 flex justify-end gap-2">
+            <button onClick={onClose} className="rounded-xl border border-gray-200 dark:border-white/10 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/[0.06]">
+              Abbrechen
+            </button>
+            <button
+              onClick={submit}
+              disabled={busy || selected.size === 0}
+              className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium disabled:opacity-40 inline-flex items-center gap-1"
+            >
+              {busy && <RefreshCw className="h-3 w-3 animate-spin" />}
+              Freigeben
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
