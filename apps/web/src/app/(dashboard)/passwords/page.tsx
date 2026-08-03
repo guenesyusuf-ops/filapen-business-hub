@@ -7,7 +7,7 @@ import {
   History, Clock,
 } from 'lucide-react';
 import {
-  passwordsApi, faviconFor, generatePassword,
+  passwordsApi, faviconFor, generatePassword, totpCode, totpSecondsRemaining,
   type PasswordCategory, type PasswordEntryListItem,
 } from '@/lib/passwords';
 
@@ -75,18 +75,20 @@ export default function PasswordsPage() {
   const [showBulkShare, setShowBulkShare] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reloadKey, setReloadKey] = useState(0);
+  const [health, setHealth] = useState<{ total: number; weak: number; old: number; neverUsed: number; averageStrength: number } | null>(null);
 
   const reload = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([passwordsApi.list(), passwordsApi.listCategories(), passwordsApi.team()])
-      .then(([e, c, t]) => {
+    Promise.all([passwordsApi.list(), passwordsApi.listCategories(), passwordsApi.team(), passwordsApi.health()])
+      .then(([e, c, t, h]) => {
         if (!active) return;
         setEntries(e);
         setCategories(c);
         setTeam(t);
+        setHealth(h);
       })
       .catch(() => {
         if (!active) return;
@@ -177,6 +179,16 @@ export default function PasswordsPage() {
           className="w-full h-11 pl-10 pr-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03] text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
         />
       </div>
+
+      {/* Health-Dashboard */}
+      {health && health.total > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <HealthKpi label="Gesamt" value={health.total} accent="text-gray-900 dark:text-white" />
+          <HealthKpi label="Schwach" value={health.weak} accent={health.weak > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'} />
+          <HealthKpi label=">12 Monate alt" value={health.old} accent={health.old > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'} />
+          <HealthKpi label="Durchschnitt" value={`${health.averageStrength}/100`} accent="text-indigo-600 dark:text-indigo-400" />
+        </div>
+      )}
 
       {/* 2-Spalten: Kategorien-Sidebar + Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
@@ -427,6 +439,7 @@ function EntryEditor({
   const [showHistory, setShowHistory] = useState(false);
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [showGenerator, setShowGenerator] = useState(false);
 
   // Auto-Lock: nach 10 Min ohne Interaktion wird der Reveal-State im Editor
   // zurueckgesetzt. Nutzer muss dann erneut "Passwort anzeigen" klicken.
@@ -684,7 +697,7 @@ function EntryEditor({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPassword(generatePassword(20))}
+                      onClick={() => setShowGenerator(true)}
                       className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/[0.06]"
                       title="Passwort generieren"
                     >
@@ -707,12 +720,15 @@ function EntryEditor({
           {(revealed || mode === 'create') && (
             <>
               <Field label="2FA-Seed (TOTP, optional)">
-                <input
-                  value={totpSeed}
-                  onChange={(e) => setTotpSeed(e.target.value)}
-                  placeholder="Base32-Seed z.B. JBSWY3DPEHPK3PXP"
-                  className={inputCls('font-mono')}
-                />
+                <div className="space-y-2">
+                  <input
+                    value={totpSeed}
+                    onChange={(e) => setTotpSeed(e.target.value)}
+                    placeholder="Base32-Seed z.B. JBSWY3DPEHPK3PXP"
+                    className={inputCls('font-mono')}
+                  />
+                  {totpSeed.trim() && <TotpCode seed={totpSeed} />}
+                </div>
               </Field>
               <Field label="Notizen (optional)">
                 <textarea
@@ -831,7 +847,106 @@ function EntryEditor({
           </div>
         </div>
       </div>
+      {showGenerator && (
+        <GeneratorModal
+          onClose={() => setShowGenerator(false)}
+          onApply={(pw) => {
+            setPassword(pw);
+            setPasswordVisible(true);
+            setShowGenerator(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// Generator-Modal
+// --------------------------------------------------------------------------
+function GeneratorModal({ onClose, onApply }: { onClose: () => void; onApply: (pw: string) => void }) {
+  const [length, setLength] = useState(20);
+  const [upper, setUpper] = useState(true);
+  const [lower, setLower] = useState(true);
+  const [digits, setDigits] = useState(true);
+  const [symbols, setSymbols] = useState(true);
+  const [preview, setPreview] = useState(() => generatePassword(20, { upper: true, lower: true, digits: true, symbols: true }));
+
+  const regen = () => {
+    setPreview(generatePassword(length, { upper, lower, digits, symbols }));
+  };
+
+  useEffect(() => { regen(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [length, upper, lower, digits, symbols]);
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="w-full sm:max-w-md bg-white dark:bg-[#0f1117] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 max-h-[90dvh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/8">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-indigo-500" /> Passwort-Generator
+          </h2>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/[0.06]">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* Preview */}
+          <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] p-3 flex items-center gap-2">
+            <code className="flex-1 font-mono text-sm text-gray-900 dark:text-white break-all">{preview}</code>
+            <button
+              type="button"
+              onClick={regen}
+              className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/[0.06] flex-shrink-0"
+              title="Neu"
+            >
+              <RefreshCw className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Länge */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="text-[11px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400">Länge</div>
+              <div className="text-sm font-mono text-gray-900 dark:text-white">{length}</div>
+            </div>
+            <input
+              type="range"
+              min={8}
+              max={64}
+              step={1}
+              value={length}
+              onChange={(e) => setLength(parseInt(e.target.value, 10))}
+              className="w-full"
+            />
+          </div>
+
+          {/* Charset */}
+          <div className="grid grid-cols-2 gap-2">
+            <GenCheckbox label="Großbuchstaben (A–Z)" checked={upper} onChange={setUpper} />
+            <GenCheckbox label="Kleinbuchstaben (a–z)" checked={lower} onChange={setLower} />
+            <GenCheckbox label="Ziffern (0–9)" checked={digits} onChange={setDigits} />
+            <GenCheckbox label="Sonderzeichen (!@#…)" checked={symbols} onChange={setSymbols} />
+          </div>
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 dark:border-white/8 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-xl border border-gray-200 dark:border-white/10 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/[0.06]">
+            Abbrechen
+          </button>
+          <button onClick={() => onApply(preview)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium">
+            Übernehmen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GenCheckbox({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="rounded" />
+      <span>{label}</span>
+    </label>
   );
 }
 
@@ -942,6 +1057,65 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function inputCls(extra?: string) {
   return `w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03] text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${extra ?? ''}`;
+}
+
+// TOTP-Live-Anzeige: rechnet lokal alle 1s neu, zeigt Code + Countdown.
+function TotpCode({ seed }: { seed: string }) {
+  const [code, setCode] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number>(30);
+
+  useEffect(() => {
+    let mounted = true;
+    const tick = async () => {
+      const c = await totpCode(seed);
+      if (mounted) {
+        setCode(c);
+        setRemaining(totpSecondsRemaining());
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, [seed]);
+
+  if (!code) return <span className="text-xs text-gray-500">Ungültiger Seed</span>;
+
+  const percent = (remaining / 30) * 100;
+  const urgent = remaining <= 5;
+
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => code && navigator.clipboard.writeText(code)}
+        className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 text-lg font-mono font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+        title="6-stelligen Code kopieren"
+      >
+        {code.slice(0, 3)} {code.slice(3)}
+        <Copy className="h-3.5 w-3.5 opacity-60" />
+      </button>
+      <div className="flex-1 flex items-center gap-2">
+        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+          <div
+            className={`h-full transition-all ${urgent ? 'bg-red-500' : 'bg-emerald-500'}`}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+        <span className={`text-[11px] font-mono ${urgent ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+          {remaining}s
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HealthKpi({ label, value, accent }: { label: string; value: number | string; accent: string }) {
+  return (
+    <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3">
+      <div className="text-[10px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 mb-1">{label}</div>
+      <div className={`text-lg sm:text-xl font-bold tabular-nums ${accent}`}>{value}</div>
+    </div>
+  );
 }
 
 function actionIcon(action: string): string {

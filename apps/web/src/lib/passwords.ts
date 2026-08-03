@@ -131,17 +131,76 @@ export function faviconFor(url: string | null | undefined): string | null {
 }
 
 // Passwort-Generator: 20 Zeichen mit gemischtem Charset.
-export function generatePassword(length = 20, opts?: { symbols?: boolean; digits?: boolean }): string {
+export function generatePassword(
+  length = 20,
+  opts?: { upper?: boolean; lower?: boolean; digits?: boolean; symbols?: boolean },
+): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghijkmnopqrstuvwxyz';
   const digits = '23456789';
   const symbols = '!@#$%^&*()_+-=[]{}?';
-  let charset = upper + lower;
+  let charset = '';
+  if (opts?.upper !== false) charset += upper;
+  if (opts?.lower !== false) charset += lower;
   if (opts?.digits !== false) charset += digits;
   if (opts?.symbols !== false) charset += symbols;
+  if (!charset) charset = lower + digits;
   const arr = new Uint32Array(length);
   (globalThis.crypto || (window as any).crypto).getRandomValues(arr);
   let out = '';
   for (let i = 0; i < length; i++) out += charset[arr[i] % charset.length];
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// TOTP — RFC 6238, HMAC-SHA1, 6-stelliger Code, 30s Schritte
+// Verwendet Web-Crypto (nativ im Browser). Base32-Seed dekodieren.
+// ---------------------------------------------------------------------------
+function base32Decode(base32: string): Uint8Array | null {
+  const s = base32.replace(/\s+/g, '').replace(/=+$/, '').toUpperCase();
+  if (!/^[A-Z2-7]+$/.test(s)) return null;
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  for (const c of s) bits += alphabet.indexOf(c).toString(2).padStart(5, '0');
+  const bytes: number[] = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  }
+  return new Uint8Array(bytes);
+}
+
+export async function totpCode(seed: string, timeStep = 30, digits = 6): Promise<string | null> {
+  const key = base32Decode(seed);
+  if (!key || key.length === 0) return null;
+  try {
+    const counter = Math.floor(Date.now() / 1000 / timeStep);
+    const buf = new ArrayBuffer(8);
+    const view = new DataView(buf);
+    view.setUint32(4, counter, false);
+    // Explizit als ArrayBuffer casten (TS/DOM-Typings sind hier zickig).
+    const keyBuffer = key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength) as ArrayBuffer;
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      keyBuffer,
+      { name: 'HMAC', hash: 'SHA-1' },
+      false,
+      ['sign'],
+    );
+    const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, buf));
+    const offset = hmac[hmac.length - 1] & 0x0f;
+    const bin =
+      ((hmac[offset] & 0x7f) << 24) |
+      ((hmac[offset + 1] & 0xff) << 16) |
+      ((hmac[offset + 2] & 0xff) << 8) |
+      (hmac[offset + 3] & 0xff);
+    const code = (bin % Math.pow(10, digits)).toString().padStart(digits, '0');
+    return code;
+  } catch {
+    return null;
+  }
+}
+
+/** Sekunden bis zum naechsten Schritt (fuer Countdown-Balken). */
+export function totpSecondsRemaining(timeStep = 30): number {
+  return timeStep - (Math.floor(Date.now() / 1000) % timeStep);
 }
