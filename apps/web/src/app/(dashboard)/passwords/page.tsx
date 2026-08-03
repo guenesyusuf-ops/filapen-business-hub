@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   KeyRound, Search, Plus, Copy, Eye, EyeOff, ExternalLink, Users, Shield,
   Trash2, Pencil, X, ChevronDown, Sparkles, AlertTriangle, RefreshCw, Check, UserMinus,
-  History, Clock,
+  History, Clock, Lock,
 } from 'lucide-react';
 import {
   passwordsApi, faviconFor, generatePassword, totpCode, totpSecondsRemaining, checkPwned,
   type PasswordCategory, type PasswordEntryListItem,
 } from '@/lib/passwords';
+import { useAuthStore } from '@/stores/auth';
 
 interface TeamUser {
   id: string;
@@ -422,6 +423,13 @@ function EntryEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const currentUser = useAuthStore((s) => s.user);
+  const canEditSecret =
+    mode === 'create' ||
+    !entry ||
+    currentUser?.id === entry.createdBy.id ||
+    currentUser?.role === 'owner';
+
   const [title, setTitle] = useState(entry?.title ?? '');
   const [url, setUrl] = useState(entry?.url ?? '');
   const [username, setUsername] = useState(entry?.username ?? '');
@@ -542,8 +550,12 @@ function EntryEditor({
         };
         if (revealed) {
           patch.notes = notes || null;
-          patch.totpSeed = totpSeed || null;
-          if (password) patch.password = password;
+          // Passwort + TOTP nur senden wenn der Nutzer berechtigt ist (Backend prueft
+          // ohnehin, aber wir vermeiden unnoetige 403-Fehler bei Nicht-Erstellern).
+          if (canEditSecret) {
+            patch.totpSeed = totpSeed || null;
+            if (password) patch.password = password;
+          }
         }
         await passwordsApi.update(entry.id, patch);
         // Sharing separat aktualisieren (Diff-basiert)
@@ -682,9 +694,10 @@ function EntryEditor({
                   <input
                     type={passwordVisible ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => canEditSecret && setPassword(e.target.value)}
+                    readOnly={!canEditSecret}
                     placeholder={mode === 'edit' ? '(unverändert lassen)' : 'Passwort eingeben oder generieren'}
-                    className={inputCls('pr-24 font-mono')}
+                    className={inputCls(`pr-24 font-mono ${!canEditSecret ? 'cursor-not-allowed opacity-70' : ''}`)}
                   />
                   <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                     <button
@@ -707,14 +720,24 @@ function EntryEditor({
                     >
                       <Copy className="h-3.5 w-3.5 text-gray-500" />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowGenerator(true)}
-                      className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/[0.06]"
-                      title="Passwort generieren"
-                    >
-                      <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
-                    </button>
+                    {canEditSecret && (
+                      <button
+                        type="button"
+                        onClick={() => setShowGenerator(true)}
+                        className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+                        title="Passwort generieren"
+                      >
+                        <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {mode === 'edit' && !canEditSecret && (
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2 text-[11px] text-amber-800 dark:text-amber-300 inline-flex items-start gap-1.5">
+                  <Lock className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    Nur <strong>{entry?.createdBy.name || entry?.createdBy.email}</strong> (Ersteller) oder der Owner darf das Passwort/2FA ändern. Andere Felder kannst du bearbeiten.
                   </div>
                 </div>
               )}
@@ -755,9 +778,10 @@ function EntryEditor({
                 <div className="space-y-2">
                   <input
                     value={totpSeed}
-                    onChange={(e) => setTotpSeed(e.target.value)}
+                    onChange={(e) => canEditSecret && setTotpSeed(e.target.value)}
+                    readOnly={!canEditSecret}
                     placeholder="Base32-Seed z.B. JBSWY3DPEHPK3PXP"
-                    className={inputCls('font-mono')}
+                    className={inputCls(`font-mono ${!canEditSecret ? 'cursor-not-allowed opacity-70' : ''}`)}
                   />
                   {totpSeed.trim() && <TotpCode seed={totpSeed} />}
                 </div>

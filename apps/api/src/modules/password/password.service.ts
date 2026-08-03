@@ -327,6 +327,23 @@ export class PasswordService {
       throw new ForbiddenException('Nur Lese-Berechtigung');
     }
 
+    // Passwort + 2FA-Seed: nur der Ersteller ODER der Org-Owner (Chef) duerfen
+    // aendern. Admins und alle anderen mit Zugriff nicht — verhindert dass
+    // ein Team-Passwort heimlich rotiert und der Ersteller ausgesperrt wird.
+    // Der Owner bleibt Notfall-Backup falls der Ersteller ausscheidet.
+    // Andere Felder (Titel, URL, Kategorie, Notizen) sind offen fuer alle mit
+    // Edit-Rechten.
+    const changesSecret = input.password !== undefined || input.totpSeed !== undefined;
+    if (changesSecret) {
+      const isCreator = auth.entry.createdById === userId;
+      const isOwner = userRole === 'owner';
+      if (!isCreator && !isOwner) {
+        throw new ForbiddenException(
+          'Nur der Ersteller oder der Owner der Organisation darf Passwort und 2FA-Seed aendern. Titel, URL, Kategorie und Notizen kannst du weiterhin bearbeiten.',
+        );
+      }
+    }
+
     const patch: any = {};
     if (input.title !== undefined) patch.title = input.title.trim();
     if (input.url !== undefined) patch.url = input.url?.trim() || null;
