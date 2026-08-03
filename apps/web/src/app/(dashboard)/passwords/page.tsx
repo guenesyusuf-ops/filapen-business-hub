@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   KeyRound, Search, Plus, Copy, Eye, EyeOff, ExternalLink, Users, Shield,
   Trash2, Pencil, X, ChevronDown, Sparkles, AlertTriangle, RefreshCw, Check, UserMinus,
-  History, Clock, Lock,
+  History, Clock, Lock, LayoutGrid, List,
 } from 'lucide-react';
 import {
   passwordsApi, faviconFor, generatePassword, totpCode, totpSecondsRemaining, checkPwned,
@@ -76,6 +76,16 @@ export default function PasswordsPage() {
   const [showBulkShare, setShowBulkShare] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [reloadKey, setReloadKey] = useState(0);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Persistierung der View-Wahl im LocalStorage — bleibt zwischen Seiten-Besuchen erhalten.
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('passwords.viewMode') : null;
+    if (saved === 'grid' || saved === 'list') setViewMode(saved);
+  }, []);
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('passwords.viewMode', viewMode);
+  }, [viewMode]);
   const [health, setHealth] = useState<{ total: number; weak: number; old: number; neverUsed: number; averageStrength: number } | null>(null);
 
   const reload = () => setReloadKey((k) => k + 1);
@@ -154,6 +164,23 @@ export default function PasswordsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* View-Toggle: Kacheln / Liste */}
+          <div className="inline-flex rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-2.5 py-2 ${viewMode === 'grid' ? 'bg-gray-100 dark:bg-white/[0.08] text-gray-900 dark:text-white' : 'bg-white dark:bg-white/[0.03] text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.06]'}`}
+              title="Kachel-Ansicht"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-2.5 py-2 border-l border-gray-200 dark:border-white/10 ${viewMode === 'list' ? 'bg-gray-100 dark:bg-white/[0.08] text-gray-900 dark:text-white' : 'bg-white dark:bg-white/[0.03] text-gray-500 hover:bg-gray-50 dark:hover:bg-white/[0.06]'}`}
+              title="Listen-Ansicht"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
           <button
             onClick={() => setShowCatMgmt(true)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03] hover:bg-gray-50 dark:hover:bg-white/[0.06] text-gray-700 dark:text-gray-200 px-3 py-2 text-sm font-medium"
@@ -276,13 +303,26 @@ export default function PasswordsPage() {
                   : 'Noch keine Passwörter — klick auf „Neu" um deinen ersten Eintrag anzulegen.'}
               </p>
             </div>
-          ) : (
+          ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filtered.map((entry) => (
                 <EntryCard
                   key={entry.id}
                   entry={entry}
                   selected={selectedIds.has(entry.id)}
+                  onOpen={() => setShowEdit(entry)}
+                  onToggleSelect={() => toggleSelect(entry.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-gray-200 dark:border-white/8 bg-white dark:bg-white/[0.02] overflow-hidden">
+              {filtered.map((entry, idx) => (
+                <EntryRow
+                  key={entry.id}
+                  entry={entry}
+                  selected={selectedIds.has(entry.id)}
+                  isFirst={idx === 0}
                   onOpen={() => setShowEdit(entry)}
                   onToggleSelect={() => toggleSelect(entry.id)}
                 />
@@ -400,6 +440,103 @@ function EntryCard({
         </span>
         <span>{fmtDate(entry.updatedAt)}</span>
       </div>
+      </button>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// Zeile — Listen-Ansicht
+// --------------------------------------------------------------------------
+function EntryRow({
+  entry,
+  selected,
+  isFirst,
+  onOpen,
+  onToggleSelect,
+}: {
+  entry: PasswordEntryListItem;
+  selected: boolean;
+  isFirst: boolean;
+  onOpen: () => void;
+  onToggleSelect: () => void;
+}) {
+  const favicon = entry.faviconUrl || faviconFor(entry.url);
+  const catColor = entry.category?.color || '#94a3b8';
+
+  return (
+    <div
+      className={`flex items-center gap-3 px-3 sm:px-4 py-2.5 ${
+        !isFirst ? 'border-t border-gray-100 dark:border-white/8' : ''
+      } ${selected ? 'bg-indigo-50/70 dark:bg-indigo-500/10' : 'hover:bg-gray-50/70 dark:hover:bg-white/[0.03]'} transition-colors`}
+    >
+      {/* Auswahl-Checkbox */}
+      <button
+        type="button"
+        onClick={onToggleSelect}
+        className={`h-5 w-5 rounded flex items-center justify-center border flex-shrink-0 ${
+          selected
+            ? 'bg-indigo-600 border-indigo-600 text-white'
+            : 'bg-white dark:bg-white/[0.06] border-gray-300 dark:border-white/20 text-transparent hover:border-indigo-400'
+        }`}
+        aria-label="Auswaehlen"
+      >
+        {selected && <Check className="h-3 w-3" />}
+      </button>
+
+      {/* Klickbereich fuer Detail-Modal */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex-1 flex items-center gap-3 min-w-0 text-left"
+      >
+        {/* Kategorie-Farbstreifen links */}
+        <span className="h-8 w-1 rounded-full flex-shrink-0" style={{ background: catColor }} />
+
+        {/* Favicon */}
+        <div className="h-8 w-8 rounded-lg bg-gray-50 dark:bg-white/[0.05] flex items-center justify-center flex-shrink-0 overflow-hidden">
+          {favicon ? (
+            <img src={favicon} alt="" className="h-5 w-5" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          ) : (
+            <KeyRound className="h-4 w-4 text-gray-400" />
+          )}
+        </div>
+
+        {/* Titel + Username */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">{entry.title}</span>
+            {entry.hasTotp && (
+              <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1.5 py-0.5 flex-shrink-0">2FA</span>
+            )}
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{entry.username || '—'}</div>
+        </div>
+
+        {/* Kategorie (nur ab sm) */}
+        <div className="hidden sm:block flex-shrink-0 w-32">
+          {entry.category && (
+            <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 truncate">
+              {entry.category.name}
+            </span>
+          )}
+        </div>
+
+        {/* Staerke (nur ab md) */}
+        <div className="hidden md:flex items-center gap-1.5 flex-shrink-0 w-24">
+          <span className={`h-2 w-2 rounded-full ${strengthColor(entry.passwordStrength)}`} />
+          <span className="text-[10px] text-gray-500 dark:text-gray-400">{strengthLabel(entry.passwordStrength)}</span>
+        </div>
+
+        {/* Freigaben-Anzahl (nur ab md) */}
+        <div className="hidden md:flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 flex-shrink-0 w-12">
+          <Users className="h-3 w-3" /> {entry.sharedWith.length + 1}
+        </div>
+
+        {/* Datum (nur ab lg) */}
+        <div className="hidden lg:block text-[11px] text-gray-500 dark:text-gray-400 flex-shrink-0 w-20 text-right">
+          {fmtDate(entry.updatedAt)}
+        </div>
       </button>
     </div>
   );
