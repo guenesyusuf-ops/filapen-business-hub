@@ -1,4 +1,4 @@
-import { Phone, MapPin, FileText, User, AlertCircle } from 'lucide-react';
+import { Phone, MapPin, FileText, User, AlertCircle, Baby } from 'lucide-react';
 import { nfcPublicApi } from '@/lib/api';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -64,7 +64,12 @@ export default async function HelpPage({ params }: { params: { code: string } })
         {/* Info-Cards */}
         <div className="bg-white rounded-2xl shadow-md p-5 space-y-4">
           {fullName && (
-            <Block icon={<User className="h-4 w-4" />} label="Name">{fullName}</Block>
+            <Block icon={<User className="h-4 w-4" />} label="Kontakt-Person">{fullName}</Block>
+          )}
+          {d.childName && (
+            <Block icon={<Baby className="h-4 w-4 text-brand-600" />} label="Name des Kindes">
+              {d.childName}
+            </Block>
           )}
           {d.notes && (
             <Block icon={<AlertCircle className="h-4 w-4 text-amber-600" />} label="Wichtige Info" highlight>

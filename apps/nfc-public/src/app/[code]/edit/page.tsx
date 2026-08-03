@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { KeyRound, Loader2, AlertCircle, Save, Trash2, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { nfcPublicApi } from '@/lib/api';
+import { PHONE_PREFIXES, DEFAULT_PREFIX, splitPhone, joinPhone, type CountryPrefix } from '@/lib/phone';
 
 type Step = 'pin' | 'form' | 'done-edit' | 'done-delete';
 
@@ -17,8 +18,11 @@ export default function EditPage({ params }: { params: { code: string } }) {
   // Form-Daten
   const [firstName, setFirstName] = useState('');
   const [lastName,  setLastName]  = useState('');
-  const [phone,     setPhone]     = useState('');
-  const [phone2,    setPhone2]    = useState('');
+  const [childName, setChildName] = useState('');
+  const [phonePrefix,  setPhonePrefix]  = useState<CountryPrefix>(DEFAULT_PREFIX);
+  const [phoneLocal,   setPhoneLocal]   = useState('');
+  const [phone2Prefix, setPhone2Prefix] = useState<CountryPrefix>(DEFAULT_PREFIX);
+  const [phone2Local,  setPhone2Local]  = useState('');
   const [notes,     setNotes]     = useState('');
   const [street,    setStreet]    = useState('');
   const [zip,       setZip]       = useState('');
@@ -35,8 +39,15 @@ export default function EditPage({ params }: { params: { code: string } }) {
       const d = res.data;
       setFirstName(d.firstName ?? '');
       setLastName(d.lastName ?? '');
-      setPhone(d.phone ?? '');
-      setPhone2(d.phone2 ?? '');
+      setChildName(d.childName ?? '');
+      // Vorwahl aus gespeicherter Nummer erkennen. Bestehende Nummern ohne
+      // Vorwahl bleiben zeichengenau erhalten (siehe splitPhone-Kommentar).
+      const p1 = splitPhone(d.phone);
+      setPhonePrefix(p1.prefix);
+      setPhoneLocal(p1.rest);
+      const p2 = splitPhone(d.phone2);
+      setPhone2Prefix(p2.prefix);
+      setPhone2Local(p2.rest);
       setNotes(d.notes ?? '');
       setStreet(d.street ?? '');
       setZip(d.zip ?? '');
@@ -59,7 +70,10 @@ export default function EditPage({ params }: { params: { code: string } }) {
     setError(null);
     try {
       await nfcPublicApi.updateData(params.code, pin, {
-        firstName, lastName, phone, phone2, notes, street, zip, city, email,
+        firstName, lastName, childName,
+        phone:  joinPhone(phonePrefix,  phoneLocal),
+        phone2: joinPhone(phone2Prefix, phone2Local),
+        notes, street, zip, city, email,
         pin: newPin || undefined,
         consent: true,
       });
@@ -166,10 +180,19 @@ export default function EditPage({ params }: { params: { code: string } }) {
             <Field label="Vorname"><Input value={firstName} onChange={setFirstName} /></Field>
             <Field label="Nachname"><Input value={lastName} onChange={setLastName} /></Field>
           </Grid>
-          <Grid>
-            <Field label="Telefon"><Input type="tel" value={phone} onChange={setPhone} /></Field>
-            <Field label="Zweite Rufnummer"><Input type="tel" value={phone2} onChange={setPhone2} /></Field>
-          </Grid>
+          <Field label="Name des Kindes"><Input value={childName} onChange={setChildName} placeholder="z.B. Lisa" /></Field>
+          <Field label="Telefon">
+            <PhoneInput
+              prefix={phonePrefix} onPrefixChange={setPhonePrefix}
+              value={phoneLocal}   onValueChange={setPhoneLocal}
+            />
+          </Field>
+          <Field label="Zweite Rufnummer">
+            <PhoneInput
+              prefix={phone2Prefix} onPrefixChange={setPhone2Prefix}
+              value={phone2Local}   onValueChange={setPhone2Local}
+            />
+          </Field>
           <Field label="Notiz">
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
@@ -239,5 +262,39 @@ function Input({ value, onChange, type = 'text', placeholder, inputMode }: {
       placeholder={placeholder} inputMode={inputMode}
       className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500/40"
     />
+  );
+}
+
+function PhoneInput({
+  prefix, onPrefixChange, value, onValueChange,
+}: {
+  prefix: CountryPrefix;
+  onPrefixChange: (p: CountryPrefix) => void;
+  value: string;
+  onValueChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      <select
+        value={prefix.code}
+        onChange={(e) => {
+          const found = PHONE_PREFIXES.find((p) => p.code === e.target.value);
+          if (found) onPrefixChange(found);
+        }}
+        className="rounded-lg border border-slate-300 px-2 py-2.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+      >
+        {PHONE_PREFIXES.map((p) => (
+          <option key={p.code} value={p.code}>{p.flag} {p.prefix}</option>
+        ))}
+      </select>
+      <input
+        type="tel"
+        inputMode="tel"
+        value={value}
+        onChange={(e) => onValueChange(e.target.value)}
+        placeholder="1761234567"
+        className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+      />
+    </div>
   );
 }

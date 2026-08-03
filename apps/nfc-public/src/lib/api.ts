@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.filapen.com';
 export interface ActivationFields {
   firstName?: string;
   lastName?: string;
+  childName?: string;
   phone?: string;
   phone2?: string;
   notes?: string;
@@ -27,6 +28,7 @@ export interface PublicStatus {
   data?: {
     firstName: string | null;
     lastName: string | null;
+    childName?: string | null;
     phone: string | null;
     phone2: string | null;
     notes: string | null;
