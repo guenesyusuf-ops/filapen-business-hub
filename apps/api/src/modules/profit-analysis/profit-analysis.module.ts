@@ -7,6 +7,13 @@ import { ProductCostService } from './product-cost.service';
 import { DailyDataController } from './daily-data.controller';
 import { DailyDataService } from './daily-data.service';
 import { CalculationService } from './calculation.service';
+import { WholesaleController } from './wholesale.controller';
+import { WholesaleService } from './wholesale.service';
+import { OverheadController } from './overhead.controller';
+import { OverheadService } from './overhead.service';
+import { MonthCloseController } from './month-close.controller';
+import { MonthCloseService } from './month-close.service';
+import { ExportService } from './export.service';
 
 /**
  * Gewinnanalyse-Modul.
@@ -25,8 +32,17 @@ import { CalculationService } from './calculation.service';
  */
 @Module({
   imports: [AuthModule],
-  controllers: [SettingsController, ProductCostController, DailyDataController],
-  providers: [SettingsService, ProductCostService, DailyDataService, CalculationService],
-  exports: [SettingsService, ProductCostService, DailyDataService, CalculationService],
+  controllers: [
+    SettingsController, ProductCostController, DailyDataController,
+    WholesaleController, OverheadController, MonthCloseController,
+  ],
+  providers: [
+    SettingsService, ProductCostService, DailyDataService, CalculationService,
+    WholesaleService, OverheadService, MonthCloseService, ExportService,
+  ],
+  exports: [
+    SettingsService, ProductCostService, DailyDataService, CalculationService,
+    WholesaleService, OverheadService, MonthCloseService, ExportService,
+  ],
 })
 export class ProfitAnalysisModule {}

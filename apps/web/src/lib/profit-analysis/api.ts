@@ -160,7 +160,109 @@ export const profitAnalysisApi = {
         { method: 'PATCH', body: JSON.stringify({ quantity }) },
       ),
   },
+
+  // Phase 6: Grosshandel ----------------------------------------------------
+  wholesale: {
+    list: (from?: string, to?: string) => {
+      const qs = new URLSearchParams();
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      const s = qs.toString();
+      return call<{ items: WholesaleListRow[] }>(`/wholesale${s ? '?' + s : ''}`);
+    },
+    get: (id: string) => call<WholesaleDetail>(`/wholesale/${id}`),
+    create: (body: WholesaleOrderInput) =>
+      call<WholesaleDetail>('/wholesale', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Partial<WholesaleOrderInput>) =>
+      call<WholesaleDetail>(`/wholesale/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id: string) =>
+      call(`/wholesale/${id}`, { method: 'DELETE' }),
+  },
+
+  // Phase 7: Gemeinkosten ---------------------------------------------------
+  overhead: {
+    categories: () => call<{ items: Array<{ key: string; label: string }> }>('/overhead/categories'),
+    listTemplates: () => call<{ items: OverheadTemplate[] }>('/overhead/templates'),
+    createTemplate: (body: OverheadTemplateInput) =>
+      call<OverheadTemplate>('/overhead/templates', { method: 'POST', body: JSON.stringify(body) }),
+    updateTemplate: (id: string, body: Partial<OverheadTemplateInput>) =>
+      call<OverheadTemplate>(`/overhead/templates/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteTemplate: (id: string) =>
+      call(`/overhead/templates/${id}`, { method: 'DELETE' }),
+    listEntries: (year: number, month: number) =>
+      call<{ entries: OverheadEntry[] }>(`/overhead/months/${year}/${month}/entries`),
+    createEntry: (year: number, month: number, body: OverheadEntryInput) =>
+      call<OverheadEntry>(`/overhead/months/${year}/${month}/entries`, { method: 'POST', body: JSON.stringify(body) }),
+    updateEntry: (id: string, body: Partial<OverheadEntryInput>) =>
+      call<OverheadEntry>(`/overhead/entries/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteEntry: (id: string) =>
+      call(`/overhead/entries/${id}`, { method: 'DELETE' }),
+    applyTemplates: (year: number, month: number) =>
+      call(`/overhead/months/${year}/${month}/apply-templates`, { method: 'POST' }),
+  },
+
+  // Phase 10: Monatsabschluss ----------------------------------------------
+  months: {
+    close: (year: number, month: number, lock = false) =>
+      call<{ ok: true; status: string }>(`/months/${year}/${month}/close?lock=${lock}`, { method: 'POST' }),
+    reopen: (year: number, month: number) =>
+      call<{ ok: true; status: string }>(`/months/${year}/${month}/reopen`, { method: 'POST' }),
+    snapshot: (year: number, month: number) =>
+      call<any>(`/months/${year}/${month}/snapshot`),
+    exportCsvUrl: (year: number, month: number) => `/api/profit-analysis/months/${year}/${month}/export.csv`,
+  },
 };
+
+// ---------------------------------------------------------------------------
+// Wholesale types
+// ---------------------------------------------------------------------------
+
+export interface WholesaleListRow {
+  id: string; orderDate: string; orderNumber: string | null; customerName: string | null;
+  status: string; note: string | null; itemCount: number;
+  totalGross: string; totalNet: string; totalCost: string; totalProfit: string; margin: string | null;
+  createdAt: string;
+}
+export interface WholesaleItemInput {
+  productId: string; quantity: number; unitPriceGross: string; vatRate?: string;
+}
+export interface WholesaleOrderInput {
+  orderDate: string; orderNumber?: string; customerName?: string;
+  status?: 'draft' | 'confirmed' | 'shipped' | 'invoiced' | 'paid' | 'cancelled';
+  note?: string; items: WholesaleItemInput[];
+}
+export interface WholesaleItemRow {
+  id: string; productId: string; productTitle: string | null;
+  productSku: string | null; productImageUrl: string | null;
+  quantity: number; unitPriceGross: string; vatRate: string;
+  productCostSnapshot: string;
+  totalGross: string; totalNet: string; totalCost: string; totalProfit: string;
+}
+export interface WholesaleDetail extends WholesaleListRow {
+  items: WholesaleItemRow[];
+}
+
+// ---------------------------------------------------------------------------
+// Overhead types
+// ---------------------------------------------------------------------------
+
+export interface OverheadTemplate {
+  id: string; category: string; label: string;
+  amount: string; isGross: boolean; vatRate: string; active: boolean;
+}
+export interface OverheadTemplateInput {
+  category: string; label: string;
+  amount: string; isGross: boolean; vatRate: string; active?: boolean;
+}
+export interface OverheadEntry {
+  id: string; category: string; label: string;
+  enteredAmount: string; isGross: boolean; vatRate: string;
+  note: string | null; templateId: string | null;
+}
+export interface OverheadEntryInput {
+  category: string; label: string;
+  enteredAmount: string; isGross: boolean; vatRate: string; note?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Tagesdaten-Typen (Phase 3)
@@ -249,4 +351,23 @@ export interface ComputedMonth {
     platformFeesTotal: string; profitBeforeOverhead: string;
     marginBeforeOverhead: string | null;
   };
+  wholesale: {
+    orderCount: number;
+    totalGross: string; totalNet: string; totalVat: string;
+    totalCost: string; totalProfit: string; margin: string | null;
+  };
+  overhead: {
+    entries: Array<{
+      id: string; category: string; label: string;
+      enteredAmount: string; isGross: boolean; vatRate: string;
+      netAmount: string; grossAmount: string; vatAmount: string;
+      note: string | null;
+    }>;
+    totalNet: string; totalGross: string; totalVat: string;
+    byCategory: Array<{ category: string; totalNet: string; ratioOfNetSales: string | null }>;
+  };
+  profitBeforeOverheadWithWholesale: string;
+  operatingProfit: string;
+  operatingMargin: string | null;
+  netSalesWithWholesale: string;
 }

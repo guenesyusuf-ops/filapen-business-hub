@@ -383,6 +383,9 @@ model Organization {
   paDailyAds               PaDailyAds[]
   paDailyShipping          PaDailyShipping[]
   paDailyProductSales      PaDailyProductSale[]
+  paWholesaleOrders        PaWholesaleOrder[]
+  paOverheadTemplates      PaOverheadTemplate[]
+  paOverheadEntries        PaOverheadEntry[]
 
   @@map("organizations")
 }
@@ -429,6 +432,8 @@ model User {
   paSettingHistoriesCreated       PaSettingHistory[]        @relation("PaSettingHistoryCreator")
   paProductCostsCreated           PaProductCost[]           @relation("PaProductCostCreator")
   paAmazonFulfillmentCostsCreated PaAmazonFulfillmentCost[] @relation("PaAmazonFulfillmentCostCreator")
+  paWholesaleOrdersCreated        PaWholesaleOrder[]        @relation("PaWholesaleOrderCreator")
+  paMonthSnapshotsClosedBy        PaMonthSnapshot[]         @relation("PaMonthSnapshotCloser")
 
   @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
   @@unique([orgId, email], map: "uq_user_org_email")
@@ -887,6 +892,7 @@ model Product {
   paProductCosts           PaProductCost[]
   paAmazonFulfillmentCosts PaAmazonFulfillmentCost[]
   paDailyProductSales      PaDailyProductSale[]
+  paWholesaleOrderItems    PaWholesaleOrderItem[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
@@ -4096,9 +4102,11 @@ model PaMonth {
   createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  closedBy     User?        @relation("PaMonthCloser", fields: [closedById], references: [id], onDelete: SetNull)
-  days         PaDay[]
+  organization    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  closedBy        User?             @relation("PaMonthCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  days            PaDay[]
+  overheadEntries PaOverheadEntry[]
+  snapshot        PaMonthSnapshot?
 
   @@unique([orgId, year, month])
   @@index([orgId])
@@ -4322,4 +4330,130 @@ model PaTarget {
 
   @@index([orgId, key])
   @@map("pa_target")
+}
+
+// -----------------------------------------------------------------------------
+// Phase 6: Grosshandel
+// -----------------------------------------------------------------------------
+
+enum PaWholesaleStatus {
+  draft
+  confirmed
+  shipped
+  invoiced
+  paid
+  cancelled
+
+  @@map("pa_wholesale_status")
+}
+
+model PaWholesaleOrder {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String            @map("org_id") @db.Uuid
+  orderDate    DateTime          @map("order_date") @db.Date
+  orderNumber  String?           @map("order_number") @db.VarChar(80)
+  customerName String?           @map("customer_name") @db.VarChar(255)
+  status       PaWholesaleStatus @default(draft)
+  note         String?           @db.Text
+  createdById  String?           @map("created_by_id") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User?                  @relation("PaWholesaleOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  items        PaWholesaleOrderItem[]
+
+  @@index([orgId, orderDate(sort: Desc)], map: "idx_pa_wh_order_org_date")
+  @@index([orgId, status], map: "idx_pa_wh_order_status")
+  @@map("pa_wholesale_order")
+}
+
+model PaWholesaleOrderItem {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId             String   @map("order_id") @db.Uuid
+  productId           String   @map("product_id") @db.Uuid
+  quantity            Int
+  unitPriceGross      Decimal  @map("unit_price_gross") @db.Decimal(12, 4)
+  vatRate             Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  productCostSnapshot Decimal  @default(0) @map("product_cost_snapshot") @db.Decimal(12, 4)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  order   PaWholesaleOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId], map: "idx_pa_wh_item_order")
+  @@index([productId], map: "idx_pa_wh_item_product")
+  @@map("pa_wholesale_order_item")
+}
+
+// -----------------------------------------------------------------------------
+// Phase 7: Gemeinkosten
+// -----------------------------------------------------------------------------
+
+/// Wiederkehrende Kosten-Vorlage. Beim Anlegen eines neuen Monats werden aktive
+/// Templates in pa_overhead_entry kopiert — historische Aenderungen an der
+/// Vorlage aendern damit nie einen bereits erfassten Monat.
+model PaOverheadTemplate {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  category  String   @db.VarChar(60)
+  label     String   @db.VarChar(255)
+  amount    Decimal  @db.Decimal(12, 2)
+  isGross   Boolean  @default(true) @map("is_gross")
+  vatRate   Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  entries      PaOverheadEntry[]
+
+  @@index([orgId, active], map: "idx_pa_oht_org")
+  @@map("pa_overhead_template")
+}
+
+/// Konkrete Kostenposition eines Monats. Enthaelt eingegebene Rohwerte
+/// (entered_amount + is_gross + vat_rate) — Netto wird aus diesen Feldern
+/// serverseitig berechnet.
+model PaOverheadEntry {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String   @map("org_id") @db.Uuid
+  monthId       String   @map("month_id") @db.Uuid
+  category      String   @db.VarChar(60)
+  label         String   @db.VarChar(255)
+  enteredAmount Decimal  @map("entered_amount") @db.Decimal(12, 2)
+  isGross       Boolean  @default(true) @map("is_gross")
+  vatRate       Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  note          String?  @db.VarChar(500)
+  templateId    String?  @map("template_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  month        PaMonth             @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  template     PaOverheadTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([monthId], map: "idx_pa_oe_month")
+  @@index([orgId, monthId], map: "idx_pa_oe_org")
+  @@map("pa_overhead_entry")
+}
+
+// -----------------------------------------------------------------------------
+// Phase 10: Monats-Snapshot
+// -----------------------------------------------------------------------------
+
+/// Frozener Monatsbericht beim Abschluss. snapshot_json enthaelt das komplette
+/// ComputedMonth-Objekt zum Zeitpunkt des Abschlusses.
+model PaMonthSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  monthId      String   @unique @map("month_id") @db.Uuid
+  snapshotJson Json     @map("snapshot_json") @db.JsonB
+  computedAt   DateTime @default(now()) @map("computed_at") @db.Timestamptz
+  closedById   String?  @map("closed_by_id") @db.Uuid
+
+  month    PaMonth @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  closedBy User?   @relation("PaMonthSnapshotCloser", fields: [closedById], references: [id], onDelete: SetNull)
+
+  @@index([computedAt(sort: Desc)], map: "idx_pa_month_snapshot_time")
+  @@map("pa_month_snapshot")
 }

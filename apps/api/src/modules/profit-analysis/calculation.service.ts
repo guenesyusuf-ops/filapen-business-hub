@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from './settings.service';
 import { ProductCostService } from './product-cost.service';
+import { WholesaleService } from './wholesale.service';
+import { OverheadService } from './overhead.service';
 import { SETTING_KEYS } from './settings.constants';
 import { calculateMixedVat, roundMixedVat, MixedVatResult } from './domain/vat';
 import {
   webshopProfit, amazonProfit, tiktokProfit, aggregateDay,
   ChannelProfitResult, DayAggregateResult, roundChannelProfit,
 } from './domain/channel-profit';
+import { calculateWholesaleOrder, roundWholesaleOrder } from './domain/wholesale';
+import { aggregateOverhead, roundOverheadTotals } from './domain/overhead';
 import { D, toD, round2 } from './domain/decimal';
 import { margin } from './domain/margin';
 
@@ -39,12 +43,57 @@ export interface ComputedMonthTotal {
   marginBeforeOverhead: string | null;       // Master-Prompt §37
 }
 
+export interface ComputedWholesaleTotals {
+  orderCount: number;
+  totalGross: string;
+  totalNet: string;
+  totalVat: string;
+  totalCost: string;
+  totalProfit: string;
+  margin: string | null;
+}
+
+export interface ComputedOverheadCategory {
+  category: string;
+  totalNet: string;
+  ratioOfNetSales: string | null;
+}
+
+export interface ComputedOverhead {
+  entries: Array<{
+    id: string;
+    category: string;
+    label: string;
+    enteredAmount: string;
+    isGross: boolean;
+    vatRate: string;
+    netAmount: string;
+    grossAmount: string;
+    vatAmount: string;
+    note: string | null;
+  }>;
+  totalNet: string;
+  totalGross: string;
+  totalVat: string;
+  byCategory: ComputedOverheadCategory[];
+}
+
 export interface ComputedMonth {
   year: number;
   month: number;
   status: 'open' | 'closed' | 'locked' | null;
   days: ComputedDay[];
   totals: ComputedMonthTotal;
+  wholesale: ComputedWholesaleTotals;
+  overhead: ComputedOverhead;
+  /** Master-Prompt §55: Profit vor Gemeinkosten (Kanäle + Grosshandel). */
+  profitBeforeOverheadWithWholesale: string;
+  /** Master-Prompt §56: operativer Monatsgewinn (nach Gemeinkosten). */
+  operatingProfit: string;
+  /** Master-Prompt §57: operative Endmarge. */
+  operatingMargin: string | null;
+  /** Netto-Umsatz inkl. Grosshandel — Basis fuer §57 und §54. */
+  netSalesWithWholesale: string;
 }
 
 /**
@@ -58,6 +107,8 @@ export class CalculationService {
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
     private readonly productCosts: ProductCostService,
+    private readonly wholesale: WholesaleService,
+    private readonly overhead: OverheadService,
   ) {}
 
   /**
@@ -79,6 +130,12 @@ export class CalculationService {
       return {
         year, month, status: null, days: [],
         totals: this.zeroTotals(),
+        wholesale: this.zeroWholesale(),
+        overhead: this.zeroOverhead(),
+        profitBeforeOverheadWithWholesale: '0',
+        operatingProfit: '0',
+        operatingMargin: null,
+        netSalesWithWholesale: '0',
       };
     }
 
@@ -94,13 +151,84 @@ export class CalculationService {
     for (const day of monthRow.days) {
       days.push(await this.computeDayFromRow(orgId, day, costLookup));
     }
+    const dayTotals = this.computeMonthTotals(days);
+
+    // Grosshandel des Monats
+    const wholesaleOrders = await this.wholesale.listForMonth(orgId, year, month);
+    let wsGross = toD(0), wsNet = toD(0), wsVat = toD(0), wsCost = toD(0), wsProfit = toD(0);
+    for (const o of wholesaleOrders) {
+      const t = calculateWholesaleOrder(o.items);
+      wsGross = wsGross.plus(t.totalGross);
+      wsNet   = wsNet.plus(t.totalNet);
+      wsVat   = wsVat.plus(t.totalVat);
+      wsCost  = wsCost.plus(t.totalCost);
+      wsProfit = wsProfit.plus(t.totalProfit);
+    }
+    const wholesaleTotals: ComputedWholesaleTotals = {
+      orderCount: wholesaleOrders.length,
+      totalGross: round2(wsGross).toString(),
+      totalNet: round2(wsNet).toString(),
+      totalVat: round2(wsVat).toString(),
+      totalCost: round2(wsCost).toString(),
+      totalProfit: round2(wsProfit).toString(),
+      margin: margin(wsProfit, wsNet)?.toString() ?? null,
+    };
+
+    // Gemeinkosten des Monats (inkl. Prozent-Anteil §54)
+    const netSalesTotalWithWholesale = toD(dayTotals.netSalesTotal).plus(wsNet);
+    const overheadEntries = await this.overhead.getEntriesForMonth(orgId, monthRow.id);
+    const overheadRaw = aggregateOverhead(
+      overheadEntries.map((e: any) => ({
+        category: e.category, label: e.label,
+        enteredAmount: e.enteredAmount, isGross: e.isGross, vatRate: e.vatRate,
+      })),
+      netSalesTotalWithWholesale,
+    );
+    const overheadRounded = roundOverheadTotals(overheadRaw);
+    const overheadApi: ComputedOverhead = {
+      entries: overheadEntries.map((e: any, i: number) => ({
+        id: e.id, category: e.category, label: e.label,
+        enteredAmount: e.enteredAmount.toString(),
+        isGross: e.isGross, vatRate: e.vatRate.toString(),
+        netAmount: overheadRounded.entries[i].netAmount.toString(),
+        grossAmount: overheadRounded.entries[i].grossAmount.toString(),
+        vatAmount: overheadRounded.entries[i].vatAmount.toString(),
+        note: e.note,
+      })),
+      totalNet: overheadRounded.totalNet.toString(),
+      totalGross: overheadRounded.totalGross.toString(),
+      totalVat: overheadRounded.totalVat.toString(),
+      byCategory: Object.entries(overheadRounded.byCategory).map(([cat, v]) => ({
+        category: cat,
+        totalNet: v.totalNet.toString(),
+        ratioOfNetSales: v.ratioOfNetSales?.toString() ?? null,
+      })),
+    };
+
+    // §55, §56, §57
+    const profitBeforeOverheadWithWholesale = toD(dayTotals.profitBeforeOverhead).plus(wsProfit);
+    const operatingProfit = profitBeforeOverheadWithWholesale.minus(overheadRaw.totalNet);
+    const operatingMargin = margin(operatingProfit, netSalesTotalWithWholesale);
 
     return {
       year, month,
       status: monthRow.status as any,
       days,
-      totals: this.computeMonthTotals(days),
+      totals: dayTotals,
+      wholesale: wholesaleTotals,
+      overhead: overheadApi,
+      profitBeforeOverheadWithWholesale: round2(profitBeforeOverheadWithWholesale).toString(),
+      operatingProfit: round2(operatingProfit).toString(),
+      operatingMargin: operatingMargin?.toString() ?? null,
+      netSalesWithWholesale: round2(netSalesTotalWithWholesale).toString(),
     };
+  }
+
+  private zeroWholesale(): ComputedWholesaleTotals {
+    return { orderCount: 0, totalGross: '0', totalNet: '0', totalVat: '0', totalCost: '0', totalProfit: '0', margin: null };
+  }
+  private zeroOverhead(): ComputedOverhead {
+    return { entries: [], totalNet: '0', totalGross: '0', totalVat: '0', byCategory: [] };
   }
 
   /** Einzelner Tag — praktisch fuer Autosave-Response ("was ergibt sich jetzt"). */
