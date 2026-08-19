@@ -378,6 +378,11 @@ model Organization {
   paTargets                PaTarget[]
   paProductCosts           PaProductCost[]
   paAmazonFulfillmentCosts PaAmazonFulfillmentCost[]
+  paDays                   PaDay[]
+  paChannelSales           PaChannelSales[]
+  paDailyAds               PaDailyAds[]
+  paDailyShipping          PaDailyShipping[]
+  paDailyProductSales      PaDailyProductSale[]
 
   @@map("organizations")
 }
@@ -881,6 +886,7 @@ model Product {
   customerPrices           SalesCustomerProductPrice[]
   paProductCosts           PaProductCost[]
   paAmazonFulfillmentCosts PaAmazonFulfillmentCost[]
+  paDailyProductSales      PaDailyProductSale[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
@@ -4092,6 +4098,7 @@ model PaMonth {
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   closedBy     User?        @relation("PaMonthCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  days         PaDay[]
 
   @@unique([orgId, year, month])
   @@index([orgId])
@@ -4176,6 +4183,124 @@ model PaAmazonFulfillmentCost {
   @@index([orgId, productId, effectiveFrom(sort: Desc)], map: "idx_pa_amazon_ff_lookup")
   @@index([orgId], map: "idx_pa_amazon_ff_org")
   @@map("pa_amazon_fulfillment_cost")
+}
+
+// -----------------------------------------------------------------------------
+// Phase 3: Tages-Rohdaten
+// -----------------------------------------------------------------------------
+
+enum PaChannel {
+  shopify
+  amazon
+  tiktok
+
+  @@map("pa_channel")
+}
+
+/// Tages-Container. Wird lazy erstellt beim ersten Speichern eines Feldes an
+/// diesem Datum. Verweist auf pa_month (der Monat existiert vorher — auch
+/// lazy erstellt beim ersten Zugriff auf einen Monat).
+model PaDay {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  monthId   String   @map("month_id") @db.Uuid
+  date      DateTime @db.Date
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  month        PaMonth              @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  channelSales PaChannelSales[]
+  ads          PaDailyAds?
+  shipping     PaDailyShipping?
+  productSales PaDailyProductSale[]
+
+  @@unique([orgId, date])
+  @@index([monthId], map: "idx_pa_day_month")
+  @@index([orgId, date], map: "idx_pa_day_org_date")
+  @@map("pa_day")
+}
+
+/// Umsatz pro Verkaufskanal + Tag.
+/// Brutto in zwei USt-Toepfen (gross19/gross7) + Retouren in zwei USt-Toepfen.
+/// Netto und USt werden serverseitig berechnet, NICHT gespeichert.
+model PaChannelSales {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String    @map("org_id") @db.Uuid
+  dayId     String    @map("day_id") @db.Uuid
+  channel   PaChannel
+  gross19   Decimal   @default(0) @db.Decimal(12, 2)
+  gross7    Decimal   @default(0) @db.Decimal(12, 2)
+  returns19 Decimal   @default(0) @db.Decimal(12, 2)
+  returns7  Decimal   @default(0) @db.Decimal(12, 2)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  day          PaDay        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@unique([dayId, channel])
+  @@index([dayId], map: "idx_pa_channel_sales_day")
+  @@index([orgId], map: "idx_pa_channel_sales_org")
+  @@map("pa_channel_sales")
+}
+
+/// Werbekosten pro Tag. NETTO (Reverse-Charge fuer alle Ad-Kanaele).
+/// Ein Datensatz pro Tag.
+model PaDailyAds {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  dayId      String   @unique @map("day_id") @db.Uuid
+  meta       Decimal  @default(0) @db.Decimal(12, 2)
+  google     Decimal  @default(0) @db.Decimal(12, 2)
+  influencer Decimal  @default(0) @db.Decimal(12, 2)
+  amazonPpc  Decimal  @default(0) @map("amazon_ppc") @db.Decimal(12, 2)
+  tiktokAds  Decimal  @default(0) @map("tiktok_ads") @db.Decimal(12, 2)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  day          PaDay        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([orgId], map: "idx_pa_daily_ads_org")
+  @@map("pa_daily_ads")
+}
+
+/// Anzahl versendeter Pakete pro Tag (Shopify + TikTok).
+/// DHL-Preis kommt live aus pa_setting_history — nicht hier.
+model PaDailyShipping {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String   @map("org_id") @db.Uuid
+  dayId           String   @unique @map("day_id") @db.Uuid
+  shopifyPackages Int      @default(0) @map("shopify_packages")
+  tiktokPackages  Int      @default(0) @map("tiktok_packages")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  day          PaDay        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([orgId], map: "idx_pa_daily_shipping_org")
+  @@map("pa_daily_shipping")
+}
+
+/// Stueckzahl je Kanal + Produkt + Tag.
+/// Produktkosten + Amazon-Fulfillment werden ueber pa_product_cost /
+/// pa_amazon_fulfillment_cost historisch aufgeloest — NICHT hier eingefroren.
+model PaDailyProductSale {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String    @map("org_id") @db.Uuid
+  dayId     String    @map("day_id") @db.Uuid
+  channel   PaChannel
+  productId String    @map("product_id") @db.Uuid
+  quantity  Int       @default(0)
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  day          PaDay        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([dayId, channel, productId])
+  @@index([dayId], map: "idx_pa_dps_day")
+  @@index([orgId], map: "idx_pa_dps_org")
+  @@index([productId], map: "idx_pa_dps_product")
+  @@map("pa_daily_product_sale")
 }
 
 /// Zielwerte (Marge, ROAS, Umsatz, Gewinn). NICHT historisiert — Ziele sind
