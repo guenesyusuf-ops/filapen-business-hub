@@ -376,6 +376,8 @@ model Organization {
   paMonths                 PaMonth[]
   paSettingHistories       PaSettingHistory[]
   paTargets                PaTarget[]
+  paProductCosts           PaProductCost[]
+  paAmazonFulfillmentCosts PaAmazonFulfillmentCost[]
 
   @@map("organizations")
 }
@@ -401,25 +403,27 @@ model User {
   lastActiveAt       DateTime?  @map("last_active_at") @db.Timestamptz
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
 
-  organization                Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  auditLogs                   AuditLog[]
-  suppliersCreated            Supplier[]              @relation("SupplierCreator")
-  purchaseOrders              PurchaseOrder[]         @relation("PurchaseOrderCreator")
-  paymentsCreated             Payment[]               @relation("PaymentCreator")
-  documentsUploaded           PurchaseDocument[]      @relation("DocUploader")
-  poAuditLogs                 PurchaseAuditLog[]      @relation("PoAuditUser")
-  shipmentsCreated            Shipment[]              @relation("ShipmentCreator")
-  vacationRequests            VacationRequest[]       @relation("VacationRequester")
-  vacationReviews             VacationRequest[]       @relation("VacationReviewer")
-  filesSent                   FileTransfer[]          @relation("FileSender")
-  filesReceived               FileTransferRecipient[] @relation("FileRecipient")
-  passwordEntriesCreated      PasswordEntry[]         @relation("PasswordEntryCreator")
-  passwordAccessGranted       PasswordAccess[]        @relation("PasswordAccessGrantor")
-  passwordAccess              PasswordAccess[]        @relation("PasswordAccessee")
-  passwordAuditLogs           PasswordAuditLog[]
-  passwordAttachmentsUploaded PasswordAttachment[]    @relation("PasswordAttachmentUploader")
-  paMonthsClosed              PaMonth[]               @relation("PaMonthCloser")
-  paSettingHistoriesCreated   PaSettingHistory[]      @relation("PaSettingHistoryCreator")
+  organization                    Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  auditLogs                       AuditLog[]
+  suppliersCreated                Supplier[]                @relation("SupplierCreator")
+  purchaseOrders                  PurchaseOrder[]           @relation("PurchaseOrderCreator")
+  paymentsCreated                 Payment[]                 @relation("PaymentCreator")
+  documentsUploaded               PurchaseDocument[]        @relation("DocUploader")
+  poAuditLogs                     PurchaseAuditLog[]        @relation("PoAuditUser")
+  shipmentsCreated                Shipment[]                @relation("ShipmentCreator")
+  vacationRequests                VacationRequest[]         @relation("VacationRequester")
+  vacationReviews                 VacationRequest[]         @relation("VacationReviewer")
+  filesSent                       FileTransfer[]            @relation("FileSender")
+  filesReceived                   FileTransferRecipient[]   @relation("FileRecipient")
+  passwordEntriesCreated          PasswordEntry[]           @relation("PasswordEntryCreator")
+  passwordAccessGranted           PasswordAccess[]          @relation("PasswordAccessGrantor")
+  passwordAccess                  PasswordAccess[]          @relation("PasswordAccessee")
+  passwordAuditLogs               PasswordAuditLog[]
+  passwordAttachmentsUploaded     PasswordAttachment[]      @relation("PasswordAttachmentUploader")
+  paMonthsClosed                  PaMonth[]                 @relation("PaMonthCloser")
+  paSettingHistoriesCreated       PaSettingHistory[]        @relation("PaSettingHistoryCreator")
+  paProductCostsCreated           PaProductCost[]           @relation("PaProductCostCreator")
+  paAmazonFulfillmentCostsCreated PaAmazonFulfillmentCost[] @relation("PaAmazonFulfillmentCostCreator")
 
   @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
   @@unique([orgId, email], map: "uq_user_org_email")
@@ -869,12 +873,14 @@ model Product {
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization    Organization                @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  shop            Shop                        @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  variants        ProductVariant[]
-  creatorProjects CreatorProject[]
-  briefings       Briefing[]
-  customerPrices  SalesCustomerProductPrice[]
+  organization             Organization                @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shop                     Shop                        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  variants                 ProductVariant[]
+  creatorProjects          CreatorProject[]
+  briefings                Briefing[]
+  customerPrices           SalesCustomerProductPrice[]
+  paProductCosts           PaProductCost[]
+  paAmazonFulfillmentCosts PaAmazonFulfillmentCost[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
@@ -4119,6 +4125,57 @@ model PaSettingHistory {
   @@unique([orgId, key, effectiveFrom])
   @@index([orgId, key, effectiveFrom(sort: Desc)], map: "idx_pa_settings_lookup")
   @@map("pa_setting_history")
+}
+
+/// Historisierte Produktkosten pro Stueck (Einkaufspreis / Herstellkosten).
+/// Referenziert die bestehende products.id — keine Duplizierung des Katalogs.
+///
+/// Aenderungen der aktuellen Kosten aendern NIE historische Berechnungen —
+/// jede Kostenperiode bleibt fuer ihre Zeit gueltig (effective_from bis
+/// effective_to bzw. NULL fuer "aktuell offen").
+model PaProductCost {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String    @map("org_id") @db.Uuid
+  productId     String    @map("product_id") @db.Uuid
+  cost          Decimal   @db.Decimal(12, 4)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  note          String?   @db.VarChar(500)
+  createdById   String?   @map("created_by_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("PaProductCostCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([productId, effectiveFrom])
+  @@index([orgId, productId, effectiveFrom(sort: Desc)], map: "idx_pa_product_cost_lookup")
+  @@index([orgId], map: "idx_pa_product_cost_org")
+  @@map("pa_product_cost")
+}
+
+/// Historisierte Amazon-Fulfillment-Kosten (AWD/FBA-Pauschale pro Stueck).
+/// Getrennt von PaProductCost weil beide Preisdynamiken unabhaengig sind —
+/// Amazon-Tarife aendern sich unabhaengig vom Einkaufspreis.
+model PaAmazonFulfillmentCost {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String    @map("org_id") @db.Uuid
+  productId     String    @map("product_id") @db.Uuid
+  cost          Decimal   @db.Decimal(12, 4)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  note          String?   @db.VarChar(500)
+  createdById   String?   @map("created_by_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("PaAmazonFulfillmentCostCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([productId, effectiveFrom])
+  @@index([orgId, productId, effectiveFrom(sort: Desc)], map: "idx_pa_amazon_ff_lookup")
+  @@index([orgId], map: "idx_pa_amazon_ff_org")
+  @@map("pa_amazon_fulfillment_cost")
 }
 
 /// Zielwerte (Marge, ROAS, Umsatz, Gewinn). NICHT historisiert — Ziele sind
