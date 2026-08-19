@@ -28,6 +28,7 @@ import { InvoiceModule } from './modules/invoice/invoice.module';
 import { ReturnModule } from './modules/return/return.module';
 import { NfcModule } from './modules/nfc/nfc.module';
 import { PasswordModule } from './modules/password/password.module';
+import { ProfitAnalysisModule } from './modules/profit-analysis/profit-analysis.module';
 import { HealthController } from './health.controller';
 import { TelemetryModule } from './common/telemetry/telemetry.module';
 
@@ -101,6 +102,7 @@ import { TelemetryModule } from './common/telemetry/telemetry.module';
     ReturnModule,
     NfcModule,
     PasswordModule,
+    ProfitAnalysisModule,
   ],
   controllers: [HealthController],
   providers: [],

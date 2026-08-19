@@ -22,6 +22,7 @@ export const MENU_PERMISSIONS = [
   { key: 'screen-share', label: 'Bildschirm teilen', description: 'Live Bildschirm + Voice-Chat mit Team oder externen Gaesten (LiveKit)' },
   { key: 'send', label: 'Filapen Send', description: 'Dateien und Ordner an Team-Mitglieder senden (LocalSend-Style)' },
   { key: 'passwords', label: 'Passwort-Manager', description: 'Zentrale Zugangsdaten (AES-256-GCM verschluesselt). Nutzer sehen nur ihre eigenen + explizit freigegebene Eintraege — Owner/Admin sehen alle.' },
+  { key: 'profit-analysis', label: 'Gewinnanalyse', description: 'Internes Controlling: Tages- und Monatsauswertung von Umsatz, Kosten, Profit, Marge, ROAS je Verkaufskanal + Grosshandel + Gemeinkosten. Historisierte Gebuehren und Produktkosten.' },
 ] as const;
 
 export type MenuPermissionKey = (typeof MENU_PERMISSIONS)[number]['key'];
@@ -48,6 +49,7 @@ export function pathToPermission(pathname: string): MenuPermissionKey | null {
   if (pathname.startsWith('/screen-share')) return 'screen-share';
   if (pathname.startsWith('/send')) return 'send';
   if (pathname.startsWith('/passwords')) return 'passwords';
+  if (pathname.startsWith('/profit-analysis')) return 'profit-analysis';
   return null;
 }
 

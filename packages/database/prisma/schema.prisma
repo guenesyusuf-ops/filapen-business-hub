@@ -373,6 +373,9 @@ model Organization {
   passwordCategories       PasswordCategory[]
   passwordEntries          PasswordEntry[]
   passwordAuditLogs        PasswordAuditLog[]
+  paMonths                 PaMonth[]
+  paSettingHistories       PaSettingHistory[]
+  paTargets                PaTarget[]
 
   @@map("organizations")
 }
@@ -398,23 +401,25 @@ model User {
   lastActiveAt       DateTime?  @map("last_active_at") @db.Timestamptz
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
 
-  organization      Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  auditLogs         AuditLog[]
-  suppliersCreated  Supplier[]         @relation("SupplierCreator")
-  purchaseOrders    PurchaseOrder[]    @relation("PurchaseOrderCreator")
-  paymentsCreated   Payment[]          @relation("PaymentCreator")
-  documentsUploaded PurchaseDocument[] @relation("DocUploader")
-  poAuditLogs       PurchaseAuditLog[] @relation("PoAuditUser")
-  shipmentsCreated  Shipment[]         @relation("ShipmentCreator")
-  vacationRequests  VacationRequest[]  @relation("VacationRequester")
-  vacationReviews   VacationRequest[]  @relation("VacationReviewer")
-  filesSent         FileTransfer[]              @relation("FileSender")
-  filesReceived     FileTransferRecipient[]     @relation("FileRecipient")
-  passwordEntriesCreated PasswordEntry[]        @relation("PasswordEntryCreator")
-  passwordAccessGranted  PasswordAccess[]       @relation("PasswordAccessGrantor")
-  passwordAccess         PasswordAccess[]       @relation("PasswordAccessee")
-  passwordAuditLogs      PasswordAuditLog[]
-  passwordAttachmentsUploaded PasswordAttachment[] @relation("PasswordAttachmentUploader")
+  organization                Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  auditLogs                   AuditLog[]
+  suppliersCreated            Supplier[]              @relation("SupplierCreator")
+  purchaseOrders              PurchaseOrder[]         @relation("PurchaseOrderCreator")
+  paymentsCreated             Payment[]               @relation("PaymentCreator")
+  documentsUploaded           PurchaseDocument[]      @relation("DocUploader")
+  poAuditLogs                 PurchaseAuditLog[]      @relation("PoAuditUser")
+  shipmentsCreated            Shipment[]              @relation("ShipmentCreator")
+  vacationRequests            VacationRequest[]       @relation("VacationRequester")
+  vacationReviews             VacationRequest[]       @relation("VacationReviewer")
+  filesSent                   FileTransfer[]          @relation("FileSender")
+  filesReceived               FileTransferRecipient[] @relation("FileRecipient")
+  passwordEntriesCreated      PasswordEntry[]         @relation("PasswordEntryCreator")
+  passwordAccessGranted       PasswordAccess[]        @relation("PasswordAccessGrantor")
+  passwordAccess              PasswordAccess[]        @relation("PasswordAccessee")
+  passwordAuditLogs           PasswordAuditLog[]
+  passwordAttachmentsUploaded PasswordAttachment[]    @relation("PasswordAttachmentUploader")
+  paMonthsClosed              PaMonth[]               @relation("PaMonthCloser")
+  paSettingHistoriesCreated   PaSettingHistory[]      @relation("PaSettingHistoryCreator")
 
   @@unique([orgId, clerkUserId], map: "uq_user_org_clerk")
   @@unique([orgId, email], map: "uq_user_org_email")
@@ -864,8 +869,8 @@ model Product {
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  organization    Organization                @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  shop            Shop                        @relation(fields: [shopId], references: [id], onDelete: Cascade)
   variants        ProductVariant[]
   creatorProjects CreatorProject[]
   briefings       Briefing[]
@@ -900,8 +905,8 @@ model ProductVariant {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization    Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  product         Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+  organization    Organization                @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product         Product                     @relation(fields: [productId], references: [id], onDelete: Cascade)
   orderLineItems  OrderLineItem[]
   shippingProfile ShippingProductProfile?
   salesLineItems  SalesOrderLineItem[]
@@ -1781,30 +1786,30 @@ model WmNotification {
 // Verbindung der letzte Stand wiederhergestellt werden kann.
 
 model Whiteboard {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId       String   @map("org_id") @db.Uuid
-  title       String   @db.VarChar(255)
-  description String?  @db.Text
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String   @map("org_id") @db.Uuid
+  title            String   @db.VarChar(255)
+  description      String?  @db.Text
   /// Vorschau-Bild (PNG) als R2-URL — fuer die Liste-Ansicht
-  thumbnailUrl String? @map("thumbnail_url") @db.Text
+  thumbnailUrl     String?  @map("thumbnail_url") @db.Text
   /// Aktueller tldraw-Snapshot. Gross (mehrere MB bei vielen Nodes), daher
   /// nicht in eigene Tabelle ausgelagert — pro Board nur EINE active row.
-  state       Json     @default("{}") @db.JsonB
+  state            Json     @default("{}") @db.JsonB
   /// liveblocks Room-ID. Format "wb-{boardId}". Vorab generiert damit der
   /// Frontend-Client direkt joinen kann ohne extra API-Call.
-  liveblocksRoomId String? @map("liveblocks_room_id") @db.VarChar(100)
+  liveblocksRoomId String?  @map("liveblocks_room_id") @db.VarChar(100)
   /// Optionaler Ordner. Null = "Kein Ordner". onDelete: SetNull damit
   /// Boards beim Loeschen des Ordners erhalten bleiben (Frontend bietet
   /// vorher einen Verschieben-Flow an).
-  folderId    String?  @map("folder_id") @db.Uuid
-  createdById String   @map("created_by_id") @db.Uuid
+  folderId         String?  @map("folder_id") @db.Uuid
+  createdById      String   @map("created_by_id") @db.Uuid
   /// Wer zuletzt am Board war (User-ID) — fuer "Letzter Edit von …" in der Liste
-  lastEditedById String? @map("last_edited_by_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  lastEditedById   String?  @map("last_edited_by_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  folder       WhiteboardFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  folder       WhiteboardFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
   snapshots    WhiteboardSnapshot[]
   members      WhiteboardMember[]
 
@@ -1902,18 +1907,18 @@ model DocFolder {
 // Public-Share-Links — externer Read-Only-Zugriff auf Ordner + Unterordner.
 // Token wird in URL eingebaut: APP_URL/share/docs/{token}
 model DocShareLink {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId       String    @map("org_id") @db.Uuid
-  folderId    String    @map("folder_id") @db.Uuid
-  token       String    @unique @db.VarChar(64)
-  createdById String    @map("created_by_id") @db.Uuid
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String    @map("org_id") @db.Uuid
+  folderId     String    @map("folder_id") @db.Uuid
+  token        String    @unique @db.VarChar(64)
+  createdById  String    @map("created_by_id") @db.Uuid
   // null = unbefristet
-  expiresAt   DateTime? @map("expires_at") @db.Timestamptz
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz
   // null = aktiv; gesetzt = manuell widerrufen
-  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz
-  viewCount   Int       @default(0) @map("view_count")
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz
+  viewCount    Int       @default(0) @map("view_count")
   lastViewedAt DateTime? @map("last_viewed_at") @db.Timestamptz
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   folder DocFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
@@ -3017,12 +3022,12 @@ enum SalesOrderStatus {
 }
 
 enum SalesDocumentKind {
-  original        // uploaded PDF/image of the incoming order
-  confirmation    // Auftragsbestätigung (easybill PDF)
-  invoice         // Rechnung (easybill PDF)
-  delivery_note   // Lieferschein (easybill PDF)
-  shipping_label  // DHL-Versandlabel (PDF pro Karton)
-  other           // anything else the user attaches
+  original // uploaded PDF/image of the incoming order
+  confirmation // Auftragsbestätigung (easybill PDF)
+  invoice // Rechnung (easybill PDF)
+  delivery_note // Lieferschein (easybill PDF)
+  shipping_label // DHL-Versandlabel (PDF pro Karton)
+  other // anything else the user attaches
 
   @@map("sales_document_kind")
 }
@@ -3042,8 +3047,8 @@ enum SalesEventType {
 }
 
 enum SalesReminderKind {
-  urgent_3d              // <=3 days to required delivery
-  overdue                // past required delivery
+  urgent_3d // <=3 days to required delivery
+  overdue // past required delivery
   invoice_after_shipping // shipped but no invoice
 
   @@map("sales_reminder_kind")
@@ -3077,7 +3082,7 @@ model SalesCustomer {
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization  Organization                  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization  Organization                @relation(fields: [orgId], references: [id], onDelete: Cascade)
   orders        SalesOrder[]
   productPrices SalesCustomerProductPrice[]
 
@@ -3092,13 +3097,13 @@ model SalesCustomer {
 /// Eine Transfer-Row pro "Sendung", N Empfaenger (file_transfer_recipients),
 /// N Dateien (file_transfer_items). Dateien liegen in R2.
 model FileTransfer {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId     String   @map("org_id") @db.Uuid
-  senderId  String   @map("sender_id") @db.Uuid
-  message   String?  @db.Text
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String    @map("org_id") @db.Uuid
+  senderId  String    @map("sender_id") @db.Uuid
+  message   String?   @db.Text
   expiresAt DateTime? @map("expires_at") @db.Timestamptz
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   sender     User                    @relation("FileSender", fields: [senderId], references: [id], onDelete: Cascade)
   recipients FileTransferRecipient[]
@@ -3110,16 +3115,16 @@ model FileTransfer {
 }
 
 model FileTransferRecipient {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  transferId            String    @map("transfer_id") @db.Uuid
-  recipientId           String    @map("recipient_id") @db.Uuid
-  receivedAt            DateTime? @map("received_at") @db.Timestamptz
-  deletedByRecipientAt  DateTime? @map("deleted_by_recipient_at") @db.Timestamptz
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transferId           String    @map("transfer_id") @db.Uuid
+  recipientId          String    @map("recipient_id") @db.Uuid
+  receivedAt           DateTime? @map("received_at") @db.Timestamptz
+  deletedByRecipientAt DateTime? @map("deleted_by_recipient_at") @db.Timestamptz
   // Welche Items dieser Empfaenger bereits heruntergeladen hat. Cleanup
   // greift erst wenn array.length == transfer.items.length — sonst gehen
   // Bulk-Downloads kaputt weil R2-Files vorzeitig geloescht wuerden.
-  downloadedItemIds     String[]  @default([]) @map("downloaded_item_ids") @db.Uuid
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  downloadedItemIds    String[]  @default([]) @map("downloaded_item_ids") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   transfer  FileTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
   recipient User         @relation("FileRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
@@ -3214,9 +3219,9 @@ model SalesCustomerProductPrice {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  customer       SalesCustomer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  product        Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  productVariant ProductVariant?  @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  customer       SalesCustomer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product        Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@index([orgId, customerId])
@@ -3224,53 +3229,53 @@ model SalesCustomerProductPrice {
 }
 
 model SalesOrder {
-  id                      String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId                   String           @map("org_id") @db.Uuid
+  id                         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                      String           @map("org_id") @db.Uuid
   // Internal order number, auto-generated ("VK-2026-00001")
-  orderNumber             String           @map("order_number") @db.VarChar(50)
-  customerId              String           @map("customer_id") @db.Uuid
+  orderNumber                String           @map("order_number") @db.VarChar(50)
+  customerId                 String           @map("customer_id") @db.Uuid
   // Customer's own order number (from the incoming PO)
-  externalOrderNumber     String?          @map("external_order_number") @db.VarChar(100)
-  orderDate               DateTime?        @map("order_date") @db.Timestamptz
-  requiredDeliveryDate    DateTime?        @map("required_delivery_date") @db.Timestamptz
-  contactPerson           String?          @map("contact_person") @db.VarChar(255)
-  shippingAddress         Json?            @map("shipping_address") @db.JsonB
-  billingAddress          Json?            @map("billing_address") @db.JsonB
-  paymentTerms            String?          @map("payment_terms") @db.VarChar(255)
-  currency                String           @default("EUR") @db.VarChar(3)
-  totalNet                Decimal          @default(0) @map("total_net") @db.Decimal(12, 2)
-  status                  SalesOrderStatus @default(draft)
-  createdById             String           @map("created_by_id") @db.Uuid
-  assignedToId            String?          @map("assigned_to_id") @db.Uuid
+  externalOrderNumber        String?          @map("external_order_number") @db.VarChar(100)
+  orderDate                  DateTime?        @map("order_date") @db.Timestamptz
+  requiredDeliveryDate       DateTime?        @map("required_delivery_date") @db.Timestamptz
+  contactPerson              String?          @map("contact_person") @db.VarChar(255)
+  shippingAddress            Json?            @map("shipping_address") @db.JsonB
+  billingAddress             Json?            @map("billing_address") @db.JsonB
+  paymentTerms               String?          @map("payment_terms") @db.VarChar(255)
+  currency                   String           @default("EUR") @db.VarChar(3)
+  totalNet                   Decimal          @default(0) @map("total_net") @db.Decimal(12, 2)
+  status                     SalesOrderStatus @default(draft)
+  createdById                String           @map("created_by_id") @db.Uuid
+  assignedToId               String?          @map("assigned_to_id") @db.Uuid
   // Status flag timestamps — set when the user clicks the toggle-badge
-  confirmationSentAt      DateTime?        @map("confirmation_sent_at") @db.Timestamptz
-  shippedAt               DateTime?        @map("shipped_at") @db.Timestamptz
-  invoiceSentAt           DateTime?        @map("invoice_sent_at") @db.Timestamptz
-  paidAt                  DateTime?        @map("paid_at") @db.Timestamptz
+  confirmationSentAt         DateTime?        @map("confirmation_sent_at") @db.Timestamptz
+  shippedAt                  DateTime?        @map("shipped_at") @db.Timestamptz
+  invoiceSentAt              DateTime?        @map("invoice_sent_at") @db.Timestamptz
+  paidAt                     DateTime?        @map("paid_at") @db.Timestamptz
   // easybill references
-  easybillConfirmationId  String?          @map("easybill_confirmation_id") @db.VarChar(100)
-  easybillConfirmationPdfUrl String?       @map("easybill_confirmation_pdf_url") @db.Text
-  easybillInvoiceId       String?          @map("easybill_invoice_id") @db.VarChar(100)
-  easybillInvoicePdfUrl   String?          @map("easybill_invoice_pdf_url") @db.Text
-  easybillDeliveryNoteId  String?          @map("easybill_delivery_note_id") @db.VarChar(100)
-  easybillDeliveryNotePdfUrl String?       @map("easybill_delivery_note_pdf_url") @db.Text
+  easybillConfirmationId     String?          @map("easybill_confirmation_id") @db.VarChar(100)
+  easybillConfirmationPdfUrl String?          @map("easybill_confirmation_pdf_url") @db.Text
+  easybillInvoiceId          String?          @map("easybill_invoice_id") @db.VarChar(100)
+  easybillInvoicePdfUrl      String?          @map("easybill_invoice_pdf_url") @db.Text
+  easybillDeliveryNoteId     String?          @map("easybill_delivery_note_id") @db.VarChar(100)
+  easybillDeliveryNotePdfUrl String?          @map("easybill_delivery_note_pdf_url") @db.Text
   // Wann die Versandlabels (+ Lieferschein) per E-Mail an das Lager
   // verschickt wurden. Frontend zeigt darauf basierend "Labels ans Lager
   // versendet am DD.MM.YYYY" — sodass der User auf einen Blick sieht ob
   // das Lager schon Bescheid weiss.
-  labelsSentToWarehouseAt DateTime?        @map("labels_sent_to_warehouse_at") @db.Timestamptz
+  labelsSentToWarehouseAt    DateTime?        @map("labels_sent_to_warehouse_at") @db.Timestamptz
   // Versand-Info (free-form carrier + tracking numbers[])
-  shippingCarrierNote     String?          @map("shipping_carrier_note") @db.VarChar(255)
-  trackingNumbers         String[]         @default([]) @map("tracking_numbers")
+  shippingCarrierNote        String?          @map("shipping_carrier_note") @db.VarChar(255)
+  trackingNumbers            String[]         @default([]) @map("tracking_numbers")
   // Source (nullable → SalesOrderDocument of kind=original)
-  sourceDocumentId        String?          @map("source_document_id") @db.Uuid
-  extractionConfidence    Float?           @map("extraction_confidence")
-  notes                   String?          @db.Text
-  createdAt               DateTime         @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt               DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+  sourceDocumentId           String?          @map("source_document_id") @db.Uuid
+  extractionConfidence       Float?           @map("extraction_confidence")
+  notes                      String?          @db.Text
+  createdAt                  DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                  DateTime         @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  customer     SalesCustomer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer     SalesCustomer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
   lineItems    SalesOrderLineItem[]
   documents    SalesOrderDocument[]
   events       SalesOrderEvent[]
@@ -3288,30 +3293,30 @@ model SalesOrder {
 }
 
 model SalesOrderLineItem {
-  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId                  String   @map("org_id") @db.Uuid
-  orderId                String   @map("order_id") @db.Uuid
-  position               Int      @default(1)
-  title                  String   @db.VarChar(500)
-  supplierArticleNumber  String?  @map("supplier_article_number") @db.VarChar(100)
-  ean                    String?  @db.VarChar(50)
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                   String   @map("org_id") @db.Uuid
+  orderId                 String   @map("order_id") @db.Uuid
+  position                Int      @default(1)
+  title                   String   @db.VarChar(500)
+  supplierArticleNumber   String?  @map("supplier_article_number") @db.VarChar(100)
+  ean                     String?  @db.VarChar(50)
   // VKE (Einheiten pro Karton)
-  unitsPerCarton         Int?     @map("units_per_carton")
-  quantity               Int      @default(1)
-  unitPriceNet           Decimal  @default(0) @map("unit_price_net") @db.Decimal(12, 4)
-  lineNet                Decimal  @default(0) @map("line_net") @db.Decimal(12, 2)
+  unitsPerCarton          Int?     @map("units_per_carton")
+  quantity                Int      @default(1)
+  unitPriceNet            Decimal  @default(0) @map("unit_price_net") @db.Decimal(12, 4)
+  lineNet                 Decimal  @default(0) @map("line_net") @db.Decimal(12, 2)
   // Auto-matched to internal product (nullable)
-  matchedProductVariantId String? @map("matched_product_variant_id") @db.Uuid
+  matchedProductVariantId String?  @map("matched_product_variant_id") @db.Uuid
   // Teilsendung: wenn gesetzt, ist diese Position versendet (als Teil eines
   // SalesOrderShipment). NULL = noch offen. Nur EINE Sendung pro Position —
   // partielle Mengen pro Position sind aktuell nicht gefordert.
-  shipmentId             String?  @map("shipment_id") @db.Uuid
-  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
+  shipmentId              String?  @map("shipment_id") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  organization    Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  order           SalesOrder          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  matchedVariant  ProductVariant?     @relation(fields: [matchedProductVariantId], references: [id], onDelete: SetNull)
-  shipment        SalesOrderShipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  organization   Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  order          SalesOrder          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  matchedVariant ProductVariant?     @relation(fields: [matchedProductVariantId], references: [id], onDelete: SetNull)
+  shipment       SalesOrderShipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([orgId, ean])
@@ -3359,12 +3364,12 @@ model SalesOrderEvent {
 }
 
 model SalesOrderReminder {
-  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId          String            @map("org_id") @db.Uuid
-  orderId        String            @map("order_id") @db.Uuid
-  kind           SalesReminderKind
-  sentAt         DateTime          @default(now()) @map("sent_at") @db.Timestamptz
-  sentToUserIds  String[]          @default([]) @map("sent_to_user_ids")
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String            @map("org_id") @db.Uuid
+  orderId       String            @map("order_id") @db.Uuid
+  kind          SalesReminderKind
+  sentAt        DateTime          @default(now()) @map("sent_at") @db.Timestamptz
+  sentToUserIds String[]          @default([]) @map("sent_to_user_ids")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   order        SalesOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -3379,15 +3384,15 @@ model SalesOrderReminder {
 /// shipmentId sind noch offen. Order-Status 'shipped' gilt wenn ALLE Lines
 /// einem Shipment zugeordnet sind.
 model SalesOrderShipment {
-  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId           String       @map("org_id") @db.Uuid
-  orderId         String       @map("order_id") @db.Uuid
-  trackingNumbers String[]     @default([]) @map("tracking_numbers")
-  carrierNote     String?      @map("carrier_note") @db.VarChar(255)
-  shippedAt       DateTime     @default(now()) @map("shipped_at") @db.Timestamptz
-  createdById     String       @map("created_by_id") @db.Uuid
-  notes           String?      @db.Text
-  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String   @map("org_id") @db.Uuid
+  orderId         String   @map("order_id") @db.Uuid
+  trackingNumbers String[] @default([]) @map("tracking_numbers")
+  carrierNote     String?  @map("carrier_note") @db.VarChar(255)
+  shippedAt       DateTime @default(now()) @map("shipped_at") @db.Timestamptz
+  createdById     String   @map("created_by_id") @db.Uuid
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   order        SalesOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -3403,31 +3408,31 @@ model SalesOrderShipment {
 // =============================================================================
 
 model ScreenShareSession {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId               String    @map("org_id") @db.Uuid
-  hostUserId          String    @map("host_user_id") @db.Uuid
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId              String    @map("org_id") @db.Uuid
+  hostUserId         String    @map("host_user_id") @db.Uuid
   /// Name des LiveKit-Rooms (entspricht typischerweise "ss-{sessionId}")
-  livekitRoomId       String    @map("livekit_room_id") @db.VarChar(120)
+  livekitRoomId      String    @map("livekit_room_id") @db.VarChar(120)
   /// Optionaler Session-Titel den der Host beim Start angegeben hat
-  sessionName         String?   @map("session_name") @db.VarChar(255)
+  sessionName        String?   @map("session_name") @db.VarChar(255)
   /// Audio des geteilten Bildschirms / Tabs mit teilen
-  audioEnabled        Boolean   @default(false) @map("audio_enabled")
+  audioEnabled       Boolean   @default(false) @map("audio_enabled")
   /// Voice-Chat (Mikrofone der Teilnehmer) aktiviert
-  voiceEnabled        Boolean   @default(false) @map("voice_enabled")
+  voiceEnabled       Boolean   @default(false) @map("voice_enabled")
   /// Externer Gast-Link aktiv?
-  isPublic            Boolean   @default(false) @map("is_public")
+  isPublic           Boolean   @default(false) @map("is_public")
   /// 12-Zeichen Random-Token fuer /share/[token]
-  publicToken         String?   @map("public_token") @db.VarChar(40)
+  publicToken        String?   @map("public_token") @db.VarChar(40)
   /// bcrypt-Hash falls Passwort gesetzt
-  publicPasswordHash  String?   @map("public_password_hash") @db.VarChar(120)
-  publicExpiresAt     DateTime? @map("public_expires_at") @db.Timestamptz
+  publicPasswordHash String?   @map("public_password_hash") @db.VarChar(120)
+  publicExpiresAt    DateTime? @map("public_expires_at") @db.Timestamptz
   /// 'active' | 'ended'
-  status              String    @default("active") @db.VarChar(20)
-  startedAt           DateTime  @default(now()) @map("started_at") @db.Timestamptz
-  endedAt             DateTime? @map("ended_at") @db.Timestamptz
+  status             String    @default("active") @db.VarChar(20)
+  startedAt          DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  endedAt            DateTime? @map("ended_at") @db.Timestamptz
 
-  organization        Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  participants        ScreenShareParticipant[]
+  organization Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  participants ScreenShareParticipant[]
 
   @@unique([publicToken])
   @@index([orgId, status])
@@ -3436,21 +3441,21 @@ model ScreenShareSession {
 }
 
 model ScreenShareParticipant {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sessionId   String    @map("session_id") @db.Uuid
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String    @map("session_id") @db.Uuid
   /// Null wenn Gast (anonym via public token beigetreten)
-  userId      String?   @map("user_id") @db.Uuid
+  userId    String?   @map("user_id") @db.Uuid
   /// Nur bei Gaesten gesetzt — Anzeigename den der Gast eingegeben hat
-  guestName   String?   @map("guest_name") @db.VarChar(120)
+  guestName String?   @map("guest_name") @db.VarChar(120)
   /// 'host' | 'viewer'
-  role        String    @default("viewer") @db.VarChar(20)
-  invitedAt   DateTime  @default(now()) @map("invited_at") @db.Timestamptz
-  joinedAt    DateTime? @map("joined_at") @db.Timestamptz
-  leftAt      DateTime? @map("left_at") @db.Timestamptz
+  role      String    @default("viewer") @db.VarChar(20)
+  invitedAt DateTime  @default(now()) @map("invited_at") @db.Timestamptz
+  joinedAt  DateTime? @map("joined_at") @db.Timestamptz
+  leftAt    DateTime? @map("left_at") @db.Timestamptz
   /// 'invited' | 'joined' | 'declined' | 'left'
-  status      String    @default("invited") @db.VarChar(20)
+  status    String    @default("invited") @db.VarChar(20)
 
-  session     ScreenShareSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session ScreenShareSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([userId])
@@ -3467,79 +3472,79 @@ model ScreenShareParticipant {
 /// CPM, conversion rate, AOV, profit margin) werden im Service berechnet —
 /// nicht in der DB — damit wir sie auch in Filtern/Aggregations nutzen koennen.
 model InfluencerPerformanceEntry {
-  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId                  String   @map("org_id") @db.Uuid
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId String @map("org_id") @db.Uuid
 
   /// Optional Link zur Discovery-Datenbank (InfluencerProfile)
-  influencerProfileId    String?  @map("influencer_profile_id") @db.Uuid
+  influencerProfileId String? @map("influencer_profile_id") @db.Uuid
 
   // BASIC
-  influencerName         String   @map("influencer_name") @db.VarChar(255)
-  platform               String   @db.VarChar(50)
-  category               String?  @db.VarChar(120)
-  managerContact         String?  @map("manager_contact") @db.VarChar(255)
-  profileUrl             String?  @map("profile_url") @db.Text
-  followerCount          Int?     @map("follower_count")
-  engagementRate         Decimal? @map("engagement_rate") @db.Decimal(7, 3)
-  storyViews             Int?     @map("story_views")
-  avgViews               Int?     @map("avg_views")
-  country                String?  @db.VarChar(80)
-  language               String?  @db.VarChar(50)
+  influencerName String   @map("influencer_name") @db.VarChar(255)
+  platform       String   @db.VarChar(50)
+  category       String?  @db.VarChar(120)
+  managerContact String?  @map("manager_contact") @db.VarChar(255)
+  profileUrl     String?  @map("profile_url") @db.Text
+  followerCount  Int?     @map("follower_count")
+  engagementRate Decimal? @map("engagement_rate") @db.Decimal(7, 3)
+  storyViews     Int?     @map("story_views")
+  avgViews       Int?     @map("avg_views")
+  country        String?  @db.VarChar(80)
+  language       String?  @db.VarChar(50)
 
   // KAMPAGNE
-  campaignName           String?  @map("campaign_name") @db.VarChar(255)
-  postedAt               DateTime? @map("posted_at") @db.Timestamptz
-  storyAt                DateTime? @map("story_at") @db.Timestamptz
-  productName            String?  @map("product_name") @db.VarChar(255)
-  discountCode           String?  @map("discount_code") @db.VarChar(80)
-  discountPct            Decimal? @map("discount_pct") @db.Decimal(5, 2)
-  landingPageUrl         String?  @map("landing_page_url") @db.Text
-  affiliateLink          String?  @map("affiliate_link") @db.Text
+  campaignName   String?   @map("campaign_name") @db.VarChar(255)
+  postedAt       DateTime? @map("posted_at") @db.Timestamptz
+  storyAt        DateTime? @map("story_at") @db.Timestamptz
+  productName    String?   @map("product_name") @db.VarChar(255)
+  discountCode   String?   @map("discount_code") @db.VarChar(80)
+  discountPct    Decimal?  @map("discount_pct") @db.Decimal(5, 2)
+  landingPageUrl String?   @map("landing_page_url") @db.Text
+  affiliateLink  String?   @map("affiliate_link") @db.Text
   /// 'planned' | 'contacted' | 'negotiating' | 'booked' | 'posted' | 'completed' | 'cancelled' | 'blacklisted'
-  status                 String   @default("planned") @db.VarChar(30)
+  status         String    @default("planned") @db.VarChar(30)
 
   // KOSTEN
-  influencerFee          Decimal  @default(0) @map("influencer_fee") @db.Decimal(12, 2)
-  productCost            Decimal  @default(0) @map("product_cost") @db.Decimal(12, 2)
-  shippingCost           Decimal  @default(0) @map("shipping_cost") @db.Decimal(12, 2)
-  cogs                   Decimal  @default(0) @db.Decimal(12, 2)
-  extraCost              Decimal  @default(0) @map("extra_cost") @db.Decimal(12, 2)
+  influencerFee Decimal @default(0) @map("influencer_fee") @db.Decimal(12, 2)
+  productCost   Decimal @default(0) @map("product_cost") @db.Decimal(12, 2)
+  shippingCost  Decimal @default(0) @map("shipping_cost") @db.Decimal(12, 2)
+  cogs          Decimal @default(0) @db.Decimal(12, 2)
+  extraCost     Decimal @default(0) @map("extra_cost") @db.Decimal(12, 2)
 
   // PERFORMANCE
-  revenue                Decimal  @default(0) @db.Decimal(12, 2)
-  orders                 Int      @default(0)
-  clicks                 Int      @default(0)
-  views                  Int      @default(0)
-  profitMarginOverride   Decimal? @map("profit_margin_override") @db.Decimal(5, 2)
+  revenue              Decimal  @default(0) @db.Decimal(12, 2)
+  orders               Int      @default(0)
+  clicks               Int      @default(0)
+  views                Int      @default(0)
+  profitMarginOverride Decimal? @map("profit_margin_override") @db.Decimal(5, 2)
 
   // TRACKING
-  trackingLink           String?  @map("tracking_link") @db.Text
-  utmSource              String?  @map("utm_source") @db.VarChar(120)
-  utmCampaign            String?  @map("utm_campaign") @db.VarChar(120)
-  trackingStatus         String?  @map("tracking_status") @db.VarChar(30)
-  attributionConfirmed   Boolean  @default(false) @map("attribution_confirmed")
+  trackingLink         String? @map("tracking_link") @db.Text
+  utmSource            String? @map("utm_source") @db.VarChar(120)
+  utmCampaign          String? @map("utm_campaign") @db.VarChar(120)
+  trackingStatus       String? @map("tracking_status") @db.VarChar(30)
+  attributionConfirmed Boolean @default(false) @map("attribution_confirmed")
 
   // CONTENT-ANALYSE
-  hookWorked             Boolean? @map("hook_worked")
-  ctaQuality             Int?     @map("cta_quality") @db.SmallInt
-  videoQuality           Int?     @map("video_quality") @db.SmallInt
-  brandingScore          Int?     @map("branding_score") @db.SmallInt
-  performanceRating      Int?     @map("performance_rating") @db.SmallInt
-  bookable               Boolean?
+  hookWorked        Boolean? @map("hook_worked")
+  ctaQuality        Int?     @map("cta_quality") @db.SmallInt
+  videoQuality      Int?     @map("video_quality") @db.SmallInt
+  brandingScore     Int?     @map("branding_score") @db.SmallInt
+  performanceRating Int?     @map("performance_rating") @db.SmallInt
+  bookable          Boolean?
 
   // NOTIZEN
-  learnings              String?  @db.Text
-  whatWorked             String?  @map("what_worked") @db.Text
-  whatDidntWork          String?  @map("what_didnt_work") @db.Text
-  improvementIdeas       String?  @map("improvement_ideas") @db.Text
+  learnings        String? @db.Text
+  whatWorked       String? @map("what_worked") @db.Text
+  whatDidntWork    String? @map("what_didnt_work") @db.Text
+  improvementIdeas String? @map("improvement_ideas") @db.Text
 
   // FLAGS
-  whitelist              Boolean  @default(false)
-  blacklist              Boolean  @default(false)
+  whitelist Boolean @default(false)
+  blacklist Boolean @default(false)
 
-  createdById            String   @map("created_by_id") @db.Uuid
-  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -3563,70 +3568,70 @@ model InfluencerPerformanceEntry {
 // Jeder Schritt erzeugt einen InvoiceEvent für die Audit-Historie.
 
 model Invoice {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId             String   @map("org_id") @db.Uuid
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId String @map("org_id") @db.Uuid
 
   // Lieferant (Supplier) — alle Felder optional, OCR füllt nach
-  supplierName      String?  @map("supplier_name") @db.VarChar(255)
-  supplierAddress   String?  @map("supplier_address") @db.Text
-  supplierEmail     String?  @map("supplier_email") @db.VarChar(255)
-  supplierPhone     String?  @map("supplier_phone") @db.VarChar(64)
-  supplierWebsite   String?  @map("supplier_website") @db.VarChar(255)
-  supplierVatId     String?  @map("supplier_vat_id") @db.VarChar(64)
+  supplierName    String? @map("supplier_name") @db.VarChar(255)
+  supplierAddress String? @map("supplier_address") @db.Text
+  supplierEmail   String? @map("supplier_email") @db.VarChar(255)
+  supplierPhone   String? @map("supplier_phone") @db.VarChar(64)
+  supplierWebsite String? @map("supplier_website") @db.VarChar(255)
+  supplierVatId   String? @map("supplier_vat_id") @db.VarChar(64)
 
   // Rechnungs-Header
-  invoiceNumber     String?  @map("invoice_number") @db.VarChar(128)
-  invoiceDate       DateTime? @map("invoice_date") @db.Date
-  serviceDate       DateTime? @map("service_date") @db.Date
-  dueDate           DateTime? @map("due_date") @db.Date
-  paymentTerms      String?  @map("payment_terms") @db.VarChar(255)
-  currency          String   @default("EUR") @db.VarChar(3)
+  invoiceNumber String?   @map("invoice_number") @db.VarChar(128)
+  invoiceDate   DateTime? @map("invoice_date") @db.Date
+  serviceDate   DateTime? @map("service_date") @db.Date
+  dueDate       DateTime? @map("due_date") @db.Date
+  paymentTerms  String?   @map("payment_terms") @db.VarChar(255)
+  currency      String    @default("EUR") @db.VarChar(3)
 
   // Beträge
-  netAmount         Decimal? @map("net_amount") @db.Decimal(12, 2)
-  vatAmount         Decimal? @map("vat_amount") @db.Decimal(12, 2)
-  grossAmount       Decimal? @map("gross_amount") @db.Decimal(12, 2)
-  taxRate           Decimal? @map("tax_rate") @db.Decimal(5, 2)
-  discountAmount    Decimal? @map("discount_amount") @db.Decimal(12, 2)
+  netAmount      Decimal? @map("net_amount") @db.Decimal(12, 2)
+  vatAmount      Decimal? @map("vat_amount") @db.Decimal(12, 2)
+  grossAmount    Decimal? @map("gross_amount") @db.Decimal(12, 2)
+  taxRate        Decimal? @map("tax_rate") @db.Decimal(5, 2)
+  discountAmount Decimal? @map("discount_amount") @db.Decimal(12, 2)
 
   // Zahlungs-Informationen
-  iban              String?  @db.VarChar(64)
-  bic               String?  @db.VarChar(32)
-  bankName          String?  @map("bank_name") @db.VarChar(255)
-  paymentReference  String?  @map("payment_reference") @db.VarChar(255)
+  iban             String? @db.VarChar(64)
+  bic              String? @db.VarChar(32)
+  bankName         String? @map("bank_name") @db.VarChar(255)
+  paymentReference String? @map("payment_reference") @db.VarChar(255)
 
   // Kategorisierung — als String damit User später custom Kategorien anlegen können
-  category          String   @default("other") @db.VarChar(64)
+  category String @default("other") @db.VarChar(64)
 
   // Status + Zahlungs-Workflow
-  status            String   @default("open") @db.VarChar(32)
-  paidAt            DateTime? @map("paid_at") @db.Timestamptz
-  paidById          String?  @map("paid_by_id") @db.Uuid
-  paymentProofPath  String?  @map("payment_proof_path") @db.Text
+  status           String    @default("open") @db.VarChar(32)
+  paidAt           DateTime? @map("paid_at") @db.Timestamptz
+  paidById         String?   @map("paid_by_id") @db.Uuid
+  paymentProofPath String?   @map("payment_proof_path") @db.Text
 
   // Dokument (R2-Storage)
-  fileName          String   @map("file_name") @db.VarChar(255)
-  fileMime          String   @map("file_mime") @db.VarChar(128)
-  fileSize          Int      @map("file_size")
-  storagePath       String   @map("storage_path") @db.Text
-  storageUrl        String?  @map("storage_url") @db.Text
+  fileName    String  @map("file_name") @db.VarChar(255)
+  fileMime    String  @map("file_mime") @db.VarChar(128)
+  fileSize    Int     @map("file_size")
+  storagePath String  @map("storage_path") @db.Text
+  storageUrl  String? @map("storage_url") @db.Text
 
   // OCR / Vision-Extraktion
-  ocrStatus         String   @default("pending") @map("ocr_status") @db.VarChar(32)
-  ocrRawText        String?  @map("ocr_raw_text") @db.Text
-  ocrConfidence     Float?   @map("ocr_confidence")
-  ocrError          String?  @map("ocr_error") @db.Text
-  reviewed          Boolean  @default(false)
+  ocrStatus     String  @default("pending") @map("ocr_status") @db.VarChar(32)
+  ocrRawText    String? @map("ocr_raw_text") @db.Text
+  ocrConfidence Float?  @map("ocr_confidence")
+  ocrError      String? @map("ocr_error") @db.Text
+  reviewed      Boolean @default(false)
 
   // Sonstiges
-  notes             String?  @db.Text
-  uploadedById      String?  @map("uploaded_by_id") @db.Uuid
-  archived          Boolean  @default(false)
+  notes        String? @db.Text
+  uploadedById String? @map("uploaded_by_id") @db.Uuid
+  archived     Boolean @default(false)
 
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  events            InvoiceEvent[]
+  events InvoiceEvent[]
 
   @@index([orgId])
   @@index([orgId, status])
@@ -3649,7 +3654,7 @@ model InvoiceEvent {
   metadata  Json?    @db.JsonB
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId, createdAt(sort: Desc)])
   @@index([orgId, createdAt(sort: Desc)])
@@ -3657,19 +3662,19 @@ model InvoiceEvent {
 }
 
 model InvoiceSettings {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId               String   @unique @map("org_id") @db.Uuid
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId              String   @unique @map("org_id") @db.Uuid
   // Tage vor Fälligkeit für Erinnerungen — z.B. [7, 3, 0] = 7d/3d/Tag-X
-  reminderDaysBefore  Int[]    @default([7, 3, 0]) @map("reminder_days_before")
+  reminderDaysBefore Int[]    @default([7, 3, 0]) @map("reminder_days_before")
   // Empfänger der Erinnerungs-Mails (zusätzlich zum Uploader)
-  reminderRecipients  String[] @default([]) @map("reminder_recipients")
-  defaultCategory     String   @default("other") @map("default_category") @db.VarChar(64)
+  reminderRecipients String[] @default([]) @map("reminder_recipients")
+  defaultCategory    String   @default("other") @map("default_category") @db.VarChar(64)
   // Aufbewahrungsfrist in Monaten (DE GoBD: 120 = 10 Jahre)
-  retentionMonths     Int      @default(120) @map("retention_months")
+  retentionMonths    Int      @default(120) @map("retention_months")
   // Custom Kategorien (zusätzlich zu den Standard-Werten)
-  customCategories    String[] @default([]) @map("custom_categories")
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  customCategories   String[] @default([]) @map("custom_categories")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("invoice_settings")
 }
@@ -3690,51 +3695,51 @@ model InvoiceSettings {
 // Bilder gelten auf Retouren-Ebene (Gesamtfotos, nicht pro Position).
 
 model Return {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId           String   @map("org_id") @db.Uuid
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId String @map("org_id") @db.Uuid
 
   // Plattform: 'tiktok' | 'shopify'
-  platform        String   @db.VarChar(32)
+  platform String @db.VarChar(32)
 
   // Bestellung
-  orderNumber     String   @map("order_number") @db.VarChar(128)
-  requestDate     DateTime @map("request_date") @db.Date
+  orderNumber String   @map("order_number") @db.VarChar(128)
+  requestDate DateTime @map("request_date") @db.Date
 
   // Kunde
-  customerName    String?  @map("customer_name") @db.VarChar(255)
-  customerEmail   String?  @map("customer_email") @db.VarChar(255)
+  customerName  String? @map("customer_name") @db.VarChar(255)
+  customerEmail String? @map("customer_email") @db.VarChar(255)
 
   // Optional: Tracking der Retoure-Sendung (vom Kunden zu uns)
-  trackingNumber  String?  @map("tracking_number") @db.VarChar(128)
+  trackingNumber String? @map("tracking_number") @db.VarChar(128)
 
   // Workflow
-  status          String   @default("open") @db.VarChar(32)
+  status String @default("open") @db.VarChar(32)
   // open | in_review | accepted | rejected | refunded
 
   // Ablehnung
-  rejectionReason String?  @map("rejection_reason") @db.VarChar(64)
+  rejectionReason String? @map("rejection_reason") @db.VarChar(64)
   // used | customer_damaged | incomplete | wrong_product | other
-  rejectionNote   String?  @map("rejection_note") @db.Text
+  rejectionNote   String? @map("rejection_note") @db.Text
 
   // Erstattung (optional)
-  refundAmount    Decimal? @map("refund_amount") @db.Decimal(12, 2)
-  refundDate      DateTime? @map("refund_date") @db.Date
+  refundAmount Decimal?  @map("refund_amount") @db.Decimal(12, 2)
+  refundDate   DateTime? @map("refund_date") @db.Date
 
   // Sonstiges
-  damaged         Boolean  @default(false)
-  notes           String?  @db.Text
+  damaged Boolean @default(false)
+  notes   String? @db.Text
 
   // Audit
-  createdById     String?  @map("created_by_id") @db.Uuid
-  decidedById     String?  @map("decided_by_id") @db.Uuid
-  decidedAt       DateTime? @map("decided_at") @db.Timestamptz
+  createdById String?   @map("created_by_id") @db.Uuid
+  decidedById String?   @map("decided_by_id") @db.Uuid
+  decidedAt   DateTime? @map("decided_at") @db.Timestamptz
 
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  items           ReturnItem[]
-  images          ReturnImage[]
-  events          ReturnEvent[]
+  items  ReturnItem[]
+  images ReturnImage[]
+  events ReturnEvent[]
 
   @@index([orgId])
   @@index([orgId, platform, status])
@@ -3746,37 +3751,37 @@ model Return {
 }
 
 model ReturnItem {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  returnId        String   @map("return_id") @db.Uuid
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  returnId String @map("return_id") @db.Uuid
 
   // Produkt: entweder FK auf Katalog (productId) ODER freier Text — exklusiv
-  productId       String?  @map("product_id") @db.Uuid
-  productFreetext String?  @map("product_freetext") @db.VarChar(255)
-  quantity        Int      @default(1)
-  notes           String?  @db.Text
+  productId       String? @map("product_id") @db.Uuid
+  productFreetext String? @map("product_freetext") @db.VarChar(255)
+  quantity        Int     @default(1)
+  notes           String? @db.Text
 
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  return          Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
 
   @@index([returnId])
   @@map("return_items")
 }
 
 model ReturnImage {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  returnId        String   @map("return_id") @db.Uuid
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  returnId String @map("return_id") @db.Uuid
 
-  fileName        String   @map("file_name") @db.VarChar(255)
-  fileMime        String   @map("file_mime") @db.VarChar(128)
-  fileSize        Int      @map("file_size")
-  storagePath     String   @map("storage_path") @db.Text
-  storageUrl      String?  @map("storage_url") @db.Text
+  fileName    String  @map("file_name") @db.VarChar(255)
+  fileMime    String  @map("file_mime") @db.VarChar(128)
+  fileSize    Int     @map("file_size")
+  storagePath String  @map("storage_path") @db.Text
+  storageUrl  String? @map("storage_url") @db.Text
 
-  uploadedById    String?  @map("uploaded_by_id") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  uploadedById String?  @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  return          Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
 
   @@index([returnId, createdAt])
   @@map("return_images")
@@ -3794,7 +3799,7 @@ model ReturnEvent {
   metadata  Json?    @db.JsonB
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  return    Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
 
   @@index([returnId, createdAt(sort: Desc)])
   @@index([orgId, createdAt(sort: Desc)])
@@ -3825,7 +3830,7 @@ model NfcBatch {
   notes       String?  @db.Text
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  bands       NfcBand[]
+  bands NfcBand[]
 
   @@index([orgId])
   @@index([orgId, createdAt(sort: Desc)])
@@ -3833,15 +3838,15 @@ model NfcBatch {
 }
 
 model NfcBand {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId       String    @map("org_id") @db.Uuid
-  batchId     String    @map("batch_id") @db.Uuid
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId   String @map("org_id") @db.Uuid
+  batchId String @map("batch_id") @db.Uuid
 
   // 6-stelliger Code (a-z, 2-9 ohne O/0, I/1, l) — global eindeutig
-  code        String    @unique @db.VarChar(32)
+  code String @unique @db.VarChar(32)
 
   // inactive (frisch) | active (aktiviert) | deleted (Daten geloescht, Band weiter scanbar)
-  status      String    @default("inactive") @db.VarChar(32)
+  status String @default("inactive") @db.VarChar(32)
 
   activatedAt DateTime? @map("activated_at") @db.Timestamptz
   lastScanAt  DateTime? @map("last_scan_at") @db.Timestamptz
@@ -3849,15 +3854,15 @@ model NfcBand {
 
   // Pre-Aktivierung: Band einem Kaeufer zugewiesen (per E-Mail)
   // → Hub kann Bulk-Mail mit Aktivierungs-URLs versenden
-  assignedEmail   String?   @map("assigned_email") @db.VarChar(320)
-  assignedAt      DateTime? @map("assigned_at") @db.Timestamptz
-  assignmentNote  String?   @map("assignment_note") @db.VarChar(255)
+  assignedEmail  String?   @map("assigned_email") @db.VarChar(320)
+  assignedAt     DateTime? @map("assigned_at") @db.Timestamptz
+  assignmentNote String?   @map("assignment_note") @db.VarChar(255)
 
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  batch       NfcBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  activation  NfcActivation?
+  batch      NfcBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  activation NfcActivation?
 
   @@index([orgId])
   @@index([orgId, status])
@@ -3869,32 +3874,32 @@ model NfcBand {
 }
 
 model NfcActivation {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bandId    String   @unique @map("band_id") @db.Uuid
-  orgId     String   @map("org_id") @db.Uuid
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bandId String @unique @map("band_id") @db.Uuid
+  orgId  String @map("org_id") @db.Uuid
 
   // Kunden-Daten — ALLE optional, Kunde fuellt was er will
-  firstName String?  @map("first_name") @db.VarChar(120)
-  lastName  String?  @map("last_name") @db.VarChar(120)
-  childName String?  @map("child_name") @db.VarChar(120)
-  phone     String?  @db.VarChar(64)
-  phone2    String?  @db.VarChar(64)
-  notes     String?  @db.Text
-  street    String?  @db.VarChar(255)
-  zip       String?  @db.VarChar(32)
-  city      String?  @db.VarChar(120)
+  firstName String? @map("first_name") @db.VarChar(120)
+  lastName  String? @map("last_name") @db.VarChar(120)
+  childName String? @map("child_name") @db.VarChar(120)
+  phone     String? @db.VarChar(64)
+  phone2    String? @db.VarChar(64)
+  notes     String? @db.Text
+  street    String? @db.VarChar(255)
+  zip       String? @db.VarChar(32)
+  city      String? @db.VarChar(120)
 
   // Optional — fuer Notifications oder spaetere PIN-Reset-Funktion
-  email     String?  @db.VarChar(320)
+  email String? @db.VarChar(320)
 
   // PIN-basiertes Edit-System:
   // Wenn Kunde bei Aktivierung eine PIN vergibt (optional), kann er sich
   // spaeter unter /[code]/edit mit Code+PIN einloggen und Daten aendern/loeschen.
   // Bcrypt-Hash; Rate-Limiting via failedAttempts + lockedUntil.
-  editPinHash       String?   @map("edit_pin_hash") @db.VarChar(120)
-  editPinSetAt      DateTime? @map("edit_pin_set_at") @db.Timestamptz
-  editPinFailedAttempts Int   @default(0) @map("edit_pin_failed_attempts")
-  editPinLockedUntil DateTime? @map("edit_pin_locked_until") @db.Timestamptz
+  editPinHash           String?   @map("edit_pin_hash") @db.VarChar(120)
+  editPinSetAt          DateTime? @map("edit_pin_set_at") @db.Timestamptz
+  editPinFailedAttempts Int       @default(0) @map("edit_pin_failed_attempts")
+  editPinLockedUntil    DateTime? @map("edit_pin_locked_until") @db.Timestamptz
 
   // Magic-Link-Reset bei vergessener PIN — wird per E-Mail an die hinterlegte
   // Adresse versendet, 15 min gueltig, ein-Mal-verwendbar
@@ -3902,11 +3907,11 @@ model NfcActivation {
   pinResetTokenExpiresAt DateTime? @map("pin_reset_token_expires_at") @db.Timestamptz
 
   // Consent (DSGVO)
-  consentGivenAt    DateTime @map("consent_given_at") @db.Timestamptz
-  consentVersion    String?  @map("consent_version") @db.VarChar(32)
+  consentGivenAt DateTime @map("consent_given_at") @db.Timestamptz
+  consentVersion String?  @map("consent_version") @db.VarChar(32)
   // IP+UA bei Aktivierung — DSGVO-Audit + Schutz vor Missbrauch
-  activationIp      String?  @map("activation_ip") @db.VarChar(64)
-  activationUa      String?  @map("activation_ua") @db.Text
+  activationIp   String?  @map("activation_ip") @db.VarChar(64)
+  activationUa   String?  @map("activation_ua") @db.Text
 
   // Auto-Cleanup: bei 24 Monaten ohne Edit → Reminder, 30 Tage spaeter Loeschung
   inactivityReminderSentAt DateTime? @map("inactivity_reminder_sent_at") @db.Timestamptz
@@ -3914,7 +3919,7 @@ model NfcActivation {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  band      NfcBand  @relation(fields: [bandId], references: [id], onDelete: Cascade)
+  band NfcBand @relation(fields: [bandId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
   @@index([orgId, createdAt(sort: Desc)])
@@ -3929,7 +3934,7 @@ model NfcAuditLog {
   // batch_created, band_activated, public_scan, customer_view, customer_edit,
   // customer_delete, edit_link_sent, edit_link_used, auto_reminder, auto_delete
   type      String   @db.VarChar(64)
-  actorId   String?  @map("actor_id") @db.Uuid     // null = public/anonymous
+  actorId   String?  @map("actor_id") @db.Uuid // null = public/anonymous
   ipAddress String?  @map("ip_address") @db.VarChar(64)
   userAgent String?  @map("user_agent") @db.Text
   metadata  Json?    @db.JsonB
@@ -3965,27 +3970,27 @@ model PasswordCategory {
 }
 
 model PasswordEntry {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId                String    @map("org_id") @db.Uuid
-  categoryId           String?   @map("category_id") @db.Uuid
-  title                String    @db.VarChar(200)
-  url                  String?   @db.Text
-  username             String?   @db.VarChar(320)
-  passwordEncrypted    Json      @map("password_encrypted") @db.JsonB
-  notesEncrypted       Json?     @map("notes_encrypted") @db.JsonB
-  totpSeedEncrypted    Json?     @map("totp_seed_encrypted") @db.JsonB
-  faviconUrl           String?   @map("favicon_url") @db.Text
-  passwordStrength     Int?      @map("password_strength")
-  passwordUpdatedAt    DateTime  @default(now()) @map("password_updated_at") @db.Timestamptz
-  rotationReminderAt   DateTime? @map("rotation_reminder_at") @db.Timestamptz
-  lastUsedAt           DateTime? @map("last_used_at") @db.Timestamptz
-  createdById          String    @map("created_by_id") @db.Uuid
-  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId              String    @map("org_id") @db.Uuid
+  categoryId         String?   @map("category_id") @db.Uuid
+  title              String    @db.VarChar(200)
+  url                String?   @db.Text
+  username           String?   @db.VarChar(320)
+  passwordEncrypted  Json      @map("password_encrypted") @db.JsonB
+  notesEncrypted     Json?     @map("notes_encrypted") @db.JsonB
+  totpSeedEncrypted  Json?     @map("totp_seed_encrypted") @db.JsonB
+  faviconUrl         String?   @map("favicon_url") @db.Text
+  passwordStrength   Int?      @map("password_strength")
+  passwordUpdatedAt  DateTime  @default(now()) @map("password_updated_at") @db.Timestamptz
+  rotationReminderAt DateTime? @map("rotation_reminder_at") @db.Timestamptz
+  lastUsedAt         DateTime? @map("last_used_at") @db.Timestamptz
+  createdById        String    @map("created_by_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  category     PasswordCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  createdBy    User               @relation("PasswordEntryCreator", fields: [createdById], references: [id])
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  category     PasswordCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy    User                 @relation("PasswordEntryCreator", fields: [createdById], references: [id])
   access       PasswordAccess[]
   auditLogs    PasswordAuditLog[]
   attachments  PasswordAttachment[]
@@ -3997,12 +4002,12 @@ model PasswordEntry {
 }
 
 model PasswordAccess {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entryId      String   @map("entry_id") @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  permission   String   @default("view") @db.VarChar(20)
-  grantedAt    DateTime @default(now()) @map("granted_at") @db.Timestamptz
-  grantedById  String?  @map("granted_by_id") @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId     String   @map("entry_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  permission  String   @default("view") @db.VarChar(20)
+  grantedAt   DateTime @default(now()) @map("granted_at") @db.Timestamptz
+  grantedById String?  @map("granted_by_id") @db.Uuid
 
   entry     PasswordEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
   user      User          @relation("PasswordAccessee", fields: [userId], references: [id], onDelete: Cascade)
@@ -4024,9 +4029,9 @@ model PasswordAuditLog {
   userAgent String?  @map("user_agent") @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  entry        PasswordEntry?  @relation(fields: [entryId], references: [id], onDelete: SetNull)
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  entry        PasswordEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([orgId, createdAt(sort: Desc)])
   @@index([entryId])
@@ -4035,18 +4040,104 @@ model PasswordAuditLog {
 }
 
 model PasswordAttachment {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entryId        String   @map("entry_id") @db.Uuid
-  name           String   @db.VarChar(255)
-  storageKey     String   @map("storage_key") @db.Text
-  sizeBytes      BigInt   @map("size_bytes")
-  contentType    String   @map("content_type") @db.VarChar(120)
-  uploadedById   String   @map("uploaded_by_id") @db.Uuid
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId      String   @map("entry_id") @db.Uuid
+  name         String   @db.VarChar(255)
+  storageKey   String   @map("storage_key") @db.Text
+  sizeBytes    BigInt   @map("size_bytes")
+  contentType  String   @map("content_type") @db.VarChar(120)
+  uploadedById String   @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   entry      PasswordEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
   uploadedBy User          @relation("PasswordAttachmentUploader", fields: [uploadedById], references: [id])
 
   @@index([entryId])
   @@map("password_attachments")
+}
+
+// =============================================================================
+// GEWINNANALYSE / PROFIT ANALYSIS — Phase 1 Fundament
+// =============================================================================
+
+enum PaMonthStatus {
+  open
+  closed
+  locked
+
+  @@map("pa_month_status")
+}
+
+/// Monats-Container fuer die Gewinnanalyse. Wird lazy erstellt.
+/// status:
+///   open   — bearbeitbar
+///   closed — abgeschlossen, nur Admin/Owner koennen wieder oeffnen
+///   locked — gesperrt, nur Owner kann entsperren (Master-Prompt §42)
+model PaMonth {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String        @map("org_id") @db.Uuid
+  year       Int
+  month      Int
+  status     PaMonthStatus @default(open)
+  closedAt   DateTime?     @map("closed_at") @db.Timestamptz
+  closedById String?       @map("closed_by_id") @db.Uuid
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  closedBy     User?        @relation("PaMonthCloser", fields: [closedById], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, year, month])
+  @@index([orgId])
+  @@index([orgId, status])
+  @@map("pa_month")
+}
+
+/// Historisierte Einstellungen (Gebuehren, Versandpreis, USt-Saetze, Ziele).
+///
+/// Wichtig fuer historische Nachvollziehbarkeit: eine Aenderung heute darf einen
+/// abgeschlossenen Monat NIE veraendern. Deshalb wird nicht "der aktuelle Wert"
+/// gespeichert sondern eine Periode mit effective_from und effective_to.
+///
+/// Lookup-Regel:
+///   Wert gueltig am Datum X = MAX(effective_from) WHERE
+///     effective_from <= X AND (effective_to IS NULL OR effective_to >= X)
+model PaSettingHistory {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String    @map("org_id") @db.Uuid
+  key           String    @db.VarChar(60)
+  value         Decimal   @db.Decimal(12, 4)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  note          String?   @db.VarChar(500)
+  createdById   String?   @map("created_by_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("PaSettingHistoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, key, effectiveFrom])
+  @@index([orgId, key, effectiveFrom(sort: Desc)], map: "idx_pa_settings_lookup")
+  @@map("pa_setting_history")
+}
+
+/// Zielwerte (Marge, ROAS, Umsatz, Gewinn). NICHT historisiert — Ziele sind
+/// keine Rechenwerte sondern Steuerungsgroessen.
+///
+/// year/month = NULL heisst "org-globaler Default fuer alle Monate ohne
+/// eigenen Wert". Ein spezifischer (year, month) ueberschreibt den Default.
+model PaTarget {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  key       String   @db.VarChar(60)
+  value     Decimal  @db.Decimal(12, 4)
+  year      Int?
+  month     Int?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, key])
+  @@map("pa_target")
 }

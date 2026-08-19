@@ -374,6 +374,24 @@ const NAV_ITEMS: NavItem[] = [
     permissionKey: 'passwords',
     accent: 'text-accent-work',
   },
+  {
+    // Gewinnanalyse — internes Controlling / Profitability-Modul (Phase 1: Skelett + Settings)
+    labelKey: 'nav.profitAnalysis',
+    href: '/profit-analysis',
+    icon: TrendingUp,
+    permissionKey: 'profit-analysis',
+    accent: 'text-amber-500',
+    children: [
+      { labelKey: 'nav.paOverview',     href: '/profit-analysis',                icon: BarChart3 },
+      { labelKey: 'nav.paMonth',        href: '/profit-analysis/monat',          icon: Calculator },
+      { labelKey: 'nav.paProductCosts', href: '/profit-analysis/produktkosten',  icon: Package },
+      { labelKey: 'nav.paWholesale',    href: '/profit-analysis/grosshandel',    icon: Boxes },
+      { labelKey: 'nav.paOverhead',     href: '/profit-analysis/gemeinkosten',   icon: Receipt },
+      { labelKey: 'nav.paCompare',      href: '/profit-analysis/vergleiche',     icon: BarChart2 },
+      { labelKey: 'nav.paSettings',     href: '/profit-analysis/einstellungen',  icon: Sliders },
+      { labelKey: 'nav.paAudit',        href: '/profit-analysis/audit',          icon: FileText },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------

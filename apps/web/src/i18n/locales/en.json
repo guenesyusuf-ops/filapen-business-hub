@@ -128,7 +128,16 @@
     "screenShare": "Screen Share",
     "filapenSend": "Filapen Send",
     "passwords": "Password Manager",
-    "performanceTracking": "Performance Tracking"
+    "performanceTracking": "Performance Tracking",
+    "profitAnalysis": "Profit Analysis",
+    "paOverview": "Overview",
+    "paMonth": "Month",
+    "paProductCosts": "Product Costs",
+    "paWholesale": "Wholesale",
+    "paOverhead": "Overhead",
+    "paCompare": "Compare",
+    "paSettings": "Settings",
+    "paAudit": "Audit Log"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",

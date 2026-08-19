@@ -128,7 +128,16 @@
     "screenShare": "Bildschirm teilen",
     "filapenSend": "Filapen Send",
     "passwords": "Passwort-Manager",
-    "performanceTracking": "Performance Tracking"
+    "performanceTracking": "Performance Tracking",
+    "profitAnalysis": "Gewinnanalyse",
+    "paOverview": "Übersicht",
+    "paMonth": "Monat",
+    "paProductCosts": "Produktkosten",
+    "paWholesale": "Großhandel",
+    "paOverhead": "Gemeinkosten",
+    "paCompare": "Vergleiche",
+    "paSettings": "Einstellungen",
+    "paAudit": "Audit Log"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",
