@@ -23,6 +23,16 @@ export const MENU_PERMISSIONS = [
   { key: 'send', label: 'Filapen Send', description: 'Dateien und Ordner an Team-Mitglieder senden (LocalSend-Style)' },
   { key: 'passwords', label: 'Passwort-Manager', description: 'Zentrale Zugangsdaten (AES-256-GCM verschluesselt). Nutzer sehen nur ihre eigenen + explizit freigegebene Eintraege — Owner/Admin sehen alle.' },
   { key: 'profit-analysis', label: 'Gewinnanalyse', description: 'Internes Controlling: Tages- und Monatsauswertung von Umsatz, Kosten, Profit, Marge, ROAS je Verkaufskanal + Grosshandel + Gemeinkosten. Historisierte Gebuehren und Produktkosten.' },
+  { key: 'profit-analysis.edit-daily',         label: 'Gewinnanalyse: Tageswerte bearbeiten', description: 'Umsatz/Werbung/Versand/Produktverkaeufe pro Tag eintragen.' },
+  { key: 'profit-analysis.edit-product-costs', label: 'Gewinnanalyse: Produktkosten pflegen', description: 'Produktkosten + Amazon-Fulfillment historisiert setzen.' },
+  { key: 'profit-analysis.edit-wholesale',     label: 'Gewinnanalyse: Grosshandel bearbeiten', description: 'B2B-Auftraege anlegen und aendern.' },
+  { key: 'profit-analysis.edit-overhead',      label: 'Gewinnanalyse: Gemeinkosten bearbeiten', description: 'Monatliche Fixkosten + Vorlagen verwalten.' },
+  { key: 'profit-analysis.edit-settings',      label: 'Gewinnanalyse: Einstellungen', description: 'Gebuehren, Versand-Preise, USt-Saetze aendern (historisiert).' },
+  { key: 'profit-analysis.edit-targets',       label: 'Gewinnanalyse: Ziele setzen', description: 'Margen- und Umsatz-Ziele definieren.' },
+  { key: 'profit-analysis.export',             label: 'Gewinnanalyse: Exporte', description: 'CSV/XLSX/PDF-Berichte generieren.' },
+  { key: 'profit-analysis.import',             label: 'Gewinnanalyse: Import', description: 'CSV-Import mit Vorschau.' },
+  { key: 'profit-analysis.close-month',        label: 'Gewinnanalyse: Monat abschliessen', description: 'Monat als "abgeschlossen" markieren + Snapshot einfrieren.' },
+  { key: 'profit-analysis.view-audit',         label: 'Gewinnanalyse: Audit ansehen', description: 'Aenderungs-Historie einsehen.' },
 ] as const;
 
 export type MenuPermissionKey = (typeof MENU_PERMISSIONS)[number]['key'];

@@ -211,7 +211,25 @@ export const profitAnalysisApi = {
       call<{ ok: true; status: string }>(`/months/${year}/${month}/reopen`, { method: 'POST' }),
     snapshot: (year: number, month: number) =>
       call<any>(`/months/${year}/${month}/snapshot`),
-    exportCsvUrl: (year: number, month: number) => `/api/profit-analysis/months/${year}/${month}/export.csv`,
+    exportCsvUrl:  (year: number, month: number) => `/api/profit-analysis/months/${year}/${month}/export.csv`,
+    exportXlsxUrl: (year: number, month: number) => `/api/profit-analysis/months/${year}/${month}/export.xlsx`,
+    exportPdfUrl:  (year: number, month: number) => `/api/profit-analysis/months/${year}/${month}/export.pdf`,
+  },
+
+  // Import (CSV)
+  import: {
+    preview: (csv: string) =>
+      call<ImportPreviewResult>('/import/preview', { method: 'POST', body: JSON.stringify({ csv }) }),
+    confirm: (rows: any[]) =>
+      call<{ written: number; skipped: number }>('/import/confirm', { method: 'POST', body: JSON.stringify({ rows }) }),
+  },
+
+  // Zeitraum-Vergleiche (YTD, Quartal, Jahr, Custom)
+  periods: {
+    compute: (input: PeriodInput) =>
+      call<PeriodTotal>('/periods/compute', { method: 'POST', body: JSON.stringify(input) }),
+    compare: (a: PeriodInput, b: PeriodInput) =>
+      call<{ a: PeriodTotal; b: PeriodTotal }>('/periods/compare', { method: 'POST', body: JSON.stringify({ a, b }) }),
   },
 
   // Ziele
@@ -264,6 +282,38 @@ export interface AuditEntry {
   id: string; action: string; entityType: string; entityId: string;
   changes: any; createdAt: string; userId: string | null; userName: string | null;
 }
+export interface ImportPreviewRow {
+  rowIndex: number; date: string; channel?: 'shopify' | 'amazon' | 'tiktok';
+  raw: Record<string, string>;
+  parsed: {
+    gross19?: string; gross7?: string; returns19?: string; returns7?: string;
+    meta?: string; google?: string; influencer?: string;
+    amazonPpc?: string; tiktokAds?: string;
+    shopifyPackages?: number; tiktokPackages?: number;
+  };
+  errors: string[];
+}
+export interface ImportPreviewResult {
+  rows: ImportPreviewRow[]; totalRows: number; errorCount: number; warnings: string[];
+}
+
+export type PeriodKind = 'month' | 'quarter' | 'year' | 'ytd' | 'custom';
+export interface PeriodInput {
+  kind: PeriodKind; year: number;
+  month?: number; quarter?: number;
+  fromYear?: number; fromMonth?: number;
+  toYear?: number; toMonth?: number;
+}
+export interface PeriodTotal {
+  label: string; monthCount: number;
+  grossSalesTotal: string; netSalesTotal: string; netSalesWithWholesale: string;
+  vatTotal: string; adsTotal: string;
+  productCostsTotal: string; shippingCostsTotal: string; platformFeesTotal: string;
+  wholesaleProfit: string; overheadTotal: string;
+  profitBeforeOverhead: string; operatingProfit: string;
+  marginBeforeOverhead: string | null; operatingMargin: string | null;
+}
+
 export interface PreflightResult {
   status: 'open' | 'closed' | 'locked' | null;
   summary: {

@@ -82,18 +82,19 @@ export default function OverviewPage() {
     } catch (e: any) { setError(e?.message ?? 'Öffnen fehlgeschlagen'); }
     finally { setBusy(null); }
   }
-  async function downloadCsv() {
-    setBusy('csv');
+  async function download(kind: 'csv' | 'xlsx' | 'pdf') {
+    setBusy(kind);
     try {
-      const res = await fetch(`${API_URL}${profitAnalysisApi.months.exportCsvUrl(year, month)}`, {
-        headers: getAuthHeaders(),
-      });
+      const urlPath = kind === 'csv'  ? profitAnalysisApi.months.exportCsvUrl(year, month)
+                    : kind === 'xlsx' ? profitAnalysisApi.months.exportXlsxUrl(year, month)
+                    :                    profitAnalysisApi.months.exportPdfUrl(year, month);
+      const res = await fetch(`${API_URL}${urlPath}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Export fehlgeschlagen');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `gewinnanalyse-${year}-${String(month).padStart(2, '0')}.csv`;
+      a.download = `gewinnanalyse-${year}-${String(month).padStart(2, '0')}.${kind}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) { setError(e?.message ?? 'Export fehlgeschlagen'); }
@@ -112,8 +113,14 @@ export default function OverviewPage() {
           <button onClick={nextMonth} className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-white/5"><ChevronRight className="h-5 w-5" /></button>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={downloadCsv} disabled={busy === 'csv'} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
+          <button onClick={() => download('csv')}  disabled={busy === 'csv'}  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
             {busy === 'csv' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} CSV
+          </button>
+          <button onClick={() => download('xlsx')} disabled={busy === 'xlsx'} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
+            {busy === 'xlsx' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Excel
+          </button>
+          <button onClick={() => download('pdf')}  disabled={busy === 'pdf'}  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
+            {busy === 'pdf' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} PDF
           </button>
           {current?.status === 'open' && (
             <button onClick={() => openPreflight(false)} disabled={busy === 'preflight'} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
@@ -193,21 +200,9 @@ export default function OverviewPage() {
             <MediumKpi label="Großhandelsgewinn" value={formatEur(current.wholesale.totalProfit)} />
           </div>
 
-          {/* Charts */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ChartCard title="Profit pro Tag" tooltip="Line-Chart des Tages-Profits (nur Kanäle, Großhandel + Gemeinkosten getrennt).">
-              <ReactECharts option={dailyProfitChart(current)} style={{ height: 260 }} notMerge lazyUpdate />
-            </ChartCard>
-            <ChartCard title="Umsatz je Kanal" tooltip="Verteilung des Netto-Umsatzes über die drei Kanäle + Großhandel.">
-              <ReactECharts option={channelRevenuePie(current)} style={{ height: 260 }} notMerge lazyUpdate />
-            </ChartCard>
-            <ChartCard title="Kostenverteilung" tooltip="Produktkosten / Versand / Plattformgebühren / Ads / Gemeinkosten.">
-              <ReactECharts option={costBreakdownPie(current)} style={{ height: 260 }} notMerge lazyUpdate />
-            </ChartCard>
-            <ChartCard title="Marge-Verlauf" tooltip="Tagesmarge über den Monat.">
-              <ReactECharts option={marginTrendChart(current)} style={{ height: 260 }} notMerge lazyUpdate />
-            </ChartCard>
-          </div>
+          {/* Charts mit Widget-Toggle §59 */}
+          <ChartsPanel current={current} />
+
 
           {/* Ziel-Fortschritt (§63) */}
           <TargetsProgressPanel current={current} targets={targets} />
@@ -234,6 +229,80 @@ export default function OverviewPage() {
       )}
     </div>
   );
+}
+
+// -----------------------------------------------------------------------------
+// Charts mit Toggle (§59)
+// -----------------------------------------------------------------------------
+
+const CHART_KEYS = [
+  { key: 'profit-daily',  label: 'Profit pro Tag' },
+  { key: 'revenue-channel', label: 'Umsatz je Kanal' },
+  { key: 'cost-breakdown', label: 'Kostenverteilung' },
+  { key: 'margin-trend',  label: 'Margen-Verlauf' },
+] as const;
+
+function ChartsPanel({ current }: { current: ComputedMonth }) {
+  const [active, setActive] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return { 'profit-daily': true, 'revenue-channel': true, 'cost-breakdown': false, 'margin-trend': false };
+    const stored = localStorage.getItem('pa.charts.active');
+    if (stored) try { return JSON.parse(stored); } catch { /* fallthrough */ }
+    return { 'profit-daily': true, 'revenue-channel': true, 'cost-breakdown': false, 'margin-trend': false };
+  });
+  const [showPicker, setShowPicker] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('pa.charts.active', JSON.stringify(active));
+  }, [active]);
+
+  const visible = CHART_KEYS.filter((c) => active[c.key]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm font-semibold text-slate-900 dark:text-white">Diagramme</div>
+        <button onClick={() => setShowPicker((v) => !v)} className="text-xs text-amber-600 hover:text-amber-700">
+          {showPicker ? 'Fertig' : 'Diagramme wählen'}
+        </button>
+      </div>
+      {showPicker && (
+        <div className="rounded-lg border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3 mb-3 flex flex-wrap gap-2">
+          {CHART_KEYS.map((c) => (
+            <label key={c.key} className="inline-flex items-center gap-1.5 text-xs">
+              <input type="checkbox" checked={!!active[c.key]} onChange={(e) => setActive((prev) => ({ ...prev, [c.key]: e.target.checked }))} />
+              {c.label}
+            </label>
+          ))}
+        </div>
+      )}
+      {visible.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-300 dark:border-white/10 p-4 text-xs text-slate-500 text-center">
+          Keine Diagramme aktiv. Klicke auf "Diagramme wählen" oben rechts.
+        </div>
+      ) : (
+        <div className={cn('grid gap-4', visible.length === 1 ? 'grid-cols-1' : 'lg:grid-cols-2')}>
+          {visible.map((c) => (
+            <ChartCard key={c.key} title={c.label} tooltip={chartTooltip(c.key)}>
+              <ReactECharts option={chartOption(c.key, current)} style={{ height: 260 }} notMerge lazyUpdate />
+            </ChartCard>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function chartOption(key: string, c: ComputedMonth) {
+  if (key === 'profit-daily')    return dailyProfitChart(c);
+  if (key === 'revenue-channel') return channelRevenuePie(c);
+  if (key === 'cost-breakdown')  return costBreakdownPie(c);
+  if (key === 'margin-trend')    return marginTrendChart(c);
+  return {};
+}
+function chartTooltip(key: string): string {
+  if (key === 'profit-daily')    return 'Line-Chart des Tages-Profits (nur Kanäle).';
+  if (key === 'revenue-channel') return 'Verteilung des Netto-Umsatzes über die drei Kanäle + Großhandel.';
+  if (key === 'cost-breakdown')  return 'Produktkosten / Versand / Plattformgebühren / Ads / Gemeinkosten.';
+  return 'Tagesmarge über den Monat.';
 }
 
 // -----------------------------------------------------------------------------

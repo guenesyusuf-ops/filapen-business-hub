@@ -163,75 +163,13 @@ export default function MonatPage() {
         </div>
       ) : (
         <>
-          {/* Tages-Liste (kompakt, Phase 4 wird die volle Tabelle) */}
-          <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] shadow-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/[0.02]">
-                  <tr>
-                    <Th>Datum</Th>
-                    <Th align="right">Shopify</Th>
-                    <Th align="right">Amazon</Th>
-                    <Th align="right">TikTok</Th>
-                    <Th align="right">Netto ges.</Th>
-                    <Th align="right">Profit</Th>
-                    <Th align="right">Marge</Th>
-                    <Th />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                  {daysOfMonth.map((dateIso) => {
-                    const c = computedByDate.get(dateIso);
-                    const isSelected = selectedDate === dateIso;
-                    return (
-                      <tr
-                        key={dateIso}
-                        onClick={() => setSelectedDate(dateIso)}
-                        className={cn(
-                          'cursor-pointer',
-                          isSelected ? 'bg-amber-50 dark:bg-amber-500/10' : 'hover:bg-slate-50 dark:hover:bg-white/[0.02]',
-                        )}
-                      >
-                        <Td>
-                          <span className="font-medium text-slate-900 dark:text-white tabular-nums">
-                            {formatDate(dateIso)}
-                          </span>
-                          {c?.warnings.length ? (
-                            <span title={c.warnings.join('\n')} className="ml-2 inline-flex text-amber-500">
-                              <AlertCircle className="h-3.5 w-3.5" />
-                            </span>
-                          ) : null}
-                        </Td>
-                        <Td align="right" className="tabular-nums">
-                          {c ? formatEur(c.shopify.profit.netSales) : '—'}
-                        </Td>
-                        <Td align="right" className="tabular-nums">
-                          {c ? formatEur(c.amazon.profit.netSales) : '—'}
-                        </Td>
-                        <Td align="right" className="tabular-nums">
-                          {c ? formatEur(c.tiktok.profit.netSales) : '—'}
-                        </Td>
-                        <Td align="right" className="tabular-nums font-medium">
-                          {c ? formatEur(c.aggregate.totalNetSales) : '—'}
-                        </Td>
-                        <Td align="right" className="tabular-nums">
-                          {c ? <ProfitCell value={c.aggregate.totalProfit} /> : '—'}
-                        </Td>
-                        <Td align="right" className="tabular-nums">
-                          {c?.aggregate.totalMargin !== null && c?.aggregate.totalMargin !== undefined
-                            ? <MarginPill value={c.aggregate.totalMargin} />
-                            : '—'}
-                        </Td>
-                        <Td>
-                          <ChevronRight className="h-4 w-4 text-slate-400" />
-                        </Td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <MonthTable
+            daysOfMonth={daysOfMonth}
+            computedByDate={computedByDate}
+            rawByDate={rawByDate}
+            selectedDate={selectedDate}
+            onSelect={setSelectedDate}
+          />
 
           {/* Selected Day Editor */}
           {selectedDate && (
@@ -605,6 +543,162 @@ function MarginPill({ value }: { value: string }) {
 // -----------------------------------------------------------------------------
 // Utilities
 // -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// MonthTable — §39/§71 gespeicherte Ansichten + sticky Datum + sticky Ergebnis
+// -----------------------------------------------------------------------------
+
+type ViewKey = 'compact' | 'marketing' | 'shopify' | 'amazon' | 'tiktok' | 'profit' | 'all';
+
+const VIEW_OPTIONS: Array<{ key: ViewKey; label: string }> = [
+  { key: 'compact',   label: 'Kompakt' },
+  { key: 'marketing', label: 'Marketing' },
+  { key: 'shopify',   label: 'Shopify' },
+  { key: 'amazon',    label: 'Amazon' },
+  { key: 'tiktok',    label: 'TikTok' },
+  { key: 'profit',    label: 'Profit' },
+  { key: 'all',       label: 'Alle Daten' },
+];
+
+function MonthTable({
+  daysOfMonth, computedByDate, rawByDate, selectedDate, onSelect,
+}: {
+  daysOfMonth: string[];
+  computedByDate: Map<string, ComputedDay>;
+  rawByDate: Map<string, RawDay>;
+  selectedDate: string | null;
+  onSelect: (d: string) => void;
+}) {
+  const [view, setView] = useState<ViewKey>(() => {
+    if (typeof window === 'undefined') return 'compact';
+    return (localStorage.getItem('pa.monat.view') as ViewKey) || 'compact';
+  });
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('pa.monat.view', view);
+  }, [view]);
+
+  const cols = columnsForView(view);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] shadow-card overflow-hidden">
+      {/* View-Auswahl */}
+      <div className="flex flex-wrap gap-1 p-2 border-b border-slate-200 dark:border-white/8">
+        {VIEW_OPTIONS.map((v) => (
+          <button key={v.key} onClick={() => setView(v.key)}
+            className={cn('px-2.5 py-1 text-xs rounded-md',
+              view === v.key ? 'bg-amber-500 text-white font-semibold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5')}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="relative overflow-x-auto max-h-[600px]">
+        <table className="w-full text-xs">
+          <thead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-[#1a1d26] sticky top-0 z-10">
+            <tr>
+              <th className="text-left px-3 py-2 sticky left-0 z-20 bg-slate-50 dark:bg-[#1a1d26]">Datum</th>
+              {cols.map((c) => (
+                <th key={c.key} className={cn('px-3 py-2 whitespace-nowrap', c.align === 'right' ? 'text-right' : 'text-left', c.group && 'border-l border-slate-200 dark:border-white/10')}>{c.label}</th>
+              ))}
+              <th className="text-right px-3 py-2 sticky right-0 z-20 bg-slate-50 dark:bg-[#1a1d26] border-l border-slate-200 dark:border-white/10">Ergebnis</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+            {daysOfMonth.map((dateIso) => {
+              const c = computedByDate.get(dateIso);
+              const rd = rawByDate.get(dateIso);
+              const isSelected = selectedDate === dateIso;
+              const rowClass = cn(
+                'cursor-pointer',
+                isSelected ? 'bg-amber-50 dark:bg-amber-500/10' : 'hover:bg-slate-50 dark:hover:bg-white/[0.02]',
+              );
+              const stickyBg = isSelected ? 'bg-amber-50 dark:bg-amber-500/10' : 'bg-white dark:bg-[#0f1117]';
+              return (
+                <tr key={dateIso} onClick={() => onSelect(dateIso)} className={rowClass}>
+                  <td className={cn('px-3 py-2 sticky left-0 z-10 border-r border-slate-100 dark:border-white/5', stickyBg)}>
+                    <span className="font-medium text-slate-900 dark:text-white tabular-nums whitespace-nowrap">{formatDate(dateIso)}</span>
+                    {c?.warnings.length ? (
+                      <span title={c.warnings.join('\n')} className="ml-1 inline-flex text-amber-500"><AlertCircle className="h-3 w-3" /></span>
+                    ) : null}
+                  </td>
+                  {cols.map((col) => (
+                    <td key={col.key} className={cn('px-3 py-2 tabular-nums whitespace-nowrap',
+                      col.align === 'right' ? 'text-right' : 'text-left',
+                      col.group && 'border-l border-slate-100 dark:border-white/5')}>
+                      {col.render(c, rd)}
+                    </td>
+                  ))}
+                  <td className={cn('px-3 py-2 sticky right-0 z-10 border-l border-slate-200 dark:border-white/10 text-right', stickyBg)}>
+                    {c ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <ProfitCell value={c.aggregate.totalProfit} />
+                        {c.aggregate.totalMargin !== null && <MarginPill value={c.aggregate.totalMargin} />}
+                      </div>
+                    ) : '—'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+interface Col {
+  key: string;
+  label: string;
+  align?: 'left' | 'right';
+  group?: boolean;                 // Trenner links
+  render: (c: ComputedDay | undefined, r: RawDay | undefined) => React.ReactNode;
+}
+
+function columnsForView(view: ViewKey): Col[] {
+  const money = (v: string | null | undefined) => v !== null && v !== undefined ? formatEur(v) : '—';
+
+  const shopifyCols: Col[] = [
+    { key: 'sh.brutto', label: 'SH Brutto', align: 'right', group: true, render: (c) => c ? money(c.shopify.vat.grossAdjusted) : '—' },
+    { key: 'sh.netto',  label: 'SH Netto',  align: 'right', render: (c) => c ? money(c.shopify.profit.netSales) : '—' },
+  ];
+  const amazonCols: Col[] = [
+    { key: 'am.brutto', label: 'AM Brutto', align: 'right', group: true, render: (c) => c ? money(c.amazon.vat.grossAdjusted) : '—' },
+    { key: 'am.netto',  label: 'AM Netto',  align: 'right', render: (c) => c ? money(c.amazon.profit.netSales) : '—' },
+  ];
+  const tiktokCols: Col[] = [
+    { key: 'tt.brutto', label: 'TT Brutto', align: 'right', group: true, render: (c) => c ? money(c.tiktok.vat.grossAdjusted) : '—' },
+    { key: 'tt.netto',  label: 'TT Netto',  align: 'right', render: (c) => c ? money(c.tiktok.profit.netSales) : '—' },
+  ];
+  const adsCols: Col[] = [
+    { key: 'meta',   label: 'Meta',    align: 'right', group: true, render: (_, r) => money(r?.ads.meta ?? '0') },
+    { key: 'google', label: 'Google',  align: 'right', render: (_, r) => money(r?.ads.google ?? '0') },
+    { key: 'infl',   label: 'Infl.',   align: 'right', render: (_, r) => money(r?.ads.influencer ?? '0') },
+    { key: 'appc',   label: 'AM PPC',  align: 'right', render: (_, r) => money(r?.ads.amazonPpc ?? '0') },
+    { key: 'ttads',  label: 'TT Ads',  align: 'right', render: (_, r) => money(r?.ads.tiktokAds ?? '0') },
+  ];
+
+  if (view === 'compact') {
+    return [
+      { key: 'sh',    label: 'Shopify', align: 'right', render: (c) => c ? money(c.shopify.profit.netSales) : '—' },
+      { key: 'am',    label: 'Amazon',  align: 'right', render: (c) => c ? money(c.amazon.profit.netSales) : '—' },
+      { key: 'tt',    label: 'TikTok',  align: 'right', render: (c) => c ? money(c.tiktok.profit.netSales) : '—' },
+      { key: 'gross', label: 'Netto ges.', align: 'right', group: true, render: (c) => c ? money(c.aggregate.totalNetSales) : '—' },
+    ];
+  }
+  if (view === 'marketing') return adsCols;
+  if (view === 'shopify')   return [...shopifyCols, ...adsCols.slice(0, 3), { key: 'sh.pfee', label: 'Payment', align: 'right', group: true, render: (c) => c ? money(c.shopify.profit.platformFees) : '—' }];
+  if (view === 'amazon')    return [...amazonCols, adsCols[3], { key: 'am.fee', label: 'AM Gebühr', align: 'right', group: true, render: (c) => c ? money(c.amazon.profit.platformFees) : '—' }];
+  if (view === 'tiktok')    return [...tiktokCols, adsCols[4], { key: 'tt.fee', label: 'TT Gebühr', align: 'right', group: true, render: (c) => c ? money(c.tiktok.profit.platformFees) : '—' }];
+  if (view === 'profit') {
+    return [
+      { key: 'sh.profit', label: 'SH Profit', align: 'right', group: true, render: (c) => c ? money(c.shopify.profit.profit) : '—' },
+      { key: 'am.profit', label: 'AM Profit', align: 'right', render: (c) => c ? money(c.amazon.profit.profit) : '—' },
+      { key: 'tt.profit', label: 'TT Profit', align: 'right', render: (c) => c ? money(c.tiktok.profit.profit) : '—' },
+    ];
+  }
+  // 'all'
+  return [...shopifyCols, ...amazonCols, ...tiktokCols, ...adsCols];
+}
 
 function enumerateDays(year: number, month: number): string[] {
   const days: string[] = [];

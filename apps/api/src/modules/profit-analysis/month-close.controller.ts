@@ -93,5 +93,31 @@ export class MonthCloseController {
     res.send(content);
   }
 
+  @Get('export.xlsx')
+  async exportXlsx(
+    @Headers('authorization') authHeader: string,
+    @Param('year') y: string, @Param('month') m: string,
+    @Res({ passthrough: false }) res: Response,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const { filename, content } = await this.exp.exportMonthXlsx(orgId, this.n(y), this.n(m));
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
+  }
+
+  @Get('export.pdf')
+  async exportPdf(
+    @Headers('authorization') authHeader: string,
+    @Param('year') y: string, @Param('month') m: string,
+    @Res({ passthrough: false }) res: Response,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    const { filename, content } = await this.exp.exportMonthPdf(orgId, this.n(y), this.n(m));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
+  }
+
   private n(s: string) { const v = parseInt(s, 10); if (!Number.isInteger(v)) throw new BadRequestException('Ungueltig'); return v; }
 }

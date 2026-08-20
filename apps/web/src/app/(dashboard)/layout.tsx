@@ -388,6 +388,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.paWholesale',    href: '/profit-analysis/grosshandel',    icon: Boxes },
       { labelKey: 'nav.paOverhead',     href: '/profit-analysis/gemeinkosten',   icon: Receipt },
       { labelKey: 'nav.paCompare',      href: '/profit-analysis/vergleiche',     icon: BarChart2 },
+      { labelKey: 'nav.paImport',       href: '/profit-analysis/import',         icon: Download },
       { labelKey: 'nav.paSettings',     href: '/profit-analysis/einstellungen',  icon: Sliders },
       { labelKey: 'nav.paAudit',        href: '/profit-analysis/audit',          icon: FileText },
     ],

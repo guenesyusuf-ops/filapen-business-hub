@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { TrendingUp, BarChart3, Calculator, Package, Boxes, Receipt, BarChart2, Sliders, FileText } from 'lucide-react';
+import { TrendingUp, BarChart3, Calculator, Package, Boxes, Receipt, BarChart2, Sliders, FileText, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from '@/i18n/useTranslation';
 
@@ -13,6 +13,7 @@ const SUB_NAV = [
   { labelKey: 'nav.paWholesale',    href: '/profit-analysis/grosshandel',    icon: Boxes },
   { labelKey: 'nav.paOverhead',     href: '/profit-analysis/gemeinkosten',   icon: Receipt },
   { labelKey: 'nav.paCompare',      href: '/profit-analysis/vergleiche',     icon: BarChart2 },
+  { labelKey: 'nav.paImport',       href: '/profit-analysis/import',         icon: Upload },
   { labelKey: 'nav.paSettings',     href: '/profit-analysis/einstellungen',  icon: Sliders },
   { labelKey: 'nav.paAudit',        href: '/profit-analysis/audit',          icon: FileText },
 ];
