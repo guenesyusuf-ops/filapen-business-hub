@@ -265,6 +265,14 @@ export const profitAnalysisApi = {
       call<RankingsResult>(`/rankings${count ? '?count=' + count : ''}`),
   },
 
+  // Grosshandel-Sync aus /sales
+  wholesaleSync: {
+    listForMonth: (year: number, month: number) =>
+      call<WholesaleAutoResponse>(`/wholesale-sync/months/${year}/${month}`),
+    unmatched: (year: number, month: number) =>
+      call<{ items: WholesaleUnmatchedItem[] }>(`/wholesale-sync/months/${year}/${month}/unmatched`),
+  },
+
   // Filapen Insights
   insights: {
     top: (n = 5) => call<{ items: Insight[] }>(`/insights/top?n=${n}`),
@@ -313,6 +321,41 @@ export interface RankingsResult {
   bestMarginMonth: RankingMonthEntry | null;
   worstMarginMonth: RankingMonthEntry | null;
 }
+export interface WholesaleAutoOrder {
+  id: string;
+  orderNumber: string;
+  externalOrderNumber: string | null;
+  customerName: string;
+  requiredDeliveryDate: string | null;
+  status: string;
+  itemCount: number;
+  unmatchedCount: number;
+  totalGrossBeforeSkonto: string;
+  totalGross: string;
+  totalNet: string;
+  totalCost: string;
+  totalProfit: string;
+  margin: string | null;
+  hasUnmatched: boolean;
+}
+export interface WholesaleAutoAggregate {
+  orderCount: number;
+  totalGross: string; totalNet: string; totalVat: string;
+  totalCost: string; totalProfit: string;
+  margin: string | null;
+  unmatchedOrders: number; unmatchedPositions: number;
+}
+export interface WholesaleAutoResponse {
+  orders: WholesaleAutoOrder[];
+  aggregate: WholesaleAutoAggregate;
+}
+export interface WholesaleUnmatchedItem {
+  orderId: string; orderNumber: string; customerName: string;
+  lineItemId: string; position: number;
+  title: string; ean: string | null; supplierArticleNumber: string | null;
+  quantity: number; lineNet: string;
+}
+
 export interface Insight {
   id: string;
   insightType: string;

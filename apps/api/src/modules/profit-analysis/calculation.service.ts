@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from './settings.service';
 import { ProductCostService } from './product-cost.service';
 import { WholesaleService } from './wholesale.service';
+import { WholesaleSyncService } from './wholesale-sync.service';
 import { OverheadService } from './overhead.service';
 import { SETTING_KEYS } from './settings.constants';
 import { calculateMixedVat, roundMixedVat, MixedVatResult } from './domain/vat';
@@ -108,6 +109,7 @@ export class CalculationService {
     private readonly settings: SettingsService,
     private readonly productCosts: ProductCostService,
     private readonly wholesale: WholesaleService,
+    private readonly wholesaleSync: WholesaleSyncService,
     private readonly overhead: OverheadService,
   ) {}
 
@@ -153,25 +155,18 @@ export class CalculationService {
     }
     const dayTotals = this.computeMonthTotals(days);
 
-    // Grosshandel des Monats
-    const wholesaleOrders = await this.wholesale.listForMonth(orgId, year, month);
-    let wsGross = toD(0), wsNet = toD(0), wsVat = toD(0), wsCost = toD(0), wsProfit = toD(0);
-    for (const o of wholesaleOrders) {
-      const t = calculateWholesaleOrder(o.items);
-      wsGross = wsGross.plus(t.totalGross);
-      wsNet   = wsNet.plus(t.totalNet);
-      wsVat   = wsVat.plus(t.totalVat);
-      wsCost  = wsCost.plus(t.totalCost);
-      wsProfit = wsProfit.plus(t.totalProfit);
-    }
+    // Grosshandel des Monats — automatisch aus /sales aggregiert
+    // (requiredDeliveryDate im Monat, 3% Skonto pauschal, historische Produktkosten)
+    const syncAgg = await this.wholesaleSync.aggregateForMonth(orgId, year, month);
+    const wsNet = toD(syncAgg.totalNet);
     const wholesaleTotals: ComputedWholesaleTotals = {
-      orderCount: wholesaleOrders.length,
-      totalGross: round2(wsGross).toString(),
-      totalNet: round2(wsNet).toString(),
-      totalVat: round2(wsVat).toString(),
-      totalCost: round2(wsCost).toString(),
-      totalProfit: round2(wsProfit).toString(),
-      margin: margin(wsProfit, wsNet)?.toString() ?? null,
+      orderCount: syncAgg.orderCount,
+      totalGross: syncAgg.totalGross,
+      totalNet: syncAgg.totalNet,
+      totalVat: syncAgg.totalVat,
+      totalCost: syncAgg.totalCost,
+      totalProfit: syncAgg.totalProfit,
+      margin: syncAgg.margin,
     };
 
     // Gemeinkosten des Monats (inkl. Prozent-Anteil §54)
@@ -206,7 +201,7 @@ export class CalculationService {
     };
 
     // §55, §56, §57
-    const profitBeforeOverheadWithWholesale = toD(dayTotals.profitBeforeOverhead).plus(wsProfit);
+    const profitBeforeOverheadWithWholesale = toD(dayTotals.profitBeforeOverhead).plus(toD(syncAgg.totalProfit));
     const operatingProfit = profitBeforeOverheadWithWholesale.minus(overheadRaw.totalNet);
     const operatingMargin = margin(operatingProfit, netSalesTotalWithWholesale);
 

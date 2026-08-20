@@ -71,8 +71,13 @@ describe('CalculationService.computeDay — End-to-End', () => {
     const settings = new SettingsService(prisma);
     const costs = new ProductCostService(prisma);
     const wholesale = { listForMonth: vi.fn().mockResolvedValue([]) } as any;
+    const wholesaleSync = { aggregateForMonth: vi.fn().mockResolvedValue({
+      orderCount: 0, totalGross: '0', totalNet: '0', totalVat: '0',
+      totalCost: '0', totalProfit: '0', margin: null,
+      unmatchedOrders: 0, unmatchedPositions: 0,
+    }) } as any;
     const overhead  = { getEntriesForMonth: vi.fn().mockResolvedValue([]) } as any;
-    svc = new CalculationService(prisma, settings, costs, wholesale, overhead);
+    svc = new CalculationService(prisma, settings, costs, wholesale, wholesaleSync, overhead);
   });
 
   it('rechnet einen typischen Tag mit Shopify+Amazon+TikTok end-to-end', async () => {

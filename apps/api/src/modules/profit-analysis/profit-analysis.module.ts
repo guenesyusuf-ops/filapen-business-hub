@@ -28,6 +28,8 @@ import { InsightController } from './insight.controller';
 import { InsightService } from './insight.service';
 import { InsightScheduler } from './insight.scheduler';
 import { PaInsightAiService } from './insight-ai.service';
+import { WholesaleSyncService } from './wholesale-sync.service';
+import { WholesaleSyncController } from './wholesale-sync.controller';
 
 /**
  * Gewinnanalyse-Modul.
@@ -50,19 +52,21 @@ import { PaInsightAiService } from './insight-ai.service';
     SettingsController, ProductCostController, DailyDataController,
     WholesaleController, OverheadController, MonthCloseController,
     TargetController, RankingsController, PaAuditController,
-    ImportController, PeriodController, InsightController,
+    ImportController, PeriodController, InsightController, WholesaleSyncController,
   ],
   providers: [
     SettingsService, ProductCostService, DailyDataService, CalculationService,
     WholesaleService, OverheadService, MonthCloseService, ExportService,
     TargetService, RankingsService, PaAuditService,
     ImportService, PeriodService, InsightService, InsightScheduler, PaInsightAiService,
+    WholesaleSyncService,
   ],
   exports: [
     SettingsService, ProductCostService, DailyDataService, CalculationService,
     WholesaleService, OverheadService, MonthCloseService, ExportService,
     TargetService, RankingsService, PaAuditService,
     ImportService, PeriodService, InsightService, PaInsightAiService,
+    WholesaleSyncService,
   ],
 })
 export class ProfitAnalysisModule {}
