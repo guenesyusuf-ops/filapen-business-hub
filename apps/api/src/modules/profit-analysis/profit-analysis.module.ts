@@ -14,6 +14,12 @@ import { OverheadService } from './overhead.service';
 import { MonthCloseController } from './month-close.controller';
 import { MonthCloseService } from './month-close.service';
 import { ExportService } from './export.service';
+import { TargetController } from './target.controller';
+import { TargetService } from './target.service';
+import { RankingsController } from './rankings.controller';
+import { RankingsService } from './rankings.service';
+import { PaAuditController } from './audit.controller';
+import { PaAuditService } from './audit.service';
 
 /**
  * Gewinnanalyse-Modul.
@@ -35,14 +41,17 @@ import { ExportService } from './export.service';
   controllers: [
     SettingsController, ProductCostController, DailyDataController,
     WholesaleController, OverheadController, MonthCloseController,
+    TargetController, RankingsController, PaAuditController,
   ],
   providers: [
     SettingsService, ProductCostService, DailyDataService, CalculationService,
     WholesaleService, OverheadService, MonthCloseService, ExportService,
+    TargetService, RankingsService, PaAuditService,
   ],
   exports: [
     SettingsService, ProductCostService, DailyDataService, CalculationService,
     WholesaleService, OverheadService, MonthCloseService, ExportService,
+    TargetService, RankingsService, PaAuditService,
   ],
 })
 export class ProfitAnalysisModule {}

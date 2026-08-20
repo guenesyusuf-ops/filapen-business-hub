@@ -26,7 +26,10 @@ function makeMock() {
     },
     paProductCost: { findMany: vi.fn().mockResolvedValue([]) },
     paAmazonFulfillmentCost: { findMany: vi.fn().mockResolvedValue([]) },
-    product: { findFirst: vi.fn().mockResolvedValue({ id: 'p1' }) },
+    product: {
+      findFirst: vi.fn().mockResolvedValue({ id: 'p1' }),
+      findMany: vi.fn().mockResolvedValue([{ id: 'p1', title: '3D-Stift' }]),
+    },
     $transaction: vi.fn(async (fn: any) => fn(state)),
   };
   return state;

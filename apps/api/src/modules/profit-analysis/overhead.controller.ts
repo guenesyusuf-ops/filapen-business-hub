@@ -2,12 +2,14 @@ import { Controller, Get, Post, Put, Delete, Body, Headers, Param, BadRequestExc
 import { AuthService } from '../auth/auth.service';
 import { extractAuthContext, assertCanWrite } from './auth-context';
 import { OverheadService, OverheadTemplateInput, OverheadEntryInputDto } from './overhead.service';
+import { PaAuditService } from './audit.service';
 
 @Controller('profit-analysis/overhead')
 export class OverheadController {
   constructor(
     private readonly auth: AuthService,
     private readonly overhead: OverheadService,
+    private readonly audit: PaAuditService,
   ) {}
 
   @Get('categories')
@@ -23,9 +25,11 @@ export class OverheadController {
 
   @Post('templates')
   async createTemplate(@Headers('authorization') authHeader: string, @Body() body: OverheadTemplateInput) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    return this.overhead.createTemplate(orgId, body);
+    const created = await this.overhead.createTemplate(orgId, body);
+    await this.audit.log({ orgId, userId, action: 'overhead_template.create', entityType: 'pa.overhead_template', entityId: created.id, changes: body });
+    return created;
   }
 
   @Put('templates/:id')
@@ -56,9 +60,11 @@ export class OverheadController {
     @Param('year') y: string, @Param('month') m: string,
     @Body() body: OverheadEntryInputDto,
   ) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    return this.overhead.createEntry(orgId, this.n(y), this.n(m), body);
+    const created = await this.overhead.createEntry(orgId, this.n(y), this.n(m), body);
+    await this.audit.log({ orgId, userId, action: 'overhead_entry.create', entityType: 'pa.overhead_entry', entityId: created.id, changes: body });
+    return created;
   }
 
   @Put('entries/:id')

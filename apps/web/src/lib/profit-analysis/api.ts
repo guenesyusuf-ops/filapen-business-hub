@@ -203,6 +203,8 @@ export const profitAnalysisApi = {
 
   // Phase 10: Monatsabschluss ----------------------------------------------
   months: {
+    preflight: (year: number, month: number) =>
+      call<PreflightResult>(`/months/${year}/${month}/preflight`),
     close: (year: number, month: number, lock = false) =>
       call<{ ok: true; status: string }>(`/months/${year}/${month}/close?lock=${lock}`, { method: 'POST' }),
     reopen: (year: number, month: number) =>
@@ -211,7 +213,68 @@ export const profitAnalysisApi = {
       call<any>(`/months/${year}/${month}/snapshot`),
     exportCsvUrl: (year: number, month: number) => `/api/profit-analysis/months/${year}/${month}/export.csv`,
   },
+
+  // Ziele
+  targets: {
+    list: () => call<{ items: TargetItem[] }>('/targets'),
+    listForMonth: (year: number, month: number) =>
+      call<{ items: TargetItem[] }>(`/targets/months/${year}/${month}`),
+    set: (key: string, value: string, year: number | null = null, month: number | null = null) =>
+      call(`/targets/${key}`, { method: 'PUT', body: JSON.stringify({ value, year, month }) }),
+  },
+
+  // Rankings
+  rankings: {
+    lastMonths: (count?: number) =>
+      call<RankingsResult>(`/rankings${count ? '?count=' + count : ''}`),
+  },
+
+  // Audit-Log
+  audit: {
+    list: (params: { entityType?: string; entityId?: string; action?: string; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => v !== undefined && qs.set(k, String(v)));
+      const s = qs.toString();
+      return call<{ items: AuditEntry[]; total: number }>(`/audit${s ? '?' + s : ''}`);
+    },
+  },
 };
+
+// ---------------------------------------------------------------------------
+// Target / Rankings / Audit types
+// ---------------------------------------------------------------------------
+
+export interface TargetItem {
+  key: string; value: string; year: number | null; month: number | null;
+}
+export interface RankingMonthEntry {
+  year: number; month: number;
+  netSales: string; profit: string; margin: string | null;
+}
+export interface RankingsResult {
+  months: RankingMonthEntry[];
+  bestRevenueMonth: RankingMonthEntry | null;
+  worstRevenueMonth: RankingMonthEntry | null;
+  bestProfitMonth: RankingMonthEntry | null;
+  worstProfitMonth: RankingMonthEntry | null;
+  bestMarginMonth: RankingMonthEntry | null;
+  worstMarginMonth: RankingMonthEntry | null;
+}
+export interface AuditEntry {
+  id: string; action: string; entityType: string; entityId: string;
+  changes: any; createdAt: string; userId: string | null; userName: string | null;
+}
+export interface PreflightResult {
+  status: 'open' | 'closed' | 'locked' | null;
+  summary: {
+    dayCount: number; grossSalesTotal: string; netSalesTotal: string;
+    profitBeforeOverhead: string; operatingProfit: string;
+    marginBeforeOverhead: string | null; operatingMargin: string | null;
+    wholesaleOrderCount: number; overheadEntryCount: number;
+  };
+  warnings: string[];
+  warningsByDay: Array<{ date: string; warning: string }>;
+}
 
 // ---------------------------------------------------------------------------
 // Wholesale types

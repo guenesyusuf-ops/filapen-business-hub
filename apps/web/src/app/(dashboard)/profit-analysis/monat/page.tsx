@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import {
   profitAnalysisApi, ComputedMonth, ComputedDay, RawDay, RawMonth, Channel,
+  ProductCostRow,
 } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent, formatDate } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
@@ -109,6 +110,23 @@ export default function MonatPage() {
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-500/10 dark:border-red-500/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
           <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" /> {error}
+        </div>
+      )}
+
+      {/* Empty State §81: leerer Monat */}
+      {computed && computed.days.length === 0 && !loading && (
+        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-white/10 p-8 text-center">
+          <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Für {MONTH_LABELS[month - 1]} {year} wurden noch keine Daten erfasst.
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <button
+              onClick={() => setSelectedDate(`${year}-${String(month).padStart(2, '0')}-01`)}
+              className="rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 text-sm font-semibold"
+            >
+              Ersten Tageswert eintragen
+            </button>
+          </div>
         </div>
       )}
 
@@ -269,68 +287,36 @@ function DayEditor({
         <ChannelTab active={tab === 'tiktok'}  onClick={() => setTab('tiktok')}  color="pink"    icon={Music2}>TikTok</ChannelTab>
       </div>
 
-      {/* Sales-Eingabe */}
-      <div>
-        <SectionLabel>Umsatz (Brutto)</SectionLabel>
-        <div className="grid grid-cols-2 gap-3 mt-2">
-          <MoneyField
-            label="Brutto 19 %"
-            value={sales.gross19}
-            disabled={readonly}
-            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, tab, { gross19: v }).then(onSaved)}
-          />
-          <MoneyField
-            label="Brutto 7 % (nur wenn vorhanden)"
-            value={sales.gross7}
-            disabled={readonly}
-            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, tab, { gross7: v }).then(onSaved)}
-          />
-          <MoneyField
-            label="Retouren 19 %"
-            value={sales.returns19}
-            disabled={readonly}
-            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, tab, { returns19: v }).then(onSaved)}
-          />
-          <MoneyField
-            label="Retouren 7 %"
-            value={sales.returns7}
-            disabled={readonly}
-            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, tab, { returns7: v }).then(onSaved)}
-          />
-        </div>
+      {/* Sales-Eingabe — adaptive UX (Variante 3, §7) */}
+      <SalesSection
+        date={date}
+        channel={tab}
+        sales={sales}
+        readonly={readonly}
+        onSaved={onSaved}
+      />
 
-        {/* Live-Berechnung */}
-        {computedChannel && (
-          <div className="mt-3 rounded-xl border border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[0.02] p-3">
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <ComputedField
-                label="Netto"
-                value={formatEur(computedChannel.profit.netSales)}
-                tooltip={{
-                  description: 'Netto-Umsatz nach Abzug der USt (und Retouren).',
-                  formula: 'Brutto 19% / 1,19 + Brutto 7% / 1,07 (jeweils nach Retouren-Abzug)',
-                }}
-              />
-              <ComputedField
-                label="USt gesamt"
-                value={formatEur(computedChannel.vat.vatTotal)}
-                tooltip={{
-                  description: 'Enthaltene Umsatzsteuer aus den erfassten Verkäufen. Nicht Umsatzsteuer-Zahllast.',
-                  formula: 'USt19 + USt7',
-                }}
-              />
-              <ComputedField
-                label="Brutto (bereinigt)"
-                value={formatEur(computedChannel.vat.grossAdjusted)}
-                tooltip={{
-                  description: 'Brutto-Umsatz abzüglich Retouren. Basis für Brutto-ROAS.',
-                  formula: '(Brutto19 + Brutto7) − (Retouren19 + Retouren7)',
-                }}
-              />
-            </div>
+      {computedChannel && (
+        <div className="rounded-xl border border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[0.02] p-3">
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <ComputedField label="Netto" value={formatEur(computedChannel.profit.netSales)}
+              tooltip={{ description: 'Netto-Umsatz nach Abzug der USt (und Retouren).', formula: 'Brutto / (1 + USt/100)' }} />
+            <ComputedField label="USt gesamt" value={formatEur(computedChannel.vat.vatTotal)}
+              tooltip={{ description: 'Enthaltene Umsatzsteuer aus den erfassten Verkäufen. Nicht Umsatzsteuer-Zahllast.', formula: 'USt19 + USt7' }} />
+            <ComputedField label="Brutto (bereinigt)" value={formatEur(computedChannel.vat.grossAdjusted)}
+              tooltip={{ description: 'Brutto-Umsatz abzüglich Retouren.', formula: '(Brutto19 + Brutto7) − (Retouren19 + Retouren7)' }} />
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* §20-23 Verkaufte Produkte je Kanal */}
+      <ProductSalesSection
+        date={date}
+        channel={tab}
+        productSales={raw?.productSales ?? []}
+        readonly={readonly}
+        onSaved={onSaved}
+      />
 
       {/* Werbekosten */}
       <div>
@@ -655,4 +641,198 @@ function roasFormulaFor(c: Channel, kind: 'gross' | 'net'): string {
   if (c === 'shopify') return `${prefix}-Umsatz / (Meta + Google) — Influencer nicht enthalten`;
   if (c === 'amazon')  return `${prefix}-Umsatz / Amazon PPC`;
   return `${prefix}-Umsatz / TikTok Ads`;
+}
+
+// -----------------------------------------------------------------------------
+// SalesSection — §7 Adaptive UX Variante 3
+// Ein Feld "Brutto gesamt" + Chip "+ Anteil mit 7 % erfassen" macht Zweitfeld
+// sichtbar. Wird sticky nach erster Nutzung im selben Monat.
+// -----------------------------------------------------------------------------
+
+function SalesSection({ date, channel, sales, readonly, onSaved }: {
+  date: string; channel: Channel;
+  sales: { gross19: string; gross7: string; returns19: string; returns7: string };
+  readonly: boolean;
+  onSaved: () => void;
+}) {
+  const has7 = Number(sales.gross7) > 0 || Number(sales.returns7) > 0;
+  const [showReduced, setShowReduced] = useState(has7);
+  useEffect(() => { if (has7) setShowReduced(true); }, [has7]);
+
+  return (
+    <div>
+      <SectionLabel>Umsatz (Brutto)</SectionLabel>
+      <div className={cn('grid gap-3 mt-2', showReduced ? 'grid-cols-2' : 'grid-cols-1 max-w-md')}>
+        <MoneyField
+          label={showReduced ? 'Brutto 19 %' : 'Brutto gesamt'}
+          value={sales.gross19}
+          disabled={readonly}
+          onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { gross19: v }).then(onSaved)}
+        />
+        {showReduced && (
+          <MoneyField
+            label="Brutto 7 % (z.B. Bücher)"
+            value={sales.gross7}
+            disabled={readonly}
+            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { gross7: v }).then(onSaved)}
+          />
+        )}
+      </div>
+
+      {!showReduced && !readonly && (
+        <button
+          onClick={() => setShowReduced(true)}
+          className="mt-2 inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 font-medium"
+        >
+          + Anteil mit 7 % USt erfassen
+        </button>
+      )}
+
+      {(showReduced || has7) && (
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <MoneyField label="Retouren 19 %" value={sales.returns19} disabled={readonly}
+            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { returns19: v }).then(onSaved)} />
+          <MoneyField label="Retouren 7 %" value={sales.returns7} disabled={readonly}
+            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { returns7: v }).then(onSaved)} />
+        </div>
+      )}
+      {!showReduced && (
+        <div className="mt-3 max-w-md">
+          <MoneyField label="Retouren (optional)" value={sales.returns19} disabled={readonly}
+            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { returns19: v }).then(onSaved)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// ProductSalesSection — §20-23 Verkaufte Produkte je Kanal
+// -----------------------------------------------------------------------------
+
+function ProductSalesSection({ date, channel, productSales, readonly, onSaved }: {
+  date: string; channel: Channel;
+  productSales: Array<{ channel: Channel; productId: string; quantity: number }>;
+  readonly: boolean;
+  onSaved: () => void;
+}) {
+  const [products, setProducts] = useState<ProductCostRow[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await profitAnalysisApi.productCosts.list({ limit: 500 });
+        setProducts(res.items);
+      } finally { setLoading(false); }
+    })();
+  }, []);
+
+  // Menge fuer diesen Kanal + productId nachschlagen
+  const qtyOf = (productId: string) => {
+    return productSales.find((s) => s.channel === channel && s.productId === productId)?.quantity ?? 0;
+  };
+
+  const filtered = products.filter((p) => {
+    if (!search.trim()) return true;
+    const s = search.toLowerCase();
+    return p.title.toLowerCase().includes(s) || p.sku?.toLowerCase().includes(s) || p.externalId.toLowerCase().includes(s);
+  });
+
+  // Verkaufte + einige unverkaufte nach oben
+  const withQty = filtered.filter((p) => qtyOf(p.productId) > 0);
+  const withoutQty = filtered.filter((p) => qtyOf(p.productId) === 0);
+  const orderedProducts = [...withQty, ...withoutQty];
+
+  const totalUnits = productSales.filter((s) => s.channel === channel).reduce((a, s) => a + s.quantity, 0);
+
+  async function updateQty(productId: string, quantity: number) {
+    if (readonly) return;
+    setSaving(productId);
+    try {
+      await profitAnalysisApi.daily.patchProductSale(date, channel, productId, quantity);
+      onSaved();
+    } finally { setSaving(null); }
+  }
+
+  return (
+    <div>
+      <SectionLabel>Verkaufte Produkte · {tabLabel(channel)} · {totalUnits} Stk. gesamt</SectionLabel>
+      <div className="mt-2 rounded-xl border border-slate-200 dark:border-white/8 overflow-hidden">
+        <div className="p-2 border-b border-slate-200 dark:border-white/8 bg-slate-50 dark:bg-white/[0.02]">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Produkt suchen …"
+            className="w-full rounded-md border border-slate-300 dark:border-white/10 dark:bg-white/5 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+          />
+        </div>
+        {loading ? (
+          <div className="p-4 text-xs text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Lade Produkte …</div>
+        ) : orderedProducts.length === 0 ? (
+          <div className="p-4 text-xs text-slate-500">Keine Produkte gefunden.</div>
+        ) : (
+          <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
+            {orderedProducts.map((p) => {
+              const currentQty = qtyOf(p.productId);
+              const hasNoCost = p.currentCost === null;
+              const hasNoFulfillment = channel === 'amazon' && p.currentFulfillment === null;
+              return (
+                <div key={p.productId} className={cn('flex items-center gap-3 px-3 py-2 text-sm', currentQty > 0 && 'bg-amber-50/40 dark:bg-amber-500/[0.03]')}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-slate-900 dark:text-white truncate">{p.title}</div>
+                    <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                      {p.sku && <span className="font-mono">{p.sku}</span>}
+                      {hasNoCost && <span className="text-amber-600 dark:text-amber-400">· Produktkosten fehlen</span>}
+                      {hasNoFulfillment && <span className="text-amber-600 dark:text-amber-400">· Fulfillment fehlt</span>}
+                    </div>
+                  </div>
+                  <QtyInput
+                    productId={p.productId}
+                    value={currentQty}
+                    disabled={readonly}
+                    saving={saving === p.productId}
+                    onSave={(v) => updateQty(p.productId, v)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QtyInput({ productId, value, disabled, saving, onSave }: {
+  productId: string; value: number; disabled?: boolean; saving?: boolean;
+  onSave: (v: number) => void;
+}) {
+  const [local, setLocal] = useState(String(value));
+  useEffect(() => { setLocal(String(value)); }, [value]);
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="number"
+        min="0"
+        step="1"
+        value={local}
+        disabled={disabled}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={() => {
+          const n = parseInt(local, 10);
+          if (Number.isNaN(n) || n === value) return;
+          onSave(Math.max(0, n));
+        }}
+        className={cn(
+          'w-20 rounded-md border border-slate-300 dark:border-white/10 dark:bg-white/5 px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-amber-500/40',
+          disabled && 'opacity-50 cursor-not-allowed',
+        )}
+      />
+      <span className="text-xs text-slate-400 w-4">{saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Stk.'}</span>
+    </div>
+  );
 }

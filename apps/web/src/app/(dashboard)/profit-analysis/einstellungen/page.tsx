@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Loader2, AlertCircle, History, Save, Check } from 'lucide-react';
-import { profitAnalysisApi, SettingItem, SettingHistoryEntry } from '@/lib/profit-analysis/api';
+import { profitAnalysisApi, SettingItem, SettingHistoryEntry, TargetItem } from '@/lib/profit-analysis/api';
 import {
   formatEur,
   formatPercent,
@@ -12,7 +12,18 @@ import {
 } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 
-type Tab = 'fees' | 'shipping' | 'vat';
+type Tab = 'fees' | 'shipping' | 'vat' | 'targets';
+
+const TARGET_META: Record<string, { label: string; unit: 'percent' | 'eur' | 'roas'; description: string }> = {
+  margin_target:          { label: 'Zielmarge',                unit: 'percent', description: '§38 Ziel-Marge vor Gemeinkosten. Wird auf dem Dashboard als Referenz angezeigt.' },
+  margin_good_from:       { label: 'Marge grün ab',            unit: 'percent', description: 'Ab diesem Wert zeigt die Marge-Ampel grün.' },
+  margin_critical_below:  { label: 'Marge rot unter',          unit: 'percent', description: 'Unter diesem Wert zeigt die Marge-Ampel rot (kritisch).' },
+  roas_target_shopify:    { label: 'ROAS-Ziel Shopify',        unit: 'roas',    description: 'Ziel-ROAS für den Webshop (Meta + Google).' },
+  roas_target_amazon:     { label: 'ROAS-Ziel Amazon',         unit: 'roas',    description: 'Ziel-ROAS für Amazon PPC.' },
+  roas_target_tiktok:     { label: 'ROAS-Ziel TikTok',         unit: 'roas',    description: 'Ziel-ROAS für TikTok Ads.' },
+  monthly_revenue_target: { label: 'Monats-Umsatzziel',        unit: 'eur',     description: 'Ziel-Netto-Umsatz pro Monat (inkl. Großhandel).' },
+  monthly_profit_target:  { label: 'Monats-Gewinnziel',        unit: 'eur',     description: 'Ziel-Operativer-Monatsgewinn.' },
+};
 
 export default function EinstellungenPage() {
   const [tab, setTab] = useState<Tab>('fees');
@@ -48,10 +59,11 @@ export default function EinstellungenPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200 dark:border-white/8 flex gap-1">
+      <div className="border-b border-slate-200 dark:border-white/8 flex gap-1 overflow-x-auto">
         <TabButton active={tab === 'fees'}     onClick={() => setTab('fees')}>Gebühren</TabButton>
         <TabButton active={tab === 'shipping'} onClick={() => setTab('shipping')}>Versand</TabButton>
         <TabButton active={tab === 'vat'}      onClick={() => setTab('vat')}>Umsatzsteuer</TabButton>
+        <TabButton active={tab === 'targets'}  onClick={() => setTab('targets')}>Ziele</TabButton>
       </div>
 
       {loading && (
@@ -65,7 +77,7 @@ export default function EinstellungenPage() {
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && tab !== 'targets' && (
         <div className="grid gap-4 sm:grid-cols-2">
           {(grouped[tab] ?? []).map((item) => (
             <SettingCard key={item.key} item={item} onSaved={reload} />
@@ -73,6 +85,97 @@ export default function EinstellungenPage() {
           {(grouped[tab] ?? []).length === 0 && (
             <div className="text-sm text-slate-500 dark:text-slate-400">Keine Einträge in dieser Kategorie.</div>
           )}
+        </div>
+      )}
+
+      {tab === 'targets' && <TargetsPanel />}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Ziele-Tab (§38 + §62)
+// -----------------------------------------------------------------------------
+
+function TargetsPanel() {
+  const [items, setItems] = useState<TargetItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = async () => {
+    setLoading(true); setError(null);
+    try {
+      const res = await profitAnalysisApi.targets.list();
+      setItems(res.items);
+    } catch (e: any) { setError(e?.message ?? 'Laden fehlgeschlagen'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { reload(); }, []);
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {loading && <div className="text-sm text-slate-500">Lade …</div>}
+      {error && <div className="text-sm text-red-600">{error}</div>}
+      {items.map((t) => (
+        <TargetCard key={t.key} target={t} onSaved={reload} />
+      ))}
+    </div>
+  );
+}
+
+function TargetCard({ target, onSaved }: { target: TargetItem; onSaved: () => void }) {
+  const meta = TARGET_META[target.key];
+  if (!meta) return null;
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(decimalToInputString(target.value));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true); setError(null);
+    try {
+      await profitAnalysisApi.targets.set(target.key, inputStringToDecimal(value), null, null);
+      setEditing(false);
+      onSaved();
+    } catch (e: any) { setError(e?.message ?? 'Speichern fehlgeschlagen'); }
+    finally { setSaving(false); }
+  }
+
+  const unitSuffix = meta.unit === 'percent' ? '%' : meta.unit === 'eur' ? '€' : 'x';
+  const displayValue = meta.unit === 'percent' ? formatPercent(target.value) : meta.unit === 'eur' ? formatEur(target.value) : target.value + 'x';
+
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] p-5 shadow-card">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white truncate">{meta.label}</h3>
+            <InfoTooltip description={meta.description} />
+          </div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1 tabular-nums">
+            {displayValue}
+          </div>
+        </div>
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="text-xs font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400">
+            Ändern
+          </button>
+        )}
+      </div>
+      {editing && (
+        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/8 space-y-3">
+          <div className="relative">
+            <input type="text" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 pr-8" />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">{unitSuffix}</span>
+          </div>
+          {error && <div className="text-xs text-red-600">{error}</div>}
+          <div className="flex justify-end gap-2">
+            <button onClick={() => { setEditing(false); setValue(decimalToInputString(target.value)); }} className="text-xs text-slate-500 px-3 py-1.5">Abbrechen</button>
+            <button onClick={save} disabled={saving} className="rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
+              {saving ? 'Speichert…' : 'Speichern'}
+            </button>
+          </div>
         </div>
       )}
     </div>

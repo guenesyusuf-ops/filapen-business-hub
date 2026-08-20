@@ -5,6 +5,7 @@ import {
   DailyDataService, Channel, ChannelSalesPatch, AdsPatch, ShippingPatch,
 } from './daily-data.service';
 import { CalculationService } from './calculation.service';
+import { PaAuditService } from './audit.service';
 
 @Controller('profit-analysis')
 export class DailyDataController {
@@ -12,6 +13,7 @@ export class DailyDataController {
     private readonly auth: AuthService,
     private readonly daily: DailyDataService,
     private readonly calc: CalculationService,
+    private readonly audit: PaAuditService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -57,11 +59,12 @@ export class DailyDataController {
     @Param('channel') channel: string,
     @Body() body: ChannelSalesPatch,
   ) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     this.assertIsoDate(date);
     this.assertChannel(channel);
     const updated = await this.daily.upsertChannelSales(orgId, role, date, channel as Channel, body ?? {});
+    await this.audit.log({ orgId, userId, action: 'sales.patch', entityType: 'pa.channel_sales', entityId: `${date}/${channel}`, changes: body });
     const computed = await this.calc.computeDay(orgId, date);
     return { updated, computed };
   }
@@ -72,10 +75,11 @@ export class DailyDataController {
     @Param('date') date: string,
     @Body() body: AdsPatch,
   ) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     this.assertIsoDate(date);
     const updated = await this.daily.upsertAds(orgId, role, date, body ?? {});
+    await this.audit.log({ orgId, userId, action: 'ads.patch', entityType: 'pa.ads', entityId: date, changes: body });
     const computed = await this.calc.computeDay(orgId, date);
     return { updated, computed };
   }
@@ -86,10 +90,11 @@ export class DailyDataController {
     @Param('date') date: string,
     @Body() body: ShippingPatch,
   ) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     this.assertIsoDate(date);
     const updated = await this.daily.upsertShipping(orgId, role, date, body ?? {});
+    await this.audit.log({ orgId, userId, action: 'shipping.patch', entityType: 'pa.shipping', entityId: date, changes: body });
     const computed = await this.calc.computeDay(orgId, date);
     return { updated, computed };
   }
@@ -102,13 +107,18 @@ export class DailyDataController {
     @Param('productId') productId: string,
     @Body() body: { quantity: number },
   ) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     this.assertIsoDate(date);
     this.assertChannel(channel);
     const q = Number(body?.quantity);
     if (!Number.isFinite(q)) throw new BadRequestException('quantity fehlt oder ungueltig');
     const updated = await this.daily.upsertProductSale(orgId, role, date, channel as Channel, productId, q);
+    await this.audit.log({
+      orgId, userId, action: 'product_sale.patch',
+      entityType: 'pa.product_sale', entityId: `${date}/${channel}/${productId}`,
+      changes: { quantity: q },
+    });
     const computed = await this.calc.computeDay(orgId, date);
     return { updated, computed };
   }

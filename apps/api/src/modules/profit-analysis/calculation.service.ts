@@ -340,6 +340,20 @@ export class CalculationService {
 
     const aggregate = aggregateDay({ webshop, amazon: amazonRes, tiktok: tiktokRes });
 
+    // Produkt-Titel fuer Warnungen anhaengen
+    const productTitles = new Map<string, string>();
+    if (day.productSales.length > 0) {
+      const ids = day.productSales.map((s: any) => s.productId);
+      const products = await this.prisma.product.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, title: true },
+      });
+      products.forEach((p) => productTitles.set(p.id, p.title));
+    }
+    const productSalesWithTitle = day.productSales.map((s: any) => ({
+      ...s, productTitle: productTitles.get(s.productId),
+    }));
+
     // Warnungen (§74)
     const warnings = this.collectWarnings({
       shopifyVat, amazonVat, tiktokVat,
@@ -350,7 +364,7 @@ export class CalculationService {
       tiktokPackages: shipping?.tiktokPackages ?? 0,
       ads,
       costLookup,
-      productSales: day.productSales,
+      productSales: productSalesWithTitle,
       dateIso,
     });
 
@@ -500,16 +514,34 @@ export class CalculationService {
     if (ctx.shopifyVat.grossAdjusted.gt(0) && ctx.shopifyPackages === 0) {
       w.push('Shopify-Umsatz vorhanden, aber keine Pakete versendet.');
     }
-    // Produktkosten-Luecken
+    // Produkt-spezifische Kosten-Luecken (§74)
+    const missingCost = new Set<string>();
+    const missingFulfillment = new Set<string>();
     for (const s of ctx.productSales as any[]) {
       const entry = ctx.costLookup.get(s.productId);
-      if (!entry?.cost.length) {
-        w.push(`Produktkosten fehlen fuer verkauftes Produkt (Kanal ${s.channel}).`);
-        break;
+      if (!entry?.cost.length) missingCost.add(s.productTitle ?? s.productId);
+      if (s.channel === 'amazon' && !entry?.fulfillment.length) {
+        missingFulfillment.add(s.productTitle ?? s.productId);
       }
+    }
+    if (missingCost.size > 0) {
+      const list = Array.from(missingCost).slice(0, 3).join(', ');
+      const rest = missingCost.size > 3 ? ` (+${missingCost.size - 3})` : '';
+      w.push(`Produktkosten fehlen: ${list}${rest}`);
+    }
+    if (missingFulfillment.size > 0) {
+      const list = Array.from(missingFulfillment).slice(0, 3).join(', ');
+      const rest = missingFulfillment.size > 3 ? ` (+${missingFulfillment.size - 3})` : '';
+      w.push(`Amazon-Fulfillment-Kosten fehlen fuer: ${list}${rest}`);
     }
     if (ctx.tiktokVat.grossAdjusted.gt(0) && toD(ctx.ads?.tiktokAds ?? 0).isZero()) {
       w.push('TikTok-Umsatz vorhanden, aber keine TikTok Ads eingetragen.');
+    }
+    // §74: sehr hoher Umsatz ohne Werbekosten
+    const shopifyGross = ctx.shopifyVat.grossAdjusted;
+    const shopifyAds = toD(ctx.ads?.meta ?? 0).plus(toD(ctx.ads?.google ?? 0));
+    if (shopifyGross.gt(1000) && shopifyAds.isZero()) {
+      w.push('Ueber 1.000 EUR Shopify-Umsatz ohne Meta/Google-Ads — bewusst so?');
     }
     return w;
   }

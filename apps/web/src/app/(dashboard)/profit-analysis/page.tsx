@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Loader2, AlertCircle,
   Download, Lock, Unlock, ShoppingBag, Package2, Music2,
 } from 'lucide-react';
-import { profitAnalysisApi, ComputedMonth } from '@/lib/profit-analysis/api';
+import { profitAnalysisApi, ComputedMonth, TargetItem, RankingsResult, PreflightResult } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
@@ -21,6 +21,10 @@ export default function OverviewPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [current, setCurrent] = useState<ComputedMonth | null>(null);
   const [previous, setPrevious] = useState<ComputedMonth | null>(null);
+  const [targets, setTargets] = useState<TargetItem[]>([]);
+  const [rankings, setRankings] = useState<RankingsResult | null>(null);
+  const [preflight, setPreflight] = useState<PreflightResult | null>(null);
+  const [preflightLock, setPreflightLock] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -30,12 +34,16 @@ export default function OverviewPage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [c, prev] = await Promise.all([
+      const [c, prev, t, r] = await Promise.all([
         profitAnalysisApi.daily.getMonth(year, month),
         profitAnalysisApi.daily.getMonth(month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1),
+        profitAnalysisApi.targets.list(),
+        profitAnalysisApi.rankings.lastMonths(12).catch(() => null),
       ]);
       setCurrent(c.computed);
       setPrevious(prev.computed);
+      setTargets(t.items);
+      setRankings(r);
     } catch (e: any) {
       setError(e?.message ?? 'Laden fehlgeschlagen');
     } finally { setLoading(false); }
@@ -46,12 +54,21 @@ export default function OverviewPage() {
   function prevMonth() { if (month === 1) { setYear(year - 1); setMonth(12); } else setMonth(month - 1); }
   function nextMonth() { if (month === 12) { setYear(year + 1); setMonth(1); } else setMonth(month + 1); }
 
-  async function closeMonth(lock: boolean) {
-    if (!current) return;
-    if (!confirm(lock ? 'Monat sperren? Nur Owner kann wieder öffnen.' : 'Monat abschließen?')) return;
+  async function openPreflight(lock: boolean) {
+    setBusy('preflight');
+    try {
+      const pf = await profitAnalysisApi.months.preflight(year, month);
+      setPreflight(pf);
+      setPreflightLock(lock);
+    } catch (e: any) { setError(e?.message ?? 'Preflight fehlgeschlagen'); }
+    finally { setBusy(null); }
+  }
+  async function confirmClose() {
+    if (!preflight) return;
     setBusy('close');
     try {
-      await profitAnalysisApi.months.close(year, month, lock);
+      await profitAnalysisApi.months.close(year, month, preflightLock);
+      setPreflight(null);
       await load();
     } catch (e: any) { setError(e?.message ?? 'Abschluss fehlgeschlagen'); }
     finally { setBusy(null); }
@@ -99,12 +116,12 @@ export default function OverviewPage() {
             {busy === 'csv' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} CSV
           </button>
           {current?.status === 'open' && (
-            <button onClick={() => closeMonth(false)} disabled={busy === 'close'} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
+            <button onClick={() => openPreflight(false)} disabled={busy === 'preflight'} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
               <Lock className="h-3.5 w-3.5" /> Abschließen
             </button>
           )}
           {current?.status === 'closed' && isOwner && (
-            <button onClick={() => closeMonth(true)} disabled={busy === 'close'} className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 text-white px-3 py-1.5 text-xs disabled:opacity-50">
+            <button onClick={() => openPreflight(true)} disabled={busy === 'preflight'} className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 text-white px-3 py-1.5 text-xs disabled:opacity-50">
               <Lock className="h-3.5 w-3.5" /> Sperren
             </button>
           )}
@@ -192,10 +209,179 @@ export default function OverviewPage() {
             </ChartCard>
           </div>
 
+          {/* Ziel-Fortschritt (§63) */}
+          <TargetsProgressPanel current={current} targets={targets} />
+
           {/* Insights */}
           <InsightsPanel current={current} previous={previous} />
+
+          {/* Rankings (§61) */}
+          {rankings && rankings.months.length > 1 && (
+            <RankingsPanel rankings={rankings} />
+          )}
         </>
       )}
+
+      {/* Monatsabschluss-Preflight-Dialog (§73) */}
+      {preflight && (
+        <PreflightDialog
+          preflight={preflight}
+          lock={preflightLock}
+          onCancel={() => setPreflight(null)}
+          onConfirm={confirmClose}
+          busy={busy === 'close'}
+        />
+      )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Ziel-Progress-Widget (§63)
+// -----------------------------------------------------------------------------
+
+function TargetsProgressPanel({ current, targets }: { current: ComputedMonth; targets: TargetItem[] }) {
+  const revenueTarget = Number(targets.find((t) => t.key === 'monthly_revenue_target')?.value ?? 0);
+  const profitTarget = Number(targets.find((t) => t.key === 'monthly_profit_target')?.value ?? 0);
+  const marginTarget = Number(targets.find((t) => t.key === 'margin_target')?.value ?? 30);
+
+  const revenueActual = Number(current.netSalesWithWholesale);
+  const profitActual = Number(current.operatingProfit);
+  const marginActual = current.operatingMargin !== null ? Number(current.operatingMargin) : null;
+
+  const items = [
+    revenueTarget > 0 && { label: 'Umsatzziel', actual: revenueActual, target: revenueTarget, format: (v: number) => formatEur(v.toString()) },
+    profitTarget > 0  && { label: 'Gewinnziel', actual: profitActual, target: profitTarget, format: (v: number) => formatEur(v.toString()) },
+    marginActual !== null && { label: 'Margenziel', actual: marginActual, target: marginTarget, format: (v: number) => formatPercent(v.toString()) },
+  ].filter(Boolean) as Array<{ label: string; actual: number; target: number; format: (v: number) => string }>;
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] p-4">
+      <div className="text-sm font-semibold mb-3">Ziel-Fortschritt</div>
+      <div className="space-y-3">
+        {items.map((it) => {
+          const pct = it.target > 0 ? Math.max(0, Math.min(100, (it.actual / it.target) * 100)) : 0;
+          const reached = pct >= 100;
+          return (
+            <div key={it.label}>
+              <div className="flex justify-between items-baseline text-xs mb-1">
+                <span className="font-medium text-slate-700 dark:text-slate-300">{it.label}</span>
+                <span className="tabular-nums text-slate-500">
+                  {it.format(it.actual)} / {it.format(it.target)} · <span className={cn('font-semibold', reached ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300')}>{pct.toFixed(0)} %</span>
+                </span>
+              </div>
+              <div className="h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                <div className={cn('h-full rounded-full transition-all', reached ? 'bg-emerald-500' : 'bg-amber-500')} style={{ width: pct + '%' }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Rankings-Panel (§61)
+// -----------------------------------------------------------------------------
+
+const MONTH_LABEL_SHORT = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+function monthLabel(m: { year: number; month: number }) { return `${MONTH_LABEL_SHORT[m.month - 1]} ${m.year}`; }
+
+function RankingsPanel({ rankings }: { rankings: RankingsResult }) {
+  const cards = [
+    { title: 'Bester Umsatzmonat', month: rankings.bestRevenueMonth, value: rankings.bestRevenueMonth?.netSales, format: 'eur' as const, tone: 'good' as const },
+    { title: 'Bester Profitmonat', month: rankings.bestProfitMonth, value: rankings.bestProfitMonth?.profit, format: 'eur' as const, tone: 'good' as const },
+    { title: 'Beste Marge', month: rankings.bestMarginMonth, value: rankings.bestMarginMonth?.margin, format: 'pct' as const, tone: 'good' as const },
+    { title: 'Schlechtester Umsatz', month: rankings.worstRevenueMonth, value: rankings.worstRevenueMonth?.netSales, format: 'eur' as const, tone: 'critical' as const },
+    { title: 'Schlechtester Profit', month: rankings.worstProfitMonth, value: rankings.worstProfitMonth?.profit, format: 'eur' as const, tone: 'critical' as const },
+    { title: 'Schlechteste Marge', month: rankings.worstMarginMonth, value: rankings.worstMarginMonth?.margin, format: 'pct' as const, tone: 'critical' as const },
+  ].filter((c) => c.month);
+  if (cards.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] p-4">
+      <div className="text-sm font-semibold mb-3">Rankings (letzte 12 Monate)</div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {cards.map((c) => (
+          <div key={c.title} className="rounded-lg border border-slate-200 dark:border-white/8 p-3">
+            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">{c.title}</div>
+            <div className={cn('text-lg font-bold tabular-nums mt-0.5',
+              c.tone === 'critical' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400')}>
+              {c.format === 'eur' ? formatEur(c.value as string) : formatPercent(c.value as string)}
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5">{monthLabel(c.month!)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Preflight-Dialog (§73)
+// -----------------------------------------------------------------------------
+
+function PreflightDialog({ preflight, lock, onCancel, onConfirm, busy }: {
+  preflight: PreflightResult; lock: boolean;
+  onCancel: () => void; onConfirm: () => void; busy: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onCancel}>
+      <div className="bg-white dark:bg-[#0f1117] rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-4">
+          <Lock className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <div className="text-lg font-bold text-slate-900 dark:text-white">
+              {lock ? 'Monat wirklich sperren?' : 'Monat wirklich abschließen?'}
+            </div>
+            <div className="text-sm text-slate-500 mt-1">
+              {lock ? 'Danach kann nur der Owner den Monat wieder öffnen.' : 'Danach ist der Monat für normale Bearbeitung geschlossen. Admin/Owner können weiter bearbeiten.'}
+            </div>
+          </div>
+        </div>
+
+        {/* Zusammenfassung */}
+        <div className="rounded-xl border border-slate-200 dark:border-white/8 p-3 mb-4 space-y-1.5 text-sm">
+          <SummaryLine label="Tage mit Daten" value={String(preflight.summary.dayCount)} />
+          <SummaryLine label="Bruttoumsatz" value={formatEur(preflight.summary.grossSalesTotal)} />
+          <SummaryLine label="Nettoumsatz" value={formatEur(preflight.summary.netSalesTotal)} />
+          <SummaryLine label="Profit vor Gemeinkosten" value={formatEur(preflight.summary.profitBeforeOverhead)} />
+          <SummaryLine label="Operativer Monatsgewinn" value={formatEur(preflight.summary.operatingProfit)} strong />
+          <SummaryLine label="Operative Endmarge" value={preflight.summary.operatingMargin !== null ? formatPercent(preflight.summary.operatingMargin) : '—'} strong />
+          <SummaryLine label="Großhandelsaufträge" value={String(preflight.summary.wholesaleOrderCount)} />
+          <SummaryLine label="Gemeinkosten-Positionen" value={String(preflight.summary.overheadEntryCount)} />
+        </div>
+
+        {/* Warnungen */}
+        {preflight.warnings.length > 0 && (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/[0.05] p-3 mb-4">
+            <div className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-2">
+              {preflight.warnings.length} Warnung{preflight.warnings.length > 1 ? 'en' : ''} — Abschluss trotzdem möglich
+            </div>
+            <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-1 list-disc list-inside">
+              {preflight.warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onCancel} className="text-sm text-slate-500 px-3 py-2">Abbrechen</button>
+          <button onClick={onConfirm} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50">
+            {busy ? 'Speichert…' : lock ? 'Sperren' : 'Abschließen'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryLine({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex justify-between items-baseline">
+      <span className="text-slate-500 dark:text-slate-400 text-xs">{label}</span>
+      <span className={cn('tabular-nums text-sm', strong ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300')}>{value}</span>
     </div>
   );
 }

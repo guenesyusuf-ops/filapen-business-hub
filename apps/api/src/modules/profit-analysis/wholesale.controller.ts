@@ -2,12 +2,14 @@ import { Controller, Get, Post, Put, Delete, Body, Headers, Param, Query, BadReq
 import { AuthService } from '../auth/auth.service';
 import { extractAuthContext, assertCanWrite } from './auth-context';
 import { WholesaleService, WholesaleOrderInputDto } from './wholesale.service';
+import { PaAuditService } from './audit.service';
 
 @Controller('profit-analysis/wholesale')
 export class WholesaleController {
   constructor(
     private readonly auth: AuthService,
     private readonly wholesale: WholesaleService,
+    private readonly audit: PaAuditService,
   ) {}
 
   @Get()
@@ -31,20 +33,26 @@ export class WholesaleController {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
     if (!body?.orderDate) throw new BadRequestException('orderDate fehlt');
-    return this.wholesale.create(orgId, userId, body);
+    const created = await this.wholesale.create(orgId, userId, body);
+    await this.audit.log({ orgId, userId, action: 'wholesale.create', entityType: 'pa.wholesale_order', entityId: created.id, changes: { orderNumber: body.orderNumber, customer: body.customerName, itemCount: body.items.length } });
+    return created;
   }
 
   @Put(':id')
   async update(@Headers('authorization') authHeader: string, @Param('id') id: string, @Body() body: Partial<WholesaleOrderInputDto>) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    return this.wholesale.update(orgId, id, body);
+    const updated = await this.wholesale.update(orgId, id, body);
+    await this.audit.log({ orgId, userId, action: 'wholesale.update', entityType: 'pa.wholesale_order', entityId: id, changes: body });
+    return updated;
   }
 
   @Delete(':id')
   async remove(@Headers('authorization') authHeader: string, @Param('id') id: string) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    return this.wholesale.remove(orgId, id);
+    const result = await this.wholesale.remove(orgId, id);
+    await this.audit.log({ orgId, userId, action: 'wholesale.delete', entityType: 'pa.wholesale_order', entityId: id });
+    return result;
   }
 }
