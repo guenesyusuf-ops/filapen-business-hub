@@ -816,13 +816,16 @@ function ProductSalesSection({ date, channel, productSales, readonly, onSaved }:
   const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
     (async () => {
       try {
-        const res = await profitAnalysisApi.productCosts.list({ limit: 500 });
+        // Kanal-Filter: nur Produkte die auf diesem Tab verkauft werden
+        // (inkl. Legacy-Produkte ohne Zuordnung)
+        const res = await profitAnalysisApi.productCosts.list({ limit: 500, channel });
         setProducts(res.items);
       } finally { setLoading(false); }
     })();
-  }, []);
+  }, [channel]);
 
   // Menge fuer diesen Kanal + productId nachschlagen
   const qtyOf = (productId: string) => {

@@ -1,7 +1,8 @@
 import { Controller, Get, Put, Body, Headers, Param, Query, BadRequestException } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { extractAuthContext, assertCanWrite } from './auth-context';
-import { ProductCostService, CostKind } from './product-cost.service';
+import { ProductCostService, CostKind, Channel } from './product-cost.service';
+import { PaAuditService } from './audit.service';
 
 interface SetCostBody {
   value: string;
@@ -14,6 +15,7 @@ export class ProductCostController {
   constructor(
     private readonly auth: AuthService,
     private readonly costs: ProductCostService,
+    private readonly audit: PaAuditService,
   ) {}
 
   /** Produkt-Liste mit aktuellen Kosten (beide Historien geheftet). */
@@ -24,6 +26,7 @@ export class ProductCostController {
     @Query('status') status?: string,
     @Query('missingCosts') missingCosts?: string,
     @Query('missingFulfillment') missingFulfillment?: string,
+    @Query('channel') channel?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -33,9 +36,29 @@ export class ProductCostController {
       status: (status as any) || undefined,
       missingCosts: missingCosts === 'true',
       missingFulfillment: missingFulfillment === 'true',
+      channel: (channel && ['shopify', 'amazon', 'tiktok'].includes(channel) ? channel : undefined) as Channel | undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+  }
+
+  /** Kanal-Zuordnung eines Produkts setzen (Checkbox-Save). */
+  @Put(':productId/channels')
+  async setChannels(
+    @Headers('authorization') authHeader: string,
+    @Param('productId') productId: string,
+    @Body() body: { channels: Channel[] },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!Array.isArray(body?.channels)) throw new BadRequestException('channels muss ein Array sein');
+    const result = await this.costs.setChannels(orgId, productId, body.channels);
+    await this.audit.log({
+      orgId, userId, action: 'product_channels.set',
+      entityType: 'pa.product_channel', entityId: productId,
+      changes: { channels: result },
+    });
+    return { channels: result };
   }
 
   /** Historie eines Produkts fuer eine der beiden Kostenarten. */

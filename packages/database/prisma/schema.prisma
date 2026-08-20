@@ -386,6 +386,7 @@ model Organization {
   paWholesaleOrders        PaWholesaleOrder[]
   paOverheadTemplates      PaOverheadTemplate[]
   paOverheadEntries        PaOverheadEntry[]
+  paProductChannels        PaProductChannel[]
 
   @@map("organizations")
 }
@@ -893,6 +894,7 @@ model Product {
   paAmazonFulfillmentCosts PaAmazonFulfillmentCost[]
   paDailyProductSales      PaDailyProductSale[]
   paWholesaleOrderItems    PaWholesaleOrderItem[]
+  paProductChannels        PaProductChannel[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
@@ -4167,6 +4169,29 @@ model PaProductCost {
   @@index([orgId, productId, effectiveFrom(sort: Desc)], map: "idx_pa_product_cost_lookup")
   @@index([orgId], map: "idx_pa_product_cost_org")
   @@map("pa_product_cost")
+}
+
+/// Zuordnung: welche Produkte werden auf welchen Kanaelen (shopify|amazon|
+/// tiktok) tatsaechlich verkauft. Filter fuer den Tages-Editor damit dort
+/// nur relevante Produkte auftauchen.
+///
+/// Legacy-Fallback: Ein Produkt OHNE einen einzigen Eintrag hier gilt als
+/// "ueberall aktiv" (backward-compatible). Sobald mindestens ein Kanal
+/// eingetragen ist, gilt strikt "nur dort".
+model PaProductChannel {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String    @map("org_id") @db.Uuid
+  productId String    @map("product_id") @db.Uuid
+  channel   PaChannel
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, channel])
+  @@index([orgId, channel], map: "idx_pa_pc_org_channel")
+  @@index([productId], map: "idx_pa_pc_product")
+  @@map("pa_product_channel")
 }
 
 /// Historisierte Amazon-Fulfillment-Kosten (AWD/FBA-Pauschale pro Stueck).

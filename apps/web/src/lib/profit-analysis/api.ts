@@ -61,6 +61,7 @@ export interface ProductCostRow {
   currentCostEffectiveFrom: string | null;
   currentFulfillment: string | null;
   currentFulfillmentEffectiveFrom: string | null;
+  channels: Channel[];
 }
 
 export interface CostHistoryEntry {
@@ -102,6 +103,7 @@ export const profitAnalysisApi = {
       status?: 'active' | 'archived' | 'draft' | 'all';
       missingCosts?: boolean;
       missingFulfillment?: boolean;
+      channel?: Channel;
       limit?: number;
       offset?: number;
     } = {}) => {
@@ -110,6 +112,7 @@ export const profitAnalysisApi = {
       if (params.status) qs.set('status', params.status);
       if (params.missingCosts) qs.set('missingCosts', 'true');
       if (params.missingFulfillment) qs.set('missingFulfillment', 'true');
+      if (params.channel) qs.set('channel', params.channel);
       if (params.limit !== undefined) qs.set('limit', String(params.limit));
       if (params.offset !== undefined) qs.set('offset', String(params.offset));
       const s = qs.toString();
@@ -123,6 +126,12 @@ export const profitAnalysisApi = {
       call(`/product-costs/${productId}/${kind}`, {
         method: 'PUT',
         body: JSON.stringify(body),
+      }),
+
+    setChannels: (productId: string, channels: Channel[]) =>
+      call<{ channels: Channel[] }>(`/product-costs/${productId}/channels`, {
+        method: 'PUT',
+        body: JSON.stringify({ channels }),
       }),
   },
 

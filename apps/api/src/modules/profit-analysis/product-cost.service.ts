@@ -10,6 +10,8 @@ import { PrismaService } from '../../prisma/prisma.service';
  */
 export type CostKind = 'cost' | 'fulfillment';
 
+export type Channel = 'shopify' | 'amazon' | 'tiktok';
+
 export interface ProductCostRow {
   productId: string;
   externalId: string;
@@ -21,6 +23,7 @@ export interface ProductCostRow {
   currentCostEffectiveFrom: string | null;
   currentFulfillment: string | null;
   currentFulfillmentEffectiveFrom: string | null;
+  channels: Channel[];                           // leer = Legacy-Fallback "ueberall"
 }
 
 export interface CostHistoryEntry {
@@ -39,6 +42,9 @@ export interface ProductListQuery {
   missingCosts?: boolean;         // nur Produkte ohne aktuelle Produktkosten
   missingFulfillment?: boolean;   // nur Produkte ohne aktuelle Fulfillment-Kosten
   status?: 'active' | 'archived' | 'draft' | 'all';
+  /** Filter fuer den Tages-Editor: nur Produkte die auf diesem Kanal aktiv sind
+   *  (inkl. Legacy-Produkte ohne einzige Zuordnung). */
+  channel?: Channel;
   limit?: number;
   offset?: number;
 }
@@ -77,7 +83,7 @@ export class ProductCostService {
       ];
     }
 
-    const [products, total, allCurrentCosts, allCurrentFulfillments] = await Promise.all([
+    const [products, total, allCurrentCosts, allCurrentFulfillments, allChannels] = await Promise.all([
       this.prisma.product.findMany({
         where: productWhere,
         orderBy: { title: 'asc' },
@@ -104,6 +110,10 @@ export class ProductCostService {
         select: { productId: true, cost: true, effectiveFrom: true },
         orderBy: { effectiveFrom: 'desc' },
       }),
+      this.prisma.paProductChannel.findMany({
+        where: { orgId },
+        select: { productId: true, channel: true },
+      }),
     ]);
 
     // Fuer jedes Produkt den neuesten aktuellen Wert pro Kosten-Art picken
@@ -120,6 +130,14 @@ export class ProductCostService {
       }
     }
 
+    // Kanal-Zuordnungen indexieren
+    const channelsByProduct = new Map<string, Channel[]>();
+    for (const c of allChannels) {
+      const list = channelsByProduct.get(c.productId) ?? [];
+      list.push(c.channel as Channel);
+      channelsByProduct.set(c.productId, list);
+    }
+
     let items: ProductCostRow[] = products.map((p) => {
       const cost = costByProduct.get(p.id);
       const ff = ffByProduct.get(p.id);
@@ -134,11 +152,20 @@ export class ProductCostService {
         currentCostEffectiveFrom: cost?.from ?? null,
         currentFulfillment: ff?.value ?? null,
         currentFulfillmentEffectiveFrom: ff?.from ?? null,
+        channels: channelsByProduct.get(p.id) ?? [],
       };
     });
 
     if (q.missingCosts) items = items.filter((r) => r.currentCost === null);
     if (q.missingFulfillment) items = items.filter((r) => r.currentFulfillment === null);
+
+    // Kanal-Filter mit Legacy-Fallback:
+    //   channels leer  -> "ueberall" (Produkt taucht in jedem Kanal auf)
+    //   channels nicht leer -> nur wenn Kanal enthalten
+    if (q.channel) {
+      const wanted = q.channel;
+      items = items.filter((r) => r.channels.length === 0 || r.channels.includes(wanted));
+    }
 
     const missingCostsCount = products.length - costByProduct.size;
     const missingFulfillmentCount = products.length - ffByProduct.size;
@@ -264,6 +291,29 @@ export class ProductCostService {
           });
       return this.toApi(upserted);
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Kanal-Zuordnung
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Setzt die aktiven Kanaele fuer ein Produkt. Ersetzt bestehende Zuordnungen
+   * atomar (delete + create). Leeres Array -> Produkt gilt wieder als
+   * "ueberall aktiv" (Legacy-Fallback).
+   */
+  async setChannels(orgId: string, productId: string, channels: Channel[]): Promise<Channel[]> {
+    await this.assertProductBelongsToOrg(orgId, productId);
+    const uniq = Array.from(new Set(channels)).filter((c) => ['shopify', 'amazon', 'tiktok'].includes(c));
+    await this.prisma.$transaction([
+      this.prisma.paProductChannel.deleteMany({ where: { productId } }),
+      ...(uniq.length > 0
+        ? [this.prisma.paProductChannel.createMany({
+            data: uniq.map((channel) => ({ orgId, productId, channel: channel as any })),
+          })]
+        : []),
+    ]);
+    return uniq;
   }
 
   // ---------------------------------------------------------------------------

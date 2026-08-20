@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Search, Loader2, AlertCircle, Package, Filter, History, X, Save, Check } from 'lucide-react';
 import Image from 'next/image';
-import { profitAnalysisApi, ProductCostRow, CostHistoryEntry, CostKind } from '@/lib/profit-analysis/api';
+import { profitAnalysisApi, ProductCostRow, CostHistoryEntry, CostKind, Channel } from '@/lib/profit-analysis/api';
 import {
   formatEur, formatDate, decimalToInputString, inputStringToDecimal,
 } from '@/lib/profit-analysis/formatters';
@@ -134,6 +134,15 @@ export default function ProduktkostenPage() {
                       />
                     </span>
                   </Th>
+                  <Th align="left">
+                    <span className="inline-flex items-center gap-1">
+                      Verkauft auf
+                      <InfoTooltip
+                        description="Welche Kanäle bieten dieses Produkt an? Filtert die Produktauswahl im Tages-Editor."
+                        formula="Ohne Haken (alle grau) = Produkt taucht in ALLEN Kanal-Tabs auf (Legacy-Verhalten)"
+                      />
+                    </span>
+                  </Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -169,6 +178,13 @@ export default function ProduktkostenPage() {
                         value={r.currentFulfillment}
                         effectiveFrom={r.currentFulfillmentEffectiveFrom}
                         onClick={() => setSelected({ row: r, kind: 'fulfillment' })}
+                      />
+                    </Td>
+                    <Td align="left">
+                      <ChannelChips
+                        productId={r.productId}
+                        channels={r.channels}
+                        onSaved={reload}
                       />
                     </Td>
                   </tr>
@@ -473,4 +489,68 @@ function CostEditorDrawer({
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// -----------------------------------------------------------------------------
+// ChannelChips — Toggle-Chips fuer Shopify/Amazon/TikTok pro Produktzeile
+// -----------------------------------------------------------------------------
+
+const CHANNEL_OPTIONS: Array<{ key: Channel; label: string; color: string }> = [
+  { key: 'shopify', label: 'SH', color: 'emerald' },
+  { key: 'amazon',  label: 'AM', color: 'orange' },
+  { key: 'tiktok',  label: 'TT', color: 'pink' },
+];
+
+function ChannelChips({ productId, channels, onSaved }: {
+  productId: string; channels: Channel[]; onSaved: () => void;
+}) {
+  const [local, setLocal] = useState<Channel[]>(channels);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setLocal(channels); }, [channels]);
+
+  async function toggle(ch: Channel) {
+    const next = local.includes(ch) ? local.filter((c) => c !== ch) : [...local, ch];
+    setLocal(next);
+    setSaving(true);
+    try {
+      await profitAnalysisApi.productCosts.setChannels(productId, next);
+      onSaved();
+    } catch {
+      // Bei Fehler Zustand zurücksetzen
+      setLocal(local);
+    } finally { setSaving(false); }
+  }
+
+  const isLegacy = local.length === 0;
+
+  return (
+    <div className="flex items-center gap-1">
+      {CHANNEL_OPTIONS.map((opt) => {
+        const active = local.includes(opt.key);
+        const colorClass = active
+          ? opt.color === 'emerald' ? 'bg-emerald-500 text-white border-emerald-500'
+          : opt.color === 'orange'  ? 'bg-orange-500 text-white border-orange-500'
+          :                            'bg-pink-500 text-white border-pink-500'
+          : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-500 dark:border-white/10';
+        return (
+          <button
+            key={opt.key}
+            onClick={(e) => { e.stopPropagation(); toggle(opt.key); }}
+            disabled={saving}
+            className={cn(
+              'w-8 h-6 text-[10px] font-bold rounded border transition-all',
+              colorClass,
+              saving && 'opacity-50',
+            )}
+            title={active ? `In "${opt.key}" verkauft — klicken zum Entfernen` : `Nicht in "${opt.key}" — klicken zum Aktivieren`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+      {isLegacy && (
+        <span className="ml-1 text-[10px] text-slate-400 italic" title="Ohne Haken tauchen Produkte überall auf (Legacy-Verhalten)">alle</span>
+      )}
+    </div>
+  );
 }
