@@ -265,6 +265,12 @@ export const profitAnalysisApi = {
       call<RankingsResult>(`/rankings${count ? '?count=' + count : ''}`),
   },
 
+  // Top-Artikel im Zeitraum
+  topProducts: {
+    forRange: (from: string, to: string, limit = 50) =>
+      call<TopProductsResult>(`/top-products?from=${from}&to=${to}&limit=${limit}`),
+  },
+
   // Grosshandel-Sync aus /sales
   wholesaleSync: {
     listForMonth: (year: number, month: number) =>
@@ -321,6 +327,18 @@ export interface RankingsResult {
   bestMarginMonth: RankingMonthEntry | null;
   worstMarginMonth: RankingMonthEntry | null;
 }
+export interface TopProductRow {
+  productId: string; title: string; sku: string | null; imageUrl: string | null;
+  totalQty: number;
+  perChannel: { shopify: number; amazon: number; tiktok: number };
+}
+export interface TopProductsResult {
+  from: string; to: string;
+  totalUnits: number;
+  productCount: number;
+  items: TopProductRow[];
+}
+
 export interface WholesaleAutoOrder {
   id: string;
   orderNumber: string;

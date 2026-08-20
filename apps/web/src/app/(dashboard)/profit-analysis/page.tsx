@@ -11,6 +11,7 @@ import { formatEur, formatPercent } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 import { FilapenInsightsPanel } from '@/components/profit-analysis/FilapenInsightsPanel';
 import { ChannelBreakdown } from '@/components/profit-analysis/ChannelBreakdown';
+import { TopProductsPanel } from '@/components/profit-analysis/TopProductsPanel';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
 import { API_URL } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -147,6 +148,14 @@ export default function OverviewPage() {
   // Range-Aggregate (§11 weighted ROAS)
   const rangeAgg = useMemo(() => aggregateRange(rangeDays, focusMonth, range), [rangeDays, focusMonth, range]);
   const prevAgg = useMemo(() => aggregateRange(prevRangeDays, null, null), [prevRangeDays]);
+
+  // Top-Artikel im Zeitraum (Backend-Call)
+  const [topProducts, setTopProducts] = useState<{ totalUnits: number; productCount: number } | null>(null);
+  useEffect(() => {
+    profitAnalysisApi.topProducts.forRange(range.from, range.to, 1)
+      .then((r) => setTopProducts({ totalUnits: r.totalUnits, productCount: r.productCount }))
+      .catch(() => setTopProducts(null));
+  }, [range.from, range.to]);
 
   async function openPreflight(lock: boolean) {
     setBusy('preflight');
@@ -316,15 +325,19 @@ export default function OverviewPage() {
           <FilapenInsightsPanel />
 
           {/* Mittlere KPIs */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
             <MediumKpi label="Marge vor GK" value={rangeAgg.marginBeforeOverhead !== null ? formatPercent(rangeAgg.marginBeforeOverhead) : '—'} tone={marginTone(rangeAgg.marginBeforeOverhead)} />
             <MediumKpi label="Operative Endmarge" value={rangeAgg.operatingMargin !== null ? formatPercent(rangeAgg.operatingMargin) : '—'} tone={marginTone(rangeAgg.operatingMargin)} highlight />
             <MediumKpi label="Werbekosten" value={formatEur(rangeAgg.adsTotal)} />
             <MediumKpi label="Großhandelsgewinn" value={formatEur(rangeAgg.wholesaleProfit)} />
+            <MediumKpi label="Verkaufte Artikel" value={topProducts ? `${topProducts.totalUnits} Stk.` : '—'} />
           </div>
 
           {/* Kanal-Kacheln + Bar-Chart Gewinn pro Kanal */}
           <ChannelBreakdown days={rangeDays} />
+
+          {/* Meist verkaufte Artikel im Zeitraum */}
+          <TopProductsPanel from={range.from} to={range.to} rangeLabel={range.label} />
 
           {/* Zeitreihen-Charts */}
           <ChartsPanel days={rangeDays} overheadTotal={rangeAgg.overheadPortion} />
