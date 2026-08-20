@@ -28,16 +28,18 @@ interface ChannelAgg {
 
 export function ChannelBreakdown({ days }: { days: ComputedDay[] }) {
   const agg = useMemo(() => aggregateChannels(days), [days]);
-
-  if (days.length === 0) {
-    return null;
-  }
+  const isEmpty = days.length === 0;
 
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] p-4 space-y-4">
       <div className="flex items-center gap-1.5">
         <div className="text-sm font-semibold text-slate-900 dark:text-white">Kanäle im Zeitraum</div>
         <InfoTooltip description="Aggregierte Kennzahlen pro Verkaufskanal im gewählten Zeitraum. ROAS = Summe Umsatz / Summe Ads (nicht Durchschnitt der Tages-ROAS)." />
+        {isEmpty && (
+          <span className="ml-auto text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded">
+            Keine Daten im Zeitraum
+          </span>
+        )}
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">

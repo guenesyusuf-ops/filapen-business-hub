@@ -113,23 +113,32 @@ export default function OverviewPage() {
     try {
       const months = monthsInRange(range.from, range.to);
       const prevMonths = monthsInRange(prevRange.from, prevRange.to);
-      // Focus-Monat + Vergleichsmonate + Ziele + Rankings
-      const [focusRes, allRes, allPrevRes, t, r] = await Promise.all([
-        profitAnalysisApi.daily.getMonth(range.focusYear, range.focusMonth),
-        Promise.all(months.map((m) => profitAnalysisApi.daily.getMonth(m.year, m.month))),
-        Promise.all(prevMonths.map((m) => profitAnalysisApi.daily.getMonth(m.year, m.month))),
-        profitAnalysisApi.targets.list(),
-        profitAnalysisApi.rankings.lastMonths(12).catch(() => null),
-      ]);
+      // Alle 5 Calls einzeln absichern damit wir sehen welcher failt
+      const focusRes = await profitAnalysisApi.daily.getMonth(range.focusYear, range.focusMonth)
+        .catch((e) => { throw new Error(`Focus-Monat ${range.focusYear}-${range.focusMonth}: ${e?.message ?? e}`); });
+      const allRes = await Promise.all(months.map((m, i) =>
+        profitAnalysisApi.daily.getMonth(m.year, m.month)
+          .catch((e) => { throw new Error(`Range-Monat ${m.year}-${m.month}: ${e?.message ?? e}`); })
+      ));
+      const allPrevRes = await Promise.all(prevMonths.map((m) =>
+        profitAnalysisApi.daily.getMonth(m.year, m.month)
+          .catch((e) => { throw new Error(`Vergleichsmonat ${m.year}-${m.month}: ${e?.message ?? e}`); })
+      ));
+      const t = await profitAnalysisApi.targets.list()
+        .catch((e) => { throw new Error(`Ziele laden: ${e?.message ?? e}`); });
+      const r = await profitAnalysisApi.rankings.lastMonths(12).catch(() => null);
+
       setFocusMonth(focusRes.computed);
-      const allDays: ComputedDay[] = allRes.flatMap((r) => r.computed.days);
-      const allPrevDays: ComputedDay[] = allPrevRes.flatMap((r) => r.computed.days);
+      const allDays: ComputedDay[] = allRes.flatMap((res) => res.computed.days);
+      const allPrevDays: ComputedDay[] = allPrevRes.flatMap((res) => res.computed.days);
       setRangeDays(allDays.filter((d) => d.date >= range.from && d.date <= range.to));
       setPrevRangeDays(allPrevDays.filter((d) => d.date >= prevRange.from && d.date <= prevRange.to));
       setTargets(t.items);
       setRankings(r);
     } catch (e: any) {
-      setError(e?.message ?? 'Laden fehlgeschlagen');
+      const msg = e?.message ?? 'Laden fehlgeschlagen';
+      console.error('[ProfitAnalysis Overview] Load error:', msg, e);
+      setError(msg);
     } finally { setLoading(false); }
   }, [range.from, range.to, range.focusYear, range.focusMonth, prevRange.from, prevRange.to]);
 
