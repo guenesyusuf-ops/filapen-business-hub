@@ -277,6 +277,11 @@ export const profitAnalysisApi = {
       call<WholesaleAutoResponse>(`/wholesale-sync/months/${year}/${month}`),
     unmatched: (year: number, month: number) =>
       call<{ items: WholesaleUnmatchedItem[] }>(`/wholesale-sync/months/${year}/${month}/unmatched`),
+    match: (lineItemId: string, productId: string) =>
+      call<{ ok: boolean; matchedProductVariantId: string }>(`/wholesale-sync/line-items/${lineItemId}/match`, {
+        method: 'PUT',
+        body: JSON.stringify({ productId }),
+      }),
   },
 
   // Filapen Insights

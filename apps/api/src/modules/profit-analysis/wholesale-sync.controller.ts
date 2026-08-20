@@ -1,13 +1,15 @@
-import { Controller, Get, Headers, Param, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Put, Body, Headers, Param, BadRequestException } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
-import { extractAuthContext } from './auth-context';
+import { extractAuthContext, assertCanWrite } from './auth-context';
 import { WholesaleSyncService } from './wholesale-sync.service';
+import { PaAuditService } from './audit.service';
 
 @Controller('profit-analysis/wholesale-sync')
 export class WholesaleSyncController {
   constructor(
     private readonly auth: AuthService,
     private readonly sync: WholesaleSyncService,
+    private readonly audit: PaAuditService,
   ) {}
 
   /** Automatisch aggregierte Grosshandelsaufraege eines Monats aus /sales. */
@@ -28,6 +30,30 @@ export class WholesaleSyncController {
   ) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     return { items: await this.sync.listUnmatched(orgId, this.n(y), this.n(m)) };
+  }
+
+  /** Sales-Line-Position mit Filapen-Produkt matchen. */
+  @Put('line-items/:lineItemId/match')
+  async matchLineItem(
+    @Headers('authorization') authHeader: string,
+    @Param('lineItemId') lineItemId: string,
+    @Body() body: { productId: string },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body?.productId) throw new BadRequestException('productId fehlt');
+    try {
+      const result = await this.sync.matchLineItem(orgId, lineItemId, body.productId);
+      await this.audit.log({
+        orgId, userId,
+        action: 'wholesale.match_line_item',
+        entityType: 'pa.sales_line_item', entityId: lineItemId,
+        changes: { productId: body.productId, variantId: result.matchedProductVariantId },
+      });
+      return result;
+    } catch (e: any) {
+      throw new BadRequestException(e?.message ?? 'Match fehlgeschlagen');
+    }
   }
 
   private n(s: string) {

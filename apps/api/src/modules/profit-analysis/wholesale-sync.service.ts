@@ -193,6 +193,50 @@ export class WholesaleSyncService {
   }
 
   /** Nicht-gematchte Positionen mit Kontext fuer die Match-Warnung. */
+  /**
+   * Ordnet eine Sales-Order-Line-Position einem Filapen-Produkt zu.
+   * Findet den ersten ProductVariant zu dem Produkt und setzt das als
+   * matchedProductVariantId auf die Line-Position.
+   *
+   * Cross-Org-safe: pruefen dass sowohl Line-Item als auch Produkt zur Org gehoeren.
+   */
+  async matchLineItem(orgId: string, lineItemId: string, productId: string): Promise<{
+    ok: boolean;
+    matchedProductVariantId: string;
+  }> {
+    // 1. Verifizieren dass Line-Item zur Org gehoert
+    const item = await this.prisma.salesOrderLineItem.findFirst({
+      where: { id: lineItemId, orgId },
+      select: { id: true, orderId: true },
+    });
+    if (!item) throw new Error('Sales-Order-Position nicht gefunden');
+
+    // 2. Verifizieren dass Produkt zur Org gehoert + erste Variante finden
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, orgId },
+      include: {
+        variants: {
+          select: { id: true },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+        },
+      },
+    });
+    if (!product) throw new Error('Filapen-Produkt nicht gefunden');
+    if (product.variants.length === 0) {
+      throw new Error('Produkt hat keine Varianten — kann nicht matchen');
+    }
+    const variantId = product.variants[0].id;
+
+    // 3. Match setzen
+    await this.prisma.salesOrderLineItem.update({
+      where: { id: lineItemId },
+      data: { matchedProductVariantId: variantId },
+    });
+
+    return { ok: true, matchedProductVariantId: variantId };
+  }
+
   async listUnmatched(orgId: string, year: number, month: number): Promise<Array<{
     orderId: string;
     orderNumber: string;
@@ -236,3 +280,4 @@ export class WholesaleSyncService {
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
