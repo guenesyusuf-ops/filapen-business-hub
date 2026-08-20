@@ -387,6 +387,8 @@ model Organization {
   paOverheadTemplates      PaOverheadTemplate[]
   paOverheadEntries        PaOverheadEntry[]
   paProductChannels        PaProductChannel[]
+  paProductSettings        PaProductSettings[]
+  paInsights               PaInsight[]
 
   @@map("organizations")
 }
@@ -895,6 +897,7 @@ model Product {
   paDailyProductSales      PaDailyProductSale[]
   paWholesaleOrderItems    PaWholesaleOrderItem[]
   paProductChannels        PaProductChannel[]
+  paProductSettings        PaProductSettings?
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
@@ -4454,6 +4457,11 @@ model PaOverheadEntry {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
+  // §43 erweiterte Kostenstruktur (additiv, optional)
+  taxTreatment              PaTaxTreatment? @map("tax_treatment")
+  calculatedControllingCost Decimal?        @map("calculated_controlling_cost") @db.Decimal(12, 2)
+  calculatedTaxComponent    Decimal?        @map("calculated_tax_component") @db.Decimal(12, 2)
+
   organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   month        PaMonth             @relation(fields: [monthId], references: [id], onDelete: Cascade)
   template     PaOverheadTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
@@ -4461,6 +4469,119 @@ model PaOverheadEntry {
   @@index([monthId], map: "idx_pa_oe_month")
   @@index([orgId, monthId], map: "idx_pa_oe_org")
   @@map("pa_overhead_entry")
+}
+
+enum PaTaxTreatment {
+  net_entered
+  gross_with_tax
+  no_deductible_tax
+  manual_override
+
+  @@map("pa_tax_treatment")
+}
+
+/// §41 Produkt-Steuersatz (19|7|0) kanal-unabhaengig.
+/// Ergaenzt den bestehenden ProductVariant.vatRate um eine Produkt-Ebene.
+model PaProductSettings {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  productId String   @unique @map("product_id") @db.Uuid
+  vatRate   Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([orgId], map: "idx_pa_product_settings_org")
+  @@map("pa_product_settings")
+}
+
+// -----------------------------------------------------------------------------
+// Filapen Insights (Ebene B: Storage der Detection-Kandidaten)
+// -----------------------------------------------------------------------------
+
+enum PaInsightSeverity {
+  info
+  positive
+  warning
+  critical
+
+  @@map("pa_insight_severity")
+}
+
+enum PaInsightStatus {
+  new
+  active
+  acknowledged
+  resolved
+  dismissed
+
+  @@map("pa_insight_status")
+}
+
+enum PaInsightFeedback {
+  helpful
+  not_helpful
+
+  @@map("pa_insight_feedback")
+}
+
+/// Ein erkannter Insight-Kandidat. Deterministisch erzeugt in Ebene B, optional
+/// ueberschrieben mit KI-Formulierung in Ebene C.
+///
+/// Lifecycle: new → active → resolved (wenn Bedingung nicht mehr wahr) oder
+/// acknowledged/dismissed (User-Interaktion).
+///
+/// Deduplizierung ueber fingerprint (type+channel+period_key). Gleicher
+/// Insight in der selben Periode wird nur EIN Datensatz — Werte werden
+/// aktualisiert wenn sich etwas veraendert.
+model PaInsight {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId String @map("org_id") @db.Uuid
+
+  insightType String  @map("insight_type") @db.VarChar(60)
+  channel     String? @db.VarChar(20)
+  periodKey   String  @map("period_key") @db.VarChar(60)
+  fingerprint String  @db.VarChar(200)
+
+  severity PaInsightSeverity
+  status   PaInsightStatus   @default(new)
+
+  metric           String?  @db.VarChar(60)
+  currentValue     Decimal? @map("current_value") @db.Decimal(14, 4)
+  comparisonValue  Decimal? @map("comparison_value") @db.Decimal(14, 4)
+  absoluteChange   Decimal? @map("absolute_change") @db.Decimal(14, 4)
+  percentageChange Decimal? @map("percentage_change") @db.Decimal(10, 4)
+  unit             String?  @db.VarChar(20)
+  facts            Json?
+
+  title   String @db.VarChar(200)
+  message String @db.Text
+
+  aiTitle       String?   @map("ai_title") @db.VarChar(200)
+  aiMessage     String?   @map("ai_message") @db.Text
+  aiGeneratedAt DateTime? @map("ai_generated_at") @db.Timestamptz
+
+  priorityScore Int       @default(0) @map("priority_score")
+  periodFrom    DateTime? @map("period_from") @db.Date
+  periodTo      DateTime? @map("period_to") @db.Date
+
+  detectedAt       DateTime  @default(now()) @map("detected_at") @db.Timestamptz
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz
+  acknowledgedAt   DateTime? @map("acknowledged_at") @db.Timestamptz
+  acknowledgedById String?   @map("acknowledged_by_id") @db.Uuid
+
+  feedback     PaInsightFeedback?
+  feedbackAt   DateTime?          @map("feedback_at") @db.Timestamptz
+  feedbackById String?            @map("feedback_by_id") @db.Uuid
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, fingerprint])
+  @@index([orgId, status], map: "idx_pa_insight_org_status")
+  @@index([orgId, severity], map: "idx_pa_insight_org_severity")
+  @@index([orgId, detectedAt(sort: Desc)], map: "idx_pa_insight_org_detected")
+  @@map("pa_insight")
 }
 
 // -----------------------------------------------------------------------------

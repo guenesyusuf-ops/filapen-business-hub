@@ -9,6 +9,7 @@ import {
 import { profitAnalysisApi, ComputedMonth, TargetItem, RankingsResult, PreflightResult } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
+import { FilapenInsightsPanel } from '@/components/profit-analysis/FilapenInsightsPanel';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
 import { API_URL } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -191,6 +192,9 @@ export default function OverviewPage() {
               }}
             />
           </div>
+
+          {/* §2/§50 Filapen Insights — direkt unter Haupt-KPIs */}
+          <FilapenInsightsPanel />
 
           {/* Mittlere KPIs */}
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">

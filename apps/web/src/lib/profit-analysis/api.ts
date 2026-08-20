@@ -256,6 +256,23 @@ export const profitAnalysisApi = {
       call<RankingsResult>(`/rankings${count ? '?count=' + count : ''}`),
   },
 
+  // Filapen Insights
+  insights: {
+    top: (n = 5) => call<{ items: Insight[] }>(`/insights/top?n=${n}`),
+    list: (params: { status?: string; severity?: string; channel?: string; limit?: number } = {}) => {
+      const qs = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => v !== undefined && qs.set(k, String(v)));
+      const s = qs.toString();
+      return call<{ items: Insight[] }>(`/insights${s ? '?' + s : ''}`);
+    },
+    refresh: () => call<{ created: number; updated: number; resolved: number }>('/insights/refresh', { method: 'POST' }),
+    acknowledge: (id: string) => call(`/insights/${id}/acknowledge`, { method: 'POST' }),
+    dismiss: (id: string) => call(`/insights/${id}/dismiss`, { method: 'POST' }),
+    feedback: (id: string, feedback: 'helpful' | 'not_helpful') =>
+      call(`/insights/${id}/feedback`, { method: 'POST', body: JSON.stringify({ feedback }) }),
+    explain: (id: string) => call<{ headline: string; drivers: Array<{ label: string; metric: string; change: number; unit: string; direction: 'up' | 'down' }> }>(`/insights/${id}/explain`),
+  },
+
   // Audit-Log
   audit: {
     list: (params: { entityType?: string; entityId?: string; action?: string; limit?: number; offset?: number } = {}) => {
@@ -287,6 +304,28 @@ export interface RankingsResult {
   bestMarginMonth: RankingMonthEntry | null;
   worstMarginMonth: RankingMonthEntry | null;
 }
+export interface Insight {
+  id: string;
+  insightType: string;
+  channel: string | null;
+  severity: 'info' | 'positive' | 'warning' | 'critical';
+  status: 'new' | 'active' | 'acknowledged' | 'resolved' | 'dismissed';
+  title: string;
+  message: string;
+  metric: string | null;
+  currentValue: string | null;
+  comparisonValue: string | null;
+  percentageChange: string | null;
+  unit: string | null;
+  facts: any;
+  priorityScore: number;
+  periodFrom: string | null;
+  periodTo: string | null;
+  detectedAt: string;
+  feedback: 'helpful' | 'not_helpful' | null;
+  hasAi: boolean;
+}
+
 export interface AuditEntry {
   id: string; action: string; entityType: string; entityId: string;
   changes: any; createdAt: string; userId: string | null; userName: string | null;
