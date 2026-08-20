@@ -666,13 +666,20 @@ function MonthTable({
 
       <div className="relative overflow-x-auto max-h-[600px]">
         <table className="w-full text-xs">
-          <thead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-[#1a1d26] sticky top-0 z-10">
+          <thead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-[#1a1d26]">
             <tr>
-              <th className="text-left px-3 py-2 sticky left-0 z-20 bg-slate-50 dark:bg-[#1a1d26]">Datum</th>
+              {/* Ecke oben-links: Datum — sticky in beide Richtungen */}
+              <th className="text-left px-3 py-2 sticky top-0 left-0 z-30 bg-slate-50 dark:bg-[#1a1d26] border-r border-slate-200 dark:border-white/10">Datum</th>
+              {/* Mittlere Header nur sticky top */}
               {cols.map((c) => (
-                <th key={c.key} className={cn('px-3 py-2 whitespace-nowrap', c.align === 'right' ? 'text-right' : 'text-left', c.group && 'border-l border-slate-200 dark:border-white/10')}>{c.label}</th>
+                <th key={c.key} className={cn(
+                  'sticky top-0 z-20 bg-slate-50 dark:bg-[#1a1d26] px-3 py-2 whitespace-nowrap',
+                  c.align === 'right' ? 'text-right' : 'text-left',
+                  c.group && 'border-l border-slate-200 dark:border-white/10',
+                )}>{c.label}</th>
               ))}
-              <th className="text-right px-3 py-2 sticky right-0 z-20 bg-slate-50 dark:bg-[#1a1d26] border-l border-slate-200 dark:border-white/10">Ergebnis</th>
+              {/* Ecke oben-rechts: Ergebnis — sticky in beide Richtungen */}
+              <th className="text-right px-3 py-2 sticky top-0 right-0 z-30 bg-slate-50 dark:bg-[#1a1d26] border-l border-slate-200 dark:border-white/10">Ergebnis</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -710,21 +717,21 @@ function MonthTable({
               );
             })}
           </tbody>
-          {/* §43 Sticky Summen-Footer */}
-          <tfoot className="sticky bottom-0 z-10 bg-slate-100 dark:bg-[#1a1d26] border-t-2 border-slate-300 dark:border-white/10">
+          {/* §43 Sticky Summen-Footer — Ecken (bottom+left/right) mit z-30 */}
+          <tfoot className="bg-slate-100 dark:bg-[#1a1d26] border-t-2 border-slate-300 dark:border-white/10">
             <tr className="font-bold">
-              <td className="text-left px-3 py-2 sticky left-0 z-20 bg-slate-100 dark:bg-[#1a1d26] border-r border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
+              <td className="text-left px-3 py-2 sticky bottom-0 left-0 z-30 bg-slate-100 dark:bg-[#1a1d26] border-r border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
                 Σ Summe
               </td>
               {cols.map((col) => (
-                <td key={col.key} className={cn('px-3 py-2 tabular-nums whitespace-nowrap',
+                <td key={col.key} className={cn('sticky bottom-0 z-20 bg-slate-100 dark:bg-[#1a1d26] px-3 py-2 tabular-nums whitespace-nowrap',
                   col.align === 'right' ? 'text-right' : 'text-left',
                   col.group && 'border-l border-slate-200 dark:border-white/10',
                   'text-slate-900 dark:text-white')}>
                   {col.total ? col.total(totals[col.key], rows) : ''}
                 </td>
               ))}
-              <td className="px-3 py-2 sticky right-0 z-20 bg-slate-100 dark:bg-[#1a1d26] border-l border-slate-200 dark:border-white/10 text-right">
+              <td className="px-3 py-2 sticky bottom-0 right-0 z-30 bg-slate-100 dark:bg-[#1a1d26] border-l border-slate-200 dark:border-white/10 text-right">
                 <div className="flex flex-col items-end gap-0.5">
                   <span className={cn('tabular-nums font-bold',
                     grandProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400')}>
