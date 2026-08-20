@@ -645,10 +645,36 @@ function MonthTable({
     date: d, computed: computedByDate.get(d), raw: rawByDate.get(d),
   }));
 
-  // Summen-Footer berechnen (§43)
+  // §43 Ergebnis-Spalte view-abhaengig: bei shopify/amazon/tiktok den jeweiligen
+  // Kanal-Profit, sonst das Gesamt-Aggregat.
+  const resultOf = (c: ComputedDay | undefined): { profit: string; margin: string | null } | null => {
+    if (!c) return null;
+    if (view === 'shopify') return { profit: c.shopify.profit.profit, margin: c.shopify.profit.margin };
+    if (view === 'amazon')  return { profit: c.amazon.profit.profit,  margin: c.amazon.profit.margin };
+    if (view === 'tiktok')  return { profit: c.tiktok.profit.profit,  margin: c.tiktok.profit.margin };
+    return { profit: c.aggregate.totalProfit, margin: c.aggregate.totalMargin };
+  };
+  const resultLabel = view === 'shopify' ? 'SH Ergebnis'
+    : view === 'amazon' ? 'AM Ergebnis'
+    : view === 'tiktok' ? 'TT Ergebnis'
+    : 'Ergebnis';
+
+  // Summen-Footer berechnen (§43) — analog view-abhaengig
   const totals = computeColumnTotals(cols, rows);
-  const grandProfit = rows.reduce((a, r) => a + (r.computed ? Number(r.computed.aggregate.totalProfit) : 0), 0);
-  const grandNetSales = rows.reduce((a, r) => a + (r.computed ? Number(r.computed.aggregate.totalNetSales) : 0), 0);
+  const grandProfit = rows.reduce((a, r) => {
+    if (!r.computed) return a;
+    if (view === 'shopify') return a + Number(r.computed.shopify.profit.profit);
+    if (view === 'amazon')  return a + Number(r.computed.amazon.profit.profit);
+    if (view === 'tiktok')  return a + Number(r.computed.tiktok.profit.profit);
+    return a + Number(r.computed.aggregate.totalProfit);
+  }, 0);
+  const grandNetSales = rows.reduce((a, r) => {
+    if (!r.computed) return a;
+    if (view === 'shopify') return a + Number(r.computed.shopify.profit.netSales);
+    if (view === 'amazon')  return a + Number(r.computed.amazon.profit.netSales);
+    if (view === 'tiktok')  return a + Number(r.computed.tiktok.profit.netSales);
+    return a + Number(r.computed.aggregate.totalNetSales);
+  }, 0);
   const grandMargin = grandNetSales > 0 ? (grandProfit / grandNetSales) * 100 : null;
 
   return (
@@ -678,8 +704,8 @@ function MonthTable({
                   c.group && 'border-l border-slate-200 dark:border-white/10',
                 )}>{c.label}</th>
               ))}
-              {/* Ecke oben-rechts: Ergebnis — sticky in beide Richtungen */}
-              <th className="text-right px-3 py-2 sticky top-0 right-0 z-30 bg-slate-50 dark:bg-[#1a1d26] border-l border-slate-200 dark:border-white/10">Ergebnis</th>
+              {/* Ecke oben-rechts: Ergebnis — kontextabhaengig zum aktiven View */}
+              <th className="text-right px-3 py-2 sticky top-0 right-0 z-30 bg-slate-50 dark:bg-[#1a1d26] border-l border-slate-200 dark:border-white/10">{resultLabel}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -706,12 +732,16 @@ function MonthTable({
                     </td>
                   ))}
                   <td className={cn('px-3 py-2 sticky right-0 z-10 border-l border-slate-200 dark:border-white/10 text-right', stickyBg)}>
-                    {c ? (
-                      <div className="flex flex-col items-end gap-0.5">
-                        <ProfitCell value={c.aggregate.totalProfit} />
-                        {c.aggregate.totalMargin !== null && <MarginPill value={c.aggregate.totalMargin} />}
-                      </div>
-                    ) : '—'}
+                    {(() => {
+                      const r = resultOf(c);
+                      if (!r) return '—';
+                      return (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <ProfitCell value={r.profit} />
+                          {r.margin !== null && <MarginPill value={r.margin} />}
+                        </div>
+                      );
+                    })()}
                   </td>
                 </tr>
               );
