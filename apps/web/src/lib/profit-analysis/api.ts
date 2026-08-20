@@ -62,6 +62,7 @@ export interface ProductCostRow {
   currentFulfillment: string | null;
   currentFulfillmentEffectiveFrom: string | null;
   channels: Channel[];
+  enabled: boolean;
 }
 
 export interface CostHistoryEntry {
@@ -104,6 +105,7 @@ export const profitAnalysisApi = {
       missingCosts?: boolean;
       missingFulfillment?: boolean;
       channel?: Channel;
+      includeDisabled?: boolean;
       limit?: number;
       offset?: number;
     } = {}) => {
@@ -113,6 +115,7 @@ export const profitAnalysisApi = {
       if (params.missingCosts) qs.set('missingCosts', 'true');
       if (params.missingFulfillment) qs.set('missingFulfillment', 'true');
       if (params.channel) qs.set('channel', params.channel);
+      if (params.includeDisabled) qs.set('includeDisabled', 'true');
       if (params.limit !== undefined) qs.set('limit', String(params.limit));
       if (params.offset !== undefined) qs.set('offset', String(params.offset));
       const s = qs.toString();
@@ -132,6 +135,12 @@ export const profitAnalysisApi = {
       call<{ channels: Channel[] }>(`/product-costs/${productId}/channels`, {
         method: 'PUT',
         body: JSON.stringify({ channels }),
+      }),
+
+    setEnabled: (productId: string, enabled: boolean) =>
+      call<{ enabled: boolean }>(`/product-costs/${productId}/enabled`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
       }),
   },
 

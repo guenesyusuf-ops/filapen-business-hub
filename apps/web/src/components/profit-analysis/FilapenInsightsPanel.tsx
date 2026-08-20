@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   TrendingUp, TrendingDown, AlertTriangle, AlertCircle, CheckCircle2, Info, Sparkles,
-  X, ThumbsUp, ThumbsDown, ChevronRight, HelpCircle, Loader2,
+  X, ThumbsUp, ThumbsDown, ChevronRight, HelpCircle, Loader2, RefreshCw,
 } from 'lucide-react';
 import { profitAnalysisApi, Insight } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent } from '@/lib/profit-analysis/formatters';
@@ -27,6 +27,7 @@ const CHANNEL_LABEL: Record<string, string> = {
 export function FilapenInsightsPanel() {
   const [items, setItems] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [explainId, setExplainId] = useState<string | null>(null);
 
@@ -40,6 +41,14 @@ export function FilapenInsightsPanel() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  async function manualRefresh() {
+    setRefreshing(true);
+    try {
+      await profitAnalysisApi.insights.refresh();
+      await load();
+    } finally { setRefreshing(false); }
+  }
+
   async function markFeedback(id: string, feedback: 'helpful' | 'not_helpful') {
     await profitAnalysisApi.insights.feedback(id, feedback);
     setItems((prev) => prev.map((i) => i.id === id ? { ...i, feedback } : i));
@@ -52,9 +61,20 @@ export function FilapenInsightsPanel() {
           <Sparkles className="h-4 w-4 text-amber-500" />
           <div className="text-sm font-semibold text-slate-900 dark:text-white">Filapen Insights</div>
         </div>
-        <button onClick={() => setShowDrawer(true)} className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 inline-flex items-center gap-1">
-          Alle Insights <ChevronRight className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={manualRefresh}
+            disabled={refreshing}
+            className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 inline-flex items-center gap-1 disabled:opacity-50"
+            title="Insights jetzt neu berechnen"
+          >
+            {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Aktualisieren
+          </button>
+          <button onClick={() => setShowDrawer(true)} className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 inline-flex items-center gap-1">
+            Alle Insights <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {loading ? (

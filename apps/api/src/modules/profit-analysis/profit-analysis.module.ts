@@ -27,6 +27,7 @@ import { PeriodService } from './period.service';
 import { InsightController } from './insight.controller';
 import { InsightService } from './insight.service';
 import { InsightScheduler } from './insight.scheduler';
+import { PaInsightAiService } from './insight-ai.service';
 
 /**
  * Gewinnanalyse-Modul.
@@ -55,13 +56,13 @@ import { InsightScheduler } from './insight.scheduler';
     SettingsService, ProductCostService, DailyDataService, CalculationService,
     WholesaleService, OverheadService, MonthCloseService, ExportService,
     TargetService, RankingsService, PaAuditService,
-    ImportService, PeriodService, InsightService, InsightScheduler,
+    ImportService, PeriodService, InsightService, InsightScheduler, PaInsightAiService,
   ],
   exports: [
     SettingsService, ProductCostService, DailyDataService, CalculationService,
     WholesaleService, OverheadService, MonthCloseService, ExportService,
     TargetService, RankingsService, PaAuditService,
-    ImportService, PeriodService, InsightService,
+    ImportService, PeriodService, InsightService, PaInsightAiService,
   ],
 })
 export class ProfitAnalysisModule {}

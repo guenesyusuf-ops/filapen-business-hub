@@ -34,6 +34,10 @@ function makePrismaMock() {
       deleteMany: vi.fn(),
       createMany: vi.fn(),
     },
+    paProductSettings: {
+      findMany: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn(),
+    },
     $transaction: vi.fn(async (fn: any) => fn(state)),
   };
   return state;

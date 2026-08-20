@@ -24,6 +24,7 @@ export interface ProductCostRow {
   currentFulfillment: string | null;
   currentFulfillmentEffectiveFrom: string | null;
   channels: Channel[];                           // leer = Legacy-Fallback "ueberall"
+  enabled: boolean;                              // false = ueberall ausgeblendet
 }
 
 export interface CostHistoryEntry {
@@ -45,6 +46,9 @@ export interface ProductListQuery {
   /** Filter fuer den Tages-Editor: nur Produkte die auf diesem Kanal aktiv sind
    *  (inkl. Legacy-Produkte ohne einzige Zuordnung). */
   channel?: Channel;
+  /** true = auch deaktivierte Produkte anzeigen (Produktkosten-Seite).
+   *  false/omit = deaktivierte Produkte ausblenden (Tages-Editor). */
+  includeDisabled?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -83,7 +87,7 @@ export class ProductCostService {
       ];
     }
 
-    const [products, total, allCurrentCosts, allCurrentFulfillments, allChannels] = await Promise.all([
+    const [products, total, allCurrentCosts, allCurrentFulfillments, allChannels, allSettings] = await Promise.all([
       this.prisma.product.findMany({
         where: productWhere,
         orderBy: { title: 'asc' },
@@ -114,6 +118,10 @@ export class ProductCostService {
         where: { orgId },
         select: { productId: true, channel: true },
       }),
+      this.prisma.paProductSettings.findMany({
+        where: { orgId },
+        select: { productId: true, enabled: true },
+      }),
     ]);
 
     // Fuer jedes Produkt den neuesten aktuellen Wert pro Kosten-Art picken
@@ -138,6 +146,10 @@ export class ProductCostService {
       channelsByProduct.set(c.productId, list);
     }
 
+    // Enabled-Flag pro Produkt (Default true wenn kein Settings-Row)
+    const enabledByProduct = new Map<string, boolean>();
+    for (const s of allSettings) enabledByProduct.set(s.productId, s.enabled);
+
     let items: ProductCostRow[] = products.map((p) => {
       const cost = costByProduct.get(p.id);
       const ff = ffByProduct.get(p.id);
@@ -153,11 +165,18 @@ export class ProductCostService {
         currentFulfillment: ff?.value ?? null,
         currentFulfillmentEffectiveFrom: ff?.from ?? null,
         channels: channelsByProduct.get(p.id) ?? [],
+        enabled: enabledByProduct.get(p.id) ?? true,
       };
     });
 
     if (q.missingCosts) items = items.filter((r) => r.currentCost === null);
     if (q.missingFulfillment) items = items.filter((r) => r.currentFulfillment === null);
+
+    // Disabled-Filter: Standard blendet aus. includeDisabled=true zeigt alle
+    // (fuer die Produktkosten-Seite).
+    if (!q.includeDisabled) {
+      items = items.filter((r) => r.enabled);
+    }
 
     // Kanal-Filter mit Legacy-Fallback:
     //   channels leer  -> "ueberall" (Produkt taucht in jedem Kanal auf)
@@ -171,6 +190,18 @@ export class ProductCostService {
     const missingFulfillmentCount = products.length - ffByProduct.size;
 
     return { items, total, missingCostsCount, missingFulfillmentCount };
+  }
+
+  /** Produkt komplett ein/aus. Deaktivierte Produkte tauchen weder in
+   *  Produktkosten-Filter noch in irgendeinem Tages-Editor-Kanal auf. */
+  async setEnabled(orgId: string, productId: string, enabled: boolean): Promise<{ enabled: boolean }> {
+    await this.assertProductBelongsToOrg(orgId, productId);
+    await this.prisma.paProductSettings.upsert({
+      where: { productId },
+      create: { orgId, productId, enabled },
+      update: { enabled },
+    });
+    return { enabled };
   }
 
   /**

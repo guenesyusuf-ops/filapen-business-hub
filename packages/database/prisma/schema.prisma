@@ -4487,12 +4487,14 @@ model PaProductSettings {
   orgId     String   @map("org_id") @db.Uuid
   productId String   @unique @map("product_id") @db.Uuid
   vatRate   Decimal  @default(19) @map("vat_rate") @db.Decimal(5, 2)
+  enabled   Boolean  @default(true)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([orgId], map: "idx_pa_product_settings_org")
+  @@index([orgId, enabled], map: "idx_pa_product_settings_enabled")
   @@map("pa_product_settings")
 }
 

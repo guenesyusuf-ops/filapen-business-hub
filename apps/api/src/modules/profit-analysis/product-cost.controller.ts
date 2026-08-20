@@ -27,6 +27,7 @@ export class ProductCostController {
     @Query('missingCosts') missingCosts?: string,
     @Query('missingFulfillment') missingFulfillment?: string,
     @Query('channel') channel?: string,
+    @Query('includeDisabled') includeDisabled?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -37,9 +38,29 @@ export class ProductCostController {
       missingCosts: missingCosts === 'true',
       missingFulfillment: missingFulfillment === 'true',
       channel: (channel && ['shopify', 'amazon', 'tiktok'].includes(channel) ? channel : undefined) as Channel | undefined,
+      includeDisabled: includeDisabled === 'true',
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+  }
+
+  /** Produkt komplett ein/aus (Kill-Switch). */
+  @Put(':productId/enabled')
+  async setEnabled(
+    @Headers('authorization') authHeader: string,
+    @Param('productId') productId: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (typeof body?.enabled !== 'boolean') throw new BadRequestException('enabled muss boolean sein');
+    const result = await this.costs.setEnabled(orgId, productId, body.enabled);
+    await this.audit.log({
+      orgId, userId, action: 'product_enabled.set',
+      entityType: 'pa.product_settings', entityId: productId,
+      changes: { enabled: body.enabled },
+    });
+    return result;
   }
 
   /** Kanal-Zuordnung eines Produkts setzen (Checkbox-Save). */

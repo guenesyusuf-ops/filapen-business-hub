@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Loader2, AlertCircle, Package, Filter, History, X, Save, Check } from 'lucide-react';
+import { Search, Loader2, AlertCircle, Package, Filter, History, X, Save, Check, Power, PowerOff } from 'lucide-react';
 import Image from 'next/image';
 import { profitAnalysisApi, ProductCostRow, CostHistoryEntry, CostKind, Channel } from '@/lib/profit-analysis/api';
 import {
@@ -10,13 +10,14 @@ import {
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 import { cn } from '@/lib/utils';
 
-type Filter = 'all' | 'missing-costs' | 'missing-fulfillment';
+type Filter = 'all' | 'missing-costs' | 'missing-fulfillment' | 'disabled';
 
 export default function ProduktkostenPage() {
   const [rows, setRows] = useState<ProductCostRow[]>([]);
   const [total, setTotal] = useState(0);
   const [missingCostsCount, setMissingCostsCount] = useState(0);
   const [missingFulfillmentCount, setMissingFulfillmentCount] = useState(0);
+  const [disabledCount, setDisabledCount] = useState(0);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -31,11 +32,15 @@ export default function ProduktkostenPage() {
         search: search.trim() || undefined,
         missingCosts: filter === 'missing-costs' || undefined,
         missingFulfillment: filter === 'missing-fulfillment' || undefined,
+        includeDisabled: true,   // Produktkosten-Seite zeigt IMMER alle (inkl. deaktivierte)
       });
-      setRows(res.items);
+      let items = res.items;
+      if (filter === 'disabled') items = items.filter((r) => !r.enabled);
+      setRows(items);
       setTotal(res.total);
       setMissingCostsCount(res.missingCostsCount);
       setMissingFulfillmentCount(res.missingFulfillmentCount);
+      setDisabledCount(res.items.filter((r) => !r.enabled).length);
     } catch (e: any) {
       setError(e?.message ?? 'Laden fehlgeschlagen');
     } finally {
@@ -79,6 +84,13 @@ export default function ProduktkostenPage() {
             tone={missingFulfillmentCount === 0 ? 'good' : 'warn'}
             onClick={() => setFilter(filter === 'missing-fulfillment' ? 'all' : 'missing-fulfillment')}
             active={filter === 'missing-fulfillment'}
+          />
+          <StatChip
+            label="Deaktiviert"
+            value={disabledCount}
+            tone={disabledCount === 0 ? 'neutral' : 'warn'}
+            onClick={() => setFilter(filter === 'disabled' ? 'all' : 'disabled')}
+            active={filter === 'disabled'}
           />
         </div>
       </div>
@@ -147,20 +159,28 @@ export default function ProduktkostenPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {rows.map((r) => (
-                  <tr key={r.productId} className="hover:bg-slate-50 dark:hover:bg-white/[0.02]">
+                  <tr key={r.productId} className={cn('hover:bg-slate-50 dark:hover:bg-white/[0.02]', !r.enabled && 'opacity-40')}>
                     <Td>
                       <div className="flex items-center gap-3 min-w-0">
                         {r.imageUrl ? (
-                          <img src={r.imageUrl} alt="" className="h-9 w-9 rounded-lg object-cover flex-shrink-0" />
+                          <img src={r.imageUrl} alt="" className={cn('h-9 w-9 rounded-lg object-cover flex-shrink-0', !r.enabled && 'grayscale')} />
                         ) : (
                           <div className="h-9 w-9 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center flex-shrink-0">
                             <Package className="h-4 w-4 text-slate-400" />
                           </div>
                         )}
-                        <div className="min-w-0">
-                          <div className="font-medium text-slate-900 dark:text-white truncate">{r.title}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className={cn('font-medium truncate', r.enabled ? 'text-slate-900 dark:text-white' : 'text-slate-500 line-through')}>{r.title}</div>
+                            {!r.enabled && <span className="text-[10px] uppercase tracking-wider font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/10 px-1.5 py-0.5 rounded">Aus</span>}
+                          </div>
                           <div className="text-[11px] text-slate-500 dark:text-slate-400">Shopify-ID: {r.externalId}</div>
                         </div>
+                        <EnabledToggle
+                          productId={r.productId}
+                          enabled={r.enabled}
+                          onSaved={reload}
+                        />
                       </div>
                     </Td>
                     <Td className="text-slate-600 dark:text-slate-300 font-mono text-xs">
@@ -489,6 +509,40 @@ function CostEditorDrawer({
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// -----------------------------------------------------------------------------
+// EnabledToggle — Kill-Switch pro Produkt-Zeile
+// -----------------------------------------------------------------------------
+
+function EnabledToggle({ productId, enabled, onSaved }: {
+  productId: string; enabled: boolean; onSaved: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  async function toggle() {
+    setSaving(true);
+    try {
+      await profitAnalysisApi.productCosts.setEnabled(productId, !enabled);
+      onSaved();
+    } finally { setSaving(false); }
+  }
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); toggle(); }}
+      disabled={saving}
+      className={cn(
+        'flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs border transition-colors',
+        enabled
+          ? 'text-slate-500 border-slate-200 hover:text-red-600 hover:border-red-200 dark:border-white/10 dark:hover:border-red-500/30'
+          : 'text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-500/30 dark:hover:bg-emerald-500/10',
+        saving && 'opacity-50',
+      )}
+      title={enabled ? 'Produkt deaktivieren (wird überall ausgeblendet)' : 'Produkt wieder aktivieren'}
+    >
+      {enabled ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+      {enabled ? 'Deaktivieren' : 'Aktivieren'}
+    </button>
+  );
 }
 
 // -----------------------------------------------------------------------------

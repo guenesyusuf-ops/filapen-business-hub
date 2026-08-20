@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Headers, Param, Query, BadRequestException
 import { AuthService } from '../auth/auth.service';
 import { extractAuthContext, assertCanWrite } from './auth-context';
 import { InsightService } from './insight.service';
+import { PaInsightAiService } from './insight-ai.service';
 import { PaAuditService } from './audit.service';
 
 @Controller('profit-analysis/insights')
@@ -9,6 +10,7 @@ export class InsightController {
   constructor(
     private readonly auth: AuthService,
     private readonly insights: InsightService,
+    private readonly ai: PaInsightAiService,
     private readonly audit: PaAuditService,
   ) {}
 
@@ -36,13 +38,21 @@ export class InsightController {
     });
   }
 
-  /** Manueller Refresh (nutzt auch der Cron). */
+  /** Manueller Refresh (nutzt auch der Cron). Wenn AI verfuegbar ist, wird
+   *  danach auch die KI-Umformulierung getriggert. */
   @Post('refresh')
   async refresh(@Headers('authorization') authHeader: string) {
     const { orgId, userId } = extractAuthContext(authHeader, this.auth);
     const result = await this.insights.detectAll(orgId);
-    await this.audit.log({ orgId, userId, action: 'insights.refresh', entityType: 'pa.insight', entityId: 'manual', changes: result });
-    return result;
+    let aiResult = { enhanced: 0, skipped: 0 };
+    if (this.ai.isEnabled()) {
+      aiResult = await this.ai.enhanceForOrg(orgId);
+    }
+    await this.audit.log({
+      orgId, userId, action: 'insights.refresh', entityType: 'pa.insight', entityId: 'manual',
+      changes: { ...result, aiEnhanced: aiResult.enhanced, aiEnabled: this.ai.isEnabled() },
+    });
+    return { ...result, ai: { enabled: this.ai.isEnabled(), ...aiResult } };
   }
 
   /** Insight explizit als "zur Kenntnis genommen" markieren. */
