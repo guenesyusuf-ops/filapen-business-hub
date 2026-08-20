@@ -309,45 +309,108 @@ function DayEditor({
         </div>
       )}
 
-      {/* Ergebnis */}
+      {/* Ergebnis + alle Kostenkacheln */}
       {computedChannel && (
-        <div className="pt-3 border-t border-slate-200 dark:border-white/8">
-          <SectionLabel>Ergebnis {tabLabel(tab)}</SectionLabel>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
-            <ResultCell
-              label="Profit"
-              value={formatEur(computedChannel.profit.profit)}
-              tone={Number(computedChannel.profit.profit) < 0 ? 'critical' : 'good'}
-              tooltip={{
-                description: profitFormulaFor(tab),
-                formula: profitFormulaShortFor(tab),
-              }}
-            />
-            <ResultCell
-              label="Marge"
-              value={computedChannel.profit.margin !== null ? formatPercent(computedChannel.profit.margin) : '—'}
-              tone={marginToneClass(computedChannel.profit.margin)}
-              tooltip={{
-                description: 'Profit geteilt durch Netto-Umsatz.',
-                formula: 'Profit / Netto × 100',
-              }}
-            />
-            <ResultCell
-              label="Brutto ROAS"
-              value={computedChannel.profit.roasGross !== null ? formatDecimal(computedChannel.profit.roasGross) : '—'}
-              tooltip={{
-                description: 'Brutto-Umsatz geteilt durch die zugeordneten Werbekosten.',
-                formula: roasFormulaFor(tab, 'gross'),
-              }}
-            />
-            <ResultCell
-              label="Netto ROAS"
-              value={computedChannel.profit.roasNet !== null ? formatDecimal(computedChannel.profit.roasNet) : '—'}
-              tooltip={{
-                description: 'Netto-Umsatz geteilt durch die zugeordneten Werbekosten.',
-                formula: roasFormulaFor(tab, 'net'),
-              }}
-            />
+        <div className="pt-3 border-t border-slate-200 dark:border-white/8 space-y-4">
+          <div>
+            <SectionLabel>Kostenaufschlüsselung {tabLabel(tab)}</SectionLabel>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-2">
+              <ResultCell
+                label="Produktkosten"
+                value={formatEur(computedChannel.profit.productCosts)}
+                tooltip={{
+                  description: 'Summe der verkauften Stückzahl × historisch gültige Produktkosten am Verkaufstag.',
+                  formula: 'Σ (Menge × Produktkosten)',
+                }}
+              />
+              <ResultCell
+                label={tab === 'amazon' ? 'Amazon Fulfillment' : 'Versandkosten'}
+                value={formatEur(computedChannel.profit.shippingCosts)}
+                tooltip={{
+                  description: tab === 'amazon'
+                    ? 'Menge × produktbezogene Amazon-AWD/FBA-Pauschale.'
+                    : 'Pakete × DHL-Preis am Tag.',
+                  formula: tab === 'amazon'
+                    ? 'Σ (Menge × Fulfillment-Kosten)'
+                    : 'Pakete × DHL-Preis',
+                }}
+              />
+              <ResultCell
+                label={tab === 'shopify' ? 'Payment Fee' : tab === 'amazon' ? 'Amazon-Gebühr' : 'TikTok-Gebühr'}
+                value={formatEur(computedChannel.profit.platformFees)}
+                tooltip={{
+                  description: tab === 'shopify'
+                    ? 'Shopify Payments Fee — auf den Netto-Umsatz.'
+                    : tab === 'amazon' ? 'Amazon Plattform-Gebühr — auf den Netto-Umsatz.'
+                    : 'TikTok Shop-Gebühr — auf den Netto-Umsatz.',
+                  formula: 'Netto × Prozentsatz',
+                }}
+              />
+              <ResultCell
+                label="Werbekosten"
+                value={formatEur(computedChannel.profit.adsAttributed)}
+                tooltip={{
+                  description: tab === 'shopify'
+                    ? 'Meta + Google + Influencer.'
+                    : tab === 'amazon' ? 'Amazon PPC.' : 'TikTok Ads.',
+                }}
+              />
+              <ResultCell
+                label="Kosten ohne Ads"
+                value={formatEur(computedChannel.profit.totalCostsWithoutAds)}
+                tooltip={{
+                  description: 'Produktkosten + Versand/Fulfillment + Plattformgebühr, ohne Werbekosten (§24–26).',
+                }}
+              />
+              <ResultCell
+                label="Netto-Umsatz"
+                value={formatEur(computedChannel.profit.netSales)}
+                tooltip={{
+                  description: 'Brutto abzüglich USt (und Retouren).',
+                  formula: 'Brutto / (1 + USt/100)',
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <SectionLabel>Ergebnis {tabLabel(tab)}</SectionLabel>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+              <ResultCell
+                label="Profit"
+                value={formatEur(computedChannel.profit.profit)}
+                tone={Number(computedChannel.profit.profit) < 0 ? 'critical' : 'good'}
+                tooltip={{
+                  description: profitFormulaFor(tab),
+                  formula: profitFormulaShortFor(tab),
+                }}
+              />
+              <ResultCell
+                label="Marge"
+                value={computedChannel.profit.margin !== null ? formatPercent(computedChannel.profit.margin) : '—'}
+                tone={marginToneClass(computedChannel.profit.margin)}
+                tooltip={{
+                  description: 'Profit geteilt durch Netto-Umsatz.',
+                  formula: 'Profit / Netto × 100',
+                }}
+              />
+              <ResultCell
+                label="Brutto ROAS"
+                value={computedChannel.profit.roasGross !== null ? formatDecimal(computedChannel.profit.roasGross) : '—'}
+                tooltip={{
+                  description: 'Brutto-Umsatz geteilt durch die zugeordneten Werbekosten.',
+                  formula: roasFormulaFor(tab, 'gross'),
+                }}
+              />
+              <ResultCell
+                label="Netto ROAS"
+                value={computedChannel.profit.roasNet !== null ? formatDecimal(computedChannel.profit.roasNet) : '—'}
+                tooltip={{
+                  description: 'Netto-Umsatz geteilt durch die zugeordneten Werbekosten.',
+                  formula: roasFormulaFor(tab, 'net'),
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -578,6 +641,15 @@ function MonthTable({
   }, [view]);
 
   const cols = columnsForView(view);
+  const rows = daysOfMonth.map((d) => ({
+    date: d, computed: computedByDate.get(d), raw: rawByDate.get(d),
+  }));
+
+  // Summen-Footer berechnen (§43)
+  const totals = computeColumnTotals(cols, rows);
+  const grandProfit = rows.reduce((a, r) => a + (r.computed ? Number(r.computed.aggregate.totalProfit) : 0), 0);
+  const grandNetSales = rows.reduce((a, r) => a + (r.computed ? Number(r.computed.aggregate.totalNetSales) : 0), 0);
+  const grandMargin = grandNetSales > 0 ? (grandProfit / grandNetSales) * 100 : null;
 
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] shadow-card overflow-hidden">
@@ -604,9 +676,7 @@ function MonthTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {daysOfMonth.map((dateIso) => {
-              const c = computedByDate.get(dateIso);
-              const rd = rawByDate.get(dateIso);
+            {rows.map(({ date: dateIso, computed: c, raw: rd }) => {
               const isSelected = selectedDate === dateIso;
               const rowClass = cn(
                 'cursor-pointer',
@@ -640,64 +710,192 @@ function MonthTable({
               );
             })}
           </tbody>
+          {/* §43 Sticky Summen-Footer */}
+          <tfoot className="sticky bottom-0 z-10 bg-slate-100 dark:bg-[#1a1d26] border-t-2 border-slate-300 dark:border-white/10">
+            <tr className="font-bold">
+              <td className="text-left px-3 py-2 sticky left-0 z-20 bg-slate-100 dark:bg-[#1a1d26] border-r border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
+                Σ Summe
+              </td>
+              {cols.map((col) => (
+                <td key={col.key} className={cn('px-3 py-2 tabular-nums whitespace-nowrap',
+                  col.align === 'right' ? 'text-right' : 'text-left',
+                  col.group && 'border-l border-slate-200 dark:border-white/10',
+                  'text-slate-900 dark:text-white')}>
+                  {col.total ? col.total(totals[col.key], rows) : ''}
+                </td>
+              ))}
+              <td className="px-3 py-2 sticky right-0 z-20 bg-slate-100 dark:bg-[#1a1d26] border-l border-slate-200 dark:border-white/10 text-right">
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className={cn('tabular-nums font-bold',
+                    grandProfit < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400')}>
+                    {formatEur(grandProfit.toString())}
+                  </span>
+                  {grandMargin !== null && <MarginPill value={grandMargin.toString()} />}
+                </div>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
   );
 }
 
+function computeColumnTotals(cols: Col[], rows: Array<{ date: string; computed?: ComputedDay; raw?: RawDay }>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const col of cols) {
+    if (!col.sumFrom) continue;
+    let sum = 0;
+    for (const { computed, raw } of rows) {
+      sum += col.sumFrom(computed, raw) ?? 0;
+    }
+    out[col.key] = sum;
+  }
+  return out;
+}
+
 interface Col {
   key: string;
   label: string;
   align?: 'left' | 'right';
-  group?: boolean;                 // Trenner links
+  group?: boolean;
   render: (c: ComputedDay | undefined, r: RawDay | undefined) => React.ReactNode;
+  /** Zahl-Extraktor pro Zeile fuer Summen-Footer. NULL = keine Summe. */
+  sumFrom?: (c: ComputedDay | undefined, r: RawDay | undefined) => number | null;
+  /** Wie die Summe formatiert wird. Erhaelt den bereits summierten Wert + Zeilen (fuer ROAS). */
+  total?: (sum: number, rows: Array<{ computed?: ComputedDay; raw?: RawDay }>) => React.ReactNode;
 }
 
 function columnsForView(view: ViewKey): Col[] {
   const money = (v: string | null | undefined) => v !== null && v !== undefined ? formatEur(v) : '—';
+  const num = (v: string | null | undefined) => v !== null && v !== undefined ? Number(v) : 0;
+  const sumMoney = (sum: number) => sum > 0 ? formatEur(sum.toString()) : '—';
 
-  const shopifyCols: Col[] = [
-    { key: 'sh.brutto', label: 'SH Brutto', align: 'right', group: true, render: (c) => c ? money(c.shopify.vat.grossAdjusted) : '—' },
-    { key: 'sh.netto',  label: 'SH Netto',  align: 'right', render: (c) => c ? money(c.shopify.profit.netSales) : '—' },
-  ];
-  const amazonCols: Col[] = [
-    { key: 'am.brutto', label: 'AM Brutto', align: 'right', group: true, render: (c) => c ? money(c.amazon.vat.grossAdjusted) : '—' },
-    { key: 'am.netto',  label: 'AM Netto',  align: 'right', render: (c) => c ? money(c.amazon.profit.netSales) : '—' },
-  ];
-  const tiktokCols: Col[] = [
-    { key: 'tt.brutto', label: 'TT Brutto', align: 'right', group: true, render: (c) => c ? money(c.tiktok.vat.grossAdjusted) : '—' },
-    { key: 'tt.netto',  label: 'TT Netto',  align: 'right', render: (c) => c ? money(c.tiktok.profit.netSales) : '—' },
-  ];
-  const adsCols: Col[] = [
-    { key: 'meta',   label: 'Meta',    align: 'right', group: true, render: (_, r) => money(r?.ads.meta ?? '0') },
-    { key: 'google', label: 'Google',  align: 'right', render: (_, r) => money(r?.ads.google ?? '0') },
-    { key: 'infl',   label: 'Infl.',   align: 'right', render: (_, r) => money(r?.ads.influencer ?? '0') },
-    { key: 'appc',   label: 'AM PPC',  align: 'right', render: (_, r) => money(r?.ads.amazonPpc ?? '0') },
-    { key: 'ttads',  label: 'TT Ads',  align: 'right', render: (_, r) => money(r?.ads.tiktokAds ?? '0') },
+  // Weighted ROAS: Σ Umsatz / Σ Ads (nicht avg der Tages-ROAS)
+  const roasTotal = (getSales: (c: ComputedDay) => number, getAds: (c: ComputedDay) => number) =>
+    (_: number, rows: Array<{ computed?: ComputedDay }>) => {
+      const sales = rows.reduce((a, r) => a + (r.computed ? getSales(r.computed) : 0), 0);
+      const ads = rows.reduce((a, r) => a + (r.computed ? getAds(r.computed) : 0), 0);
+      if (ads === 0) return '—';
+      return (sales / ads).toFixed(2).replace('.', ',') + '×';
+    };
+
+  // Kanal-Kosten-Kacheln: Netto / Produktkosten / Versand-Fulfillment / Plattform-Fee / Werbekosten / Profit / Marge / ROAS
+  const shopifyBlock: Col[] = [
+    { key: 'sh.netto',    label: 'SH Netto',    align: 'right', group: true,
+      render: (c) => c ? money(c.shopify.profit.netSales) : '—',
+      sumFrom: (c) => c ? num(c.shopify.profit.netSales) : 0, total: sumMoney },
+    { key: 'sh.prod',     label: 'SH Produkte', align: 'right',
+      render: (c) => c ? money(c.shopify.profit.productCosts) : '—',
+      sumFrom: (c) => c ? num(c.shopify.profit.productCosts) : 0, total: sumMoney },
+    { key: 'sh.versand',  label: 'SH Versand',  align: 'right',
+      render: (c) => c ? money(c.shopify.profit.shippingCosts) : '—',
+      sumFrom: (c) => c ? num(c.shopify.profit.shippingCosts) : 0, total: sumMoney },
+    { key: 'sh.pfee',     label: 'SH Payment',  align: 'right',
+      render: (c) => c ? money(c.shopify.profit.platformFees) : '—',
+      sumFrom: (c) => c ? num(c.shopify.profit.platformFees) : 0, total: sumMoney },
+    { key: 'sh.ads',      label: 'SH Ads',      align: 'right',
+      render: (c) => c ? money(c.shopify.profit.adsAttributed) : '—',
+      sumFrom: (c) => c ? num(c.shopify.profit.adsAttributed) : 0, total: sumMoney },
+    { key: 'sh.profit',   label: 'SH Profit',   align: 'right',
+      render: (c) => c ? <ProfitCell value={c.shopify.profit.profit} /> : '—',
+      sumFrom: (c) => c ? num(c.shopify.profit.profit) : 0,
+      total: (sum) => <span className={cn(sum < 0 ? 'text-red-600' : 'text-emerald-600', 'font-bold')}>{formatEur(sum.toString())}</span> },
+    { key: 'sh.roas',     label: 'SH ROAS',     align: 'right',
+      render: (c) => c?.shopify.profit.roasNet !== null && c?.shopify.profit.roasNet !== undefined
+        ? (Number(c.shopify.profit.roasNet).toFixed(2).replace('.', ',') + '×') : '—',
+      total: roasTotal((c) => num(c.shopify.profit.netSales), (c) => num(c.shopify.profit.adsAttributed)) },
   ];
 
-  if (view === 'compact') {
-    return [
-      { key: 'sh',    label: 'Shopify', align: 'right', render: (c) => c ? money(c.shopify.profit.netSales) : '—' },
-      { key: 'am',    label: 'Amazon',  align: 'right', render: (c) => c ? money(c.amazon.profit.netSales) : '—' },
-      { key: 'tt',    label: 'TikTok',  align: 'right', render: (c) => c ? money(c.tiktok.profit.netSales) : '—' },
-      { key: 'gross', label: 'Netto ges.', align: 'right', group: true, render: (c) => c ? money(c.aggregate.totalNetSales) : '—' },
-    ];
-  }
-  if (view === 'marketing') return adsCols;
-  if (view === 'shopify')   return [...shopifyCols, ...adsCols.slice(0, 3), { key: 'sh.pfee', label: 'Payment', align: 'right', group: true, render: (c) => c ? money(c.shopify.profit.platformFees) : '—' }];
-  if (view === 'amazon')    return [...amazonCols, adsCols[3], { key: 'am.fee', label: 'AM Gebühr', align: 'right', group: true, render: (c) => c ? money(c.amazon.profit.platformFees) : '—' }];
-  if (view === 'tiktok')    return [...tiktokCols, adsCols[4], { key: 'tt.fee', label: 'TT Gebühr', align: 'right', group: true, render: (c) => c ? money(c.tiktok.profit.platformFees) : '—' }];
-  if (view === 'profit') {
-    return [
-      { key: 'sh.profit', label: 'SH Profit', align: 'right', group: true, render: (c) => c ? money(c.shopify.profit.profit) : '—' },
-      { key: 'am.profit', label: 'AM Profit', align: 'right', render: (c) => c ? money(c.amazon.profit.profit) : '—' },
-      { key: 'tt.profit', label: 'TT Profit', align: 'right', render: (c) => c ? money(c.tiktok.profit.profit) : '—' },
-    ];
-  }
+  const amazonBlock: Col[] = [
+    { key: 'am.netto',    label: 'AM Netto',    align: 'right', group: true,
+      render: (c) => c ? money(c.amazon.profit.netSales) : '—',
+      sumFrom: (c) => c ? num(c.amazon.profit.netSales) : 0, total: sumMoney },
+    { key: 'am.prod',     label: 'AM Produkte', align: 'right',
+      render: (c) => c ? money(c.amazon.profit.productCosts) : '—',
+      sumFrom: (c) => c ? num(c.amazon.profit.productCosts) : 0, total: sumMoney },
+    { key: 'am.ff',       label: 'AM Fulfill.', align: 'right',
+      render: (c) => c ? money(c.amazon.profit.shippingCosts) : '—',
+      sumFrom: (c) => c ? num(c.amazon.profit.shippingCosts) : 0, total: sumMoney },
+    { key: 'am.fee',      label: 'AM Gebühr',   align: 'right',
+      render: (c) => c ? money(c.amazon.profit.platformFees) : '—',
+      sumFrom: (c) => c ? num(c.amazon.profit.platformFees) : 0, total: sumMoney },
+    { key: 'am.ads',      label: 'AM PPC',      align: 'right',
+      render: (c) => c ? money(c.amazon.profit.adsAttributed) : '—',
+      sumFrom: (c) => c ? num(c.amazon.profit.adsAttributed) : 0, total: sumMoney },
+    { key: 'am.profit',   label: 'AM Profit',   align: 'right',
+      render: (c) => c ? <ProfitCell value={c.amazon.profit.profit} /> : '—',
+      sumFrom: (c) => c ? num(c.amazon.profit.profit) : 0,
+      total: (sum) => <span className={cn(sum < 0 ? 'text-red-600' : 'text-emerald-600', 'font-bold')}>{formatEur(sum.toString())}</span> },
+    { key: 'am.roas',     label: 'AM ROAS',     align: 'right',
+      render: (c) => c?.amazon.profit.roasNet !== null && c?.amazon.profit.roasNet !== undefined
+        ? (Number(c.amazon.profit.roasNet).toFixed(2).replace('.', ',') + '×') : '—',
+      total: roasTotal((c) => num(c.amazon.profit.netSales), (c) => num(c.amazon.profit.adsAttributed)) },
+  ];
+
+  const tiktokBlock: Col[] = [
+    { key: 'tt.netto',    label: 'TT Netto',    align: 'right', group: true,
+      render: (c) => c ? money(c.tiktok.profit.netSales) : '—',
+      sumFrom: (c) => c ? num(c.tiktok.profit.netSales) : 0, total: sumMoney },
+    { key: 'tt.prod',     label: 'TT Produkte', align: 'right',
+      render: (c) => c ? money(c.tiktok.profit.productCosts) : '—',
+      sumFrom: (c) => c ? num(c.tiktok.profit.productCosts) : 0, total: sumMoney },
+    { key: 'tt.versand',  label: 'TT Versand',  align: 'right',
+      render: (c) => c ? money(c.tiktok.profit.shippingCosts) : '—',
+      sumFrom: (c) => c ? num(c.tiktok.profit.shippingCosts) : 0, total: sumMoney },
+    { key: 'tt.fee',      label: 'TT Gebühr',   align: 'right',
+      render: (c) => c ? money(c.tiktok.profit.platformFees) : '—',
+      sumFrom: (c) => c ? num(c.tiktok.profit.platformFees) : 0, total: sumMoney },
+    { key: 'tt.ads',      label: 'TT Ads',      align: 'right',
+      render: (c) => c ? money(c.tiktok.profit.adsAttributed) : '—',
+      sumFrom: (c) => c ? num(c.tiktok.profit.adsAttributed) : 0, total: sumMoney },
+    { key: 'tt.profit',   label: 'TT Profit',   align: 'right',
+      render: (c) => c ? <ProfitCell value={c.tiktok.profit.profit} /> : '—',
+      sumFrom: (c) => c ? num(c.tiktok.profit.profit) : 0,
+      total: (sum) => <span className={cn(sum < 0 ? 'text-red-600' : 'text-emerald-600', 'font-bold')}>{formatEur(sum.toString())}</span> },
+    { key: 'tt.roas',     label: 'TT ROAS',     align: 'right',
+      render: (c) => c?.tiktok.profit.roasNet !== null && c?.tiktok.profit.roasNet !== undefined
+        ? (Number(c.tiktok.profit.roasNet).toFixed(2).replace('.', ',') + '×') : '—',
+      total: roasTotal((c) => num(c.tiktok.profit.netSales), (c) => num(c.tiktok.profit.adsAttributed)) },
+  ];
+
+  if (view === 'compact') return [...shopifyBlock, ...amazonBlock, ...tiktokBlock];
+  if (view === 'shopify') return shopifyBlock;
+  if (view === 'amazon')  return amazonBlock;
+  if (view === 'tiktok')  return tiktokBlock;
+  if (view === 'marketing') return [
+    { key: 'meta',   label: 'Meta',    align: 'right', group: true,
+      render: (_, r) => money(r?.ads.meta ?? '0'),
+      sumFrom: (_, r) => num(r?.ads.meta ?? '0'), total: sumMoney },
+    { key: 'google', label: 'Google',  align: 'right',
+      render: (_, r) => money(r?.ads.google ?? '0'),
+      sumFrom: (_, r) => num(r?.ads.google ?? '0'), total: sumMoney },
+    { key: 'infl',   label: 'Infl.',   align: 'right',
+      render: (_, r) => money(r?.ads.influencer ?? '0'),
+      sumFrom: (_, r) => num(r?.ads.influencer ?? '0'), total: sumMoney },
+    { key: 'appc',   label: 'AM PPC',  align: 'right',
+      render: (_, r) => money(r?.ads.amazonPpc ?? '0'),
+      sumFrom: (_, r) => num(r?.ads.amazonPpc ?? '0'), total: sumMoney },
+    { key: 'ttads',  label: 'TT Ads',  align: 'right',
+      render: (_, r) => money(r?.ads.tiktokAds ?? '0'),
+      sumFrom: (_, r) => num(r?.ads.tiktokAds ?? '0'), total: sumMoney },
+  ];
+  if (view === 'profit') return [
+    { key: 'sh.profit', label: 'SH Profit', align: 'right', group: true,
+      render: (c) => c ? <ProfitCell value={c.shopify.profit.profit} /> : '—',
+      sumFrom: (c) => c ? num(c.shopify.profit.profit) : 0,
+      total: (sum) => <span className={cn(sum < 0 ? 'text-red-600' : 'text-emerald-600', 'font-bold')}>{formatEur(sum.toString())}</span> },
+    { key: 'am.profit', label: 'AM Profit', align: 'right',
+      render: (c) => c ? <ProfitCell value={c.amazon.profit.profit} /> : '—',
+      sumFrom: (c) => c ? num(c.amazon.profit.profit) : 0,
+      total: (sum) => <span className={cn(sum < 0 ? 'text-red-600' : 'text-emerald-600', 'font-bold')}>{formatEur(sum.toString())}</span> },
+    { key: 'tt.profit', label: 'TT Profit', align: 'right',
+      render: (c) => c ? <ProfitCell value={c.tiktok.profit.profit} /> : '—',
+      sumFrom: (c) => c ? num(c.tiktok.profit.profit) : 0,
+      total: (sum) => <span className={cn(sum < 0 ? 'text-red-600' : 'text-emerald-600', 'font-bold')}>{formatEur(sum.toString())}</span> },
+  ];
   // 'all'
-  return [...shopifyCols, ...amazonCols, ...tiktokCols, ...adsCols];
+  return [...shopifyBlock, ...amazonBlock, ...tiktokBlock];
 }
 
 function enumerateDays(year: number, month: number): string[] {
