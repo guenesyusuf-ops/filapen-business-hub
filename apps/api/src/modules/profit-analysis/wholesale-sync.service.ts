@@ -248,6 +248,7 @@ export class WholesaleSyncService {
     supplierArticleNumber: string | null;
     quantity: number;
     lineNet: string;
+    currentMatch: null;
   }>> {
     const from = new Date(Date.UTC(year, month - 1, 1));
     const to = new Date(Date.UTC(year, month, 0, 23, 59, 59));
@@ -273,7 +274,82 @@ export class WholesaleSyncService {
       supplierArticleNumber: it.supplierArticleNumber,
       quantity: it.quantity,
       lineNet: it.lineNet.toString(),
+      currentMatch: null,
     }));
+  }
+
+  /**
+   * Alle Line-Positionen eines Monats (auch bereits gematchte), mit
+   * dem aktuellen Match zur Anzeige im "Match aendern"-Wizard.
+   */
+  async listAllLineItems(orgId: string, year: number, month: number): Promise<Array<{
+    orderId: string;
+    orderNumber: string;
+    customerName: string;
+    lineItemId: string;
+    position: number;
+    title: string;
+    ean: string | null;
+    supplierArticleNumber: string | null;
+    quantity: number;
+    lineNet: string;
+    currentMatch: {
+      productId: string;
+      productTitle: string;
+      externalId: string | null;
+    } | null;
+  }>> {
+    const from = new Date(Date.UTC(year, month - 1, 1));
+    const to = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+    const items = await this.prisma.salesOrderLineItem.findMany({
+      where: {
+        orgId,
+        order: { requiredDeliveryDate: { gte: from, lte: to }, status: { notIn: ['cancelled' as any] } },
+      },
+      include: {
+        order: { include: { customer: { select: { companyName: true } } } },
+        matchedVariant: {
+          select: {
+            productId: true,
+            product: { select: { title: true, externalId: true } },
+          },
+        },
+      },
+      orderBy: [{ order: { requiredDeliveryDate: 'asc' } }, { position: 'asc' }],
+    });
+    return items.map((it) => ({
+      orderId: it.orderId,
+      orderNumber: it.order.orderNumber,
+      customerName: it.order.customer?.companyName ?? '—',
+      lineItemId: it.id,
+      position: it.position,
+      title: it.title,
+      ean: it.ean,
+      supplierArticleNumber: it.supplierArticleNumber,
+      quantity: it.quantity,
+      lineNet: it.lineNet.toString(),
+      currentMatch: it.matchedVariant?.product
+        ? {
+            productId: it.matchedVariant.productId,
+            productTitle: it.matchedVariant.product.title,
+            externalId: it.matchedVariant.product.externalId,
+          }
+        : null,
+    }));
+  }
+
+  /** Match einer Line-Position entfernen (setzt matchedProductVariantId auf null). */
+  async unmatchLineItem(orgId: string, lineItemId: string): Promise<{ ok: boolean }> {
+    const item = await this.prisma.salesOrderLineItem.findFirst({
+      where: { id: lineItemId, orgId },
+      select: { id: true },
+    });
+    if (!item) throw new Error('Sales-Order-Position nicht gefunden');
+    await this.prisma.salesOrderLineItem.update({
+      where: { id: lineItemId },
+      data: { matchedProductVariantId: null },
+    });
+    return { ok: true };
   }
 }
 

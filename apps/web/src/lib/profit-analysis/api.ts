@@ -277,11 +277,15 @@ export const profitAnalysisApi = {
       call<WholesaleAutoResponse>(`/wholesale-sync/months/${year}/${month}`),
     unmatched: (year: number, month: number) =>
       call<{ items: WholesaleUnmatchedItem[] }>(`/wholesale-sync/months/${year}/${month}/unmatched`),
+    allLineItems: (year: number, month: number) =>
+      call<{ items: WholesaleLineItem[] }>(`/wholesale-sync/months/${year}/${month}/all-line-items`),
     match: (lineItemId: string, productId: string) =>
       call<{ ok: boolean; matchedProductVariantId: string }>(`/wholesale-sync/line-items/${lineItemId}/match`, {
         method: 'PUT',
         body: JSON.stringify({ productId }),
       }),
+    unmatch: (lineItemId: string) =>
+      call<{ ok: boolean }>(`/wholesale-sync/line-items/${lineItemId}/match`, { method: 'DELETE' }),
   },
 
   // Filapen Insights
@@ -377,6 +381,18 @@ export interface WholesaleUnmatchedItem {
   lineItemId: string; position: number;
   title: string; ean: string | null; supplierArticleNumber: string | null;
   quantity: number; lineNet: string;
+  currentMatch: null;
+}
+export interface WholesaleLineItem {
+  orderId: string; orderNumber: string; customerName: string;
+  lineItemId: string; position: number;
+  title: string; ean: string | null; supplierArticleNumber: string | null;
+  quantity: number; lineNet: string;
+  currentMatch: {
+    productId: string;
+    productTitle: string;
+    externalId: string | null;
+  } | null;
 }
 
 export interface Insight {

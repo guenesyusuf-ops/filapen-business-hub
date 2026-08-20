@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, ChevronRight, Loader2, AlertCircle, ExternalLink, Link2Off,
-  X, Search, Check, ArrowRight, Package,
+  X, Search, Check, ArrowRight, Package, Edit3, Trash2,
 } from 'lucide-react';
 import {
-  profitAnalysisApi, WholesaleAutoResponse, WholesaleUnmatchedItem, ProductCostRow,
+  profitAnalysisApi, WholesaleAutoResponse, WholesaleUnmatchedItem, WholesaleLineItem, ProductCostRow,
 } from '@/lib/profit-analysis/api';
 import { formatEur, formatDate, formatPercent } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
@@ -33,6 +33,9 @@ export default function GrosshandelPage() {
   const [error, setError] = useState<string | null>(null);
   const [showUnmatched, setShowUnmatched] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [rematchOpen, setRematchOpen] = useState(false);
+  const [allItems, setAllItems] = useState<WholesaleLineItem[]>([]);
+  const [loadingAll, setLoadingAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -52,6 +55,19 @@ export default function GrosshandelPage() {
   function prevMonth() { if (month === 1) { setYear(year - 1); setMonth(12); } else setMonth(month - 1); }
   function nextMonth() { if (month === 12) { setYear(year + 1); setMonth(1); } else setMonth(month + 1); }
 
+  async function openRematch() {
+    setLoadingAll(true);
+    try {
+      const res = await profitAnalysisApi.wholesaleSync.allLineItems(year, month);
+      setAllItems(res.items);
+      setRematchOpen(true);
+    } catch (e: any) {
+      setError(e?.message ?? 'Positionen laden fehlgeschlagen');
+    } finally {
+      setLoadingAll(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div>
@@ -68,6 +84,15 @@ export default function GrosshandelPage() {
         <button onClick={prevMonth} className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-white/5"><ChevronLeft className="h-5 w-5" /></button>
         <div className="text-lg font-bold text-slate-900 dark:text-white min-w-[180px] text-center tabular-nums">{MONTH_LABELS[month - 1]} {year}</div>
         <button onClick={nextMonth} className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-white/5"><ChevronRight className="h-5 w-5" /></button>
+        <div className="flex-1" />
+        <button
+          onClick={openRematch}
+          disabled={loadingAll}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-50"
+          title="Bereits gematchte Positionen ansehen und ändern"
+        >
+          {loadingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Edit3 className="h-3.5 w-3.5" />} Matches verwalten
+        </button>
       </div>
 
       {error && (
@@ -189,6 +214,24 @@ export default function GrosshandelPage() {
         />
       )}
 
+      {rematchOpen && allItems.length > 0 && (
+        <MatchWizard
+          items={allItems}
+          onClose={() => setRematchOpen(false)}
+          onComplete={() => { setRematchOpen(false); load(); }}
+          mode="rematch"
+        />
+      )}
+
+      {rematchOpen && allItems.length === 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setRematchOpen(false)}>
+          <div className="bg-white dark:bg-[#0f1117] rounded-2xl p-6 max-w-md text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm text-slate-600 dark:text-slate-300">Keine Positionen im aktuellen Monat.</div>
+            <button onClick={() => setRematchOpen(false)} className="mt-4 rounded-lg bg-slate-100 dark:bg-white/5 px-4 py-2 text-sm">Schließen</button>
+          </div>
+        </div>
+      )}
+
       {/* Auftragsliste */}
       <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] shadow-card overflow-hidden">
         {loading ? (
@@ -307,10 +350,11 @@ function marginTone(v: string | null | undefined): 'good' | 'warn' | 'critical' 
 // Match-Wizard: fuehrt nacheinander durch nicht-gematchte Positionen
 // -----------------------------------------------------------------------------
 
-function MatchWizard({ items, onClose, onComplete }: {
-  items: WholesaleUnmatchedItem[];
+function MatchWizard({ items, onClose, onComplete, mode = 'match' }: {
+  items: WholesaleLineItem[];
   onClose: () => void;
   onComplete: () => void;
+  mode?: 'match' | 'rematch';
 }) {
   const [products, setProducts] = useState<ProductCostRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -321,6 +365,7 @@ function MatchWizard({ items, onClose, onComplete }: {
   const [error, setError] = useState<string | null>(null);
   const [matched, setMatched] = useState(0);
   const [skipped, setSkipped] = useState(0);
+  const [unmatchedCount, setUnmatchedCount] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -341,7 +386,9 @@ function MatchWizard({ items, onClose, onComplete }: {
           </div>
           <div className="text-lg font-bold text-slate-900 dark:text-white">Fertig!</div>
           <div className="text-sm text-slate-600 dark:text-slate-300 mt-2">
-            {matched} Position{matched !== 1 ? 'en' : ''} gematcht{skipped > 0 && `, ${skipped} übersprungen`}.
+            {matched} Position{matched !== 1 ? 'en' : ''} gematcht
+            {unmatchedCount > 0 && `, ${unmatchedCount} Match${unmatchedCount !== 1 ? 'es' : ''} entfernt`}
+            {skipped > 0 && `, ${skipped} übersprungen`}.
           </div>
           <button onClick={onComplete} className="mt-5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 text-sm font-semibold">
             Schließen und aktualisieren
@@ -387,7 +434,7 @@ function MatchWizard({ items, onClose, onComplete }: {
               Position {idx + 1} von {items.length}
             </div>
             <div className="text-base font-bold text-slate-900 dark:text-white">
-              Filapen-Produkt zuordnen
+              {mode === 'rematch' ? 'Match verwalten' : 'Filapen-Produkt zuordnen'}
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-white/5">
@@ -412,6 +459,35 @@ function MatchWizard({ items, onClose, onComplete }: {
             <span><span className="text-slate-500">Menge:</span> <b>{current.quantity}</b></span>
             <span><span className="text-slate-500">Netto:</span> <b>{formatEur(current.lineNet)}</b></span>
           </div>
+
+          {current.currentMatch && (
+            <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/[0.06] px-3 py-2">
+              <div className="text-xs text-emerald-900 dark:text-emerald-200 min-w-0">
+                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">Aktuell verknüpft:</span>{' '}
+                <span className="font-semibold">{current.currentMatch.productTitle}</span>
+                {current.currentMatch.externalId && (
+                  <span className="text-emerald-700 dark:text-emerald-400 font-mono ml-1">· {current.currentMatch.externalId}</span>
+                )}
+              </div>
+              <button
+                onClick={async () => {
+                  setSaving(true); setError(null);
+                  try {
+                    await profitAnalysisApi.wholesaleSync.unmatch(current.lineItemId);
+                    setUnmatchedCount((v) => v + 1);
+                    setSelectedProductId(null); setSearch('');
+                    setIdx((i) => i + 1);
+                  } catch (e: any) { setError(e?.message ?? 'Match entfernen fehlgeschlagen'); }
+                  finally { setSaving(false); }
+                }}
+                disabled={saving}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 disabled:opacity-50 flex-shrink-0"
+                title="Match entfernen (Position wird wieder als nicht gematcht behandelt)"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Entfernen
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Produkt-Auswahl */}

@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body, Headers, Param, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, Headers, Param, BadRequestException } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { extractAuthContext, assertCanWrite } from './auth-context';
 import { WholesaleSyncService } from './wholesale-sync.service';
@@ -30,6 +30,38 @@ export class WholesaleSyncController {
   ) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     return { items: await this.sync.listUnmatched(orgId, this.n(y), this.n(m)) };
+  }
+
+  /** Alle Positionen im Monat (auch bereits gematchte), fuer "Match aendern". */
+  @Get('months/:year/:month/all-line-items')
+  async listAllLineItems(
+    @Headers('authorization') authHeader: string,
+    @Param('year') y: string, @Param('month') m: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return { items: await this.sync.listAllLineItems(orgId, this.n(y), this.n(m)) };
+  }
+
+  /** Match einer Line-Position entfernen. */
+  @Delete('line-items/:lineItemId/match')
+  async unmatchLineItem(
+    @Headers('authorization') authHeader: string,
+    @Param('lineItemId') lineItemId: string,
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    try {
+      const result = await this.sync.unmatchLineItem(orgId, lineItemId);
+      await this.audit.log({
+        orgId, userId,
+        action: 'wholesale.unmatch_line_item',
+        entityType: 'pa.sales_line_item', entityId: lineItemId,
+        changes: {},
+      });
+      return result;
+    } catch (e: any) {
+      throw new BadRequestException(e?.message ?? 'Unmatch fehlgeschlagen');
+    }
   }
 
   /** Sales-Line-Position mit Filapen-Produkt matchen. */
