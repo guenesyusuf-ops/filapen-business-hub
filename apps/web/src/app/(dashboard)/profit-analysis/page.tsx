@@ -1,27 +1,103 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import {
-  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Loader2, AlertCircle,
-  Download, Lock, Unlock, ShoppingBag, Package2, Music2,
+  Calendar, TrendingUp, TrendingDown, Loader2, AlertCircle,
+  Download, Lock, Unlock,
 } from 'lucide-react';
-import { profitAnalysisApi, ComputedMonth, TargetItem, RankingsResult, PreflightResult } from '@/lib/profit-analysis/api';
+import { profitAnalysisApi, ComputedMonth, ComputedDay, TargetItem, RankingsResult, PreflightResult } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 import { FilapenInsightsPanel } from '@/components/profit-analysis/FilapenInsightsPanel';
+import { ChannelBreakdown } from '@/components/profit-analysis/ChannelBreakdown';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
 import { API_URL } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const MONTH_LABELS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
+// -----------------------------------------------------------------------------
+// Zeitraum-Logik
+// -----------------------------------------------------------------------------
+
+type RangeMode = 'today' | 'yesterday' | 'last-7' | 'this-month' | 'last-month' | 'custom';
+
+interface Range {
+  mode: RangeMode;
+  from: string;
+  to: string;
+  label: string;
+  focusYear: number;    // welcher Monat als "aktueller" gilt fuer close/rankings/overhead
+  focusMonth: number;
+}
+
+function resolveRange(mode: RangeMode, customFrom?: string, customTo?: string): Range {
+  const today = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const todayIso = iso(today);
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+  const yesterdayIso = iso(yesterday);
+  const y = today.getFullYear(), m = today.getMonth() + 1;
+  const prevM = m === 1 ? 12 : m - 1;
+  const prevY = m === 1 ? y - 1 : y;
+
+  if (mode === 'today')      return { mode, from: todayIso, to: todayIso, label: 'Heute', focusYear: y, focusMonth: m };
+  if (mode === 'yesterday')  return { mode, from: yesterdayIso, to: yesterdayIso, label: 'Gestern', focusYear: yesterday.getFullYear(), focusMonth: yesterday.getMonth() + 1 };
+  if (mode === 'last-7') {
+    const seven = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
+    return { mode, from: iso(seven), to: todayIso, label: 'Letzte 7 Tage', focusYear: y, focusMonth: m };
+  }
+  if (mode === 'this-month') {
+    const first = new Date(Date.UTC(y, m - 1, 1));
+    return { mode, from: iso(first), to: todayIso, label: `${MONTH_LABELS[m - 1]} ${y}`, focusYear: y, focusMonth: m };
+  }
+  if (mode === 'last-month') {
+    const first = new Date(Date.UTC(prevY, prevM - 1, 1));
+    const last = new Date(Date.UTC(prevY, prevM, 0));
+    return { mode, from: iso(first), to: iso(last), label: `${MONTH_LABELS[prevM - 1]} ${prevY}`, focusYear: prevY, focusMonth: prevM };
+  }
+  const from = customFrom ?? todayIso;
+  const to = customTo ?? todayIso;
+  const fromD = new Date(from + 'T00:00:00Z');
+  return { mode: 'custom', from, to, label: 'Benutzerdefiniert', focusYear: fromD.getUTCFullYear(), focusMonth: fromD.getUTCMonth() + 1 };
+}
+
+function monthsInRange(from: string, to: string): Array<{ year: number; month: number }> {
+  const start = new Date(from + 'T00:00:00Z');
+  const end = new Date(to + 'T00:00:00Z');
+  const result: Array<{ year: number; month: number }> = [];
+  let y = start.getUTCFullYear(), m = start.getUTCMonth() + 1;
+  const endY = end.getUTCFullYear(), endM = end.getUTCMonth() + 1;
+  while (y < endY || (y === endY && m <= endM)) {
+    result.push({ year: y, month: m });
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return result;
+}
+
+/** Der Range der GENAU davorliegt (gleich lang), fuer Delta-Vergleich (§15). */
+function previousRangeOf(r: Range): { from: string; to: string } {
+  const fromD = new Date(r.from + 'T00:00:00Z');
+  const toD = new Date(r.to + 'T00:00:00Z');
+  const days = Math.round((toD.getTime() - fromD.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  const prevTo = new Date(fromD.getTime() - 24 * 60 * 60 * 1000);
+  const prevFrom = new Date(prevTo.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+  return { from: prevFrom.toISOString().slice(0, 10), to: prevTo.toISOString().slice(0, 10) };
+}
+
+// -----------------------------------------------------------------------------
+
 export default function OverviewPage() {
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [current, setCurrent] = useState<ComputedMonth | null>(null);
-  const [previous, setPrevious] = useState<ComputedMonth | null>(null);
+  const [mode, setMode] = useState<RangeMode>('this-month');
+  const [customFrom, setCustomFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [customTo, setCustomTo] = useState(new Date().toISOString().slice(0, 10));
+  const range = useMemo(() => resolveRange(mode, customFrom, customTo), [mode, customFrom, customTo]);
+  const prevRange = useMemo(() => previousRangeOf(range), [range]);
+
+  const [focusMonth, setFocusMonth] = useState<ComputedMonth | null>(null);
+  const [rangeDays, setRangeDays] = useState<ComputedDay[]>([]);
+  const [prevRangeDays, setPrevRangeDays] = useState<ComputedDay[]>([]);
   const [targets, setTargets] = useState<TargetItem[]>([]);
   const [rankings, setRankings] = useState<RankingsResult | null>(null);
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
@@ -35,30 +111,38 @@ export default function OverviewPage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [c, prev, t, r] = await Promise.all([
-        profitAnalysisApi.daily.getMonth(year, month),
-        profitAnalysisApi.daily.getMonth(month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1),
+      const months = monthsInRange(range.from, range.to);
+      const prevMonths = monthsInRange(prevRange.from, prevRange.to);
+      // Focus-Monat + Vergleichsmonate + Ziele + Rankings
+      const [focusRes, allRes, allPrevRes, t, r] = await Promise.all([
+        profitAnalysisApi.daily.getMonth(range.focusYear, range.focusMonth),
+        Promise.all(months.map((m) => profitAnalysisApi.daily.getMonth(m.year, m.month))),
+        Promise.all(prevMonths.map((m) => profitAnalysisApi.daily.getMonth(m.year, m.month))),
         profitAnalysisApi.targets.list(),
         profitAnalysisApi.rankings.lastMonths(12).catch(() => null),
       ]);
-      setCurrent(c.computed);
-      setPrevious(prev.computed);
+      setFocusMonth(focusRes.computed);
+      const allDays: ComputedDay[] = allRes.flatMap((r) => r.computed.days);
+      const allPrevDays: ComputedDay[] = allPrevRes.flatMap((r) => r.computed.days);
+      setRangeDays(allDays.filter((d) => d.date >= range.from && d.date <= range.to));
+      setPrevRangeDays(allPrevDays.filter((d) => d.date >= prevRange.from && d.date <= prevRange.to));
       setTargets(t.items);
       setRankings(r);
     } catch (e: any) {
       setError(e?.message ?? 'Laden fehlgeschlagen');
     } finally { setLoading(false); }
-  }, [year, month]);
+  }, [range.from, range.to, range.focusYear, range.focusMonth, prevRange.from, prevRange.to]);
 
   useEffect(() => { load(); }, [load]);
 
-  function prevMonth() { if (month === 1) { setYear(year - 1); setMonth(12); } else setMonth(month - 1); }
-  function nextMonth() { if (month === 12) { setYear(year + 1); setMonth(1); } else setMonth(month + 1); }
+  // Range-Aggregate (§11 weighted ROAS)
+  const rangeAgg = useMemo(() => aggregateRange(rangeDays, focusMonth, range), [rangeDays, focusMonth, range]);
+  const prevAgg = useMemo(() => aggregateRange(prevRangeDays, null, null), [prevRangeDays]);
 
   async function openPreflight(lock: boolean) {
     setBusy('preflight');
     try {
-      const pf = await profitAnalysisApi.months.preflight(year, month);
+      const pf = await profitAnalysisApi.months.preflight(range.focusYear, range.focusMonth);
       setPreflight(pf);
       setPreflightLock(lock);
     } catch (e: any) { setError(e?.message ?? 'Preflight fehlgeschlagen'); }
@@ -68,7 +152,7 @@ export default function OverviewPage() {
     if (!preflight) return;
     setBusy('close');
     try {
-      await profitAnalysisApi.months.close(year, month, preflightLock);
+      await profitAnalysisApi.months.close(range.focusYear, range.focusMonth, preflightLock);
       setPreflight(null);
       await load();
     } catch (e: any) { setError(e?.message ?? 'Abschluss fehlgeschlagen'); }
@@ -78,7 +162,7 @@ export default function OverviewPage() {
     if (!confirm('Monat wieder öffnen?')) return;
     setBusy('reopen');
     try {
-      await profitAnalysisApi.months.reopen(year, month);
+      await profitAnalysisApi.months.reopen(range.focusYear, range.focusMonth);
       await load();
     } catch (e: any) { setError(e?.message ?? 'Öffnen fehlgeschlagen'); }
     finally { setBusy(null); }
@@ -86,16 +170,16 @@ export default function OverviewPage() {
   async function download(kind: 'csv' | 'xlsx' | 'pdf') {
     setBusy(kind);
     try {
-      const urlPath = kind === 'csv'  ? profitAnalysisApi.months.exportCsvUrl(year, month)
-                    : kind === 'xlsx' ? profitAnalysisApi.months.exportXlsxUrl(year, month)
-                    :                    profitAnalysisApi.months.exportPdfUrl(year, month);
+      const urlPath = kind === 'csv'  ? profitAnalysisApi.months.exportCsvUrl(range.focusYear, range.focusMonth)
+                    : kind === 'xlsx' ? profitAnalysisApi.months.exportXlsxUrl(range.focusYear, range.focusMonth)
+                    :                    profitAnalysisApi.months.exportPdfUrl(range.focusYear, range.focusMonth);
       const res = await fetch(`${API_URL}${urlPath}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Export fehlgeschlagen');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `gewinnanalyse-${year}-${String(month).padStart(2, '0')}.${kind}`;
+      a.download = `gewinnanalyse-${range.focusYear}-${String(range.focusMonth).padStart(2, '0')}.${kind}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) { setError(e?.message ?? 'Export fehlgeschlagen'); }
@@ -104,14 +188,14 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* Header — zentraler Zeitraum-Umschalter */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button onClick={prevMonth} className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-white/5"><ChevronLeft className="h-5 w-5" /></button>
-          <div className="text-lg font-bold text-slate-900 dark:text-white min-w-[180px] text-center tabular-nums">
-            {MONTH_LABELS[month - 1]} {year}
-          </div>
-          <button onClick={nextMonth} className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-white/5"><ChevronRight className="h-5 w-5" /></button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Calendar className="h-5 w-5 text-amber-500" />
+          <div className="text-lg font-bold text-slate-900 dark:text-white tabular-nums">{range.label}</div>
+          <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+            {range.from === range.to ? formatDateShort(range.from) : `${formatDateShort(range.from)} – ${formatDateShort(range.to)}`}
+          </span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => download('csv')}  disabled={busy === 'csv'}  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
@@ -123,25 +207,44 @@ export default function OverviewPage() {
           <button onClick={() => download('pdf')}  disabled={busy === 'pdf'}  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
             {busy === 'pdf' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} PDF
           </button>
-          {current?.status === 'open' && (
+          {focusMonth?.status === 'open' && (
             <button onClick={() => openPreflight(false)} disabled={busy === 'preflight'} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
-              <Lock className="h-3.5 w-3.5" /> Abschließen
+              <Lock className="h-3.5 w-3.5" /> Monat abschließen
             </button>
           )}
-          {current?.status === 'closed' && isOwner && (
+          {focusMonth?.status === 'closed' && isOwner && (
             <button onClick={() => openPreflight(true)} disabled={busy === 'preflight'} className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 text-white px-3 py-1.5 text-xs disabled:opacity-50">
               <Lock className="h-3.5 w-3.5" /> Sperren
             </button>
           )}
-          {(current?.status === 'closed' || current?.status === 'locked') && isOwner && (
+          {(focusMonth?.status === 'closed' || focusMonth?.status === 'locked') && isOwner && (
             <button onClick={reopenMonth} disabled={busy === 'reopen'} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 text-amber-700 dark:border-amber-500/30 dark:text-amber-400 px-3 py-1.5 text-xs disabled:opacity-50">
-              <Unlock className="h-3.5 w-3.5" /> Wieder öffnen
+              <Unlock className="h-3.5 w-3.5" /> Öffnen
             </button>
           )}
-          {current?.status === 'locked' && (
+          {focusMonth?.status === 'locked' && (
             <div className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 font-medium">Gesperrt</div>
           )}
         </div>
+      </div>
+
+      {/* Zeitraum-Presets */}
+      <div className="flex flex-wrap gap-1.5">
+        <RangeButton active={mode === 'today'}      onClick={() => setMode('today')}>Heute</RangeButton>
+        <RangeButton active={mode === 'yesterday'}  onClick={() => setMode('yesterday')}>Gestern</RangeButton>
+        <RangeButton active={mode === 'last-7'}     onClick={() => setMode('last-7')}>Letzte 7 Tage</RangeButton>
+        <RangeButton active={mode === 'this-month'} onClick={() => setMode('this-month')}>Dieser Monat</RangeButton>
+        <RangeButton active={mode === 'last-month'} onClick={() => setMode('last-month')}>Letzter Monat</RangeButton>
+        <RangeButton active={mode === 'custom'}     onClick={() => setMode('custom')}>Benutzerdefiniert</RangeButton>
+        {mode === 'custom' && (
+          <div className="flex items-center gap-2 ml-2">
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} max={customTo}
+              className="rounded-md border border-slate-300 dark:border-white/10 dark:bg-white/5 px-2 py-1 text-xs" />
+            <span className="text-xs text-slate-500">bis</span>
+            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} min={customFrom}
+              className="rounded-md border border-slate-300 dark:border-white/10 dark:bg-white/5 px-2 py-1 text-xs" />
+          </div>
+        )}
       </div>
 
       {error && (
@@ -152,69 +255,75 @@ export default function OverviewPage() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-slate-500 p-6"><Loader2 className="h-4 w-4 animate-spin" /> Lade …</div>
-      ) : current && (
+      ) : (
         <>
-          {/* Große KPI-Cards */}
+          {/* Große KPI-Cards — alle auf Range basiert */}
           <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             <BigKpi
               label="Netto-Umsatz"
-              value={formatEur(current.netSalesWithWholesale)}
-              delta={deltaPct(current.netSalesWithWholesale, previous?.netSalesWithWholesale)}
-              tooltip={{ description: 'Netto-Umsatz aus den drei Kanälen + Großhandel.', formula: 'Shopify + Amazon + TikTok + Großhandel (alle netto)' }}
+              value={formatEur(rangeAgg.netSalesTotal)}
+              delta={deltaPct(rangeAgg.netSalesTotal, prevAgg.netSalesTotal)}
+              tooltip={{ description: 'Netto-Umsatz aller Kanäle im gewählten Zeitraum.', formula: 'Σ (Shopify + Amazon + TikTok) netto' }}
             />
             <BigKpi
               label="USt aus Verkäufen"
-              value={formatEur(current.totals.vatTotal)}
-              tooltip={{ description: 'Enthaltene Umsatzsteuer aus erfassten Verkäufen. NICHT die USt-Zahllast — Vorsteuer aus Kosten wird hier nicht gerechnet.', formula: 'USt19 + USt7 aller Kanäle' }}
+              value={formatEur(rangeAgg.vatTotal)}
+              tooltip={{ description: 'Enthaltene Umsatzsteuer im Zeitraum. Nicht USt-Zahllast.', formula: 'Σ USt19 + Σ USt7' }}
             />
             <BigKpi
               label="Profit vor GK"
-              value={formatEur(current.profitBeforeOverheadWithWholesale)}
-              tone={Number(current.profitBeforeOverheadWithWholesale) < 0 ? 'critical' : 'good'}
-              delta={deltaPct(current.profitBeforeOverheadWithWholesale, previous?.profitBeforeOverheadWithWholesale)}
-              tooltip={{ description: 'Kanal-Profite + Großhandelsgewinn, vor Abzug monatlicher Gemeinkosten.', formula: 'Webshop Profit + Amazon Profit + TikTok Profit + Großhandel Gewinn' }}
+              value={formatEur(rangeAgg.profitBeforeOverhead)}
+              tone={rangeAgg.profitBeforeOverhead < 0 ? 'critical' : 'good'}
+              delta={deltaPct(rangeAgg.profitBeforeOverhead, prevAgg.profitBeforeOverhead)}
+              tooltip={{ description: 'Kanal-Profite im Zeitraum, vor Gemeinkosten.', formula: 'Σ Webshop + Amazon + TikTok Profit' }}
             />
             <BigKpi
-              label="Gemeinkosten"
-              value={formatEur(current.overhead.totalNet)}
+              label={rangeAgg.overheadPortion < rangeAgg.overheadFull ? 'Gemeinkosten (anteilig)' : 'Gemeinkosten'}
+              value={formatEur(rangeAgg.overheadPortion)}
               tone="warn"
-              tooltip={{ description: 'Summe aller monatlichen Fix- und Betriebskosten (netto).' }}
+              tooltip={{
+                description: rangeAgg.overheadPortion < rangeAgg.overheadFull
+                  ? `Anteil der Monats-Gemeinkosten für den gewählten Zeitraum (${rangeAgg.rangeDays} von ${rangeAgg.monthDays} Tagen).`
+                  : 'Summe der monatlichen Gemeinkosten des Focus-Monats.',
+                formula: rangeAgg.overheadPortion < rangeAgg.overheadFull
+                  ? 'Monats-Gemeinkosten × (Tage im Zeitraum / Tage im Monat)'
+                  : 'Σ aller Gemeinkosten-Positionen (netto)',
+              }}
             />
             <BigKpi
-              label="Operativer Monatsgewinn"
-              value={formatEur(current.operatingProfit)}
-              tone={Number(current.operatingProfit) < 0 ? 'critical' : 'good'}
-              delta={deltaPct(current.operatingProfit, previous?.operatingProfit)}
+              label="Operativer Gewinn"
+              value={formatEur(rangeAgg.operatingProfit)}
+              tone={rangeAgg.operatingProfit < 0 ? 'critical' : 'good'}
+              delta={deltaPct(rangeAgg.operatingProfit, prevAgg.operatingProfit)}
               highlight
               tooltip={{
-                description: 'Was nach Abzug der Gemeinkosten übrig bleibt. Die wichtigste Kennzahl des Monats.',
-                formula: 'Profit vor Gemeinkosten − Gemeinkosten',
+                description: 'Profit vor Gemeinkosten − anteilige Gemeinkosten.',
+                formula: 'Profit vor GK − Gemeinkosten (anteilig)',
               }}
             />
           </div>
 
-          {/* §2/§50 Filapen Insights — direkt unter Haupt-KPIs */}
+          {/* Filapen Insights — bleiben */}
           <FilapenInsightsPanel />
 
           {/* Mittlere KPIs */}
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-            <MediumKpi label="Marge vor GK" value={current.totals.marginBeforeOverhead !== null ? formatPercent(current.totals.marginBeforeOverhead) : '—'} tone={marginTone(current.totals.marginBeforeOverhead)} />
-            <MediumKpi label="Operative Endmarge" value={current.operatingMargin !== null ? formatPercent(current.operatingMargin) : '—'} tone={marginTone(current.operatingMargin)} highlight />
-            <MediumKpi label="Werbekosten" value={formatEur(current.totals.adsTotal)} />
-            <MediumKpi label="Großhandelsgewinn" value={formatEur(current.wholesale.totalProfit)} />
+            <MediumKpi label="Marge vor GK" value={rangeAgg.marginBeforeOverhead !== null ? formatPercent(rangeAgg.marginBeforeOverhead) : '—'} tone={marginTone(rangeAgg.marginBeforeOverhead)} />
+            <MediumKpi label="Operative Endmarge" value={rangeAgg.operatingMargin !== null ? formatPercent(rangeAgg.operatingMargin) : '—'} tone={marginTone(rangeAgg.operatingMargin)} highlight />
+            <MediumKpi label="Werbekosten" value={formatEur(rangeAgg.adsTotal)} />
+            <MediumKpi label="Großhandelsgewinn" value={formatEur(rangeAgg.wholesaleProfit)} />
           </div>
 
-          {/* Charts mit Widget-Toggle §59 */}
-          <ChartsPanel current={current} />
+          {/* Kanal-Kacheln + Bar-Chart Gewinn pro Kanal */}
+          <ChannelBreakdown days={rangeDays} />
 
+          {/* Zeitreihen-Charts */}
+          <ChartsPanel days={rangeDays} overheadTotal={rangeAgg.overheadPortion} />
 
-          {/* Ziel-Fortschritt (§63) */}
-          <TargetsProgressPanel current={current} targets={targets} />
+          {/* Ziel-Fortschritt (skaliert auf Zeitraum wenn nicht Monatsansicht) */}
+          {focusMonth && <TargetsProgressPanel rangeAgg={rangeAgg} targets={targets} />}
 
-          {/* Insights */}
-          <InsightsPanel current={current} previous={previous} />
-
-          {/* Rankings (§61) */}
+          {/* Rankings */}
           {rankings && rankings.months.length > 1 && (
             <RankingsPanel rankings={rankings} />
           )}
@@ -246,7 +355,7 @@ const CHART_KEYS = [
   { key: 'margin-trend',  label: 'Margen-Verlauf' },
 ] as const;
 
-function ChartsPanel({ current }: { current: ComputedMonth }) {
+function ChartsPanel({ days, overheadTotal }: { days: ComputedDay[]; overheadTotal: number }) {
   const [active, setActive] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return { 'profit-daily': true, 'revenue-channel': true, 'cost-breakdown': false, 'margin-trend': false };
     const stored = localStorage.getItem('pa.charts.active');
@@ -286,7 +395,7 @@ function ChartsPanel({ current }: { current: ComputedMonth }) {
         <div className={cn('grid gap-4', visible.length === 1 ? 'grid-cols-1' : 'lg:grid-cols-2')}>
           {visible.map((c) => (
             <ChartCard key={c.key} title={c.label} tooltip={chartTooltip(c.key)}>
-              <ReactECharts option={chartOption(c.key, current)} style={{ height: 260 }} notMerge lazyUpdate />
+              <ReactECharts option={chartOption(c.key, days, overheadTotal)} style={{ height: 260 }} notMerge lazyUpdate />
             </ChartCard>
           ))}
         </div>
@@ -295,11 +404,11 @@ function ChartsPanel({ current }: { current: ComputedMonth }) {
   );
 }
 
-function chartOption(key: string, c: ComputedMonth) {
-  if (key === 'profit-daily')    return dailyProfitChart(c);
-  if (key === 'revenue-channel') return channelRevenuePie(c);
-  if (key === 'cost-breakdown')  return costBreakdownPie(c);
-  if (key === 'margin-trend')    return marginTrendChart(c);
+function chartOption(key: string, days: ComputedDay[], overheadTotal: number) {
+  if (key === 'profit-daily')    return dailyProfitChart(days);
+  if (key === 'revenue-channel') return channelRevenuePie(days);
+  if (key === 'cost-breakdown')  return costBreakdownPie(days, overheadTotal);
+  if (key === 'margin-trend')    return marginTrendChart(days);
   return {};
 }
 function chartTooltip(key: string): string {
@@ -313,18 +422,24 @@ function chartTooltip(key: string): string {
 // Ziel-Progress-Widget (§63)
 // -----------------------------------------------------------------------------
 
-function TargetsProgressPanel({ current, targets }: { current: ComputedMonth; targets: TargetItem[] }) {
+function TargetsProgressPanel({ rangeAgg, targets }: { rangeAgg: RangeAggregate; targets: TargetItem[] }) {
   const revenueTarget = Number(targets.find((t) => t.key === 'monthly_revenue_target')?.value ?? 0);
   const profitTarget = Number(targets.find((t) => t.key === 'monthly_profit_target')?.value ?? 0);
   const marginTarget = Number(targets.find((t) => t.key === 'margin_target')?.value ?? 30);
 
-  const revenueActual = Number(current.netSalesWithWholesale);
-  const profitActual = Number(current.operatingProfit);
-  const marginActual = current.operatingMargin !== null ? Number(current.operatingMargin) : null;
+  // Zielwerte sind monatlich definiert → anteilig fuer den Zeitraum
+  const scale = rangeAgg.rangeDays / rangeAgg.monthDays;
+  const scaledRevenueTarget = revenueTarget * scale;
+  const scaledProfitTarget = profitTarget * scale;
 
+  const revenueActual = rangeAgg.netSalesTotal;
+  const profitActual = rangeAgg.operatingProfit;
+  const marginActual = rangeAgg.operatingMargin;
+
+  const isFullMonth = rangeAgg.rangeDays === rangeAgg.monthDays;
   const items = [
-    revenueTarget > 0 && { label: 'Umsatzziel', actual: revenueActual, target: revenueTarget, format: (v: number) => formatEur(v.toString()) },
-    profitTarget > 0  && { label: 'Gewinnziel', actual: profitActual, target: profitTarget, format: (v: number) => formatEur(v.toString()) },
+    scaledRevenueTarget > 0 && { label: isFullMonth ? 'Umsatzziel' : `Umsatzziel (anteilig ${rangeAgg.rangeDays}/${rangeAgg.monthDays} T)`, actual: revenueActual, target: scaledRevenueTarget, format: (v: number) => formatEur(v.toString()) },
+    scaledProfitTarget > 0  && { label: isFullMonth ? 'Gewinnziel' : `Gewinnziel (anteilig ${rangeAgg.rangeDays}/${rangeAgg.monthDays} T)`, actual: profitActual, target: scaledProfitTarget, format: (v: number) => formatEur(v.toString()) },
     marginActual !== null && { label: 'Margenziel', actual: marginActual, target: marginTarget, format: (v: number) => formatPercent(v.toString()) },
   ].filter(Boolean) as Array<{ label: string; actual: number; target: number; format: (v: number) => string }>;
 
@@ -567,26 +682,25 @@ function InsightsPanel({ current, previous }: { current: ComputedMonth; previous
 // Charts (ECharts option builders)
 // -----------------------------------------------------------------------------
 
-function dailyProfitChart(c: ComputedMonth) {
+function dailyProfitChart(days: ComputedDay[]) {
   return {
     tooltip: { trigger: 'axis' },
     grid: { top: 20, right: 20, bottom: 30, left: 60 },
-    xAxis: { type: 'category', data: c.days.map((d) => d.date.slice(-2)) },
+    xAxis: { type: 'category', data: days.map((d) => d.date.slice(-5)) },
     yAxis: { type: 'value', axisLabel: { formatter: (v: number) => new Intl.NumberFormat('de-DE').format(v) + ' €' } },
     series: [{
       type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
       lineStyle: { color: '#F59E0B', width: 2 },
       areaStyle: { color: 'rgba(245,158,11,0.15)' },
-      data: c.days.map((d) => Number(d.aggregate.totalProfit)),
+      data: days.map((d) => Number(d.aggregate.totalProfit)),
     }],
   };
 }
 
-function channelRevenuePie(c: ComputedMonth) {
-  const shopify = c.days.reduce((a, d) => a + Number(d.shopify.profit.netSales), 0);
-  const amazon  = c.days.reduce((a, d) => a + Number(d.amazon.profit.netSales),  0);
-  const tiktok  = c.days.reduce((a, d) => a + Number(d.tiktok.profit.netSales),  0);
-  const wholesale = Number(c.wholesale.totalNet);
+function channelRevenuePie(days: ComputedDay[]) {
+  const shopify = days.reduce((a, d) => a + Number(d.shopify.profit.netSales), 0);
+  const amazon  = days.reduce((a, d) => a + Number(d.amazon.profit.netSales),  0);
+  const tiktok  = days.reduce((a, d) => a + Number(d.tiktok.profit.netSales),  0);
   return {
     tooltip: { trigger: 'item', formatter: (p: any) => `${p.name}: ${new Intl.NumberFormat('de-DE').format(p.value)} € (${p.percent}%)` },
     legend: { bottom: 0 },
@@ -596,39 +710,42 @@ function channelRevenuePie(c: ComputedMonth) {
         { value: shopify, name: 'Shopify', itemStyle: { color: '#10B981' } },
         { value: amazon,  name: 'Amazon',  itemStyle: { color: '#F97316' } },
         { value: tiktok,  name: 'TikTok',  itemStyle: { color: '#EC4899' } },
-        { value: wholesale, name: 'Großhandel', itemStyle: { color: '#8B5CF6' } },
       ].filter((d) => d.value > 0),
     }],
   };
 }
 
-function costBreakdownPie(c: ComputedMonth) {
+function costBreakdownPie(days: ComputedDay[], overheadTotal: number) {
+  const products = days.reduce((a, d) => a + Number(d.shopify.profit.productCosts) + Number(d.amazon.profit.productCosts) + Number(d.tiktok.profit.productCosts), 0);
+  const shipping = days.reduce((a, d) => a + Number(d.shopify.profit.shippingCosts) + Number(d.amazon.profit.shippingCosts) + Number(d.tiktok.profit.shippingCosts), 0);
+  const fees     = days.reduce((a, d) => a + Number(d.shopify.profit.platformFees) + Number(d.amazon.profit.platformFees) + Number(d.tiktok.profit.platformFees), 0);
+  const ads      = days.reduce((a, d) => a + Number(d.shopify.profit.adsAttributed) + Number(d.amazon.profit.adsAttributed) + Number(d.tiktok.profit.adsAttributed), 0);
   return {
     tooltip: { trigger: 'item', formatter: (p: any) => `${p.name}: ${new Intl.NumberFormat('de-DE').format(p.value)} €` },
     legend: { bottom: 0 },
     series: [{
       type: 'pie', radius: ['40%', '70%'], center: ['50%', '45%'],
       data: [
-        { value: Number(c.totals.productCostsTotal), name: 'Produktkosten',        itemStyle: { color: '#6366F1' } },
-        { value: Number(c.totals.shippingCostsTotal), name: 'Versand',             itemStyle: { color: '#3B82F6' } },
-        { value: Number(c.totals.platformFeesTotal),  name: 'Plattformgebühren',   itemStyle: { color: '#8B5CF6' } },
-        { value: Number(c.totals.adsTotal),           name: 'Werbekosten',         itemStyle: { color: '#F59E0B' } },
-        { value: Number(c.overhead.totalNet),         name: 'Gemeinkosten',        itemStyle: { color: '#EF4444' } },
+        { value: products,      name: 'Produktkosten',      itemStyle: { color: '#6366F1' } },
+        { value: shipping,      name: 'Versand',            itemStyle: { color: '#3B82F6' } },
+        { value: fees,          name: 'Plattformgebühren',  itemStyle: { color: '#8B5CF6' } },
+        { value: ads,           name: 'Werbekosten',        itemStyle: { color: '#F59E0B' } },
+        { value: overheadTotal, name: 'Gemeinkosten',       itemStyle: { color: '#EF4444' } },
       ].filter((d) => d.value > 0),
     }],
   };
 }
 
-function marginTrendChart(c: ComputedMonth) {
+function marginTrendChart(days: ComputedDay[]) {
   return {
     tooltip: { trigger: 'axis', formatter: (params: any) => `${params[0].axisValue}: ${params[0].value !== null ? params[0].value.toFixed(2) + ' %' : '—'}` },
     grid: { top: 20, right: 20, bottom: 30, left: 50 },
-    xAxis: { type: 'category', data: c.days.map((d) => d.date.slice(-2)) },
+    xAxis: { type: 'category', data: days.map((d) => d.date.slice(-5)) },
     yAxis: { type: 'value', axisLabel: { formatter: '{value} %' } },
     series: [{
       type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
       lineStyle: { color: '#10B981', width: 2 },
-      data: c.days.map((d) => d.aggregate.totalMargin !== null ? Number(d.aggregate.totalMargin) : null),
+      data: days.map((d) => d.aggregate.totalMargin !== null ? Number(d.aggregate.totalMargin) : null),
     }, {
       type: 'line',
       markLine: {
@@ -642,19 +759,88 @@ function marginTrendChart(c: ComputedMonth) {
 }
 
 // -----------------------------------------------------------------------------
+// Range-Aggregation + Helpers
+// -----------------------------------------------------------------------------
+
+interface RangeAggregate {
+  netSalesTotal: number;
+  vatTotal: number;
+  adsTotal: number;
+  profitBeforeOverhead: number;    // Kanal-Profite Summe (aus rangeDays)
+  wholesaleProfit: number;         // aus focusMonth (anteilig)
+  overheadFull: number;            // Monats-Gemeinkosten
+  overheadPortion: number;         // anteilig fuer rangeDays
+  operatingProfit: number;         // Profit vor GK − Gemeinkosten (anteilig)
+  marginBeforeOverhead: number | null;
+  operatingMargin: number | null;
+  rangeDays: number;
+  monthDays: number;
+}
+
+function aggregateRange(days: ComputedDay[], focusMonth: ComputedMonth | null, range: Range | null): RangeAggregate {
+  let netSales = 0, vat = 0, ads = 0, profitBeforeGK = 0;
+  for (const d of days) {
+    netSales += Number(d.aggregate.totalNetSales);
+    profitBeforeGK += Number(d.aggregate.totalProfit);
+    ads += Number(d.shopify.profit.adsAttributed) + Number(d.amazon.profit.adsAttributed) + Number(d.tiktok.profit.adsAttributed);
+    vat += Number(d.shopify.vat.vatTotal) + Number(d.amazon.vat.vatTotal) + Number(d.tiktok.vat.vatTotal);
+  }
+  const overheadFull = focusMonth ? Number(focusMonth.overhead.totalNet) : 0;
+  const wholesaleProfitFull = focusMonth ? Number(focusMonth.wholesale.totalProfit) : 0;
+  const rangeDays = days.length;
+  const monthDays = focusMonth?.days.length || rangeDays || 1;
+  const scale = monthDays > 0 ? rangeDays / monthDays : 0;
+  const overheadPortion = overheadFull * scale;
+  const wholesaleProfit = wholesaleProfitFull * scale;
+  const totalProfitBeforeGK = profitBeforeGK + wholesaleProfit;
+  const operatingProfit = totalProfitBeforeGK - overheadPortion;
+  return {
+    netSalesTotal: netSales,
+    vatTotal: vat,
+    adsTotal: ads,
+    profitBeforeOverhead: totalProfitBeforeGK,
+    wholesaleProfit,
+    overheadFull,
+    overheadPortion,
+    operatingProfit,
+    marginBeforeOverhead: netSales > 0 ? (totalProfitBeforeGK / netSales) * 100 : null,
+    operatingMargin: netSales > 0 ? (operatingProfit / netSales) * 100 : null,
+    rangeDays,
+    monthDays,
+  };
+}
+
+function RangeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className={cn('px-3 py-1.5 text-xs rounded-md whitespace-nowrap',
+        active ? 'bg-amber-500 text-white font-semibold'
+          : 'text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5')}>
+      {children}
+    </button>
+  );
+}
+
+function formatDateShort(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+// -----------------------------------------------------------------------------
 // Utilities
 // -----------------------------------------------------------------------------
 
-function deltaPct(current: string | null | undefined, previous: string | null | undefined): number | null {
-  if (!current || !previous) return null;
+function deltaPct(current: string | number | null | undefined, previous: string | number | null | undefined): number | null {
+  if (current === null || current === undefined || previous === null || previous === undefined) return null;
   const c = Number(current), p = Number(previous);
   if (!Number.isFinite(c) || !Number.isFinite(p) || p === 0) return null;
   return ((c - p) / Math.abs(p)) * 100;
 }
 function formatDelta(d: number): string { return (d > 0 ? '+' : '') + d.toFixed(1) + ' %'; }
-function marginTone(v: string | null | undefined): 'good' | 'warn' | 'critical' | null {
+function marginTone(v: string | number | null | undefined): 'good' | 'warn' | 'critical' | null {
   if (v === null || v === undefined) return null;
   const n = Number(v);
+  if (!Number.isFinite(n)) return null;
   if (n < 20) return 'critical';
   if (n < 25) return 'warn';
   return 'good';
