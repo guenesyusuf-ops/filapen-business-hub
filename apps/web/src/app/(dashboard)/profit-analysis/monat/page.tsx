@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronLeft, ChevronRight, Calendar, Loader2, AlertCircle,
   TrendingUp, TrendingDown, Info, ShoppingBag, Package2, Music2,
+  Save, Circle,
 } from 'lucide-react';
 import {
   profitAnalysisApi, ComputedMonth, ComputedDay, RawDay, RawMonth, Channel,
@@ -24,6 +25,17 @@ export default function MonatPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Save-Buffer-Status: DayEditor meldet Dirty-Zustand + Flush-Funktion nach oben,
+  // damit Monatswechsel/Tages-Wechsel Warnungen zeigen koennen.
+  const [dayDirty, setDayDirty] = useState(false);
+  const flushRef = useRef<() => Promise<void>>(async () => {});
+  const registerFlush = useCallback((fn: () => Promise<void>) => { flushRef.current = fn; }, []);
+
+  function confirmDiscardIfDirty(): boolean {
+    if (!dayDirty) return true;
+    return window.confirm('Es gibt ungespeicherte Änderungen. Beim Wechsel gehen sie verloren. Trotzdem wechseln?');
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,17 +66,25 @@ export default function MonatPage() {
   }, [computed]);
 
   function prevMonth() {
+    if (!confirmDiscardIfDirty()) return;
     if (month === 1) { setYear(year - 1); setMonth(12); } else setMonth(month - 1);
     setSelectedDate(null);
   }
   function nextMonth() {
+    if (!confirmDiscardIfDirty()) return;
     if (month === 12) { setYear(year + 1); setMonth(1); } else setMonth(month + 1);
     setSelectedDate(null);
   }
   function jumpToday() {
+    if (!confirmDiscardIfDirty()) return;
     const n = new Date();
     setYear(n.getFullYear()); setMonth(n.getMonth() + 1);
     setSelectedDate(n.toISOString().slice(0, 10));
+  }
+  function selectDay(d: string | null) {
+    if (d === selectedDate) return;
+    if (!confirmDiscardIfDirty()) return;
+    setSelectedDate(d);
   }
 
   return (
@@ -168,17 +188,20 @@ export default function MonatPage() {
             computedByDate={computedByDate}
             rawByDate={rawByDate}
             selectedDate={selectedDate}
-            onSelect={setSelectedDate}
+            onSelect={selectDay}
           />
 
-          {/* Selected Day Editor */}
+          {/* Selected Day Editor — key={date} sorgt fuer sauberen Buffer-Reset */}
           {selectedDate && (
             <DayEditor
+              key={selectedDate}
               date={selectedDate}
               raw={rawByDate.get(selectedDate) ?? null}
               computed={computedByDate.get(selectedDate) ?? null}
               readonly={computed?.status === 'locked'}
               onSaved={load}
+              onDirtyChange={setDayDirty}
+              registerFlush={registerFlush}
             />
           )}
         </>
@@ -191,31 +214,139 @@ export default function MonatPage() {
 // Day-Editor: Sales + Ads + Shipping + Compute-Preview
 // -----------------------------------------------------------------------------
 
+type SalesPatch = Partial<{ gross19: string; gross7: string; returns19: string; returns7: string }>;
+type AdsPatch = Partial<{ meta: string; google: string; influencer: string; amazonPpc: string; tiktokAds: string }>;
+type ShippingPatch = Partial<{ shopifyPackages: number; tiktokPackages: number }>;
+
+const AUTO_SAVE_MS = 5 * 60 * 1000;
+
 function DayEditor({
-  date, raw, computed, readonly, onSaved,
+  date, raw, computed, readonly, onSaved, onDirtyChange, registerFlush,
 }: {
   date: string;
   raw: RawDay | null;
   computed: ComputedDay | null;
   readonly: boolean;
   onSaved: () => void;
+  onDirtyChange: (dirty: boolean) => void;
+  registerFlush: (fn: () => Promise<void>) => void;
 }) {
   const [tab, setTab] = useState<Channel>('shopify');
-  const sales = raw?.channelSales[tab] ?? { channel: tab, gross19: '0', gross7: '0', returns19: '0', returns7: '0' };
-  const ads = raw?.ads ?? { meta: '0', google: '0', influencer: '0', amazonPpc: '0', tiktokAds: '0' };
-  const shipping = raw?.shipping ?? { shopifyPackages: 0, tiktokPackages: 0 };
+
+  // Buffer fuer alle noch nicht gespeicherten Aenderungen
+  const [pendingAds, setPendingAds] = useState<AdsPatch>({});
+  const [pendingShipping, setPendingShipping] = useState<ShippingPatch>({});
+  const [pendingSales, setPendingSales] = useState<Record<Channel, SalesPatch>>({ shopify: {}, amazon: {}, tiktok: {} });
+  const [pendingProductSales, setPendingProductSales] = useState<Record<string, number>>({});
+
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastEditAt, setLastEditAt] = useState<number | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+
+  const dirtyCount =
+    Object.keys(pendingAds).length +
+    Object.keys(pendingShipping).length +
+    (Object.keys(pendingSales.shopify).length + Object.keys(pendingSales.amazon).length + Object.keys(pendingSales.tiktok).length) +
+    Object.keys(pendingProductSales).length;
+  const isDirty = dirtyCount > 0;
+
+  // Melde Dirty-Zustand an Parent
+  useEffect(() => { onDirtyChange(isDirty); }, [isDirty, onDirtyChange]);
+
+  const rawSales = raw?.channelSales[tab] ?? { channel: tab, gross19: '0', gross7: '0', returns19: '0', returns7: '0' };
+  const rawAds = raw?.ads ?? { meta: '0', google: '0', influencer: '0', amazonPpc: '0', tiktokAds: '0' };
+  const rawShipping = raw?.shipping ?? { shopifyPackages: 0, tiktokPackages: 0 };
+
+  // Effective Werte: raw + pending gemergt (Anzeige)
+  const sales = { ...rawSales, ...pendingSales[tab] };
+  const ads = { ...rawAds, ...pendingAds };
+  const shipping = { ...rawShipping, ...pendingShipping };
   const computedChannel = computed?.[tab];
+
+  const touch = () => setLastEditAt(Date.now());
+  const stageAds = (patch: AdsPatch) => { setPendingAds((p) => ({ ...p, ...patch })); touch(); };
+  const stageShipping = (patch: ShippingPatch) => { setPendingShipping((p) => ({ ...p, ...patch })); touch(); };
+  const stageSales = (ch: Channel, patch: SalesPatch) => {
+    setPendingSales((p) => ({ ...p, [ch]: { ...p[ch], ...patch } })); touch();
+  };
+  const stageProductSale = (ch: Channel, productId: string, quantity: number) => {
+    setPendingProductSales((p) => ({ ...p, [`${ch}|${productId}`]: quantity })); touch();
+  };
+
+  // Flush: alle Buffer parallel per API absetzen, dann Monat neu laden
+  const flush = useCallback(async () => {
+    if (!isDirty || readonly || saving) return;
+    setSaving(true); setSaveError(null);
+    try {
+      const promises: Promise<any>[] = [];
+      if (Object.keys(pendingAds).length > 0) promises.push(profitAnalysisApi.daily.patchAds(date, pendingAds));
+      if (Object.keys(pendingShipping).length > 0) promises.push(profitAnalysisApi.daily.patchShipping(date, pendingShipping));
+      (['shopify', 'amazon', 'tiktok'] as Channel[]).forEach((ch) => {
+        const p = pendingSales[ch];
+        if (Object.keys(p).length > 0) promises.push(profitAnalysisApi.daily.patchSales(date, ch, p));
+      });
+      Object.entries(pendingProductSales).forEach(([key, qty]) => {
+        const [ch, productId] = key.split('|');
+        promises.push(profitAnalysisApi.daily.patchProductSale(date, ch as Channel, productId, qty));
+      });
+      await Promise.all(promises);
+      setPendingAds({}); setPendingShipping({});
+      setPendingSales({ shopify: {}, amazon: {}, tiktok: {} });
+      setPendingProductSales({});
+      setLastSavedAt(Date.now()); setLastEditAt(null);
+      onSaved();
+    } catch (e: any) {
+      setSaveError(e?.message ?? 'Speichern fehlgeschlagen');
+      throw e;
+    } finally {
+      setSaving(false);
+    }
+  }, [isDirty, readonly, saving, date, pendingAds, pendingShipping, pendingSales, pendingProductSales, onSaved]);
+
+  useEffect(() => { registerFlush(flush); }, [flush, registerFlush]);
+
+  // 5-Minuten Inaktivitaets-Fallback: wenn seit letzter Eingabe >=5min, autosave
+  useEffect(() => {
+    if (!isDirty || !lastEditAt || saving) return;
+    const t = setInterval(() => {
+      if (lastEditAt && Date.now() - lastEditAt >= AUTO_SAVE_MS) {
+        flush().catch(() => {});
+      }
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [isDirty, lastEditAt, saving, flush]);
+
+  // Warnung bei Browser-Close/Reload
+  useEffect(() => {
+    if (!isDirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [isDirty]);
 
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] shadow-card p-5 space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Tages-Editor</div>
           <div className="text-lg font-bold text-slate-900 dark:text-white">{formatDate(date)}</div>
         </div>
-        {readonly && (
-          <div className="text-xs text-red-600 dark:text-red-400 font-medium">Nur-Lese-Modus</div>
-        )}
+        <div className="flex items-center gap-3">
+          {readonly && (
+            <div className="text-xs text-red-600 dark:text-red-400 font-medium">Nur-Lese-Modus</div>
+          )}
+          {!readonly && (
+            <SaveBar
+              isDirty={isDirty}
+              dirtyCount={dirtyCount}
+              saving={saving}
+              saveError={saveError}
+              lastSavedAt={lastSavedAt}
+              onSave={() => { flush().catch(() => {}); }}
+            />
+          )}
+        </div>
       </div>
 
       {/* Kanal-Tabs */}
@@ -227,11 +358,11 @@ function DayEditor({
 
       {/* Sales-Eingabe — adaptive UX (Variante 3, §7) */}
       <SalesSection
-        date={date}
         channel={tab}
         sales={sales}
+        rawSales={rawSales}
         readonly={readonly}
-        onSaved={onSaved}
+        onStage={(patch) => stageSales(tab, patch)}
       />
 
       {computedChannel && (
@@ -249,11 +380,11 @@ function DayEditor({
 
       {/* §20-23 Verkaufte Produkte je Kanal */}
       <ProductSalesSection
-        date={date}
         channel={tab}
         productSales={raw?.productSales ?? []}
+        pendingProductSales={pendingProductSales}
         readonly={readonly}
-        onSaved={onSaved}
+        onStage={(productId, qty) => stageProductSale(tab, productId, qty)}
       />
 
       {/* Werbekosten */}
@@ -261,20 +392,20 @@ function DayEditor({
         <SectionLabel>Werbekosten (netto)</SectionLabel>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
           {tab === 'shopify' && <>
-            <MoneyField label="Meta Ads"  value={ads.meta}       disabled={readonly}
-              onSaved={(v) => profitAnalysisApi.daily.patchAds(date, { meta: v }).then(onSaved)} />
-            <MoneyField label="Google Ads" value={ads.google}    disabled={readonly}
-              onSaved={(v) => profitAnalysisApi.daily.patchAds(date, { google: v }).then(onSaved)} />
-            <MoneyField label="Influencer" value={ads.influencer} disabled={readonly}
-              onSaved={(v) => profitAnalysisApi.daily.patchAds(date, { influencer: v }).then(onSaved)} />
+            <MoneyField label="Meta Ads"  value={ads.meta}       rawValue={rawAds.meta}       disabled={readonly}
+              onCommit={(v) => stageAds({ meta: v })} />
+            <MoneyField label="Google Ads" value={ads.google}    rawValue={rawAds.google}     disabled={readonly}
+              onCommit={(v) => stageAds({ google: v })} />
+            <MoneyField label="Influencer" value={ads.influencer} rawValue={rawAds.influencer} disabled={readonly}
+              onCommit={(v) => stageAds({ influencer: v })} />
           </>}
           {tab === 'amazon' && (
-            <MoneyField label="Amazon PPC" value={ads.amazonPpc} disabled={readonly}
-              onSaved={(v) => profitAnalysisApi.daily.patchAds(date, { amazonPpc: v }).then(onSaved)} />
+            <MoneyField label="Amazon PPC" value={ads.amazonPpc} rawValue={rawAds.amazonPpc} disabled={readonly}
+              onCommit={(v) => stageAds({ amazonPpc: v })} />
           )}
           {tab === 'tiktok' && (
-            <MoneyField label="TikTok Ads" value={ads.tiktokAds} disabled={readonly}
-              onSaved={(v) => profitAnalysisApi.daily.patchAds(date, { tiktokAds: v }).then(onSaved)} />
+            <MoneyField label="TikTok Ads" value={ads.tiktokAds} rawValue={rawAds.tiktokAds} disabled={readonly}
+              onCommit={(v) => stageAds({ tiktokAds: v })} />
           )}
         </div>
       </div>
@@ -288,15 +419,17 @@ function DayEditor({
               <IntField
                 label="Shopify Pakete"
                 value={shipping.shopifyPackages}
+                rawValue={rawShipping.shopifyPackages}
                 disabled={readonly}
-                onSaved={(v) => profitAnalysisApi.daily.patchShipping(date, { shopifyPackages: v }).then(onSaved)}
+                onCommit={(v) => stageShipping({ shopifyPackages: v })}
               />
             ) : (
               <IntField
                 label="TikTok Pakete"
                 value={shipping.tiktokPackages}
+                rawValue={rawShipping.tiktokPackages}
                 disabled={readonly}
-                onSaved={(v) => profitAnalysisApi.daily.patchShipping(date, { tiktokPackages: v }).then(onSaved)}
+                onCommit={(v) => stageShipping({ tiktokPackages: v })}
               />
             )}
             {computedChannel && (
@@ -487,15 +620,19 @@ function ChannelTab({ active, onClick, color, icon: Icon, children }: {
   );
 }
 
-function MoneyField({ label, value, onSaved, disabled }: {
-  label: string; value: string; onSaved: (v: string) => Promise<any> | void; disabled?: boolean;
+function MoneyField({ label, value, rawValue, onCommit, disabled }: {
+  label: string; value: string; rawValue: string;
+  onCommit: (v: string) => void; disabled?: boolean;
 }) {
   const [local, setLocal] = useState(value.replace('.', ','));
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   useEffect(() => { setLocal(value.replace('.', ',')); }, [value]);
+  const dirty = value !== rawValue;
   return (
     <label className="block">
-      <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">{label}</div>
+      <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+        <span>{label}</span>
+        {dirty && <span title="Ungespeicherte Änderung" className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />}
+      </div>
       <div className="relative">
         <input
           type="text"
@@ -503,35 +640,39 @@ function MoneyField({ label, value, onSaved, disabled }: {
           value={local}
           disabled={disabled}
           onChange={(e) => setLocal(e.target.value)}
-          onBlur={async () => {
+          onBlur={() => {
             if (disabled) return;
             const parsed = local.replace(',', '.');
             if (parsed === value) return;
-            setStatus('saving');
-            try { await onSaved(parsed || '0'); setStatus('saved'); setTimeout(() => setStatus('idle'), 1200); }
-            catch { setStatus('error'); }
+            onCommit(parsed || '0');
           }}
           className={cn(
-            'w-full rounded-lg border border-slate-300 dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 pr-14',
+            'w-full rounded-lg border dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40 pr-8',
+            dirty
+              ? 'border-amber-400 dark:border-amber-500/50 bg-amber-50/30 dark:bg-amber-500/[0.04]'
+              : 'border-slate-300 dark:border-white/10',
             disabled && 'opacity-50 cursor-not-allowed',
           )}
         />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-          {status === 'saving' ? '…' : status === 'saved' ? '✓' : status === 'error' ? '!' : '€'}
-        </span>
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">€</span>
       </div>
     </label>
   );
 }
 
-function IntField({ label, value, onSaved, disabled }: {
-  label: string; value: number; onSaved: (v: number) => Promise<any> | void; disabled?: boolean;
+function IntField({ label, value, rawValue, onCommit, disabled }: {
+  label: string; value: number; rawValue: number;
+  onCommit: (v: number) => void; disabled?: boolean;
 }) {
   const [local, setLocal] = useState(String(value));
   useEffect(() => { setLocal(String(value)); }, [value]);
+  const dirty = value !== rawValue;
   return (
     <label className="block">
-      <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">{label}</div>
+      <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+        <span>{label}</span>
+        {dirty && <span title="Ungespeicherte Änderung" className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />}
+      </div>
       <input
         type="number"
         min="0"
@@ -539,14 +680,17 @@ function IntField({ label, value, onSaved, disabled }: {
         value={local}
         disabled={disabled}
         onChange={(e) => setLocal(e.target.value)}
-        onBlur={async () => {
+        onBlur={() => {
           if (disabled) return;
           const parsed = parseInt(local, 10);
           if (Number.isNaN(parsed) || parsed === value) return;
-          await onSaved(parsed);
+          onCommit(parsed);
         }}
         className={cn(
-          'w-full rounded-lg border border-slate-300 dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40',
+          'w-full rounded-lg border dark:bg-white/5 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40',
+          dirty
+            ? 'border-amber-400 dark:border-amber-500/50 bg-amber-50/30 dark:bg-amber-500/[0.04]'
+            : 'border-slate-300 dark:border-white/10',
           disabled && 'opacity-50 cursor-not-allowed',
         )}
       />
@@ -978,11 +1122,12 @@ function roasFormulaFor(c: Channel, kind: 'gross' | 'net'): string {
 // sichtbar. Wird sticky nach erster Nutzung im selben Monat.
 // -----------------------------------------------------------------------------
 
-function SalesSection({ date, channel, sales, readonly, onSaved }: {
-  date: string; channel: Channel;
+function SalesSection({ channel, sales, rawSales, readonly, onStage }: {
+  channel: Channel;
   sales: { gross19: string; gross7: string; returns19: string; returns7: string };
+  rawSales: { gross19: string; gross7: string; returns19: string; returns7: string };
   readonly: boolean;
-  onSaved: () => void;
+  onStage: (patch: SalesPatch) => void;
 }) {
   const has7 = Number(sales.gross7) > 0 || Number(sales.returns7) > 0;
   const [showReduced, setShowReduced] = useState(has7);
@@ -995,15 +1140,17 @@ function SalesSection({ date, channel, sales, readonly, onSaved }: {
         <MoneyField
           label={showReduced ? 'Brutto 19 %' : 'Brutto gesamt'}
           value={sales.gross19}
+          rawValue={rawSales.gross19}
           disabled={readonly}
-          onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { gross19: v }).then(onSaved)}
+          onCommit={(v) => onStage({ gross19: v })}
         />
         {showReduced && (
           <MoneyField
             label="Brutto 7 % (z.B. Bücher)"
             value={sales.gross7}
+            rawValue={rawSales.gross7}
             disabled={readonly}
-            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { gross7: v }).then(onSaved)}
+            onCommit={(v) => onStage({ gross7: v })}
           />
         )}
       </div>
@@ -1019,16 +1166,16 @@ function SalesSection({ date, channel, sales, readonly, onSaved }: {
 
       {(showReduced || has7) && (
         <div className="grid grid-cols-2 gap-3 mt-3">
-          <MoneyField label="Retouren 19 %" value={sales.returns19} disabled={readonly}
-            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { returns19: v }).then(onSaved)} />
-          <MoneyField label="Retouren 7 %" value={sales.returns7} disabled={readonly}
-            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { returns7: v }).then(onSaved)} />
+          <MoneyField label="Retouren 19 %" value={sales.returns19} rawValue={rawSales.returns19} disabled={readonly}
+            onCommit={(v) => onStage({ returns19: v })} />
+          <MoneyField label="Retouren 7 %" value={sales.returns7} rawValue={rawSales.returns7} disabled={readonly}
+            onCommit={(v) => onStage({ returns7: v })} />
         </div>
       )}
       {!showReduced && (
         <div className="mt-3 max-w-md">
-          <MoneyField label="Retouren (optional)" value={sales.returns19} disabled={readonly}
-            onSaved={(v) => profitAnalysisApi.daily.patchSales(date, channel, { returns19: v }).then(onSaved)} />
+          <MoneyField label="Retouren (optional)" value={sales.returns19} rawValue={rawSales.returns19} disabled={readonly}
+            onCommit={(v) => onStage({ returns19: v })} />
         </div>
       )}
     </div>
@@ -1039,32 +1186,33 @@ function SalesSection({ date, channel, sales, readonly, onSaved }: {
 // ProductSalesSection — §20-23 Verkaufte Produkte je Kanal
 // -----------------------------------------------------------------------------
 
-function ProductSalesSection({ date, channel, productSales, readonly, onSaved }: {
-  date: string; channel: Channel;
+function ProductSalesSection({ channel, productSales, pendingProductSales, readonly, onStage }: {
+  channel: Channel;
   productSales: Array<{ channel: Channel; productId: string; quantity: number }>;
+  pendingProductSales: Record<string, number>;
   readonly: boolean;
-  onSaved: () => void;
+  onStage: (productId: string, quantity: number) => void;
 }) {
   const [products, setProducts] = useState<ProductCostRow[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     (async () => {
       try {
-        // Kanal-Filter: nur Produkte die auf diesem Tab verkauft werden
-        // (inkl. Legacy-Produkte ohne Zuordnung)
         const res = await profitAnalysisApi.productCosts.list({ limit: 500, channel });
         setProducts(res.items);
       } finally { setLoading(false); }
     })();
   }, [channel]);
 
-  // Menge fuer diesen Kanal + productId nachschlagen
-  const qtyOf = (productId: string) => {
-    return productSales.find((s) => s.channel === channel && s.productId === productId)?.quantity ?? 0;
+  // Menge fuer diesen Kanal + productId nachschlagen (raw und pending)
+  const rawQtyOf = (productId: string) =>
+    productSales.find((s) => s.channel === channel && s.productId === productId)?.quantity ?? 0;
+  const effectiveQtyOf = (productId: string) => {
+    const key = `${channel}|${productId}`;
+    return key in pendingProductSales ? pendingProductSales[key] : rawQtyOf(productId);
   };
 
   const filtered = products.filter((p) => {
@@ -1073,21 +1221,17 @@ function ProductSalesSection({ date, channel, productSales, readonly, onSaved }:
     return p.title.toLowerCase().includes(s) || p.sku?.toLowerCase().includes(s) || p.externalId.toLowerCase().includes(s);
   });
 
-  // Verkaufte + einige unverkaufte nach oben
-  const withQty = filtered.filter((p) => qtyOf(p.productId) > 0);
-  const withoutQty = filtered.filter((p) => qtyOf(p.productId) === 0);
+  const withQty = filtered.filter((p) => effectiveQtyOf(p.productId) > 0);
+  const withoutQty = filtered.filter((p) => effectiveQtyOf(p.productId) === 0);
   const orderedProducts = [...withQty, ...withoutQty];
 
-  const totalUnits = productSales.filter((s) => s.channel === channel).reduce((a, s) => a + s.quantity, 0);
-
-  async function updateQty(productId: string, quantity: number) {
-    if (readonly) return;
-    setSaving(productId);
-    try {
-      await profitAnalysisApi.daily.patchProductSale(date, channel, productId, quantity);
-      onSaved();
-    } finally { setSaving(null); }
-  }
+  const totalUnits =
+    productSales.filter((s) => s.channel === channel).reduce((a, s) => a + s.quantity, 0)
+    + Object.entries(pendingProductSales).reduce((sum, [key, qty]) => {
+        const [ch, pid] = key.split('|');
+        if (ch !== channel) return sum;
+        return sum + (qty - rawQtyOf(pid));
+      }, 0);
 
   return (
     <div>
@@ -1109,13 +1253,18 @@ function ProductSalesSection({ date, channel, productSales, readonly, onSaved }:
         ) : (
           <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
             {orderedProducts.map((p) => {
-              const currentQty = qtyOf(p.productId);
+              const currentQty = effectiveQtyOf(p.productId);
+              const rawQty = rawQtyOf(p.productId);
+              const dirty = currentQty !== rawQty;
               const hasNoCost = p.currentCost === null;
               const hasNoFulfillment = channel === 'amazon' && p.currentFulfillment === null;
               return (
                 <div key={p.productId} className={cn('flex items-center gap-3 px-3 py-2 text-sm', currentQty > 0 && 'bg-amber-50/40 dark:bg-amber-500/[0.03]')}>
                   <div className="flex-1 min-w-0">
-                    <div className="text-slate-900 dark:text-white truncate">{p.title}</div>
+                    <div className="text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                      {p.title}
+                      {dirty && <span title="Ungespeicherte Änderung" className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 flex-shrink-0" />}
+                    </div>
                     <div className="text-[10px] text-slate-500 flex items-center gap-2">
                       {p.sku && <span className="font-mono">{p.sku}</span>}
                       {hasNoCost && <span className="text-amber-600 dark:text-amber-400">· Produktkosten fehlen</span>}
@@ -1123,11 +1272,10 @@ function ProductSalesSection({ date, channel, productSales, readonly, onSaved }:
                     </div>
                   </div>
                   <QtyInput
-                    productId={p.productId}
                     value={currentQty}
+                    dirty={dirty}
                     disabled={readonly}
-                    saving={saving === p.productId}
-                    onSave={(v) => updateQty(p.productId, v)}
+                    onCommit={(v) => onStage(p.productId, v)}
                   />
                 </div>
               );
@@ -1139,9 +1287,9 @@ function ProductSalesSection({ date, channel, productSales, readonly, onSaved }:
   );
 }
 
-function QtyInput({ productId, value, disabled, saving, onSave }: {
-  productId: string; value: number; disabled?: boolean; saving?: boolean;
-  onSave: (v: number) => void;
+function QtyInput({ value, dirty, disabled, onCommit }: {
+  value: number; dirty?: boolean; disabled?: boolean;
+  onCommit: (v: number) => void;
 }) {
   const [local, setLocal] = useState(String(value));
   useEffect(() => { setLocal(String(value)); }, [value]);
@@ -1157,14 +1305,66 @@ function QtyInput({ productId, value, disabled, saving, onSave }: {
         onBlur={() => {
           const n = parseInt(local, 10);
           if (Number.isNaN(n) || n === value) return;
-          onSave(Math.max(0, n));
+          onCommit(Math.max(0, n));
         }}
         className={cn(
-          'w-20 rounded-md border border-slate-300 dark:border-white/10 dark:bg-white/5 px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-amber-500/40',
+          'w-20 rounded-md border dark:bg-white/5 px-2 py-1 text-sm text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-amber-500/40',
+          dirty
+            ? 'border-amber-400 dark:border-amber-500/50 bg-amber-50/30 dark:bg-amber-500/[0.04]'
+            : 'border-slate-300 dark:border-white/10',
           disabled && 'opacity-50 cursor-not-allowed',
         )}
       />
-      <span className="text-xs text-slate-400 w-4">{saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Stk.'}</span>
+      <span className="text-xs text-slate-400 w-4">Stk.</span>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// SaveBar: manueller Speicher-Button, zeigt Anzahl offener Änderungen + Status
+// -----------------------------------------------------------------------------
+
+function SaveBar({ isDirty, dirtyCount, saving, saveError, lastSavedAt, onSave }: {
+  isDirty: boolean;
+  dirtyCount: number;
+  saving: boolean;
+  saveError: string | null;
+  lastSavedAt: number | null;
+  onSave: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {isDirty ? (
+        <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 font-medium">
+          <Circle className="h-2 w-2 fill-current" />
+          {dirtyCount} {dirtyCount === 1 ? 'Änderung' : 'Änderungen'}
+        </div>
+      ) : lastSavedAt ? (
+        <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+          ✓ gespeichert
+        </div>
+      ) : null}
+
+      {saveError && (
+        <div className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1" title={saveError}>
+          <AlertCircle className="h-3.5 w-3.5" /> Fehler
+        </div>
+      )}
+
+      <button
+        onClick={onSave}
+        disabled={!isDirty || saving}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-colors',
+          isDirty
+            ? 'bg-amber-500 hover:bg-amber-600 text-white'
+            : 'bg-slate-100 dark:bg-white/5 text-slate-400 cursor-not-allowed',
+        )}
+        title={isDirty ? 'Alle Änderungen jetzt speichern' : 'Keine Änderungen zu speichern'}
+      >
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        Speichern
+      </button>
     </div>
   );
 }
