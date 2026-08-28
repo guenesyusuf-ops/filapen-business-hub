@@ -274,23 +274,42 @@ function DayEditor({
     setPendingProductSales((p) => ({ ...p, [`${ch}|${productId}`]: quantity })); touch();
   };
 
-  // Flush: alle Buffer parallel per API absetzen, dann Monat neu laden
+  // Flush: alle Buffer SEQUENTIELL per API absetzen. Parallel wuerde Races auf
+  // dem pa_computed_day-Cache und den upsert-Rows ausloesen (jeder PATCH-Handler
+  // im Backend triggert computeDay + audit.log auf denselben (orgId,date)-Key).
   const flush = useCallback(async () => {
     if (!isDirty || readonly || saving) return;
     setSaving(true); setSaveError(null);
+    const jobs: Array<{ label: string; run: () => Promise<any> }> = [];
+    if (Object.keys(pendingAds).length > 0) {
+      jobs.push({ label: 'Werbekosten', run: () => profitAnalysisApi.daily.patchAds(date, pendingAds) });
+    }
+    if (Object.keys(pendingShipping).length > 0) {
+      jobs.push({ label: 'Versand', run: () => profitAnalysisApi.daily.patchShipping(date, pendingShipping) });
+    }
+    (['shopify', 'amazon', 'tiktok'] as Channel[]).forEach((ch) => {
+      const p = pendingSales[ch];
+      if (Object.keys(p).length > 0) {
+        jobs.push({ label: `Umsatz ${ch}`, run: () => profitAnalysisApi.daily.patchSales(date, ch, p) });
+      }
+    });
+    Object.entries(pendingProductSales).forEach(([key, qty]) => {
+      const [ch, productId] = key.split('|');
+      jobs.push({
+        label: `Produkt ${ch}/${productId.slice(0, 8)}`,
+        run: () => profitAnalysisApi.daily.patchProductSale(date, ch as Channel, productId, qty),
+      });
+    });
     try {
-      const promises: Promise<any>[] = [];
-      if (Object.keys(pendingAds).length > 0) promises.push(profitAnalysisApi.daily.patchAds(date, pendingAds));
-      if (Object.keys(pendingShipping).length > 0) promises.push(profitAnalysisApi.daily.patchShipping(date, pendingShipping));
-      (['shopify', 'amazon', 'tiktok'] as Channel[]).forEach((ch) => {
-        const p = pendingSales[ch];
-        if (Object.keys(p).length > 0) promises.push(profitAnalysisApi.daily.patchSales(date, ch, p));
-      });
-      Object.entries(pendingProductSales).forEach(([key, qty]) => {
-        const [ch, productId] = key.split('|');
-        promises.push(profitAnalysisApi.daily.patchProductSale(date, ch as Channel, productId, qty));
-      });
-      await Promise.all(promises);
+      for (const job of jobs) {
+        try {
+          await job.run();
+        } catch (e: any) {
+          const detail = e?.message ?? String(e);
+          console.error(`[SaveBar] ${job.label} failed:`, e);
+          throw new Error(`${job.label}: ${detail}`);
+        }
+      }
       setPendingAds({}); setPendingShipping({});
       setPendingSales({ shopify: {}, amazon: {}, tiktok: {} });
       setPendingProductSales({});
@@ -298,7 +317,6 @@ function DayEditor({
       onSaved();
     } catch (e: any) {
       setSaveError(e?.message ?? 'Speichern fehlgeschlagen');
-      throw e;
     } finally {
       setSaving(false);
     }
@@ -348,6 +366,19 @@ function DayEditor({
           )}
         </div>
       </div>
+
+      {saveError && (
+        <div className="rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+          <div className="text-xs text-red-800 dark:text-red-300 flex-1 min-w-0">
+            <div className="font-semibold">Speichern fehlgeschlagen</div>
+            <div className="mt-0.5 break-words">{saveError}</div>
+            <div className="mt-1 text-red-600/70 dark:text-red-400/70">
+              Deine Eingaben stehen weiterhin im Buffer und sind nicht verloren. Nochmal „Speichern" klicken oder ins Browser-Konsolen-Log für Details schauen.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Kanal-Tabs */}
       <div className="border-b border-slate-200 dark:border-white/8 flex gap-1">
@@ -1345,9 +1376,9 @@ function SaveBar({ isDirty, dirtyCount, saving, saveError, lastSavedAt, onSave }
         </div>
       ) : null}
 
-      {saveError && (
-        <div className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1" title={saveError}>
-          <AlertCircle className="h-3.5 w-3.5" /> Fehler
+      {saveError && !saving && (
+        <div className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+          <AlertCircle className="h-3.5 w-3.5" /> nicht gespeichert
         </div>
       )}
 
