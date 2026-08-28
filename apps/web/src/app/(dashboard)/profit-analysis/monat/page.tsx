@@ -274,49 +274,44 @@ function DayEditor({
     setPendingProductSales((p) => ({ ...p, [`${ch}|${productId}`]: quantity })); touch();
   };
 
-  // Flush: alle Buffer SEQUENTIELL per API absetzen. Parallel wuerde Races auf
-  // dem pa_computed_day-Cache und den upsert-Rows ausloesen (jeder PATCH-Handler
-  // im Backend triggert computeDay + audit.log auf denselben (orgId,date)-Key).
+  // Flush: EIN Batch-Call statt N einzelner PATCHes.
+  // Backend erledigt alle Upserts atomar in einer Transaction und ruft
+  // computeDay genau einmal am Ende — schnell und ohne Races.
   const flush = useCallback(async () => {
     if (!isDirty || readonly || saving) return;
     setSaving(true); setSaveError(null);
-    const jobs: Array<{ label: string; run: () => Promise<any> }> = [];
-    if (Object.keys(pendingAds).length > 0) {
-      jobs.push({ label: 'Werbekosten', run: () => profitAnalysisApi.daily.patchAds(date, pendingAds) });
-    }
-    if (Object.keys(pendingShipping).length > 0) {
-      jobs.push({ label: 'Versand', run: () => profitAnalysisApi.daily.patchShipping(date, pendingShipping) });
-    }
-    (['shopify', 'amazon', 'tiktok'] as Channel[]).forEach((ch) => {
-      const p = pendingSales[ch];
-      if (Object.keys(p).length > 0) {
-        jobs.push({ label: `Umsatz ${ch}`, run: () => profitAnalysisApi.daily.patchSales(date, ch, p) });
-      }
-    });
-    Object.entries(pendingProductSales).forEach(([key, qty]) => {
+
+    // Product-Sales-Array aus dem Key-Map bauen
+    const productSales: Array<{ channel: Channel; productId: string; quantity: number }> = [];
+    for (const [key, quantity] of Object.entries(pendingProductSales)) {
       const [ch, productId] = key.split('|');
-      jobs.push({
-        label: `Produkt ${ch}/${productId.slice(0, 8)}`,
-        run: () => profitAnalysisApi.daily.patchProductSale(date, ch as Channel, productId, qty),
-      });
+      productSales.push({ channel: ch as Channel, productId, quantity });
+    }
+
+    // Nur nicht-leere Sales-Kanaele senden
+    const salesPayload: Partial<Record<Channel, SalesPatch>> = {};
+    (['shopify', 'amazon', 'tiktok'] as Channel[]).forEach((ch) => {
+      if (Object.keys(pendingSales[ch]).length > 0) salesPayload[ch] = pendingSales[ch];
     });
+
+    const payload = {
+      ...(Object.keys(salesPayload).length > 0 && { sales: salesPayload }),
+      ...(Object.keys(pendingAds).length > 0 && { ads: pendingAds }),
+      ...(Object.keys(pendingShipping).length > 0 && { shipping: pendingShipping }),
+      ...(productSales.length > 0 && { productSales }),
+    };
+
     try {
-      for (const job of jobs) {
-        try {
-          await job.run();
-        } catch (e: any) {
-          const detail = e?.message ?? String(e);
-          console.error(`[SaveBar] ${job.label} failed:`, e);
-          throw new Error(`${job.label}: ${detail}`);
-        }
-      }
+      await profitAnalysisApi.daily.patchBatch(date, payload);
       setPendingAds({}); setPendingShipping({});
       setPendingSales({ shopify: {}, amazon: {}, tiktok: {} });
       setPendingProductSales({});
       setLastSavedAt(Date.now()); setLastEditAt(null);
       onSaved();
     } catch (e: any) {
-      setSaveError(e?.message ?? 'Speichern fehlgeschlagen');
+      const detail = e?.message ?? String(e);
+      console.error('[SaveBar] batch failed:', e);
+      setSaveError(detail);
     } finally {
       setSaving(false);
     }

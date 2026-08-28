@@ -217,6 +217,163 @@ export class DailyDataService {
     return { channel: upserted.channel as Channel, productId: upserted.productId, quantity: upserted.quantity };
   }
 
+  /**
+   * Batch-Upsert fuer den ganzen Tag: Sales, Ads, Shipping, Product-Sales.
+   * Alle Upserts laufen in einer Prisma-Transaction, ensureDay wird EINMAL
+   * am Anfang gemacht (spart 15+ Roundtrips) und die day-Id an alle
+   * Upserts weitergereicht. Kein computeDay-Aufruf hier — das macht der
+   * Controller genau einmal am Ende.
+   */
+  async patchBatch(
+    orgId: string, role: string, dateIso: string,
+    payload: {
+      sales?: Partial<Record<Channel, ChannelSalesPatch>>;
+      ads?: AdsPatch;
+      shipping?: ShippingPatch;
+      productSales?: Array<{ channel: Channel; productId: string; quantity: number }>;
+    },
+  ): Promise<{
+    sales: Partial<Record<Channel, ChannelSalesRow>>;
+    ads: AdsRow | null;
+    shipping: ShippingRow | null;
+    productSales: ProductSaleRow[];
+  }> {
+    const { day } = await this.ensureDay(orgId, role, dateIso);
+
+    // Validate product-sales productIds gehoeren zur Org (Cross-Org-Schutz).
+    const productIds = Array.from(new Set((payload.productSales ?? []).map((p) => p.productId)));
+    if (productIds.length > 0) {
+      const owned = await this.prisma.product.findMany({
+        where: { id: { in: productIds }, orgId }, select: { id: true },
+      });
+      const ownedIds = new Set(owned.map((p) => p.id));
+      const missing = productIds.filter((id) => !ownedIds.has(id));
+      if (missing.length > 0) {
+        throw new NotFoundException(`Produkt(e) nicht gefunden: ${missing.join(', ')}`);
+      }
+    }
+
+    // Validate quantities
+    for (const ps of payload.productSales ?? []) {
+      if (!Number.isInteger(ps.quantity) || ps.quantity < 0) {
+        throw new BadRequestException(`quantity muss positive Ganzzahl sein: ${ps.productId} = ${ps.quantity}`);
+      }
+    }
+
+    // Shipping-Validierung
+    if (payload.shipping) {
+      if (payload.shipping.shopifyPackages !== undefined &&
+          (payload.shipping.shopifyPackages < 0 || !Number.isInteger(payload.shipping.shopifyPackages))) {
+        throw new BadRequestException('shopifyPackages muss positive Ganzzahl sein');
+      }
+      if (payload.shipping.tiktokPackages !== undefined &&
+          (payload.shipping.tiktokPackages < 0 || !Number.isInteger(payload.shipping.tiktokPackages))) {
+        throw new BadRequestException('tiktokPackages muss positive Ganzzahl sein');
+      }
+    }
+
+    // Alles atomar in einer Transaction. Alle Upserts nutzen die schon
+    // aufgeloeste day.id — kein ensureDay pro Item.
+    const result = await this.prisma.$transaction(async (tx) => {
+      const salesOut: Partial<Record<Channel, ChannelSalesRow>> = {};
+
+      // Sales pro Kanal
+      for (const [channel, patch] of Object.entries(payload.sales ?? {})) {
+        if (!patch || Object.keys(patch).length === 0) continue;
+        const data = {
+          ...(patch.gross19 !== undefined && { gross19: this.decOrThrow(patch.gross19, 'gross19') }),
+          ...(patch.gross7 !== undefined && { gross7: this.decOrThrow(patch.gross7, 'gross7') }),
+          ...(patch.returns19 !== undefined && { returns19: this.decOrThrow(patch.returns19, 'returns19') }),
+          ...(patch.returns7 !== undefined && { returns7: this.decOrThrow(patch.returns7, 'returns7') }),
+        };
+        const upserted = await tx.paChannelSales.upsert({
+          where: { dayId_channel: { dayId: day.id, channel: channel as PaChannel } },
+          create: {
+            orgId, dayId: day.id, channel: channel as PaChannel,
+            gross19: data.gross19 ?? new Prisma.Decimal(0),
+            gross7: data.gross7 ?? new Prisma.Decimal(0),
+            returns19: data.returns19 ?? new Prisma.Decimal(0),
+            returns7: data.returns7 ?? new Prisma.Decimal(0),
+          },
+          update: data,
+        });
+        salesOut[channel as Channel] = this.toChannelSalesApi(upserted);
+      }
+
+      // Ads
+      let adsOut: AdsRow | null = null;
+      if (payload.ads && Object.keys(payload.ads).length > 0) {
+        const p = payload.ads;
+        const data = {
+          ...(p.meta       !== undefined && { meta:       this.decOrThrow(p.meta,       'meta')       }),
+          ...(p.google     !== undefined && { google:     this.decOrThrow(p.google,     'google')     }),
+          ...(p.influencer !== undefined && { influencer: this.decOrThrow(p.influencer, 'influencer') }),
+          ...(p.amazonPpc  !== undefined && { amazonPpc:  this.decOrThrow(p.amazonPpc,  'amazonPpc')  }),
+          ...(p.tiktokAds  !== undefined && { tiktokAds:  this.decOrThrow(p.tiktokAds,  'tiktokAds')  }),
+        };
+        const upserted = await tx.paDailyAds.upsert({
+          where: { dayId: day.id },
+          create: {
+            orgId, dayId: day.id,
+            meta: data.meta ?? new Prisma.Decimal(0),
+            google: data.google ?? new Prisma.Decimal(0),
+            influencer: data.influencer ?? new Prisma.Decimal(0),
+            amazonPpc: data.amazonPpc ?? new Prisma.Decimal(0),
+            tiktokAds: data.tiktokAds ?? new Prisma.Decimal(0),
+          },
+          update: data,
+        });
+        adsOut = this.toAdsApi(upserted);
+      }
+
+      // Shipping
+      let shippingOut: ShippingRow | null = null;
+      if (payload.shipping && Object.keys(payload.shipping).length > 0) {
+        const p = payload.shipping;
+        const upserted = await tx.paDailyShipping.upsert({
+          where: { dayId: day.id },
+          create: {
+            orgId, dayId: day.id,
+            shopifyPackages: p.shopifyPackages ?? 0,
+            tiktokPackages: p.tiktokPackages ?? 0,
+          },
+          update: {
+            ...(p.shopifyPackages !== undefined && { shopifyPackages: p.shopifyPackages }),
+            ...(p.tiktokPackages !== undefined && { tiktokPackages: p.tiktokPackages }),
+          },
+        });
+        shippingOut = { shopifyPackages: upserted.shopifyPackages, tiktokPackages: upserted.tiktokPackages };
+      }
+
+      // Product-Sales
+      const productSalesOut: ProductSaleRow[] = [];
+      for (const ps of payload.productSales ?? []) {
+        if (ps.quantity === 0) {
+          await tx.paDailyProductSale.deleteMany({
+            where: { dayId: day.id, channel: ps.channel as PaChannel, productId: ps.productId },
+          });
+          productSalesOut.push({ channel: ps.channel, productId: ps.productId, quantity: 0 });
+          continue;
+        }
+        const upserted = await tx.paDailyProductSale.upsert({
+          where: { dayId_channel_productId: { dayId: day.id, channel: ps.channel as PaChannel, productId: ps.productId } },
+          create: { orgId, dayId: day.id, channel: ps.channel as PaChannel, productId: ps.productId, quantity: ps.quantity },
+          update: { quantity: ps.quantity },
+        });
+        productSalesOut.push({ channel: upserted.channel as Channel, productId: upserted.productId, quantity: upserted.quantity });
+      }
+
+      return { salesOut, adsOut, shippingOut, productSalesOut };
+    }, { timeout: 15000 });
+
+    return {
+      sales: result.salesOut,
+      ads: result.adsOut,
+      shipping: result.shippingOut,
+      productSales: result.productSalesOut,
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Lazy-Erstellung von Monat + Tag
   // ---------------------------------------------------------------------------

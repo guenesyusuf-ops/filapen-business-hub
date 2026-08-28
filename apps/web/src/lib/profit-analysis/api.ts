@@ -177,6 +177,21 @@ export const profitAnalysisApi = {
         `/days/${date}/product-sales/${channel}/${productId}`,
         { method: 'PATCH', body: JSON.stringify({ quantity }) },
       ),
+
+    /**
+     * Batch: alle Aenderungen eines Tages in einem Roundtrip.
+     * ~500-800ms fuer 15 Aenderungen (vs 5-8s bei einzelnen PATCHes).
+     */
+    patchBatch: (date: string, body: {
+      sales?: Partial<Record<Channel, Partial<ChannelSalesPatch>>>;
+      ads?: Partial<AdsPatch>;
+      shipping?: Partial<ShippingPatch>;
+      productSales?: Array<{ channel: Channel; productId: string; quantity: number }>;
+    }) =>
+      call<{ updated: any; computed: ComputedDay | null }>(
+        `/days/${date}/batch`,
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
   },
 
   // Phase 6: Grosshandel ----------------------------------------------------

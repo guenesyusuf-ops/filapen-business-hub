@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Headers, Param, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Headers, Param, BadRequestException } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { extractAuthContext, assertCanWrite } from './auth-context';
 import {
@@ -95,6 +95,52 @@ export class DailyDataController {
     this.assertIsoDate(date);
     const updated = await this.daily.upsertShipping(orgId, role, date, body ?? {});
     await this.audit.log({ orgId, userId, action: 'shipping.patch', entityType: 'pa.shipping', entityId: date, changes: body });
+    const computed = await this.calc.computeDay(orgId, date);
+    return { updated, computed };
+  }
+
+  /**
+   * Batch: alle Tages-Aenderungen atomar in einem Roundtrip.
+   * ~500-800ms fuer 15 Aenderungen statt 5-8s bei sequenziellen PATCHes.
+   */
+  @Post('days/:date/batch')
+  async patchBatch(
+    @Headers('authorization') authHeader: string,
+    @Param('date') date: string,
+    @Body() body: {
+      sales?: Partial<Record<Channel, ChannelSalesPatch>>;
+      ads?: AdsPatch;
+      shipping?: ShippingPatch;
+      productSales?: Array<{ channel: Channel; productId: string; quantity: number }>;
+    },
+  ) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    this.assertIsoDate(date);
+
+    // Channel-Namen in body.sales validieren
+    for (const ch of Object.keys(body?.sales ?? {})) {
+      this.assertChannel(ch);
+    }
+    for (const ps of body?.productSales ?? []) {
+      this.assertChannel(ps.channel);
+    }
+
+    const updated = await this.daily.patchBatch(orgId, role, date, body ?? {});
+
+    await this.audit.log({
+      orgId, userId,
+      action: 'day.batch_patch',
+      entityType: 'pa.day', entityId: date,
+      changes: {
+        salesChannels: Object.keys(body?.sales ?? {}),
+        adsFields: Object.keys(body?.ads ?? {}),
+        shippingFields: Object.keys(body?.shipping ?? {}),
+        productSalesCount: (body?.productSales ?? []).length,
+      },
+    });
+
+    // EINE computeDay am Ende — nicht N-mal wie bei den einzelnen PATCHes
     const computed = await this.calc.computeDay(orgId, date);
     return { updated, computed };
   }
