@@ -372,17 +372,32 @@ export default function OverviewPage() {
 
 const CHART_KEYS = [
   { key: 'profit-daily',  label: 'Profit pro Tag' },
+  { key: 'profit-channel', label: 'Profit je Kanal' },
   { key: 'revenue-channel', label: 'Umsatz je Kanal' },
   { key: 'cost-breakdown', label: 'Kostenverteilung' },
   { key: 'margin-trend',  label: 'Margen-Verlauf' },
 ] as const;
 
+const CHART_DEFAULTS: Record<string, boolean> = {
+  'profit-daily': true,
+  'profit-channel': true,
+  'revenue-channel': true,
+  'cost-breakdown': false,
+  'margin-trend': false,
+};
+
 function ChartsPanel({ days, overheadTotal }: { days: ComputedDay[]; overheadTotal: number }) {
   const [active, setActive] = useState<Record<string, boolean>>(() => {
-    if (typeof window === 'undefined') return { 'profit-daily': true, 'revenue-channel': true, 'cost-breakdown': false, 'margin-trend': false };
+    if (typeof window === 'undefined') return { ...CHART_DEFAULTS };
     const stored = localStorage.getItem('pa.charts.active');
-    if (stored) try { return JSON.parse(stored); } catch { /* fallthrough */ }
-    return { 'profit-daily': true, 'revenue-channel': true, 'cost-breakdown': false, 'margin-trend': false };
+    if (stored) {
+      try {
+        // Defaults zuerst — neue Chart-Keys erscheinen automatisch,
+        // gespeicherte Preferenzen ueberschreiben sie fuer alte Keys.
+        return { ...CHART_DEFAULTS, ...JSON.parse(stored) };
+      } catch { /* fallthrough */ }
+    }
+    return { ...CHART_DEFAULTS };
   });
   const [showPicker, setShowPicker] = useState(false);
   useEffect(() => {
@@ -428,6 +443,7 @@ function ChartsPanel({ days, overheadTotal }: { days: ComputedDay[]; overheadTot
 
 function chartOption(key: string, days: ComputedDay[], overheadTotal: number) {
   if (key === 'profit-daily')    return dailyProfitChart(days);
+  if (key === 'profit-channel') return profitByChannelChart(days);
   if (key === 'revenue-channel') return channelRevenuePie(days);
   if (key === 'cost-breakdown')  return costBreakdownPie(days, overheadTotal);
   if (key === 'margin-trend')    return marginTrendChart(days);
@@ -435,6 +451,7 @@ function chartOption(key: string, days: ComputedDay[], overheadTotal: number) {
 }
 function chartTooltip(key: string): string {
   if (key === 'profit-daily')    return 'Line-Chart des Tages-Profits (nur Kanäle).';
+  if (key === 'profit-channel') return 'Profit je Kanal (Shopify, Amazon, TikTok) im gewählten Zeitraum.';
   if (key === 'revenue-channel') return 'Verteilung des Netto-Umsatzes über die drei Kanäle + Großhandel.';
   if (key === 'cost-breakdown')  return 'Produktkosten / Versand / Plattformgebühren / Ads / Gemeinkosten.';
   return 'Tagesmarge über den Monat.';
@@ -715,6 +732,43 @@ function dailyProfitChart(days: ComputedDay[]) {
       lineStyle: { color: '#F59E0B', width: 2 },
       areaStyle: { color: 'rgba(245,158,11,0.15)' },
       data: days.map((d) => Number(d.aggregate.totalProfit)),
+    }],
+  };
+}
+
+function profitByChannelChart(days: ComputedDay[]) {
+  const shopify = days.reduce((a, d) => a + Number(d.shopify.profit.profit), 0);
+  const amazon  = days.reduce((a, d) => a + Number(d.amazon.profit.profit),  0);
+  const tiktok  = days.reduce((a, d) => a + Number(d.tiktok.profit.profit),  0);
+  const rows = [
+    { name: 'Shopify', value: shopify, color: '#10B981' },
+    { name: 'Amazon',  value: amazon,  color: '#F97316' },
+    { name: 'TikTok',  value: tiktok,  color: '#EC4899' },
+  ];
+  return {
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: (params: any) => {
+        const p = params[0];
+        return `${p.name}: <b>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(p.value)}</b>`;
+      },
+    },
+    grid: { top: 20, right: 20, bottom: 30, left: 70 },
+    xAxis: { type: 'category', data: rows.map((r) => r.name) },
+    yAxis: {
+      type: 'value',
+      axisLabel: { formatter: (v: number) => new Intl.NumberFormat('de-DE').format(v) + ' €' },
+    },
+    series: [{
+      type: 'bar', barWidth: '50%',
+      itemStyle: {
+        color: (p: any) => rows[p.dataIndex].color,
+      },
+      label: {
+        show: true, position: 'top', fontSize: 11,
+        formatter: (p: any) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(p.value),
+      },
+      data: rows.map((r) => r.value),
     }],
   };
 }

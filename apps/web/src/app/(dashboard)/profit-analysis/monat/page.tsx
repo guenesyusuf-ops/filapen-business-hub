@@ -1012,6 +1012,10 @@ function columnsForView(view: ViewKey): Col[] {
       render: (c) => c?.shopify.profit.roasNet !== null && c?.shopify.profit.roasNet !== undefined
         ? (Number(c.shopify.profit.roasNet).toFixed(2).replace('.', ',') + '×') : '—',
       total: roasTotal((c) => num(c.shopify.profit.netSales), (c) => num(c.shopify.profit.adsAttributed)) },
+    { key: 'sh.roasgross', label: 'SH Brutto ROAS', align: 'right',
+      render: (c) => c?.shopify.profit.roasGross !== null && c?.shopify.profit.roasGross !== undefined
+        ? (Number(c.shopify.profit.roasGross).toFixed(2).replace('.', ',') + '×') : '—',
+      total: roasTotal((c) => num(c.shopify.vat.grossAdjusted), (c) => num(c.shopify.profit.adsAttributed)) },
   ];
 
   const amazonBlock: Col[] = [
