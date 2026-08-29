@@ -279,7 +279,7 @@ export default function OverviewPage() {
       ) : (
         <>
           {/* Große KPI-Cards — alle auf Range basiert */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             <BigKpi
               label="Netto-Umsatz"
               value={formatEur(rangeAgg.netSalesTotal)}
@@ -296,7 +296,20 @@ export default function OverviewPage() {
               value={formatEur(rangeAgg.profitBeforeOverhead)}
               tone={rangeAgg.profitBeforeOverhead < 0 ? 'critical' : 'good'}
               delta={deltaPct(rangeAgg.profitBeforeOverhead, prevAgg.profitBeforeOverhead)}
-              tooltip={{ description: 'Kanal-Profite im Zeitraum, vor Gemeinkosten.', formula: 'Σ Webshop + Amazon + TikTok Profit' }}
+              tooltip={{
+                description: 'Kanal-Profite im Zeitraum, vor Gemeinkosten. Identisch mit dem Wert auf der Monatsseite.',
+                formula: 'Σ Webshop + Amazon + TikTok Profit',
+              }}
+            />
+            <BigKpi
+              label="Profit vor GK + Großhandel"
+              value={formatEur(rangeAgg.profitBeforeOverheadWithWholesale)}
+              tone={rangeAgg.profitBeforeOverheadWithWholesale < 0 ? 'critical' : 'good'}
+              delta={deltaPct(rangeAgg.profitBeforeOverheadWithWholesale, prevAgg.profitBeforeOverheadWithWholesale)}
+              tooltip={{
+                description: 'Kanal-Profite plus anteiliger Großhandels-Gewinn, vor Gemeinkosten.',
+                formula: 'Profit vor GK + Großhandelsgewinn',
+              }}
             />
             <BigKpi
               label={rangeAgg.overheadPortion < rangeAgg.overheadFull ? 'Gemeinkosten (anteilig)' : 'Gemeinkosten'}
@@ -888,11 +901,12 @@ interface RangeAggregate {
   netSalesTotal: number;
   vatTotal: number;
   adsTotal: number;
-  profitBeforeOverhead: number;    // Kanal-Profite Summe (aus rangeDays)
-  wholesaleProfit: number;         // aus focusMonth (anteilig)
-  overheadFull: number;            // Monats-Gemeinkosten
-  overheadPortion: number;         // anteilig fuer rangeDays
-  operatingProfit: number;         // Profit vor GK − Gemeinkosten (anteilig)
+  profitBeforeOverhead: number;              // nur Kanaele (Shopify+Amazon+TikTok) — konsistent mit Monatsseite
+  profitBeforeOverheadWithWholesale: number; // Kanaele + Grosshandel (anteilig)
+  wholesaleProfit: number;                   // aus focusMonth (anteilig)
+  overheadFull: number;                      // Monats-Gemeinkosten
+  overheadPortion: number;                   // anteilig fuer rangeDays
+  operatingProfit: number;                   // Profit mit Grosshandel − Gemeinkosten (anteilig)
   marginBeforeOverhead: number | null;
   operatingMargin: number | null;
   rangeDays: number;
@@ -914,18 +928,23 @@ function aggregateRange(days: ComputedDay[], focusMonth: ComputedMonth | null, r
   const scale = monthDays > 0 ? rangeDays / monthDays : 0;
   const overheadPortion = overheadFull * scale;
   const wholesaleProfit = wholesaleProfitFull * scale;
-  const totalProfitBeforeGK = profitBeforeGK + wholesaleProfit;
-  const operatingProfit = totalProfitBeforeGK - overheadPortion;
+  // Zwei Varianten:
+  //  - profitBeforeOverhead: nur Kanaele — konsistent mit Monatsseite
+  //    (computed.totals.profitBeforeOverhead)
+  //  - profitBeforeOverheadWithWholesale: inkl. anteiligem Grosshandel
+  const profitWithWholesale = profitBeforeGK + wholesaleProfit;
+  const operatingProfit = profitWithWholesale - overheadPortion;
   return {
     netSalesTotal: netSales,
     vatTotal: vat,
     adsTotal: ads,
-    profitBeforeOverhead: totalProfitBeforeGK,
+    profitBeforeOverhead: profitBeforeGK,
+    profitBeforeOverheadWithWholesale: profitWithWholesale,
     wholesaleProfit,
     overheadFull,
     overheadPortion,
     operatingProfit,
-    marginBeforeOverhead: netSales > 0 ? (totalProfitBeforeGK / netSales) * 100 : null,
+    marginBeforeOverhead: netSales > 0 ? (profitBeforeGK / netSales) * 100 : null,
     operatingMargin: netSales > 0 ? (operatingProfit / netSales) * 100 : null,
     rangeDays,
     monthDays,
