@@ -372,7 +372,7 @@ export default function OverviewPage() {
 
 const CHART_KEYS = [
   { key: 'profit-daily',  label: 'Profit pro Tag' },
-  { key: 'profit-channel', label: 'Profit je Kanal' },
+  { key: 'ads-channel', label: 'Werbekosten je Kanal' },
   { key: 'revenue-channel', label: 'Umsatz je Kanal' },
   { key: 'cost-breakdown', label: 'Kostenverteilung' },
   { key: 'margin-trend',  label: 'Margen-Verlauf' },
@@ -380,7 +380,7 @@ const CHART_KEYS = [
 
 const CHART_DEFAULTS: Record<string, boolean> = {
   'profit-daily': true,
-  'profit-channel': true,
+  'ads-channel': true,
   'revenue-channel': true,
   'cost-breakdown': false,
   'margin-trend': false,
@@ -443,7 +443,7 @@ function ChartsPanel({ days, overheadTotal }: { days: ComputedDay[]; overheadTot
 
 function chartOption(key: string, days: ComputedDay[], overheadTotal: number) {
   if (key === 'profit-daily')    return dailyProfitChart(days);
-  if (key === 'profit-channel') return profitByChannelChart(days);
+  if (key === 'ads-channel')    return adsByChannelChart(days);
   if (key === 'revenue-channel') return channelRevenuePie(days);
   if (key === 'cost-breakdown')  return costBreakdownPie(days, overheadTotal);
   if (key === 'margin-trend')    return marginTrendChart(days);
@@ -451,7 +451,7 @@ function chartOption(key: string, days: ComputedDay[], overheadTotal: number) {
 }
 function chartTooltip(key: string): string {
   if (key === 'profit-daily')    return 'Line-Chart des Tages-Profits (nur Kanäle).';
-  if (key === 'profit-channel') return 'Profit je Kanal (Shopify, Amazon, TikTok) im gewählten Zeitraum.';
+  if (key === 'ads-channel')    return 'Werbekosten je Kanal (Shopify: Meta+Google+Influencer, Amazon PPC, TikTok Ads) im gewählten Zeitraum.';
   if (key === 'revenue-channel') return 'Verteilung des Netto-Umsatzes über die drei Kanäle + Großhandel.';
   if (key === 'cost-breakdown')  return 'Produktkosten / Versand / Plattformgebühren / Ads / Gemeinkosten.';
   return 'Tagesmarge über den Monat.';
@@ -736,10 +736,12 @@ function dailyProfitChart(days: ComputedDay[]) {
   };
 }
 
-function profitByChannelChart(days: ComputedDay[]) {
-  const shopify = days.reduce((a, d) => a + Number(d.shopify.profit.profit), 0);
-  const amazon  = days.reduce((a, d) => a + Number(d.amazon.profit.profit),  0);
-  const tiktok  = days.reduce((a, d) => a + Number(d.tiktok.profit.profit),  0);
+function adsByChannelChart(days: ComputedDay[]) {
+  // Shopify Ads = Meta + Google + Influencer (adsAttributed enthaelt das),
+  // Amazon Ads = Amazon PPC, TikTok Ads = TikTok Ads.
+  const shopify = days.reduce((a, d) => a + Number(d.shopify.profit.adsAttributed), 0);
+  const amazon  = days.reduce((a, d) => a + Number(d.amazon.profit.adsAttributed),  0);
+  const tiktok  = days.reduce((a, d) => a + Number(d.tiktok.profit.adsAttributed),  0);
   const rows = [
     { name: 'Shopify', value: shopify, color: '#10B981' },
     { name: 'Amazon',  value: amazon,  color: '#F97316' },
