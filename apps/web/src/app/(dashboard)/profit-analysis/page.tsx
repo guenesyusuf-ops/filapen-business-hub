@@ -6,7 +6,7 @@ import {
   Calendar, TrendingUp, TrendingDown, Loader2, AlertCircle,
   Download, Lock, Unlock,
 } from 'lucide-react';
-import { profitAnalysisApi, ComputedMonth, ComputedDay, TargetItem, RankingsResult, PreflightResult } from '@/lib/profit-analysis/api';
+import { profitAnalysisApi, ComputedMonth, ComputedDay, RawDay, TargetItem, RankingsResult, PreflightResult } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 import { FilapenInsightsPanel } from '@/components/profit-analysis/FilapenInsightsPanel';
@@ -98,6 +98,7 @@ export default function OverviewPage() {
 
   const [focusMonth, setFocusMonth] = useState<ComputedMonth | null>(null);
   const [rangeDays, setRangeDays] = useState<ComputedDay[]>([]);
+  const [rangeRawDays, setRangeRawDays] = useState<RawDay[]>([]);
   const [prevRangeDays, setPrevRangeDays] = useState<ComputedDay[]>([]);
   const [targets, setTargets] = useState<TargetItem[]>([]);
   const [rankings, setRankings] = useState<RankingsResult | null>(null);
@@ -131,8 +132,10 @@ export default function OverviewPage() {
 
       setFocusMonth(focusRes.computed);
       const allDays: ComputedDay[] = allRes.flatMap((res) => res.computed.days);
+      const allRawDays: RawDay[] = allRes.flatMap((res) => res.raw.days);
       const allPrevDays: ComputedDay[] = allPrevRes.flatMap((res) => res.computed.days);
       setRangeDays(allDays.filter((d) => d.date >= range.from && d.date <= range.to));
+      setRangeRawDays(allRawDays.filter((d) => d.date >= range.from && d.date <= range.to));
       setPrevRangeDays(allPrevDays.filter((d) => d.date >= prevRange.from && d.date <= prevRange.to));
       setTargets(t.items);
       setRankings(r);
@@ -340,7 +343,7 @@ export default function OverviewPage() {
           <TopProductsPanel from={range.from} to={range.to} rangeLabel={range.label} />
 
           {/* Zeitreihen-Charts */}
-          <ChartsPanel days={rangeDays} overheadTotal={rangeAgg.overheadPortion} />
+          <ChartsPanel days={rangeDays} rawDays={rangeRawDays} overheadTotal={rangeAgg.overheadPortion} />
 
           {/* Ziel-Fortschritt (skaliert auf Zeitraum wenn nicht Monatsansicht) */}
           {focusMonth && <TargetsProgressPanel rangeAgg={rangeAgg} targets={targets} />}
@@ -386,7 +389,7 @@ const CHART_DEFAULTS: Record<string, boolean> = {
   'margin-trend': false,
 };
 
-function ChartsPanel({ days, overheadTotal }: { days: ComputedDay[]; overheadTotal: number }) {
+function ChartsPanel({ days, rawDays, overheadTotal }: { days: ComputedDay[]; rawDays: RawDay[]; overheadTotal: number }) {
   const [active, setActive] = useState<Record<string, boolean>>(() => {
     if (typeof window === 'undefined') return { ...CHART_DEFAULTS };
     const stored = localStorage.getItem('pa.charts.active');
@@ -432,7 +435,7 @@ function ChartsPanel({ days, overheadTotal }: { days: ComputedDay[]; overheadTot
         <div className={cn('grid gap-4', visible.length === 1 ? 'grid-cols-1' : 'lg:grid-cols-2')}>
           {visible.map((c) => (
             <ChartCard key={c.key} title={c.label} tooltip={chartTooltip(c.key)}>
-              <ReactECharts option={chartOption(c.key, days, overheadTotal)} style={{ height: 260 }} notMerge lazyUpdate />
+              <ReactECharts option={chartOption(c.key, days, rawDays, overheadTotal)} style={{ height: 260 }} notMerge lazyUpdate />
             </ChartCard>
           ))}
         </div>
@@ -441,9 +444,9 @@ function ChartsPanel({ days, overheadTotal }: { days: ComputedDay[]; overheadTot
   );
 }
 
-function chartOption(key: string, days: ComputedDay[], overheadTotal: number) {
+function chartOption(key: string, days: ComputedDay[], rawDays: RawDay[], overheadTotal: number) {
   if (key === 'profit-daily')    return dailyProfitChart(days);
-  if (key === 'ads-channel')    return adsByChannelChart(days);
+  if (key === 'ads-channel')    return adsByChannelChart(days, rawDays);
   if (key === 'revenue-channel') return channelRevenuePie(days);
   if (key === 'cost-breakdown')  return costBreakdownPie(days, overheadTotal);
   if (key === 'margin-trend')    return marginTrendChart(days);
@@ -736,42 +739,83 @@ function dailyProfitChart(days: ComputedDay[]) {
   };
 }
 
-function adsByChannelChart(days: ComputedDay[]) {
-  // Shopify Ads = Meta + Google + Influencer (adsAttributed enthaelt das),
-  // Amazon Ads = Amazon PPC, TikTok Ads = TikTok Ads.
-  const shopify = days.reduce((a, d) => a + Number(d.shopify.profit.adsAttributed), 0);
-  const amazon  = days.reduce((a, d) => a + Number(d.amazon.profit.adsAttributed),  0);
-  const tiktok  = days.reduce((a, d) => a + Number(d.tiktok.profit.adsAttributed),  0);
-  const rows = [
-    { name: 'Shopify', value: shopify, color: '#10B981' },
-    { name: 'Amazon',  value: amazon,  color: '#F97316' },
-    { name: 'TikTok',  value: tiktok,  color: '#EC4899' },
-  ];
+function adsByChannelChart(_days: ComputedDay[], rawDays: RawDay[]) {
+  // Shopify wird aufgesplittet in Meta / Google / Influencer.
+  // Amazon = Amazon PPC, TikTok = TikTok Ads (jeweils ein Segment).
+  // Alle Series im gleichen Stack "ads" → gestapelt pro Kanal-Balken.
+  const meta       = rawDays.reduce((a, d) => a + Number(d.ads.meta),       0);
+  const google     = rawDays.reduce((a, d) => a + Number(d.ads.google),     0);
+  const influencer = rawDays.reduce((a, d) => a + Number(d.ads.influencer), 0);
+  const amazonPpc  = rawDays.reduce((a, d) => a + Number(d.ads.amazonPpc),  0);
+  const tiktokAds  = rawDays.reduce((a, d) => a + Number(d.ads.tiktokAds),  0);
+
+  const categories = ['Shopify', 'Amazon', 'TikTok'];
+  const eur = (v: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
+  const eurShort = (v: number) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+
+  const totalPerChannel = [meta + google + influencer, amazonPpc, tiktokAds];
+
+  // Fuer die Summe pro Balken: einen unsichtbaren MarkPoint mit label
+  const stack = 'ads';
+  const mkSeries = (name: string, data: number[], color: string) => ({
+    name, type: 'bar', stack, data,
+    itemStyle: { color },
+    barWidth: '50%',
+    emphasis: { focus: 'series' },
+  });
+
   return {
     tooltip: {
       trigger: 'axis', axisPointer: { type: 'shadow' },
-      formatter: (params: any) => {
-        const p = params[0];
-        return `${p.name}: <b>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(p.value)}</b>`;
+      formatter: (params: any[]) => {
+        if (!params?.length) return '';
+        const channel = params[0].axisValue;
+        const rows = params
+          .filter((p) => p.value > 0)
+          .map((p) => `<div style="display:flex;justify-content:space-between;gap:12px"><span>${p.marker}${p.seriesName}</span><b>${eur(p.value)}</b></div>`)
+          .join('');
+        const idx = categories.indexOf(channel);
+        const total = idx >= 0 ? totalPerChannel[idx] : 0;
+        return `<div><b>${channel}</b>${rows}<div style="border-top:1px solid rgba(148,163,184,0.3);margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;gap:12px"><span>Gesamt</span><b>${eur(total)}</b></div></div>`;
       },
     },
-    grid: { top: 20, right: 20, bottom: 30, left: 70 },
-    xAxis: { type: 'category', data: rows.map((r) => r.name) },
+    legend: { bottom: 0, itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
+    grid: { top: 20, right: 20, bottom: 50, left: 70 },
+    xAxis: { type: 'category', data: categories },
     yAxis: {
       type: 'value',
       axisLabel: { formatter: (v: number) => new Intl.NumberFormat('de-DE').format(v) + ' €' },
     },
-    series: [{
-      type: 'bar', barWidth: '50%',
-      itemStyle: {
-        color: (p: any) => rows[p.dataIndex].color,
+    series: [
+      // Shopify aufgesplittet — Amazon/TikTok haben 0 in diesen Series
+      mkSeries('Meta',       [meta,       0, 0], '#3B82F6'),
+      mkSeries('Google',     [google,     0, 0], '#F59E0B'),
+      mkSeries('Influencer', [influencer, 0, 0], '#8B5CF6'),
+      // Amazon/TikTok jeweils eine Series mit nur ihrem Balken belegt.
+      // Zusaetzlich Label 'top' auf der obersten sichtbaren Series pro Balken —
+      // wir haengen Total-Labels an die Amazon/TikTok-Series (dort ist es die
+      // einzige Series) bzw. an die letzte Shopify-Series (Influencer).
+      {
+        ...mkSeries('Amazon PPC', [0, amazonPpc, 0], '#F97316'),
+        label: { show: true, position: 'top', fontSize: 11, formatter: (p: any) => p.value > 0 ? eurShort(p.value) : '' },
       },
-      label: {
-        show: true, position: 'top', fontSize: 11,
-        formatter: (p: any) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(p.value),
+      {
+        ...mkSeries('TikTok Ads', [0, 0, tiktokAds], '#EC4899'),
+        label: { show: true, position: 'top', fontSize: 11, formatter: (p: any) => p.value > 0 ? eurShort(p.value) : '' },
       },
-      data: rows.map((r) => r.value),
-    }],
+      // Unsichtbarer Ghost-Bar auf Shopify — nur fuer das Summen-Label am
+      // Balken-Top. Wert 0 verschiebt die stack-Hoehe nicht.
+      {
+        name: 'Shopify Gesamt', type: 'bar', stack, data: [0, 0, 0],
+        itemStyle: { color: 'transparent' },
+        label: {
+          show: true, position: 'top', fontSize: 11,
+          formatter: (p: any) => p.dataIndex === 0 && totalPerChannel[0] > 0 ? eurShort(totalPerChannel[0]) : '',
+        },
+        emphasis: { disabled: true },
+        silent: true,
+      },
+    ],
   };
 }
 
