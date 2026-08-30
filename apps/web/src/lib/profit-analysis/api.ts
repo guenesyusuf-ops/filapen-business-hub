@@ -320,6 +320,12 @@ export const profitAnalysisApi = {
     explain: (id: string) => call<{ headline: string; drivers: Array<{ label: string; metric: string; change: number; unit: string; direction: 'up' | 'down' }> }>(`/insights/${id}/explain`),
   },
 
+  // Cashflow: Payments (Einkauf) im Zeitraum, gefiltert nach paymentDate
+  cashflow: {
+    list: (from: string, to: string) =>
+      call<CashflowResponse>(`/cashflow/payments?from=${from}&to=${to}`),
+  },
+
   // Audit-Log
   audit: {
     list: (params: { entityType?: string; entityId?: string; action?: string; limit?: number; offset?: number } = {}) => {
@@ -581,6 +587,25 @@ export interface RawMonth {
   monthId: string | null;
   status: 'open' | 'closed' | 'locked' | null;
   days: RawDay[];
+}
+
+export interface CashflowPayment {
+  id: string;
+  date: string;
+  amount: string;
+  currency: string;
+  orderId: string;
+  orderNumber: string;
+  supplierName: string;
+  method: string;
+  reference: string | null;
+  note: string | null;
+  productNames: string[];
+}
+export interface CashflowResponse {
+  payments: CashflowPayment[];
+  totalAmount: string;
+  count: number;
 }
 
 export interface ComputedMixedVat {

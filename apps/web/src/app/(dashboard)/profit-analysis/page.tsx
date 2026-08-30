@@ -6,7 +6,7 @@ import {
   Calendar, TrendingUp, TrendingDown, Loader2, AlertCircle,
   Download, Lock, Unlock,
 } from 'lucide-react';
-import { profitAnalysisApi, ComputedMonth, ComputedDay, RawDay, TargetItem, RankingsResult, PreflightResult } from '@/lib/profit-analysis/api';
+import { profitAnalysisApi, ComputedMonth, ComputedDay, RawDay, TargetItem, RankingsResult, PreflightResult, CashflowResponse } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 import { FilapenInsightsPanel } from '@/components/profit-analysis/FilapenInsightsPanel';
@@ -158,6 +158,14 @@ export default function OverviewPage() {
     profitAnalysisApi.topProducts.forRange(range.from, range.to, 1)
       .then((r) => setTopProducts({ totalUnits: r.totalUnits, productCount: r.productCount }))
       .catch(() => setTopProducts(null));
+  }, [range.from, range.to]);
+
+  // Cashflow: Einkauf-Zahlungen im Zeitraum
+  const [cashflow, setCashflow] = useState<CashflowResponse | null>(null);
+  useEffect(() => {
+    profitAnalysisApi.cashflow.list(range.from, range.to)
+      .then(setCashflow)
+      .catch(() => setCashflow(null));
   }, [range.from, range.to]);
 
   async function openPreflight(lock: boolean) {
@@ -360,6 +368,9 @@ export default function OverviewPage() {
           {/* Zeitreihen-Charts */}
           <ChartsPanel days={rangeDays} rawDays={rangeRawDays} overheadTotal={rangeAgg.overheadPortion} />
 
+          {/* Cashflow: Operativer Gewinn − Einkauf-Zahlungen im Zeitraum */}
+          <CashflowPanel operatingProfit={rangeAgg.operatingProfit} cashflow={cashflow} />
+
           {/* Ziel-Fortschritt (skaliert auf Zeitraum wenn nicht Monatsansicht) */}
           {focusMonth && <TargetsProgressPanel rangeAgg={rangeAgg} targets={targets} />}
 
@@ -473,6 +484,117 @@ function chartTooltip(key: string): string {
   if (key === 'revenue-channel') return 'Verteilung des Netto-Umsatzes über die drei Kanäle + Großhandel.';
   if (key === 'cost-breakdown')  return 'Produktkosten / Versand / Plattformgebühren / Ads / Gemeinkosten.';
   return 'Tagesmarge über den Monat.';
+}
+
+// -----------------------------------------------------------------------------
+// Cashflow: Operativer Gewinn − Einkauf-Zahlungen im Zeitraum
+// -----------------------------------------------------------------------------
+
+function CashflowPanel({ operatingProfit, cashflow }: {
+  operatingProfit: number;
+  cashflow: CashflowResponse | null;
+}) {
+  const paymentsSum = cashflow ? Number(cashflow.totalAmount) : 0;
+  const cashflowValue = operatingProfit - paymentsSum;
+
+  const chartOption = {
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: (params: any[]) => {
+        if (!params?.length) return '';
+        const p = params[0];
+        return `${p.name}: <b>${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(p.value)}</b>`;
+      },
+    },
+    grid: { top: 20, right: 20, bottom: 30, left: 80 },
+    xAxis: { type: 'category', data: ['Operativer Gewinn', '− Einkauf-Zahlungen', '= Cashflow'] },
+    yAxis: {
+      type: 'value',
+      axisLabel: { formatter: (v: number) => new Intl.NumberFormat('de-DE').format(v) + ' €' },
+    },
+    series: [{
+      type: 'bar', barWidth: '55%',
+      itemStyle: {
+        color: (p: any) => p.dataIndex === 0 ? '#10B981' : p.dataIndex === 1 ? '#EF4444' : (cashflowValue < 0 ? '#EF4444' : '#0EA5E9'),
+      },
+      label: {
+        show: true, position: 'top', fontSize: 11,
+        formatter: (p: any) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(p.value),
+      },
+      data: [operatingProfit, -paymentsSum, cashflowValue],
+    }],
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">Cashflow</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Operativer Gewinn minus Einkauf-Zahlungen im Zeitraum (nach paymentDate).
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Cashflow</div>
+          <div className={cn('text-xl font-bold tabular-nums', cashflowValue < 0 ? 'text-red-600 dark:text-red-400' : 'text-sky-600 dark:text-sky-400')}>
+            {formatEur(cashflowValue)}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div>
+          <ReactECharts option={chartOption} style={{ height: 260 }} notMerge lazyUpdate />
+        </div>
+
+        <div className="rounded-lg border border-slate-200 dark:border-white/8 overflow-hidden">
+          <div className="px-3 py-2 bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/8 flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+              Einzelzahlungen {cashflow ? `(${cashflow.count})` : ''}
+            </span>
+            <span className="text-xs font-bold tabular-nums text-slate-900 dark:text-white">
+              {cashflow ? formatEur(cashflow.totalAmount) : '—'}
+            </span>
+          </div>
+          <div className="max-h-[240px] overflow-y-auto divide-y divide-slate-100 dark:divide-white/5">
+            {!cashflow ? (
+              <div className="px-3 py-4 text-xs text-slate-500">Lade …</div>
+            ) : cashflow.payments.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-slate-500 text-center">
+                Keine Einkauf-Zahlungen im gewählten Zeitraum.
+              </div>
+            ) : (
+              cashflow.payments.map((p) => (
+                <div key={p.id} className="px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-white/[0.02]">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="tabular-nums text-slate-500">{formatDayDE(p.date)}</span>
+                      <span className="font-mono text-[10px] text-slate-400">{p.orderNumber}</span>
+                    </div>
+                    <span className="font-semibold tabular-nums text-red-600 dark:text-red-400 flex-shrink-0">
+                      − {formatEur(p.amount)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-slate-700 dark:text-slate-300 truncate" title={p.productNames.join(', ')}>
+                    {p.productNames.length === 0 ? '—' : p.productNames.length === 1
+                      ? p.productNames[0]
+                      : `${p.productNames[0]} +${p.productNames.length - 1} weitere`}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{p.supplierName}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatDayDE(iso: string): string {
+  // iso = YYYY-MM-DD → DD.MM.
+  const [, m, d] = iso.split('-');
+  return `${d}.${m}.`;
 }
 
 // -----------------------------------------------------------------------------

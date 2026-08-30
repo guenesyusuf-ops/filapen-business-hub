@@ -32,6 +32,8 @@ import { WholesaleSyncService } from './wholesale-sync.service';
 import { WholesaleSyncController } from './wholesale-sync.controller';
 import { TopProductsService } from './top-products.service';
 import { TopProductsController } from './top-products.controller';
+import { CashflowService } from './cashflow.service';
+import { CashflowController } from './cashflow.controller';
 
 /**
  * Gewinnanalyse-Modul.
@@ -55,21 +57,21 @@ import { TopProductsController } from './top-products.controller';
     WholesaleController, OverheadController, MonthCloseController,
     TargetController, RankingsController, PaAuditController,
     ImportController, PeriodController, InsightController, WholesaleSyncController,
-    TopProductsController,
+    TopProductsController, CashflowController,
   ],
   providers: [
     SettingsService, ProductCostService, DailyDataService, CalculationService,
     WholesaleService, OverheadService, MonthCloseService, ExportService,
     TargetService, RankingsService, PaAuditService,
     ImportService, PeriodService, InsightService, InsightScheduler, PaInsightAiService,
-    WholesaleSyncService, TopProductsService,
+    WholesaleSyncService, TopProductsService, CashflowService,
   ],
   exports: [
     SettingsService, ProductCostService, DailyDataService, CalculationService,
     WholesaleService, OverheadService, MonthCloseService, ExportService,
     TargetService, RankingsService, PaAuditService,
     ImportService, PeriodService, InsightService, PaInsightAiService,
-    WholesaleSyncService, TopProductsService,
+    WholesaleSyncService, TopProductsService, CashflowService,
   ],
 })
 export class ProfitAnalysisModule {}
