@@ -149,8 +149,8 @@ export default function OverviewPage() {
   useEffect(() => { load(); }, [load]);
 
   // Range-Aggregate (§11 weighted ROAS)
-  const rangeAgg = useMemo(() => aggregateRange(rangeDays, focusMonth, range), [rangeDays, focusMonth, range]);
-  const prevAgg = useMemo(() => aggregateRange(prevRangeDays, null, null), [prevRangeDays]);
+  const rangeAgg = useMemo(() => aggregateRange(rangeDays, rangeRawDays, focusMonth, range), [rangeDays, rangeRawDays, focusMonth, range]);
+  const prevAgg = useMemo(() => aggregateRange(prevRangeDays, [], null, null), [prevRangeDays]);
 
   // Top-Artikel im Zeitraum (Backend-Call)
   const [topProducts, setTopProducts] = useState<{ totalUnits: number; productCount: number } | null>(null);
@@ -341,12 +341,14 @@ export default function OverviewPage() {
           <FilapenInsightsPanel />
 
           {/* Mittlere KPIs */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
             <MediumKpi label="Marge vor GK" value={rangeAgg.marginBeforeOverhead !== null ? formatPercent(rangeAgg.marginBeforeOverhead) : '—'} tone={marginTone(rangeAgg.marginBeforeOverhead)} />
             <MediumKpi label="Operative Endmarge" value={rangeAgg.operatingMargin !== null ? formatPercent(rangeAgg.operatingMargin) : '—'} tone={marginTone(rangeAgg.operatingMargin)} highlight />
             <MediumKpi label="Werbekosten" value={formatEur(rangeAgg.adsTotal)} />
             <MediumKpi label="Großhandelsgewinn" value={formatEur(rangeAgg.wholesaleProfit)} />
             <MediumKpi label="Verkaufte Artikel" value={topProducts ? `${topProducts.totalUnits} Stk.` : '—'} />
+            <MediumKpi label="DHL-Pakete" value={`${new Intl.NumberFormat('de-DE').format(rangeAgg.dhlPackagesTotal)} Stk.`} />
+            <MediumKpi label="Versandkosten" value={formatEur(rangeAgg.dhlShippingCostsTotal)} />
           </div>
 
           {/* Kanal-Kacheln + Bar-Chart Gewinn pro Kanal */}
@@ -909,18 +911,27 @@ interface RangeAggregate {
   operatingProfit: number;                   // Profit mit Grosshandel − Gemeinkosten (anteilig)
   marginBeforeOverhead: number | null;
   operatingMargin: number | null;
+  dhlPackagesTotal: number;                  // Shopify + TikTok Pakete
+  dhlShippingCostsTotal: number;             // Versandkosten Shopify + TikTok
   rangeDays: number;
   monthDays: number;
 }
 
-function aggregateRange(days: ComputedDay[], focusMonth: ComputedMonth | null, range: Range | null): RangeAggregate {
+function aggregateRange(days: ComputedDay[], rawDays: RawDay[], focusMonth: ComputedMonth | null, range: Range | null): RangeAggregate {
   let netSales = 0, vat = 0, ads = 0, profitBeforeGK = 0;
+  let dhlShippingCosts = 0;
   for (const d of days) {
     netSales += Number(d.aggregate.totalNetSales);
     profitBeforeGK += Number(d.aggregate.totalProfit);
     ads += Number(d.shopify.profit.adsAttributed) + Number(d.amazon.profit.adsAttributed) + Number(d.tiktok.profit.adsAttributed);
     vat += Number(d.shopify.vat.vatTotal) + Number(d.amazon.vat.vatTotal) + Number(d.tiktok.vat.vatTotal);
+    // DHL: Shopify + TikTok Versandkosten (Amazon-Fulfillment ist separater Kanal)
+    dhlShippingCosts += Number(d.shopify.profit.shippingCosts) + Number(d.tiktok.profit.shippingCosts);
   }
+  const dhlPackagesTotal = rawDays.reduce(
+    (acc, d) => acc + (d.shipping?.shopifyPackages ?? 0) + (d.shipping?.tiktokPackages ?? 0),
+    0,
+  );
   const overheadFull = focusMonth ? Number(focusMonth.overhead.totalNet) : 0;
   const wholesaleProfitFull = focusMonth ? Number(focusMonth.wholesale.totalProfit) : 0;
   const rangeDays = days.length;
@@ -946,6 +957,8 @@ function aggregateRange(days: ComputedDay[], focusMonth: ComputedMonth | null, r
     operatingProfit,
     marginBeforeOverhead: netSales > 0 ? (profitBeforeGK / netSales) * 100 : null,
     operatingMargin: netSales > 0 ? (operatingProfit / netSales) * 100 : null,
+    dhlPackagesTotal,
+    dhlShippingCostsTotal: dhlShippingCosts,
     rangeDays,
     monthDays,
   };
