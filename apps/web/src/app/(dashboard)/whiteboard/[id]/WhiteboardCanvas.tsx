@@ -126,30 +126,37 @@ function toggleReaction(editor: Editor, shapeId: TLShapeId, emoji: string) {
 // Popover: kleine Emoji-Bar oberhalb der aktuell selektierten Shape
 function ReactionPopover() {
   const editor = useEditor();
-  const selectedIds = useValue('selectedIds', () => editor.getSelectedShapeIds(), [editor]);
-  // Re-render wenn sich shape.meta aendert (fuer "reagiert"-Highlight).
-  useValue('reactionsTick', () => {
-    if (selectedIds.length !== 1) return 0;
-    const s = editor.getShape(selectedIds[0]);
-    return s ? JSON.stringify((s.meta as any)?.reactions ?? {}).length : 0;
-  }, [editor, selectedIds]);
+  // Alles was reactive sein muss (Selection + Position + Reactions-State) in
+  // EINEM useValue — vermeidet cascading re-renders + wrap try/catch damit
+  // stale shape IDs kein Crash ausloesen.
+  const data = useValue('reactionPopoverData', () => {
+    try {
+      const selectedIds = editor.getSelectedShapeIds();
+      if (selectedIds.length !== 1) return null;
+      const shape = editor.getShape(selectedIds[0]);
+      if (!shape) return null;
+      if (NO_REACTION_TYPES.has(shape.type)) return null;
+      const bounds = editor.getShapePageBounds(shape.id);
+      if (!bounds) return null;
+      const reactions = ((shape.meta as any)?.reactions ?? {}) as Record<string, string[]>;
+      // Reactions-Signature statt JSON.stringify: viel billiger, aendert
+      // sich zuverlaessig wenn User reagiert.
+      const sig = Object.entries(reactions).map(([e, u]) => `${e}:${u.length}`).join('|');
+      return { shapeId: shape.id, midX: bounds.midX, minY: bounds.minY, reactions, sig };
+    } catch {
+      return null;
+    }
+  }, [editor]);
 
-  if (selectedIds.length !== 1) return null;
-  const shape = editor.getShape(selectedIds[0]);
-  if (!shape) return null;
-  if (NO_REACTION_TYPES.has(shape.type)) return null;
-  const bounds = editor.getShapePageBounds(shape.id);
-  if (!bounds) return null;
-
-  const reactions = ((shape.meta as any)?.reactions ?? {}) as Record<string, string[]>;
+  if (!data) return null;
   const userId = currentUserIdRef.value;
 
   return (
     <div
       style={{
         position: 'absolute',
-        left: bounds.midX,
-        top: bounds.minY - 12,
+        left: data.midX,
+        top: data.minY - 12,
         transform: 'translate(-50%, -100%)',
         pointerEvents: 'all',
       }}
@@ -159,13 +166,14 @@ function ReactionPopover() {
       className="flex items-center gap-0.5 rounded-full bg-white dark:bg-[#1a1d2e] shadow-lg border border-gray-200 dark:border-white/10 px-1.5 py-1 select-none"
     >
       {REACTION_EMOJIS.map((emoji) => {
-        const reacted = !!userId && (reactions[emoji] ?? []).includes(userId);
+        const reacted = !!userId && (data.reactions[emoji] ?? []).includes(userId);
         return (
           <button
             key={emoji}
             onClick={(e) => {
               e.stopPropagation();
-              toggleReaction(editor, shape.id, emoji);
+              try { toggleReaction(editor, data.shapeId, emoji); }
+              catch (err) { console.error('[wb] toggleReaction failed', err); }
             }}
             className={
               'inline-flex items-center justify-center w-7 h-7 text-base rounded-full transition-all hover:scale-125 ' +
@@ -182,52 +190,62 @@ function ReactionPopover() {
 }
 
 // Badges: kleine Sticker mit Emoji + Counter unten rechts an der Shape
+//
+// getShapePageBounds war frueher im Render body — bei jedem Camera-Change
+// (Zoom/Pan) wird OnTheCanvas re-rendert und die bounds-Aufrufe koennten
+// auf stale shape-IDs treffen und crashen. Alles reactive in EINEM useValue
+// mit try/catch — bei Fehler leere Liste, tldraw sackt nicht durch.
 function ReactionBadges() {
   const editor = useEditor();
   const items = useValue(
-    'shapesWithReactions',
+    'shapesWithReactionsLayout',
     () => {
-      return editor
-        .getCurrentPageShapes()
-        .map((s) => {
+      try {
+        const results: Array<{ shapeId: string; maxX: number; maxY: number; reactions: Array<[string, number]> }> = [];
+        for (const s of editor.getCurrentPageShapes()) {
           const reactions = ((s.meta as any)?.reactions ?? {}) as Record<string, string[]>;
-          const entries = Object.entries(reactions).filter(([, users]) => users.length > 0);
-          return { shapeId: s.id, reactions: entries };
-        })
-        .filter((x) => x.reactions.length > 0);
+          const entries = Object.entries(reactions)
+            .filter(([, users]) => users.length > 0)
+            .map(([e, u]) => [e, u.length] as [string, number]);
+          if (entries.length === 0) continue;
+          const bounds = editor.getShapePageBounds(s.id);
+          if (!bounds) continue;
+          results.push({ shapeId: s.id, maxX: bounds.maxX, maxY: bounds.maxY, reactions: entries });
+        }
+        return results;
+      } catch (err) {
+        console.error('[wb] ReactionBadges computation failed', err);
+        return [];
+      }
     },
     [editor],
   );
   if (items.length === 0) return null;
   return (
     <>
-      {items.map(({ shapeId, reactions }) => {
-        const bounds = editor.getShapePageBounds(shapeId);
-        if (!bounds) return null;
-        return (
-          <div
-            key={shapeId}
-            style={{
-              position: 'absolute',
-              left: bounds.maxX,
-              top: bounds.maxY,
-              transform: 'translate(-100%, 4px)',
-              pointerEvents: 'none',
-            }}
-            className="flex flex-wrap gap-0.5 max-w-[180px] justify-end"
-          >
-            {reactions.map(([emoji, users]) => (
-              <span
-                key={emoji}
-                className="rounded-full bg-white dark:bg-[#1a1d2e] border border-gray-200 dark:border-white/10 shadow-sm text-xs px-1.5 py-0.5 whitespace-nowrap inline-flex items-center gap-0.5"
-              >
-                <span>{emoji}</span>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">{users.length}</span>
-              </span>
-            ))}
-          </div>
-        );
-      })}
+      {items.map(({ shapeId, maxX, maxY, reactions }) => (
+        <div
+          key={shapeId}
+          style={{
+            position: 'absolute',
+            left: maxX,
+            top: maxY,
+            transform: 'translate(-100%, 4px)',
+            pointerEvents: 'none',
+          }}
+          className="flex flex-wrap gap-0.5 max-w-[180px] justify-end"
+        >
+          {reactions.map(([emoji, count]) => (
+            <span
+              key={emoji}
+              className="rounded-full bg-white dark:bg-[#1a1d2e] border border-gray-200 dark:border-white/10 shadow-sm text-xs px-1.5 py-0.5 whitespace-nowrap inline-flex items-center gap-0.5"
+            >
+              <span>{emoji}</span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">{count}</span>
+            </span>
+          ))}
+        </div>
+      ))}
     </>
   );
 }
@@ -807,42 +825,50 @@ function SingleUserCanvas({
     // Default-Verhalten von tldraw waere `URL.createObjectURL(file)` →
     // ein temporaerer blob:// Link der beim Tab-Schliessen tot ist.
     // Wir laden stattdessen zu R2 hoch und nutzen die persistente URL.
+    //
+    // WICHTIG: try/catch um den GESAMTEN Handler — wenn Upload fehlschlaegt
+    // wuerde die Promise reject und tldraw wuerde einen Render-Crash haben.
+    // Fallback = null → tldraw macht dann seinen Default (blob-URL).
     ed.registerExternalAssetHandler('file', async ({ file }) => {
-      const upload = await whiteboardApi.uploadAsset(boardIdRef.current, file);
-      const isImage = file.type.startsWith('image/');
-      const isVideo = file.type.startsWith('video/');
-      // Dimensionen ermitteln — tldraw braucht w/h fuer korrekte Darstellung
-      let w = 0, h = 0, isAnimated = false;
       try {
-        if (isImage) {
-          const size = await MediaHelpers.getImageSize(file);
-          w = size.w; h = size.h;
-          isAnimated = file.type === 'image/gif';
-        } else if (isVideo) {
-          const size = await MediaHelpers.getVideoSize(file);
-          w = size.w; h = size.h;
-          isAnimated = true;
-        }
-      } catch { /* dimensions unknown — tldraw faellt auf default zurueck */ }
-      const asset: TLAsset = AssetRecordType.create({
-        id: AssetRecordType.createId(),
-        type: isVideo ? 'video' : 'image',
-        typeName: 'asset',
-        props: {
-          name: upload.name,
-          src: upload.url,
-          w: w || 600,
-          h: h || 400,
-          mimeType: upload.mimeType || file.type,
-          isAnimated,
-        },
-        meta: {},
-      });
-      // Direkt nach Asset-Upload Auto-Save antriggern (kurz statt 30s warten)
-      // damit das neue Asset garantiert in der DB landet bevor User wegnavigiert.
-      // 1 Sekunde gibt tldraw Zeit das Shape mit dem neuen Asset zu erstellen.
-      setTimeout(() => triggerSaveRef.current?.(), 1000);
-      return asset;
+        const upload = await whiteboardApi.uploadAsset(boardIdRef.current, file);
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+        let w = 0, h = 0, isAnimated = false;
+        try {
+          if (isImage) {
+            const size = await MediaHelpers.getImageSize(file);
+            w = size.w; h = size.h;
+            isAnimated = file.type === 'image/gif';
+          } else if (isVideo) {
+            const size = await MediaHelpers.getVideoSize(file);
+            w = size.w; h = size.h;
+            isAnimated = true;
+          }
+        } catch { /* dimensions unknown — tldraw faellt auf default zurueck */ }
+        const asset: TLAsset = AssetRecordType.create({
+          id: AssetRecordType.createId(),
+          type: isVideo ? 'video' : 'image',
+          typeName: 'asset',
+          props: {
+            name: upload.name,
+            src: upload.url,
+            w: w || 600,
+            h: h || 400,
+            mimeType: upload.mimeType || file.type,
+            isAnimated,
+          },
+          meta: {},
+        });
+        // Direkt nach Asset-Upload Auto-Save antriggern.
+        setTimeout(() => triggerSaveRef.current?.(), 1000);
+        return asset;
+      } catch (err: any) {
+        console.error('[wb] Asset-Upload fehlgeschlagen:', err?.message ?? err);
+        // Fallback auf tldraw's Default (blob:-URL) — Master sieht das Bild
+        // in der Session weiterhin, aber es persistiert nicht.
+        return null as any;
+      }
     });
 
     try {
@@ -852,12 +878,23 @@ function SingleUserCanvas({
       } else if (state?.__template) {
         applyTemplate(ed, state.__template);
       }
-      try {
-        ed.zoomToFit({ animation: { duration: 0 } });
-      } catch { /* no shapes — no-op */ }
-    } catch { /* mount init failed — non-fatal */ }
+      // zoomToFit deferieren via requestAnimationFrame — bei grossen Boards
+      // kann synchronen zoomToFit direkt nach loadSnapshot den Main-Thread
+      // blockieren. rAF gibt tldraw Zeit den initial-Render zu machen bevor
+      // die Camera-Transformation kommt.
+      requestAnimationFrame(() => {
+        try { ed.zoomToFit({ animation: { duration: 0 } }); }
+        catch (err) { console.warn('[wb] zoomToFit failed', err); }
+      });
+    } catch (err) {
+      console.error('[wb] mount init failed', err);
+    }
 
-    lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
+    try {
+      lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
+    } catch (err) {
+      console.error('[wb] initial snapshot failed', err);
+    }
     setEditorReady(true);
   }, []);
 
@@ -883,21 +920,31 @@ function SingleUserCanvas({
     return () => { currentUserIdRef.value = null; };
   }, [currentUser?.id]);
 
-  // Auto-Save: tickt alle 5 Sekunden (war 30s — wurde reduziert weil
-  // User-Aenderungen sonst beim Verlassen der Seite verloren gehen koennen
-  // bevor der erste Save laeuft).
+  // Auto-Save mit exponential backoff.
+  //
+  // Vorher: fester 5s-Interval. Bei permanentem Backend-Fehler → 12 Failed-
+  // Requests pro Minute + kein Backoff → Netzwerk-Spam, Browser wird lahm.
+  //
+  // Jetzt: bei Erfolg → naechster Tick in 5s; bei Fehler → 5s → 10s → 20s
+  // → 40s → 60s (Cap). Bei naechstem Erfolg zurueck auf 5s.
   const SAVE_INTERVAL_MS = 5_000;
+  const MAX_BACKOFF_MS = 60_000;
   useEffect(() => {
     if (!editorReady) return;
     const ed = editorRef.current;
     if (!ed) return;
+    let backoff = SAVE_INTERVAL_MS;
+    const schedule = (delay: number) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(tick, delay);
+    };
     const tick = async () => {
       let snap: any;
       try {
         snap = getSnapshot(ed.store);
       } catch (e: any) {
         console.error('[wb-save] getSnapshot failed:', e?.message ?? e);
-        saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
+        schedule(SAVE_INTERVAL_MS);
         return;
       }
       let json: string;
@@ -905,11 +952,12 @@ function SingleUserCanvas({
         json = JSON.stringify(snap);
       } catch (e: any) {
         console.error('[wb-save] JSON.stringify failed:', e?.message ?? e);
-        saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
+        schedule(SAVE_INTERVAL_MS);
         return;
       }
       if (json === lastSavedJsonRef.current) {
-        saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
+        // Nichts geaendert — backoff nicht anfassen, weiter normal
+        schedule(SAVE_INTERVAL_MS);
         return;
       }
       setSaveState('saving');
@@ -919,17 +967,21 @@ function SingleUserCanvas({
         lastSavedJsonRef.current = json;
         setSaveState('saved');
         setLastSavedAt(new Date());
+        backoff = SAVE_INTERVAL_MS; // reset nach Erfolg
         console.log('[wb-save] OK');
         setTimeout(() => setSaveState('idle'), 2000);
+        schedule(SAVE_INTERVAL_MS);
       } catch (e: any) {
         setSaveState('error');
-        console.error('[wb-save] FAILED:', e?.message ?? e);
-        setTimeout(() => setSaveState('idle'), 4000);
+        console.error(`[wb-save] FAILED (retry in ${backoff / 1000}s):`, e?.message ?? e);
+        setTimeout(() => setSaveState('idle'), Math.min(backoff, 4000));
+        schedule(backoff);
+        backoff = Math.min(backoff * 2, MAX_BACKOFF_MS); // exponentiell hoch
       }
-      saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
     };
-    saveTimerRef.current = setTimeout(tick, SAVE_INTERVAL_MS);
+    schedule(SAVE_INTERVAL_MS);
     triggerSaveRef.current = () => {
+      backoff = SAVE_INTERVAL_MS; // manueller Trigger → sofort + Backoff-Reset
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       tick();
     };
