@@ -115,22 +115,46 @@ export default function OverviewPage() {
     try {
       const months = monthsInRange(range.from, range.to);
       const prevMonths = monthsInRange(prevRange.from, prevRange.to);
-      // Alle 5 Calls einzeln absichern damit wir sehen welcher failt
-      const focusRes = await profitAnalysisApi.daily.getMonth(range.focusYear, range.focusMonth)
-        .catch((e) => { throw new Error(`Focus-Monat ${range.focusYear}-${range.focusMonth}: ${e?.message ?? e}`); });
-      const allRes = await Promise.all(months.map((m, i) =>
-        profitAnalysisApi.daily.getMonth(m.year, m.month)
-          .catch((e) => { throw new Error(`Range-Monat ${m.year}-${m.month}: ${e?.message ?? e}`); })
-      ));
-      const allPrevRes = await Promise.all(prevMonths.map((m) =>
-        profitAnalysisApi.daily.getMonth(m.year, m.month)
-          .catch((e) => { throw new Error(`Vergleichsmonat ${m.year}-${m.month}: ${e?.message ?? e}`); })
-      ));
-      const t = await profitAnalysisApi.targets.list()
-        .catch((e) => { throw new Error(`Ziele laden: ${e?.message ?? e}`); });
-      const r = await profitAnalysisApi.rankings.lastMonths(12).catch(() => null);
 
-      setFocusMonth(focusRes.computed);
+      // Alle benoetigten Monate deduplizieren: Focus + Range + Prev-Range.
+      // Ein Monat wird NUR EINMAL geladen — beim "Letzter Monat"-Preset
+      // waren focusMonth und range-Monat vorher identisch = doppelter Call.
+      const monthKey = (y: number, m: number) => `${y}-${m}`;
+      const focusKey = monthKey(range.focusYear, range.focusMonth);
+      const allNeededMonths = new Map<string, { year: number; month: number }>();
+      allNeededMonths.set(focusKey, { year: range.focusYear, month: range.focusMonth });
+      months.forEach((m) => allNeededMonths.set(monthKey(m.year, m.month), m));
+      prevMonths.forEach((m) => allNeededMonths.set(monthKey(m.year, m.month), m));
+
+      // ALLES parallel + fehlertolerant: ein einzelner Monat-Fehler killt
+      // nicht die gesamte Ladung. Fehlende Monate werden im UI als leerer
+      // Zeitraum sichtbar (aber die anderen KPIs stimmen).
+      const monthResults = await Promise.all(
+        Array.from(allNeededMonths.values()).map(async (m) => {
+          try {
+            const res = await profitAnalysisApi.daily.getMonth(m.year, m.month);
+            return { key: monthKey(m.year, m.month), res };
+          } catch (e: any) {
+            console.warn(`[Overview] Monat ${m.year}-${m.month} konnte nicht geladen werden:`, e?.message ?? e);
+            return { key: monthKey(m.year, m.month), res: null };
+          }
+        }),
+      );
+      // Targets + Rankings parallel — sind unabhaengig von den Monats-Daten
+      const [t, r] = await Promise.all([
+        profitAnalysisApi.targets.list().catch((e) => {
+          console.warn('[Overview] Ziele laden fehlgeschlagen:', e?.message ?? e);
+          return { items: [] as TargetItem[] };
+        }),
+        profitAnalysisApi.rankings.lastMonths(12).catch(() => null),
+      ]);
+
+      const byKey = new Map(monthResults.map((r) => [r.key, r.res]));
+      const focusRes = byKey.get(focusKey);
+      const allRes = months.map((m) => byKey.get(monthKey(m.year, m.month))).filter(Boolean) as NonNullable<ReturnType<typeof byKey.get>>[];
+      const allPrevRes = prevMonths.map((m) => byKey.get(monthKey(m.year, m.month))).filter(Boolean) as NonNullable<ReturnType<typeof byKey.get>>[];
+
+      setFocusMonth(focusRes?.computed ?? null);
       const allDays: ComputedDay[] = allRes.flatMap((res) => res.computed.days);
       const allRawDays: RawDay[] = allRes.flatMap((res) => res.raw.days);
       const allPrevDays: ComputedDay[] = allPrevRes.flatMap((res) => res.computed.days);
@@ -139,6 +163,12 @@ export default function OverviewPage() {
       setPrevRangeDays(allPrevDays.filter((d) => d.date >= prevRange.from && d.date <= prevRange.to));
       setTargets(t.items);
       setRankings(r);
+
+      // Wenn ALLE Monate im Range fehlgeschlagen sind, ist das ein echter Fehler
+      const rangeFailed = months.length > 0 && allRes.length === 0;
+      if (rangeFailed) {
+        setError('Konnte keinen Monat des gewaehlten Zeitraums laden — Backend erreichbar?');
+      }
     } catch (e: any) {
       const msg = e?.message ?? 'Laden fehlgeschlagen';
       console.error('[ProfitAnalysis Overview] Load error:', msg, e);
