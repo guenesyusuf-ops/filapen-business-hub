@@ -599,3 +599,73 @@ html {
     display: none;
   }
 }
+
+/* (9) Print-Modus für Gewinnanalyse-Übersicht (und andere Screenshot-Exports).
+       Setup:
+       - Seite/Layout kennzeichnet den Print-Bereich mit id="print-area".
+       - Beim print() wird ausser diesem Bereich alles ausgeblendet.
+       - Elemente die auch im Print-Bereich nicht auftauchen sollen (Button-
+         Toolbars, Interaktion) bekommen die Klasse .print-hide.
+       - Charts bleiben so wie sie im Viewport sind, weil ECharts SVG rendert
+         oder Canvas → beide drucken sich als Bild ganz ok.
+*/
+@media print {
+  /* A4 Portrait, moderate Ränder — Beträge sollen atmen können */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+  /* Grundfarben zurücksetzen für Papier — kein Dark-Mode-Hintergrund im PDF */
+  html, body {
+    background: white !important;
+    color: black !important;
+  }
+  /* Alles global ausblenden ... */
+  body * {
+    visibility: hidden;
+  }
+  /* ... außer dem Print-Bereich und allem was darin ist */
+  #print-area, #print-area * {
+    visibility: visible;
+  }
+  /* Print-Bereich auf die Seite spannen — sidebar/topbar sind sowieso versteckt */
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  /* Elemente die auch im Print-Bereich weg sollen (Buttons, Chart-Picker etc.) */
+  .print-hide {
+    display: none !important;
+  }
+  /* Buttons/Links im Print als reinen Text — kein Hover, kein Focus-Ring */
+  #print-area button,
+  #print-area a {
+    color: inherit !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  /* Kacheln nicht mitten durchbrechen */
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* KPI-Grids leserlich lassen bei Print: Border sichtbar, kein Hover-Highlight */
+  #print-area .rounded-xl,
+  #print-area .rounded-2xl,
+  #print-area .rounded-lg {
+    box-shadow: none !important;
+    background: white !important;
+    border: 1px solid #e5e7eb !important;
+  }
+  /* Overflow-Container aufheben damit Tabellen komplett drucken */
+  #print-area .overflow-x-auto,
+  #print-area .overflow-y-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+}

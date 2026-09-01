@@ -226,12 +226,12 @@ export default function OverviewPage() {
     } catch (e: any) { setError(e?.message ?? 'Öffnen fehlgeschlagen'); }
     finally { setBusy(null); }
   }
-  async function download(kind: 'csv' | 'xlsx' | 'pdf') {
+  async function download(kind: 'csv' | 'xlsx') {
     setBusy(kind);
     try {
-      const urlPath = kind === 'csv'  ? profitAnalysisApi.months.exportCsvUrl(range.focusYear, range.focusMonth)
-                    : kind === 'xlsx' ? profitAnalysisApi.months.exportXlsxUrl(range.focusYear, range.focusMonth)
-                    :                    profitAnalysisApi.months.exportPdfUrl(range.focusYear, range.focusMonth);
+      const urlPath = kind === 'csv'
+        ? profitAnalysisApi.months.exportCsvUrl(range.focusYear, range.focusMonth)
+        : profitAnalysisApi.months.exportXlsxUrl(range.focusYear, range.focusMonth);
       const res = await fetch(`${API_URL}${urlPath}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Export fehlgeschlagen');
       const blob = await res.blob();
@@ -245,8 +245,25 @@ export default function OverviewPage() {
     finally { setBusy(null); }
   }
 
+  /**
+   * PDF via Browser-Print: Overview wird 1:1 gedruckt wie im Viewport.
+   * Print-CSS in globals.css blendet Sidebar/TopBar/Toolbar aus und laesst
+   * nur den #print-area-Wrapper stehen. Master waehlt im Print-Dialog
+   * "Als PDF speichern" — Fidelity 100%, keine Server-Round-Trip, keine
+   * html2canvas/jsPDF-Bugs mit ECharts.
+   */
+  function printAsPdf() {
+    // Der Browser triggered die Print-Ansicht bei allem was aktuell im DOM
+    // ist — kein Extra-Trigger noetig. Das setTimeout gibt React einen
+    // Repaint-Tick falls ein State-Update noch nicht committed war.
+    setTimeout(() => window.print(), 0);
+  }
+
+  // id="print-area" markiert den Bereich der beim PDF-Export via
+  // window.print() sichtbar bleibt. Alles andere (Sidebar, TopBar, Buttons
+  // mit .print-hide) wird per globals.css @media print ausgeblendet.
   return (
-    <div className="space-y-5">
+    <div id="print-area" className="space-y-5">
       {/* Header — zentraler Zeitraum-Umschalter */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -256,15 +273,19 @@ export default function OverviewPage() {
             {range.from === range.to ? formatDateShort(range.from) : `${formatDateShort(range.from)} – ${formatDateShort(range.to)}`}
           </span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="print-hide flex items-center gap-2 flex-wrap">
           <button onClick={() => download('csv')}  disabled={busy === 'csv'}  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
             {busy === 'csv' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} CSV
           </button>
           <button onClick={() => download('xlsx')} disabled={busy === 'xlsx'} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
             {busy === 'xlsx' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Excel
           </button>
-          <button onClick={() => download('pdf')}  disabled={busy === 'pdf'}  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
-            {busy === 'pdf' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} PDF
+          <button
+            onClick={printAsPdf}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5"
+            title="Öffnet den Druckdialog — dort „Als PDF speichern“ wählen. Druckt die Übersicht 1:1 wie du sie siehst."
+          >
+            <Download className="h-3.5 w-3.5" /> PDF
           </button>
           {focusMonth?.status === 'open' && (
             <button onClick={() => openPreflight(false)} disabled={busy === 'preflight'} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-white/10 px-3 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50">
@@ -288,7 +309,7 @@ export default function OverviewPage() {
       </div>
 
       {/* Zeitraum-Presets */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="print-hide flex flex-wrap gap-1.5">
         <RangeButton active={mode === 'today'}      onClick={() => setMode('today')}>Heute</RangeButton>
         <RangeButton active={mode === 'yesterday'}  onClick={() => setMode('yesterday')}>Gestern</RangeButton>
         <RangeButton active={mode === 'last-7'}     onClick={() => setMode('last-7')}>Letzte 7 Tage</RangeButton>
@@ -469,12 +490,12 @@ function ChartsPanel({ days, rawDays, overheadTotal }: { days: ComputedDay[]; ra
     <div>
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-semibold text-slate-900 dark:text-white">Diagramme</div>
-        <button onClick={() => setShowPicker((v) => !v)} className="text-xs text-amber-600 hover:text-amber-700">
+        <button onClick={() => setShowPicker((v) => !v)} className="print-hide text-xs text-amber-600 hover:text-amber-700">
           {showPicker ? 'Fertig' : 'Diagramme wählen'}
         </button>
       </div>
       {showPicker && (
-        <div className="rounded-lg border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3 mb-3 flex flex-wrap gap-2">
+        <div className="print-hide rounded-lg border border-slate-200 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3 mb-3 flex flex-wrap gap-2">
           {CHART_KEYS.map((c) => (
             <label key={c.key} className="inline-flex items-center gap-1.5 text-xs">
               <input type="checkbox" checked={!!active[c.key]} onChange={(e) => setActive((prev) => ({ ...prev, [c.key]: e.target.checked }))} />
