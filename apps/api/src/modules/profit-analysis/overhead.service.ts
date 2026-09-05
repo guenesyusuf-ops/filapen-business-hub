@@ -1,7 +1,9 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, PaOverheadRecurrence } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OVERHEAD_CATEGORIES } from './domain/overhead';
+
+export type OverheadRecurrence = 'none' | 'monthly' | 'quarterly' | 'yearly';
 
 export interface OverheadTemplateInput {
   category: string;
@@ -19,6 +21,7 @@ export interface OverheadEntryInputDto {
   isGross: boolean;
   vatRate: string;
   note?: string;
+  recurrence?: OverheadRecurrence;
 }
 
 @Injectable()
@@ -82,10 +85,10 @@ export class OverheadService {
   // ---------------------------------------------------------------------------
 
   async listEntries(orgId: string, year: number, month: number) {
-    const monthRow = await this.prisma.paMonth.findUnique({
-      where: { orgId_year_month: { orgId, year, month } },
-    });
-    if (!monthRow) return { entries: [] };
+    // Zuerst: wiederkehrende Entries aus frueheren Monaten in DIESEN Monat
+    // materialisieren, falls das noch nie gemacht wurde. Danach normal listen.
+    const monthRow = await this.getOrCreateMonth(orgId, year, month);
+    await this.materializeRecurrencesIfNeeded(orgId, monthRow.id, year, month);
     const entries = await this.prisma.paOverheadEntry.findMany({
       where: { orgId, monthId: monthRow.id },
       orderBy: [{ category: 'asc' }, { label: 'asc' }],
@@ -100,6 +103,8 @@ export class OverheadService {
         vatRate: e.vatRate.toString(),
         note: e.note,
         templateId: e.templateId,
+        recurrence: e.recurrence as OverheadRecurrence,
+        sourceEntryId: e.sourceEntryId,
       })),
     };
   }
@@ -115,6 +120,7 @@ export class OverheadService {
         isGross: input.isGross,
         vatRate: this.dec(input.vatRate, 'vatRate'),
         note: input.note?.trim() || null,
+        recurrence: (input.recurrence ?? 'none') as PaOverheadRecurrence,
       },
     });
     return created;
@@ -132,6 +138,7 @@ export class OverheadService {
         ...(input.isGross       !== undefined && { isGross: input.isGross }),
         ...(input.vatRate       !== undefined && { vatRate: this.dec(input.vatRate, 'vatRate') }),
         ...(input.note          !== undefined && { note: input.note?.trim() || null }),
+        ...(input.recurrence    !== undefined && { recurrence: input.recurrence as PaOverheadRecurrence }),
       },
     });
   }
@@ -175,6 +182,94 @@ export class OverheadService {
 
   async getEntriesForMonth(orgId: string, monthId: string) {
     return this.prisma.paOverheadEntry.findMany({ where: { orgId, monthId } });
+  }
+
+  /**
+   * Materialisiert wiederkehrende Origin-Entries in einen Zielmonat.
+   *
+   * Idempotenz-Schutz: laeuft nur EINMAL pro Monat (pa_month.
+   * recurrenceMaterializedAt wird nach dem Durchlauf gesetzt). So kann
+   * Master Wiederkehr-Kopien loeschen ohne dass sie beim naechsten
+   * listEntries wieder erscheinen.
+   *
+   * Origin-Erkennung: Entries mit recurrence != 'none' aus JEDEM
+   * frueheren Monat der Org werden geprueft:
+   *   - monthly:   in jedem folgenden Monat
+   *   - quarterly: in Monaten deren (originOffset % 3 === 0)
+   *   - yearly:    in Monaten deren (originOffset % 12 === 0)
+   * Wo originOffset = (targetYear*12 + targetMonth) − (originYear*12 + originMonth)
+   *
+   * Nur Origins bei denen dies der 1. materialisierte Zielmonat waere
+   * (also noch keine Kopie mit sourceEntryId=origin.id in einem Monat
+   * zwischen origin und target existiert) werden dupliziert — sonst
+   * hatten wir bei einer 3-Monats-Luecke einen fehlenden Zwischenmonat
+   * doppelt.
+   */
+  async materializeRecurrencesIfNeeded(orgId: string, monthId: string, year: number, month: number) {
+    const monthRow = await this.prisma.paMonth.findUnique({
+      where: { id: monthId },
+      select: { recurrenceMaterializedAt: true },
+    });
+    if (monthRow?.recurrenceMaterializedAt) return { skipped: true };
+
+    const targetOffset = year * 12 + month;
+
+    // Alle Origin-Entries der Org (recurrence != none), sortiert nach Monatsdatum
+    const origins = await this.prisma.paOverheadEntry.findMany({
+      where: {
+        orgId,
+        recurrence: { not: 'none' as PaOverheadRecurrence },
+      },
+      include: { month: { select: { year: true, month: true } } },
+    });
+
+    const toCreate: Prisma.PaOverheadEntryCreateManyInput[] = [];
+
+    for (const origin of origins) {
+      const originOffset = origin.month.year * 12 + origin.month.month;
+      const delta = targetOffset - originOffset;
+      if (delta <= 0) continue; // Origin liegt in Zukunft oder gleich → keine Materialisierung
+
+      // Muster-Match
+      const matches =
+        (origin.recurrence === 'monthly'   && delta >= 1) ||
+        (origin.recurrence === 'quarterly' && delta % 3 === 0) ||
+        (origin.recurrence === 'yearly'    && delta % 12 === 0);
+      if (!matches) continue;
+
+      // Skip wenn im Zielmonat bereits eine Kopie fuer diesen Origin existiert
+      const existing = await this.prisma.paOverheadEntry.findFirst({
+        where: { orgId, monthId, sourceEntryId: origin.id },
+        select: { id: true },
+      });
+      if (existing) continue;
+
+      toCreate.push({
+        orgId,
+        monthId,
+        category: origin.category,
+        label: origin.label,
+        enteredAmount: origin.enteredAmount,
+        isGross: origin.isGross,
+        vatRate: origin.vatRate,
+        note: origin.note,
+        // recurrence auf 'none' — die Kopie ist eigenstaendig, nicht wieder
+        // Ausgangspunkt einer neuen Kette. Master aendert das Original im
+        // Ursprungsmonat, wenn er das Muster aendern will.
+        recurrence: 'none' as PaOverheadRecurrence,
+        sourceEntryId: origin.id,
+      });
+    }
+
+    if (toCreate.length > 0) {
+      await this.prisma.paOverheadEntry.createMany({ data: toCreate });
+    }
+    // Flag setzen — auch wenn 0 erzeugt wurden, sonst laeuft die Query beim naechsten GET erneut
+    await this.prisma.paMonth.update({
+      where: { id: monthId },
+      data: { recurrenceMaterializedAt: new Date() },
+    });
+    return { created: toCreate.length };
   }
 
   // ---------------------------------------------------------------------------

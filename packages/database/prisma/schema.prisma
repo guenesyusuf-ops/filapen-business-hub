@@ -4106,6 +4106,10 @@ model PaMonth {
   closedById String?       @map("closed_by_id") @db.Uuid
   createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  /// Wann wurden Recurrence-Entries fuer diesen Monat materialisiert?
+  /// NULL = noch nie → beim naechsten listEntries wird nachgezogen.
+  /// Datum = schon einmal durchgelaufen; Master's Loeschungen bleiben respektiert.
+  recurrenceMaterializedAt DateTime? @map("recurrence_materialized_at") @db.Timestamptz
 
   organization    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   closedBy        User?             @relation("PaMonthCloser", fields: [closedById], references: [id], onDelete: SetNull)
@@ -4462,13 +4466,32 @@ model PaOverheadEntry {
   calculatedControllingCost Decimal?        @map("calculated_controlling_cost") @db.Decimal(12, 2)
   calculatedTaxComponent    Decimal?        @map("calculated_tax_component") @db.Decimal(12, 2)
 
+  /// Wiederkehr-Muster: 'none' = einmalig; 'monthly'/'quarterly'/'yearly' =
+  /// wird in zukuenftige Monate automatisch kopiert (bei First-Visit des
+  /// Zielmonats — siehe PaMonth.recurrenceMaterializedAt).
+  recurrence     PaOverheadRecurrence @default(none)
+  /// Verweis auf den Origin-Entry bei automatischer Kopie. NULL = eigenstaendig.
+  sourceEntryId  String?              @map("source_entry_id") @db.Uuid
+  sourceEntry    PaOverheadEntry?     @relation("PaOverheadEntryRecurrence", fields: [sourceEntryId], references: [id], onDelete: SetNull)
+  materializedCopies PaOverheadEntry[] @relation("PaOverheadEntryRecurrence")
+
   organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   month        PaMonth             @relation(fields: [monthId], references: [id], onDelete: Cascade)
   template     PaOverheadTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@index([monthId], map: "idx_pa_oe_month")
   @@index([orgId, monthId], map: "idx_pa_oe_org")
+  @@index([sourceEntryId], map: "idx_pa_oe_source")
   @@map("pa_overhead_entry")
+}
+
+enum PaOverheadRecurrence {
+  none
+  monthly
+  quarterly
+  yearly
+
+  @@map("pa_overhead_recurrence")
 }
 
 enum PaTaxTreatment {

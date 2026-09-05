@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Loader2, AlertCircle, Trash2, Save, Sparkles,
 } from 'lucide-react';
 import {
-  profitAnalysisApi, OverheadEntry, OverheadTemplate,
+  profitAnalysisApi, OverheadEntry, OverheadTemplate, OverheadRecurrence,
 } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent, decimalToInputString, inputStringToDecimal } from '@/lib/profit-analysis/formatters';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
@@ -18,6 +18,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   software: 'Software', auto_rate: 'Auto Rate', auto_versicherung: 'Auto Versicherung',
   speditionskosten: 'Speditionskosten', verpackung: 'Verpackung', sonstiges: 'Sonstiges',
 };
+
 
 export default function GemeinkostenPage() {
   const now = new Date();
@@ -142,6 +143,7 @@ export default function GemeinkostenPage() {
                   <th className="text-right px-4 py-3">Betrag eingegeben</th>
                   <th className="text-left px-4 py-3 w-24">Typ</th>
                   <th className="text-right px-4 py-3 w-20">USt %</th>
+                  <th className="text-left px-4 py-3 w-28">Wiederkehr</th>
                   <th className="text-right px-4 py-3">Netto</th>
                   <th className="w-8" />
                 </tr>
@@ -181,6 +183,28 @@ export default function GemeinkostenPage() {
                             if (v !== e.vatRate) updateEntry(e.id, { vatRate: v });
                           }}
                           className="w-14 rounded-md border border-transparent px-2 py-1 text-sm text-right tabular-nums hover:border-slate-300 focus:border-amber-500 focus:outline-none dark:hover:border-white/10" />
+                      </td>
+                      <td className="px-4 py-2">
+                        {e.sourceEntryId ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                            title="Automatisch aus einer wiederkehrenden Position der Vormonate. Kann hier lokal bearbeitet oder gelöscht werden — kommt in diesem Monat nicht wieder."
+                          >
+                            <Sparkles className="h-3 w-3" /> aus Wiederkehr
+                          </span>
+                        ) : (
+                          <select
+                            value={e.recurrence}
+                            onChange={(ev) => updateEntry(e.id, { recurrence: ev.target.value as OverheadRecurrence })}
+                            className="rounded-md border border-slate-300 dark:border-white/10 dark:bg-white/5 px-2 py-1 text-xs"
+                            title="Wenn wiederkehrend, wird die Position in zukünftige Monate automatisch übernommen (beim ersten Öffnen des Zielmonats)."
+                          >
+                            <option value="none">Einmalig</option>
+                            <option value="monthly">Monatlich</option>
+                            <option value="quarterly">Quartal</option>
+                            <option value="yearly">Jährlich</option>
+                          </select>
+                        )}
                       </td>
                       <td className="px-4 py-2 text-right tabular-nums font-semibold">{formatEur(netAmount)}</td>
                       <td className="px-2 py-2"><button onClick={() => deleteEntry(e.id)} className="text-red-500 hover:text-red-700 p-1"><Trash2 className="h-3.5 w-3.5" /></button></td>
@@ -262,6 +286,7 @@ function NewEntryModal({ year, month, onClose, onSaved }: { year: number; month:
   const [amount, setAmount] = useState('0,00');
   const [isGross, setIsGross] = useState(true);
   const [vatRate, setVatRate] = useState('19');
+  const [recurrence, setRecurrence] = useState<OverheadRecurrence>('none');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -272,6 +297,7 @@ function NewEntryModal({ year, month, onClose, onSaved }: { year: number; month:
         category, label: label.trim() || CATEGORY_LABELS[category],
         enteredAmount: inputStringToDecimal(amount),
         isGross, vatRate: inputStringToDecimal(vatRate),
+        recurrence,
       });
       onSaved();
     } catch (e: any) { setError(e?.message ?? 'Fehler'); setSaving(false); }
@@ -308,6 +334,24 @@ function NewEntryModal({ year, month, onClose, onSaved }: { year: number; month:
               <input type="text" inputMode="decimal" value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm" />
             </label>
           </div>
+          <label className="block">
+            <div className="text-[11px] font-semibold mb-1">Wiederkehrend?</div>
+            <select
+              value={recurrence}
+              onChange={(e) => setRecurrence(e.target.value as OverheadRecurrence)}
+              className="w-full rounded-lg border border-slate-300 dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm"
+            >
+              <option value="none">Einmalig — nur in diesem Monat</option>
+              <option value="monthly">Monatlich — jeden Folgemonat</option>
+              <option value="quarterly">Quartal — alle 3 Monate</option>
+              <option value="yearly">Jährlich — jeden 12. Monat</option>
+            </select>
+            {recurrence !== 'none' && (
+              <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                Wird beim ersten Öffnen der Folgemonate automatisch übernommen — bearbeitbar & löschbar wie eine normale Position.
+              </div>
+            )}
+          </label>
         </div>
         {error && <div className="mt-3 text-xs text-red-600">{error}</div>}
         <div className="flex justify-end gap-2 mt-4">

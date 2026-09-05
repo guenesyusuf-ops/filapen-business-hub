@@ -527,14 +527,19 @@ export interface OverheadTemplateInput {
   category: string; label: string;
   amount: string; isGross: boolean; vatRate: string; active?: boolean;
 }
+export type OverheadRecurrence = 'none' | 'monthly' | 'quarterly' | 'yearly';
 export interface OverheadEntry {
   id: string; category: string; label: string;
   enteredAmount: string; isGross: boolean; vatRate: string;
   note: string | null; templateId: string | null;
+  recurrence: OverheadRecurrence;
+  /** Verweis auf Origin-Entry falls dies eine Wiederkehr-Kopie ist. */
+  sourceEntryId: string | null;
 }
 export interface OverheadEntryInput {
   category: string; label: string;
   enteredAmount: string; isGross: boolean; vatRate: string; note?: string;
+  recurrence?: OverheadRecurrence;
 }
 
 // ---------------------------------------------------------------------------
