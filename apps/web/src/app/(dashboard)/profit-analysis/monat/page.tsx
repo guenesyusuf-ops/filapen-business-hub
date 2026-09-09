@@ -11,6 +11,7 @@ import {
   ProductCostRow,
 } from '@/lib/profit-analysis/api';
 import { formatEur, formatPercent, formatDate } from '@/lib/profit-analysis/formatters';
+import { loadDraft, saveDraft, clearDraft, listDraftDates } from '@/lib/profit-analysis/draftStore';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 import { cn } from '@/lib/utils';
 
@@ -32,9 +33,15 @@ export default function MonatPage() {
   const flushRef = useRef<() => Promise<void>>(async () => {});
   const registerFlush = useCallback((fn: () => Promise<void>) => { flushRef.current = fn; }, []);
 
+  // Entwuerfe gehen beim Wechsel NICHT mehr verloren (localStorage-Spiegel),
+  // die Rueckfrage bleibt aber als Erinnerung: noch nicht in der Datenbank.
   function confirmDiscardIfDirty(): boolean {
     if (!dayDirty) return true;
-    return window.confirm('Es gibt ungespeicherte Änderungen. Beim Wechsel gehen sie verloren. Trotzdem wechseln?');
+    return window.confirm(
+      'Dieser Tag hat Änderungen, die noch nicht in der Datenbank stehen.\n\n'
+      + 'Sie bleiben als Entwurf erhalten und werden beim Zurückkehren wiederhergestellt — '
+      + 'gespeichert sind sie damit aber nicht.\n\nTrotzdem wechseln?',
+    );
   }
 
   const load = useCallback(async () => {
@@ -64,6 +71,22 @@ export default function MonatPage() {
     (computed?.days ?? []).forEach((d) => m.set(d.date, d));
     return m;
   }, [computed]);
+
+  // Lueckenpruefung: welche vergangenen Tage des Monats haben keinerlei Daten?
+  // Genau das ist im August 2026 wochenlang unbemerkt geblieben.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const missingDates = useMemo(
+    () => daysOfMonth.filter((d) => d <= todayIso && isDayEmpty(rawByDate.get(d))),
+    [daysOfMonth, rawByDate, todayIso],
+  );
+  const missingSet = useMemo(() => new Set(missingDates), [missingDates]);
+
+  // Ungespeicherte Entwuerfe dieses Monats (localStorage)
+  const [draftDates, setDraftDates] = useState<string[]>([]);
+  useEffect(() => {
+    setDraftDates(listDraftDates(year, month));
+  }, [year, month, dayDirty, selectedDate, raw]);
+  const draftSet = useMemo(() => new Set(draftDates), [draftDates]);
 
   function prevMonth() {
     if (!confirmDiscardIfDirty()) return;
@@ -133,6 +156,63 @@ export default function MonatPage() {
         </div>
       )}
 
+      {/* Ungespeicherte Entwuerfe — hoechste Prioritaet, das sind Daten die fehlen wuerden */}
+      {draftDates.length > 0 && (
+        <div className="rounded-xl border-2 border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <div className="text-sm text-amber-900 dark:text-amber-200 flex-1 min-w-0">
+              <div className="font-bold">
+                {draftDates.length} {draftDates.length === 1 ? 'Tag hat' : 'Tage haben'} ungespeicherte Eingaben
+              </div>
+              <div className="mt-0.5 text-xs">
+                Diese Werte stehen nur lokal im Browser und noch <strong>nicht</strong> in der Datenbank.
+                Tag öffnen und auf „Speichern" klicken.
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {draftDates.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => selectDay(d)}
+                    className="rounded-md bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 text-xs font-semibold tabular-nums"
+                  >
+                    {formatDate(d)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Luecken-Warnung: vergangene Tage ohne jede Eingabe */}
+      {!loading && missingDates.length > 0 && (
+        <div className="rounded-xl border border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+            <div className="text-sm text-red-900 dark:text-red-200 flex-1 min-w-0">
+              <div className="font-bold">
+                {missingDates.length} von {daysOfMonth.filter((d) => d <= todayIso).length} vergangenen Tagen ohne Daten
+              </div>
+              <div className="mt-0.5 text-xs">
+                In diesen Tagen ist kein Umsatz, keine Werbung und keine Stückzahl erfasst.
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {missingDates.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => selectDay(d)}
+                    className="rounded-md border border-red-300 dark:border-red-500/40 hover:bg-red-100 dark:hover:bg-red-500/20 px-2 py-1 text-xs font-medium tabular-nums text-red-800 dark:text-red-300"
+                  >
+                    {formatDate(d)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Empty State §81: leerer Monat */}
       {computed && computed.days.length === 0 && !loading && (
         <div className="rounded-2xl border border-dashed border-slate-300 dark:border-white/10 p-8 text-center">
@@ -189,6 +269,8 @@ export default function MonatPage() {
             rawByDate={rawByDate}
             selectedDate={selectedDate}
             onSelect={selectDay}
+            missingSet={missingSet}
+            draftSet={draftSet}
           />
 
           {/* Selected Day Editor — key={date} sorgt fuer sauberen Buffer-Reset */}
@@ -233,11 +315,21 @@ function DayEditor({
 }) {
   const [tab, setTab] = useState<Channel>('shopify');
 
-  // Buffer fuer alle noch nicht gespeicherten Aenderungen
-  const [pendingAds, setPendingAds] = useState<AdsPatch>({});
-  const [pendingShipping, setPendingShipping] = useState<ShippingPatch>({});
-  const [pendingSales, setPendingSales] = useState<Record<Channel, SalesPatch>>({ shopify: {}, amazon: {}, tiktok: {} });
-  const [pendingProductSales, setPendingProductSales] = useState<Record<string, number>>({});
+  // Buffer fuer alle noch nicht gespeicherten Aenderungen.
+  // Startwert kommt aus dem localStorage-Entwurf, falls ein frueherer Versuch
+  // nicht durchging (fehlgeschlagener Save, Crash, Tab geschlossen).
+  // key={date} am DayEditor sorgt dafuer, dass dieser Initializer pro Tag
+  // genau einmal laeuft.
+  const restored = useRef(loadDraft(date)).current;
+  const [pendingAds, setPendingAds] = useState<AdsPatch>(() => (restored?.ads as AdsPatch) ?? {});
+  const [pendingShipping, setPendingShipping] = useState<ShippingPatch>(() => (restored?.shipping as ShippingPatch) ?? {});
+  const [pendingSales, setPendingSales] = useState<Record<Channel, SalesPatch>>(() => ({
+    shopify: (restored?.sales?.shopify as SalesPatch) ?? {},
+    amazon: (restored?.sales?.amazon as SalesPatch) ?? {},
+    tiktok: (restored?.sales?.tiktok as SalesPatch) ?? {},
+  }));
+  const [pendingProductSales, setPendingProductSales] = useState<Record<string, number>>(() => restored?.productSales ?? {});
+  const [restoredNotice, setRestoredNotice] = useState<number | null>(restored?.updatedAt ?? null);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -253,6 +345,19 @@ function DayEditor({
 
   // Melde Dirty-Zustand an Parent
   useEffect(() => { onDirtyChange(isDirty); }, [isDirty, onDirtyChange]);
+
+  // Jede Aenderung sofort als Entwurf spiegeln. Damit ueberleben Eingaben
+  // Crash, Tab-Close, Reload und Tageswechsel — auch wenn das Speichern
+  // fehlschlaegt. Leerer Buffer loescht den Entwurf automatisch.
+  useEffect(() => {
+    if (readonly) return;
+    saveDraft(date, {
+      ads: pendingAds as Record<string, string>,
+      shipping: pendingShipping as Record<string, number>,
+      sales: pendingSales as unknown as Record<string, Record<string, string>>,
+      productSales: pendingProductSales,
+    });
+  }, [date, readonly, pendingAds, pendingShipping, pendingSales, pendingProductSales]);
 
   const rawSales = raw?.channelSales[tab] ?? { channel: tab, gross19: '0', gross7: '0', returns19: '0', returns7: '0' };
   const rawAds = raw?.ads ?? { meta: '0', google: '0', influencer: '0', amazonPpc: '0', tiktokAds: '0' };
@@ -303,15 +408,19 @@ function DayEditor({
 
     try {
       await profitAnalysisApi.daily.patchBatch(date, payload);
+      // Erst jetzt — nach bestaetigtem Schreiben — darf der Entwurf weg.
+      clearDraft(date);
       setPendingAds({}); setPendingShipping({});
       setPendingSales({ shopify: {}, amazon: {}, tiktok: {} });
       setPendingProductSales({});
       setLastSavedAt(Date.now()); setLastEditAt(null);
+      setRestoredNotice(null);
       onSaved();
     } catch (e: any) {
       const detail = e?.message ?? String(e);
       console.error('[SaveBar] batch failed:', e);
       setSaveError(detail);
+      // Entwurf bleibt bewusst bestehen — er ist die einzige Kopie der Eingaben.
     } finally {
       setSaving(false);
     }
@@ -362,14 +471,28 @@ function DayEditor({
         </div>
       </div>
 
+      {restoredNotice && isDirty && !saveError && (
+        <div className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+          <div className="text-xs text-amber-900 dark:text-amber-200 flex-1 min-w-0">
+            <div className="font-semibold">Ungespeicherter Entwurf wiederhergestellt</div>
+            <div className="mt-0.5">
+              Diese Eingaben von {formatDraftAge(restoredNotice)} wurden nie in die Datenbank geschrieben.
+              Prüfen und auf „Speichern" klicken.
+            </div>
+          </div>
+        </div>
+      )}
+
       {saveError && (
-        <div className="rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 py-2 flex items-start gap-2">
-          <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
-          <div className="text-xs text-red-800 dark:text-red-300 flex-1 min-w-0">
-            <div className="font-semibold">Speichern fehlgeschlagen</div>
-            <div className="mt-0.5 break-words">{saveError}</div>
-            <div className="mt-1 text-red-600/70 dark:text-red-400/70">
-              Deine Eingaben stehen weiterhin im Buffer und sind nicht verloren. Nochmal „Speichern" klicken oder ins Browser-Konsolen-Log für Details schauen.
+        <div className="rounded-xl border-2 border-red-400 dark:border-red-500/60 bg-red-50 dark:bg-red-500/15 px-4 py-3 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+          <div className="text-sm text-red-900 dark:text-red-200 flex-1 min-w-0">
+            <div className="font-bold text-base">Nicht gespeichert — Daten sind noch nicht in der Datenbank</div>
+            <div className="mt-1 break-words font-mono text-xs bg-red-100/60 dark:bg-red-500/10 rounded px-2 py-1">{saveError}</div>
+            <div className="mt-2 text-red-700 dark:text-red-300">
+              Deine Eingaben sind lokal als Entwurf gesichert und überstehen auch Reload oder Absturz —
+              sie stehen aber <strong>noch nicht</strong> im Monat. Nochmal auf „Speichern" klicken.
             </div>
           </div>
         </div>
@@ -794,13 +917,15 @@ const VIEW_OPTIONS: Array<{ key: ViewKey; label: string }> = [
 ];
 
 function MonthTable({
-  daysOfMonth, computedByDate, rawByDate, selectedDate, onSelect,
+  daysOfMonth, computedByDate, rawByDate, selectedDate, onSelect, missingSet, draftSet,
 }: {
   daysOfMonth: string[];
   computedByDate: Map<string, ComputedDay>;
   rawByDate: Map<string, RawDay>;
   selectedDate: string | null;
   onSelect: (d: string) => void;
+  missingSet: Set<string>;
+  draftSet: Set<string>;
 }) {
   const [view, setView] = useState<ViewKey>(() => {
     if (typeof window === 'undefined') return 'compact';
@@ -881,15 +1006,34 @@ function MonthTable({
           <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {rows.map(({ date: dateIso, computed: c, raw: rd }) => {
               const isSelected = selectedDate === dateIso;
+              const isMissing = missingSet.has(dateIso);
+              const hasDraft = draftSet.has(dateIso);
               const rowClass = cn(
                 'cursor-pointer',
-                isSelected ? 'bg-amber-50 dark:bg-amber-500/10' : 'hover:bg-slate-50 dark:hover:bg-white/[0.02]',
+                isSelected ? 'bg-amber-50 dark:bg-amber-500/10'
+                  : hasDraft ? 'bg-amber-50/60 dark:bg-amber-500/[0.07] hover:bg-amber-50 dark:hover:bg-amber-500/10'
+                  : isMissing ? 'bg-red-50/60 dark:bg-red-500/[0.07] hover:bg-red-50 dark:hover:bg-red-500/10'
+                  : 'hover:bg-slate-50 dark:hover:bg-white/[0.02]',
               );
-              const stickyBg = isSelected ? 'bg-amber-50 dark:bg-amber-500/10' : 'bg-white dark:bg-[#0f1117]';
+              const stickyBg = isSelected ? 'bg-amber-50 dark:bg-amber-500/10'
+                : hasDraft ? 'bg-amber-50/60 dark:bg-[#1c1a15]'
+                : isMissing ? 'bg-red-50/60 dark:bg-[#1c1517]'
+                : 'bg-white dark:bg-[#0f1117]';
               return (
                 <tr key={dateIso} onClick={() => onSelect(dateIso)} className={rowClass}>
                   <td className={cn('px-3 py-2 sticky left-0 z-10 border-r border-slate-100 dark:border-white/5', stickyBg)}>
-                    <span className="font-medium text-slate-900 dark:text-white tabular-nums whitespace-nowrap">{formatDate(dateIso)}</span>
+                    <span className={cn(
+                      'font-medium tabular-nums whitespace-nowrap',
+                      isMissing ? 'text-red-700 dark:text-red-300' : 'text-slate-900 dark:text-white',
+                    )}>{formatDate(dateIso)}</span>
+                    {hasDraft && (
+                      <span title="Ungespeicherte Eingaben — nur lokal im Browser" className="ml-1 inline-flex text-amber-600 dark:text-amber-400">
+                        <Circle className="h-2 w-2 fill-current" />
+                      </span>
+                    )}
+                    {isMissing && !hasDraft && (
+                      <span title="Keine Daten erfasst" className="ml-1 text-[10px] font-bold uppercase text-red-600 dark:text-red-400">leer</span>
+                    )}
                     {c?.warnings.length ? (
                       <span title={c.warnings.join('\n')} className="ml-1 inline-flex text-amber-500"><AlertCircle className="h-3 w-3" /></span>
                     ) : null}
@@ -1116,6 +1260,28 @@ function enumerateDays(year: number, month: number): string[] {
     days.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
   }
   return days;
+}
+
+/**
+ * Ein Tag gilt als leer, wenn weder Umsatz noch Werbung noch Stueckzahlen
+ * erfasst sind. Ein angelegter pa_day ohne Werte zaehlt ebenfalls als leer —
+ * sonst wuerde eine halb abgebrochene Eingabe als "erledigt" durchgehen.
+ */
+function isDayEmpty(rd: RawDay | null | undefined): boolean {
+  if (!rd) return true;
+  const channels: Channel[] = ['shopify', 'amazon', 'tiktok'];
+  for (const ch of channels) {
+    const cs = rd.channelSales[ch];
+    if (!cs) continue;
+    if (Number(cs.gross19) !== 0 || Number(cs.gross7) !== 0) return false;
+    if (Number(cs.returns19) !== 0 || Number(cs.returns7) !== 0) return false;
+  }
+  if (rd.productSales.some((p) => p.quantity > 0)) return false;
+  const a = rd.ads;
+  if (a && [a.meta, a.google, a.influencer, a.amazonPpc, a.tiktokAds].some((v) => Number(v) !== 0)) return false;
+  const s = rd.shipping;
+  if (s && (s.shopifyPackages > 0 || s.tiktokPackages > 0)) return false;
+  return true;
 }
 
 function tabLabel(t: Channel) { return t === 'shopify' ? 'Shopify' : t === 'amazon' ? 'Amazon' : 'TikTok'; }
@@ -1353,6 +1519,17 @@ function QtyInput({ value, dirty, disabled, onCommit }: {
 // -----------------------------------------------------------------------------
 // SaveBar: manueller Speicher-Button, zeigt Anzahl offener Änderungen + Status
 // -----------------------------------------------------------------------------
+
+/** "vor 3 Minuten" / "vor 2 Tagen" — fuer den Entwurfs-Hinweis. */
+function formatDraftAge(ts: number): string {
+  const mins = Math.max(0, Math.round((Date.now() - ts) / 60_000));
+  if (mins < 1) return 'gerade eben';
+  if (mins < 60) return `vor ${mins} Minute${mins === 1 ? '' : 'n'}`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `vor ${hours} Stunde${hours === 1 ? '' : 'n'}`;
+  const days = Math.round(hours / 24);
+  return `vor ${days} Tag${days === 1 ? '' : 'en'}`;
+}
 
 function SaveBar({ isDirty, dirtyCount, saving, saveError, lastSavedAt, onSave }: {
   isDirty: boolean;
