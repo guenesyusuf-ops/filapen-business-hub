@@ -127,6 +127,27 @@ export interface ComputedMonth {
   netSalesWithWholesale: string;
   /** Datenqualitaet — reist mit der Zahl mit, statt nur auf der Tagesseite zu stehen. */
   dataQuality: ComputedDataQuality;
+  /**
+   * Beim Monatsabschluss eingefrorene Werte, sofern der Monat abgeschlossen ist.
+   *
+   * computeMonth rechnet IMMER live aus der Historie. Eine rueckwirkend
+   * eingetragene Produktkost oder ein geaenderter Setting-Wert schreibt einen
+   * abgeschlossenen Monat damit still um — fuer ein Controlling fatal, weil
+   * der Wert, auf dem eine Entscheidung beruhte, nicht mehr auffindbar ist.
+   * Der Snapshot existierte bereits, wurde aber von niemandem gelesen
+   * (months.snapshot() ist im Frontend nirgends aufgerufen).
+   *
+   * Die Zahlen bleiben bewusst live — sonst waere die Tagesansicht eines
+   * abgeschlossenen Monats nicht mehr nachvollziehbar. Stattdessen wird eine
+   * Abweichung sichtbar gemacht.
+   */
+  closedSnapshot: {
+    computedAt: string;
+    operatingProfit: string;
+    netSalesWithWholesale: string;
+    /** true, wenn die Live-Berechnung vom eingefrorenen Wert abweicht. */
+    drift: boolean;
+  } | null;
 }
 
 /**
@@ -171,6 +192,7 @@ export class CalculationService {
         operatingMargin: null,
         netSalesWithWholesale: '0',
         dataQuality: this.zeroDataQuality(),
+        closedSnapshot: null,
       };
     }
 
@@ -266,6 +288,14 @@ export class CalculationService {
     const operatingProfit = profitBeforeOverheadWithWholesale.minus(overheadRaw.totalNet);
     const operatingMargin = margin(operatingProfit, netSalesTotalWithWholesale);
 
+    // Eingefrorenen Abschlusswert gegen die Live-Rechnung halten.
+    const closedSnapshot = await this.loadClosedSnapshot(
+      monthRow.id,
+      monthRow.status as string,
+      round2(operatingProfit).toString(),
+      round2(netSalesTotalWithWholesale).toString(),
+    );
+
     return {
       year, month,
       status: monthRow.status as any,
@@ -278,6 +308,7 @@ export class CalculationService {
       operatingMargin: operatingMargin?.toString() ?? null,
       netSalesWithWholesale: round2(netSalesTotalWithWholesale).toString(),
       dataQuality,
+      closedSnapshot,
     };
   }
 
@@ -290,6 +321,31 @@ export class CalculationService {
       ordersWithoutDeliveryDate: 0,
     };
   }
+  /**
+   * Liest den beim Monatsabschluss eingefrorenen Snapshot und vergleicht ihn
+   * mit der aktuellen Live-Berechnung. Nur fuer abgeschlossene/gesperrte
+   * Monate — ein offener Monat darf sich aendern.
+   */
+  private async loadClosedSnapshot(
+    monthId: string,
+    status: string,
+    liveOperatingProfit: string,
+    liveNetSales: string,
+  ): Promise<ComputedMonth['closedSnapshot']> {
+    if (status !== 'closed' && status !== 'locked') return null;
+    const snap = await this.prisma.paMonthSnapshot.findUnique({ where: { monthId } });
+    if (!snap) return null;
+    const json = snap.snapshotJson as any;
+    const frozenProfit = String(json?.operatingProfit ?? '0');
+    const frozenNet = String(json?.netSalesWithWholesale ?? '0');
+    return {
+      computedAt: snap.computedAt.toISOString(),
+      operatingProfit: frozenProfit,
+      netSalesWithWholesale: frozenNet,
+      drift: frozenProfit !== liveOperatingProfit || frozenNet !== liveNetSales,
+    };
+  }
+
   private zeroDataQuality(): ComputedDataQuality {
     return {
       profitIncomplete: false, daysWithWarnings: 0, warnings: [],

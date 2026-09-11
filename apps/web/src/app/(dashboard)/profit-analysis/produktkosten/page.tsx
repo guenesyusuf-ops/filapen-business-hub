@@ -33,6 +33,9 @@ export default function ProduktkostenPage() {
         missingCosts: filter === 'missing-costs' || undefined,
         missingFulfillment: filter === 'missing-fulfillment' || undefined,
         includeDisabled: true,   // Produktkosten-Seite zeigt IMMER alle (inkl. deaktivierte)
+        status: 'all',           // auch archivierte/Draft — ihre Verkaufszeilen zaehlen weiter mit
+        limit: 500,              // ohne limit greift der Backend-Default 100; ab Produkt 101
+                                 // waren die alphabetisch hinteren nie bepreisbar
       });
       let items = res.items;
       if (filter === 'disabled') items = items.filter((r) => !r.enabled);
@@ -508,7 +511,15 @@ function CostEditorDrawer({
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  // LOKALES Datum, nicht UTC. toISOString() liefert in Berlin (UTC+2)
+  // zwischen 00:00 und 02:00 den VORTAG — ein nachts gesetzter Stichtag
+  // landete dadurch einen Tag zu frueh und verschob Kosten in den falschen
+  // Monat (z.B. 40 Pakete x 1,00 EUR aus dem Juli zurueck in den Juni).
+  const d = new Date();
+  const jahr = d.getFullYear();
+  const monat = String(d.getMonth() + 1).padStart(2, '0');
+  const tag = String(d.getDate()).padStart(2, '0');
+  return `${jahr}-${monat}-${tag}`;
 }
 
 // -----------------------------------------------------------------------------

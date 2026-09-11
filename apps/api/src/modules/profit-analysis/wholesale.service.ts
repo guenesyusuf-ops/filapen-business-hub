@@ -112,10 +112,15 @@ export class WholesaleService {
           productCostSnapshot: snapshotStr ? new Prisma.Decimal(snapshotStr) : new Prisma.Decimal(0),
         };
       }));
-      await this.prisma.paWholesaleOrderItem.deleteMany({ where: { orderId } });
-      await this.prisma.paWholesaleOrderItem.createMany({
-        data: itemsWithSnapshot.map((i) => ({ ...i, orderId })),
-      });
+      // Loeschen und Neuanlegen MUSS atomar sein. Ohne Transaktion blieb der
+      // Auftrag bei einem Fehler im createMany ohne jede Position zurueck —
+      // sein Umsatz fiel damit still auf 0, ohne Fehlermeldung.
+      await this.prisma.$transaction([
+        this.prisma.paWholesaleOrderItem.deleteMany({ where: { orderId } }),
+        this.prisma.paWholesaleOrderItem.createMany({
+          data: itemsWithSnapshot.map((i) => ({ ...i, orderId })),
+        }),
+      ]);
     }
 
     const updated = await this.prisma.paWholesaleOrder.update({

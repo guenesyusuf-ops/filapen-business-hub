@@ -67,14 +67,25 @@ export class SettingsService {
     if (defaultValue === undefined) {
       throw new NotFoundException(`Unbekannter Setting-Key: ${key}`);
     }
-    await this.prisma.paSettingHistory.create({
-      data: {
+    // upsert statt create: period.service faehrt bis zu 12 computeMonth
+    // parallel. Fehlte ein Key komplett, liefen alle 12 gleichzeitig in
+    // create mit demselben (orgId, key, 2000-01-01) — Unique-Verletzung
+    // P2002, und der ganze Jahres- oder Quartalsvergleich schlug fehl.
+    await this.prisma.paSettingHistory.upsert({
+      where: {
+        orgId_key_effectiveFrom: {
+          orgId, key,
+          effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
+        },
+      },
+      create: {
         orgId,
         key,
         value: new Prisma.Decimal(defaultValue),
         effectiveFrom: new Date('2000-01-01T00:00:00.000Z'),
         note: 'Automatisch angelegter Default beim ersten Lookup',
       },
+      update: {},
     });
     return defaultValue;
   }
@@ -142,7 +153,9 @@ export class SettingsService {
     userId: string | null,
     note?: string,
   ): Promise<SettingCurrentValue> {
-    if (!SETTING_DEFAULTS[key]) {
+    // === statt Falsy-Pruefung: sobald ein Key den Default '0' bekommt,
+    // wuerde setValue ihn sonst als "unbekannt" ablehnen.
+    if (SETTING_DEFAULTS[key] === undefined) {
       throw new BadRequestException(`Unbekannter Setting-Key: ${key}`);
     }
     const parsed = this.parseValue(newValue);

@@ -17,6 +17,7 @@ function makePrismaMock(overrides: Partial<any> = {}) {
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
+      upsert: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
     },
@@ -52,16 +53,19 @@ describe('SettingsService.getValueAt', () => {
     expect(args.orderBy).toEqual({ effectiveFrom: 'desc' });
   });
 
-  it('legt bei fehlender Historie den Default-Wert lazy an', async () => {
+  it('legt bei fehlender Historie den Default-Wert lazy an — per upsert', async () => {
+    // upsert statt create, damit parallele computeMonth-Aufrufe (bis zu 12 im
+    // Jahresvergleich) nicht in eine Unique-Verletzung auf
+    // (orgId, key, 2000-01-01) laufen und den ganzen Vergleich killen.
     prisma.paSettingHistory.findFirst.mockResolvedValueOnce(null);
-    prisma.paSettingHistory.create.mockResolvedValueOnce({});
+    prisma.paSettingHistory.upsert.mockResolvedValueOnce({});
     const v = await svc.getValueAt(ORG, SETTING_KEYS.FEE_AMAZON, new Date('2026-08-20'));
     expect(v).toBe('15.0');
-    expect(prisma.paSettingHistory.create).toHaveBeenCalledOnce();
-    const data = prisma.paSettingHistory.create.mock.calls[0][0].data;
-    expect(data.orgId).toBe(ORG);
-    expect(data.key).toBe(SETTING_KEYS.FEE_AMAZON);
-    expect(data.effectiveFrom.toISOString().slice(0, 10)).toBe('2000-01-01');
+    expect(prisma.paSettingHistory.upsert).toHaveBeenCalledOnce();
+    const args = prisma.paSettingHistory.upsert.mock.calls[0][0];
+    expect(args.where.orgId_key_effectiveFrom.orgId).toBe(ORG);
+    expect(args.where.orgId_key_effectiveFrom.key).toBe(SETTING_KEYS.FEE_AMAZON);
+    expect(args.create.effectiveFrom.toISOString().slice(0, 10)).toBe('2000-01-01');
   });
 
   it('respektiert Perioden-Grenze: sucht Wert der am gefragten Datum galt', async () => {

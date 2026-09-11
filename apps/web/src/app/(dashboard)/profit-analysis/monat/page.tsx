@@ -1397,7 +1397,13 @@ function ProductSalesSection({ channel, productSales, pendingProductSales, reado
     setLoading(true);
     (async () => {
       try {
-        const res = await profitAnalysisApi.productCosts.list({ limit: 500, channel });
+        // includeDisabled: ein deaktiviertes Produkt verschwand aus dieser
+        // Liste, seine bereits erfassten Stueckzahlen zaehlten aber weiter in
+        // Wareneinsatz und Gesamt-Stueckzahl. Der Kopf zeigte dann z.B.
+        // "120 Stk.", die sichtbaren Zeilen ergaben 100 — und die Differenz
+        // war weder auffindbar noch korrigierbar. Deaktivierte Produkte werden
+        // jetzt geladen und unten nur dann gerendert, wenn sie eine Menge haben.
+        const res = await profitAnalysisApi.productCosts.list({ limit: 500, channel, includeDisabled: true });
         setProducts(res.items);
       } finally { setLoading(false); }
     })();
@@ -1412,6 +1418,11 @@ function ProductSalesSection({ channel, productSales, pendingProductSales, reado
   };
 
   const filtered = products.filter((p) => {
+    // Deaktivierte Produkte bleiben fuer NEUE Eingaben ausgeblendet — der
+    // Kill-Switch wirkt also weiter. Hat ein deaktiviertes Produkt an diesem
+    // Tag aber bereits eine Menge, wird die Zeile gezeigt, damit die Stueckzahl
+    // sichtbar und korrigierbar bleibt statt unsichtbar mitzulaufen.
+    if (!p.enabled && effectiveQtyOf(p.productId) === 0) return false;
     if (!search.trim()) return true;
     const s = search.toLowerCase();
     return p.title.toLowerCase().includes(s) || p.sku?.toLowerCase().includes(s) || p.externalId.toLowerCase().includes(s);

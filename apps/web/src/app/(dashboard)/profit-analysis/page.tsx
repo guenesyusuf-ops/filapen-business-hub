@@ -378,6 +378,30 @@ export default function OverviewPage() {
         </div>
       )}
 
+      {/* Abgeschlossener Monat wurde rueckwirkend veraendert. */}
+      {!loading && focusMonth?.closedSnapshot?.drift && (
+        <div className="rounded-xl border-2 border-orange-400 dark:border-orange-500/60 bg-orange-50 dark:bg-orange-500/15 px-4 py-3 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-orange-600 dark:text-orange-400" />
+          <div className="text-sm text-orange-900 dark:text-orange-200">
+            <div className="font-bold">Abgeschlossener Monat hat sich nachträglich verändert</div>
+            <div className="mt-1 space-y-0.5">
+              <div>
+                Beim Abschluss am {new Date(focusMonth.closedSnapshot.computedAt).toLocaleDateString('de-DE')}:
+                {' '}<strong>{formatEur(focusMonth.closedSnapshot.operatingProfit)}</strong> operativer Gewinn
+              </div>
+              <div>
+                Aktuelle Berechnung: <strong>{formatEur(focusMonth.operatingProfit)}</strong>
+              </div>
+            </div>
+            <div className="mt-1 text-xs text-orange-700 dark:text-orange-300">
+              Ursache ist meist eine rückwirkend eingetragene Produktkost oder ein geänderter
+              Einstellungswert. Der Monat wird immer live aus der Historie gerechnet — der
+              eingefrorene Wert bleibt als Vergleich erhalten.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Unvollstaendiger Wareneinsatz — der Gewinn erscheint dadurch zu hoch. */}
       {!loading && (() => {
         const dq = rangeMonths

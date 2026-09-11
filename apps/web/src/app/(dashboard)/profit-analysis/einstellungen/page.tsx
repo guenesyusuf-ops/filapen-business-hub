@@ -409,8 +409,15 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 function todayIso(): string {
+  // LOKALES Datum, nicht UTC. toISOString() liefert in Berlin (UTC+2)
+  // zwischen 00:00 und 02:00 den VORTAG — ein nachts gesetzter Stichtag
+  // landete dadurch einen Tag zu frueh und verschob Kosten in den falschen
+  // Monat (z.B. 40 Pakete x 1,00 EUR aus dem Juli zurueck in den Juni).
   const d = new Date();
-  return d.toISOString().slice(0, 10);
+  const jahr = d.getFullYear();
+  const monat = String(d.getMonth() + 1).padStart(2, '0');
+  const tag = String(d.getDate()).padStart(2, '0');
+  return `${jahr}-${monat}-${tag}`;
 }
 
 /** Erzeugt ein rechenbares Beispiel fuer die Tooltip-Anzeige. */

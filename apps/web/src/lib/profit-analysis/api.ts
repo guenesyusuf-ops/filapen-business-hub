@@ -672,6 +672,17 @@ export interface ComputedMonth {
     wholesalePositionsWithoutCostRate: number;
     wholesaleOrdersWithoutDeliveryDate: number;
   };
+  /**
+   * Beim Abschluss eingefrorene Werte. drift=true heisst: der Monat wurde
+   * seit dem Abschluss rueckwirkend veraendert (z.B. durch eine Produktkost
+   * mit Gueltigkeit in der Vergangenheit).
+   */
+  closedSnapshot: {
+    computedAt: string;
+    operatingProfit: string;
+    netSalesWithWholesale: string;
+    drift: boolean;
+  } | null;
   overhead: {
     entries: Array<{
       id: string; category: string; label: string;

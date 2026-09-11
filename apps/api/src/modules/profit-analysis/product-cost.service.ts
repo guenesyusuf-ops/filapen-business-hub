@@ -71,7 +71,11 @@ export class ProductCostService {
     missingCostsCount: number;
     missingFulfillmentCount: number;
   }> {
-    const status = q.status && q.status !== 'all' ? q.status : 'active';
+    // 'all' blieb hier frueher im else-Zweig haengen und wurde still zu
+    // 'active'. Archivierte und Draft-Produkte waren dadurch NIE bepreisbar,
+    // ihre historischen Verkaufszeilen zaehlten aber weiter mit — Wareneinsatz
+    // blieb fuer sie dauerhaft 0.
+    const status: 'active' | 'archived' | 'draft' | 'all' = q.status ?? 'active';
     const limit = Math.min(500, Math.max(1, q.limit ?? 100));
     const offset = Math.max(0, q.offset ?? 0);
     const today = this.toDateOnly(new Date());
@@ -186,8 +190,22 @@ export class ProductCostService {
       items = items.filter((r) => r.channels.length === 0 || r.channels.includes(wanted));
     }
 
-    const missingCostsCount = products.length - costByProduct.size;
-    const missingFulfillmentCount = products.length - ffByProduct.size;
+    // Zwei verschiedene Grundmengen voneinander abzuziehen ergab Unsinn:
+    // allCurrentCosts laedt ORG-WEIT und ohne Status-Filter, products ist auf
+    // limit=100 und status='active' beschraenkt. Bei 60 aktiven Produkten
+    // (10 ohne Kosten) und 30 archivierten MIT Kosten kam 60 − 80 = −20 heraus,
+    // angezeigt als "−20" in Warn-Farbe. Genau die Kennzahl, mit der der
+    // Nutzer Kostenluecken kontrollieren soll.
+    //
+    // Jetzt ueber dieselbe Menge gezaehlt, die auch gelistet wird — und ueber
+    // ALLE Treffer des Filters, nicht nur die aktuelle Seite.
+    // Passt alles auf eine Seite, reicht die bereits geladene Liste — kein
+    // zusaetzlicher Roundtrip im Normalfall.
+    const alleIds: Array<{ id: string }> = total > products.length
+      ? await this.prisma.product.findMany({ where: productWhere, select: { id: true } })
+      : products.map((p) => ({ id: p.id }));
+    const missingCostsCount = alleIds.filter((p) => !costByProduct.has(p.id)).length;
+    const missingFulfillmentCount = alleIds.filter((p) => !ffByProduct.has(p.id)).length;
 
     return { items, total, missingCostsCount, missingFulfillmentCount };
   }
