@@ -57,11 +57,15 @@ export interface WholesaleAutoAggregate {
   /** Zugeordnet, aber kein Kostensatz deckt den Liefertermin ab (stille 0). */
   positionsWithoutCostRate: number;
   netWithoutCostRate: string;
-  /**
-   * Auftraege ohne Wunschliefertermin. Sie lassen sich keinem Monat zuordnen
-   * und tauchen deshalb in KEINER Auswertung auf — frueher restlos unsichtbar.
-   */
+  /** Auftraege ohne Liefertermin: in keinem Monat sichtbar. */
   ordersWithoutDeliveryDate: number;
+  /**
+   * Kunden-Bestellnummern, die im Zeitraum mehrfach vorkommen — moeglicher
+   * Doppel-Import. SalesOrder hat nur @@unique([orgId, orderNumber]) auf der
+   * SELBST erzeugten internen Nummer; auf externalOrderNumber (PO-Nummer des
+   * Kunden) gibt es weder Constraint noch Pruefung beim Import.
+   */
+  duplicateExternalOrderNumbers: string[];
 }
 
 @Injectable()
@@ -212,6 +216,7 @@ export class WholesaleSyncService {
       positionsWithoutCostRate,
       netWithoutCostRate: round2(netWithoutCostRate).toString(),
       ordersWithoutDeliveryDate: await this.countOrdersWithoutDeliveryDate(orgId),
+      duplicateExternalOrderNumbers: this.findDuplicateExternalNumbers(orders),
     };
 
     return { orders: result, aggregate };
@@ -230,6 +235,30 @@ export class WholesaleSyncService {
    * Wir erfinden keinen Termin (das wuerde Umsatz in einen falschen Monat
    * schieben), machen sie aber zaehlbar, damit nichts mehr still verschwindet.
    */
+  /**
+   * Kunden-Bestellnummern, die im Zeitraum mehrfach vorkommen.
+   *
+   * Dasselbe PDF zweimal importiert ergibt zwei SalesOrder und damit doppelten
+   * Umsatz und Gewinn — der Match-Wizard bittet sogar darum, beide Kopien zu
+   * matchen, ohne den Konflikt zu melden.
+   *
+   * Es wird bewusst nichts automatisch zusammengefuehrt oder geloescht: eine
+   * Teillieferung oder Nachbestellung auf dieselbe PO ist ein legitimer Fall.
+   * Der Nutzer bekommt den Hinweis und entscheidet.
+   */
+  private findDuplicateExternalNumbers(orders: Array<{ externalOrderNumber: string | null }>): string[] {
+    const zaehler = new Map<string, number>();
+    for (const o of orders) {
+      const nr = o.externalOrderNumber?.trim();
+      if (!nr) continue;
+      zaehler.set(nr, (zaehler.get(nr) ?? 0) + 1);
+    }
+    return Array.from(zaehler.entries())
+      .filter(([, n]) => n > 1)
+      .map(([nr]) => nr)
+      .sort();
+  }
+
   private async countOrdersWithoutDeliveryDate(orgId: string): Promise<number> {
     return this.prisma.salesOrder.count({
       where: {

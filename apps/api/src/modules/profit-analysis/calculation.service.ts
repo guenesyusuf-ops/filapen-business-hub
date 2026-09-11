@@ -60,6 +60,8 @@ export interface ComputedWholesaleTotals {
   netWithoutCostRate: string;
   /** Auftraege ohne Liefertermin: in keinem Monat sichtbar. */
   ordersWithoutDeliveryDate: number;
+  /** Mehrfach vorkommende Kunden-Bestellnummern — moeglicher Doppel-Import. */
+  duplicateExternalOrderNumbers: string[];
 }
 
 /**
@@ -82,6 +84,8 @@ export interface ComputedDataQuality {
   wholesaleUnmatchedNet: string;
   wholesalePositionsWithoutCostRate: number;
   wholesaleOrdersWithoutDeliveryDate: number;
+  /** Mehrfach vorkommende Kunden-Bestellnummern. */
+  wholesaleDuplicateOrderNumbers: string[];
 }
 
 export interface ComputedOverheadCategory {
@@ -227,6 +231,7 @@ export class CalculationService {
       positionsWithoutCostRate: syncAgg.positionsWithoutCostRate,
       netWithoutCostRate: syncAgg.netWithoutCostRate,
       ordersWithoutDeliveryDate: syncAgg.ordersWithoutDeliveryDate,
+      duplicateExternalOrderNumbers: syncAgg.duplicateExternalOrderNumbers,
     };
 
     // Gemeinkosten des Monats (inkl. Prozent-Anteil §54)
@@ -274,13 +279,15 @@ export class CalculationService {
         daysWithWarnings > 0
         || syncAgg.unmatchedPositions > 0
         || syncAgg.positionsWithoutCostRate > 0
-        || syncAgg.ordersWithoutDeliveryDate > 0,
+        || syncAgg.ordersWithoutDeliveryDate > 0
+        || syncAgg.duplicateExternalOrderNumbers.length > 0,
       daysWithWarnings,
       warnings: Array.from(dayWarnings).slice(0, 10),
       wholesaleUnmatchedPositions: syncAgg.unmatchedPositions,
       wholesaleUnmatchedNet: syncAgg.unmatchedNet,
       wholesalePositionsWithoutCostRate: syncAgg.positionsWithoutCostRate,
       wholesaleOrdersWithoutDeliveryDate: syncAgg.ordersWithoutDeliveryDate,
+      wholesaleDuplicateOrderNumbers: syncAgg.duplicateExternalOrderNumbers,
     };
 
     // §55, §56, §57
@@ -318,7 +325,7 @@ export class CalculationService {
       totalCost: '0', totalProfit: '0', margin: null,
       unmatchedPositions: 0, unmatchedNet: '0',
       positionsWithoutCostRate: 0, netWithoutCostRate: '0',
-      ordersWithoutDeliveryDate: 0,
+      ordersWithoutDeliveryDate: 0, duplicateExternalOrderNumbers: [],
     };
   }
   /**
@@ -351,6 +358,7 @@ export class CalculationService {
       profitIncomplete: false, daysWithWarnings: 0, warnings: [],
       wholesaleUnmatchedPositions: 0, wholesaleUnmatchedNet: '0',
       wholesalePositionsWithoutCostRate: 0, wholesaleOrdersWithoutDeliveryDate: 0,
+      wholesaleDuplicateOrderNumbers: [],
     };
   }
   private zeroOverhead(): ComputedOverhead {
@@ -519,8 +527,18 @@ export class CalculationService {
     let profit = toD(0);
 
     for (const d of days) {
-      netSales = netSales
-        .plus(toD(d.shopify.profit.netSales)).plus(toD(d.amazon.profit.netSales)).plus(toD(d.tiktok.profit.netSales));
+      // Netto-Umsatz und Gewinn aus dem TAGES-AGGREGAT summieren, nicht aus
+      // den drei Kanalwerten.
+      //
+      // Beides ist gerundet, aber an unterschiedlicher Stelle:
+      //   Kanalweise: Σ (round(shopify) + round(amazon) + round(tiktok))
+      //   Aggregat:   Σ round(shopify + amazon + tiktok)
+      // Die Uebersicht summiert d.aggregate, die Monatsseite summierte die
+      // Kanaele — dieselbe Kennzahl stand auf zwei Seiten mit zwei
+      // verschiedenen Zahlen (gemessen: 15.629,89 gegen 15.629,58 ueber
+      // 31 Tage). Jetzt summieren beide dieselbe Groesse, und die angezeigten
+      // Tageswerte addieren sich exakt auf die angezeigte Monatssumme.
+      netSales = netSales.plus(toD(d.aggregate.totalNetSales));
       grossSales = grossSales
         .plus(d.shopify.vat.grossAdjusted).plus(d.amazon.vat.grossAdjusted).plus(d.tiktok.vat.grossAdjusted);
       vat = vat
@@ -533,8 +551,7 @@ export class CalculationService {
         .plus(toD(d.shopify.profit.shippingCosts)).plus(toD(d.amazon.profit.shippingCosts)).plus(toD(d.tiktok.profit.shippingCosts));
       fees = fees
         .plus(toD(d.shopify.profit.platformFees)).plus(toD(d.amazon.profit.platformFees)).plus(toD(d.tiktok.profit.platformFees));
-      profit = profit
-        .plus(toD(d.shopify.profit.profit)).plus(toD(d.amazon.profit.profit)).plus(toD(d.tiktok.profit.profit));
+      profit = profit.plus(toD(d.aggregate.totalProfit));
     }
 
     return {

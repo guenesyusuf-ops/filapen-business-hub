@@ -657,6 +657,7 @@ export interface ComputedMonth {
     positionsWithoutCostRate: number;
     netWithoutCostRate: string;
     ordersWithoutDeliveryDate: number;
+    duplicateExternalOrderNumbers: string[];
   };
   /**
    * Datenqualitaet des Monats. Reist mit der Zahl mit, damit Uebersicht,
@@ -671,6 +672,7 @@ export interface ComputedMonth {
     wholesaleUnmatchedNet: string;
     wholesalePositionsWithoutCostRate: number;
     wholesaleOrdersWithoutDeliveryDate: number;
+    wholesaleDuplicateOrderNumbers: string[];
   };
   /**
    * Beim Abschluss eingefrorene Werte. drift=true heisst: der Monat wurde

@@ -412,6 +412,7 @@ export default function OverviewPage() {
         const unmatchedNet = dq.reduce((a, q) => a + Number(q.wholesaleUnmatchedNet), 0);
         const ohneSatz = dq.reduce((a, q) => a + q.wholesalePositionsWithoutCostRate, 0);
         const ohneTermin = Math.max(0, ...dq.map((q) => q.wholesaleOrdersWithoutDeliveryDate));
+        const duplikate = Array.from(new Set(dq.flatMap((q) => q.wholesaleDuplicateOrderNumbers)));
         const tagesWarnungen = Array.from(new Set(dq.flatMap((q) => q.warnings))).slice(0, 4);
         return (
           <div className="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3">
@@ -436,6 +437,13 @@ export default function OverviewPage() {
                   <li>
                     <strong>{ohneTermin}</strong> Auftrag/Aufträge ohne Wunschliefertermin — sie lassen sich
                     keinem Monat zuordnen und fehlen in jeder Auswertung.
+                  </li>
+                )}
+                {duplikate.length > 0 && (
+                  <li>
+                    Kunden-Bestellnummer{duplikate.length === 1 ? '' : 'n'} mehrfach vorhanden:{' '}
+                    <strong>{duplikate.join(', ')}</strong> — prüfen, ob es eine Teillieferung ist
+                    oder derselbe Auftrag doppelt importiert wurde.
                   </li>
                 )}
                 {tagesWarnungen.map((w, i) => <li key={i}>{w}</li>)}
