@@ -54,6 +54,8 @@ export interface MixedVatResult {
   grossTotal: D;         // gross19 + gross7 (ohne Retouren-Abzug)
   returnsTotal: D;       // returns19 + returns7
   grossAdjusted: D;      // grossTotal - returnsTotal
+  gross19Adjusted: D;    // gross19 - returns19 (kann negativ sein)
+  gross7Adjusted: D;     // gross7  - returns7  (kann negativ sein)
   net19: D;              // Netto-Anteil 19 % Bereich (nach Retouren)
   net7: D;               // Netto-Anteil 7 % Bereich (nach Retouren)
   netAdjusted: D;        // net19 + net7
@@ -71,8 +73,17 @@ export interface MixedVatResult {
  *   2. Netto + USt aus dem adjusted-Wert herausrechnen
  *   3. Gesamtwerte summieren
  *
- * Negative Werte werden geclampt (returns > gross ergibt netAdjusted = 0),
- * um Rueckerstattungs-Ueberschuss ohne Verlust darzustellen.
+ * Negative Werte werden NICHT geclampt. Uebersteigen die Retouren eines
+ * USt-Topfes den Umsatz desselben Topfes, ist das Netto negativ — genau das
+ * ist der wirtschaftliche Sachverhalt (Rueckerstattungs-Ueberschuss = Verlust).
+ *
+ * Vorher wurde pro Topf auf 0 geclampt, waehrend grossAdjusted ungeclampt
+ * blieb. Dadurch verschwand der Retouren-Ueberhang spurlos aus dem Netto und
+ * die Identitaet grossAdjusted == netAdjusted + vatTotal brach. Fuer ein
+ * Controlling-Modul heisst "Verlust wegdefinieren" systematisch zu hoher
+ * Gewinn — deshalb rechnen wir jetzt vorzeichenrichtig durch.
+ *
+ * Invariante (auch nach roundMixedVat): grossAdjusted == netAdjusted + vatTotal
  */
 export function calculateMixedVat(input: MixedVatInput): MixedVatResult {
   const gross19 = toD(input.gross19);
@@ -86,8 +97,8 @@ export function calculateMixedVat(input: MixedVatInput): MixedVatResult {
   const returnsTotal = ret19.plus(ret7);
   const grossAdjusted = grossTotal.minus(returnsTotal);
 
-  const gross19Adj = maxZero(gross19.minus(ret19));
-  const gross7Adj = maxZero(gross7.minus(ret7));
+  const gross19Adj = gross19.minus(ret19);
+  const gross7Adj = gross7.minus(ret7);
 
   const net19 = netFromGross(gross19Adj, rate19);
   const net7 = netFromGross(gross7Adj, rate7);
@@ -98,6 +109,8 @@ export function calculateMixedVat(input: MixedVatInput): MixedVatResult {
     grossTotal,
     returnsTotal,
     grossAdjusted,
+    gross19Adjusted: gross19Adj,
+    gross7Adjusted: gross7Adj,
     net19,
     net7,
     netAdjusted: net19.plus(net7),
@@ -107,22 +120,37 @@ export function calculateMixedVat(input: MixedVatInput): MixedVatResult {
   };
 }
 
-/** Sicherstellen dass ein Betrag nicht unter 0 rutscht. */
-function maxZero(v: D): D {
-  return v.lt(0) ? toD(0) : v;
-}
-
-/** Gerundete Api-Form von MixedVatResult (2 Nachkommastellen fuer Geldbetraege). */
+/**
+ * Gerundete Api-Form von MixedVatResult (2 Nachkommastellen fuer Geldbetraege).
+ *
+ * Die Summen werden NICHT unabhaengig gerundet, sondern aus den bereits
+ * gerundeten Komponenten gebildet. Sonst gilt round2(a)+round2(b) != round2(a+b)
+ * und die angezeigten Einzelposten summieren sich nicht auf die angezeigte
+ * Summe — in einer Buchhaltung genau das, was Vertrauen kostet.
+ *
+ * Die USt wird pro Topf als Differenz aus den gerundeten Werten abgeleitet.
+ * Damit gilt auch nach dem Runden exakt:
+ *   grossAdjusted == netAdjusted + vatTotal
+ */
 export function roundMixedVat(r: MixedVatResult): MixedVatResult {
+  const g19 = round2(r.gross19Adjusted);
+  const g7 = round2(r.gross7Adjusted);
+  const n19 = round2(r.net19);
+  const n7 = round2(r.net7);
+  const v19 = g19.minus(n19);
+  const v7 = g7.minus(n7);
+
   return {
     grossTotal: round2(r.grossTotal),
     returnsTotal: round2(r.returnsTotal),
-    grossAdjusted: round2(r.grossAdjusted),
-    net19: round2(r.net19),
-    net7: round2(r.net7),
-    netAdjusted: round2(r.netAdjusted),
-    vat19: round2(r.vat19),
-    vat7: round2(r.vat7),
-    vatTotal: round2(r.vatTotal),
+    grossAdjusted: g19.plus(g7),
+    gross19Adjusted: g19,
+    gross7Adjusted: g7,
+    net19: n19,
+    net7: n7,
+    netAdjusted: n19.plus(n7),
+    vat19: v19,
+    vat7: v7,
+    vatTotal: v19.plus(v7),
   };
 }

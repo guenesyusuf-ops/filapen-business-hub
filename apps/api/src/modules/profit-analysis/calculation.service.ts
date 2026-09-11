@@ -52,6 +52,36 @@ export interface ComputedWholesaleTotals {
   totalCost: string;
   totalProfit: string;
   margin: string | null;
+  /** Positionen ohne Produkt-Zuordnung — deren Wareneinsatz fehlt im Gewinn. */
+  unmatchedPositions: number;
+  unmatchedNet: string;
+  /** Zugeordnet, aber kein Kostensatz am Liefertermin — ebenfalls Wareneinsatz 0. */
+  positionsWithoutCostRate: number;
+  netWithoutCostRate: string;
+  /** Auftraege ohne Liefertermin: in keinem Monat sichtbar. */
+  ordersWithoutDeliveryDate: number;
+}
+
+/**
+ * Datenqualitaet eines Monats — aggregiert aus den Tages-Warnungen und dem
+ * Grosshandel.
+ *
+ * Vorher existierten Warnungen ausschliesslich in ComputedDay.warnings. Wer
+ * die Uebersicht, einen Zeitraumvergleich oder einen Export ansah, bekam die
+ * Zahl ohne jeden Hinweis darauf, dass ihr Wareneinsatz unvollstaendig ist.
+ * Die Rechenlogik bleibt unveraendert — der Hinweis wandert nur dorthin mit,
+ * wo die Zahl gelesen wird.
+ */
+export interface ComputedDataQuality {
+  /** true, wenn irgendetwas den ausgewiesenen Gewinn zu hoch erscheinen laesst. */
+  profitIncomplete: boolean;
+  daysWithWarnings: number;
+  /** Deduplizierte Tages-Warnungen, maximal 10. */
+  warnings: string[];
+  wholesaleUnmatchedPositions: number;
+  wholesaleUnmatchedNet: string;
+  wholesalePositionsWithoutCostRate: number;
+  wholesaleOrdersWithoutDeliveryDate: number;
 }
 
 export interface ComputedOverheadCategory {
@@ -95,6 +125,8 @@ export interface ComputedMonth {
   operatingMargin: string | null;
   /** Netto-Umsatz inkl. Grosshandel — Basis fuer §57 und §54. */
   netSalesWithWholesale: string;
+  /** Datenqualitaet — reist mit der Zahl mit, statt nur auf der Tagesseite zu stehen. */
+  dataQuality: ComputedDataQuality;
 }
 
 /**
@@ -138,6 +170,7 @@ export class CalculationService {
         operatingProfit: '0',
         operatingMargin: null,
         netSalesWithWholesale: '0',
+        dataQuality: this.zeroDataQuality(),
       };
     }
 
@@ -167,6 +200,11 @@ export class CalculationService {
       totalCost: syncAgg.totalCost,
       totalProfit: syncAgg.totalProfit,
       margin: syncAgg.margin,
+      unmatchedPositions: syncAgg.unmatchedPositions,
+      unmatchedNet: syncAgg.unmatchedNet,
+      positionsWithoutCostRate: syncAgg.positionsWithoutCostRate,
+      netWithoutCostRate: syncAgg.netWithoutCostRate,
+      ordersWithoutDeliveryDate: syncAgg.ordersWithoutDeliveryDate,
     };
 
     // Gemeinkosten des Monats (inkl. Prozent-Anteil §54)
@@ -200,6 +238,27 @@ export class CalculationService {
       })),
     };
 
+    // Datenqualitaet ueber alle Tage + Grosshandel zusammenfassen
+    const dayWarnings = new Set<string>();
+    let daysWithWarnings = 0;
+    for (const d of days) {
+      if (d.warnings.length > 0) daysWithWarnings++;
+      for (const wmsg of d.warnings) dayWarnings.add(wmsg);
+    }
+    const dataQuality: ComputedDataQuality = {
+      profitIncomplete:
+        daysWithWarnings > 0
+        || syncAgg.unmatchedPositions > 0
+        || syncAgg.positionsWithoutCostRate > 0
+        || syncAgg.ordersWithoutDeliveryDate > 0,
+      daysWithWarnings,
+      warnings: Array.from(dayWarnings).slice(0, 10),
+      wholesaleUnmatchedPositions: syncAgg.unmatchedPositions,
+      wholesaleUnmatchedNet: syncAgg.unmatchedNet,
+      wholesalePositionsWithoutCostRate: syncAgg.positionsWithoutCostRate,
+      wholesaleOrdersWithoutDeliveryDate: syncAgg.ordersWithoutDeliveryDate,
+    };
+
     // §55, §56, §57
     const profitBeforeOverheadWithWholesale = toD(dayTotals.profitBeforeOverhead).plus(toD(syncAgg.totalProfit));
     const operatingProfit = profitBeforeOverheadWithWholesale.minus(overheadRaw.totalNet);
@@ -216,11 +275,25 @@ export class CalculationService {
       operatingProfit: round2(operatingProfit).toString(),
       operatingMargin: operatingMargin?.toString() ?? null,
       netSalesWithWholesale: round2(netSalesTotalWithWholesale).toString(),
+      dataQuality,
     };
   }
 
   private zeroWholesale(): ComputedWholesaleTotals {
-    return { orderCount: 0, totalGross: '0', totalNet: '0', totalVat: '0', totalCost: '0', totalProfit: '0', margin: null };
+    return {
+      orderCount: 0, totalGross: '0', totalNet: '0', totalVat: '0',
+      totalCost: '0', totalProfit: '0', margin: null,
+      unmatchedPositions: 0, unmatchedNet: '0',
+      positionsWithoutCostRate: 0, netWithoutCostRate: '0',
+      ordersWithoutDeliveryDate: 0,
+    };
+  }
+  private zeroDataQuality(): ComputedDataQuality {
+    return {
+      profitIncomplete: false, daysWithWarnings: 0, warnings: [],
+      wholesaleUnmatchedPositions: 0, wholesaleUnmatchedNet: '0',
+      wholesalePositionsWithoutCostRate: 0, wholesaleOrdersWithoutDeliveryDate: 0,
+    };
   }
   private zeroOverhead(): ComputedOverhead {
     return { entries: [], totalNet: '0', totalGross: '0', totalVat: '0', byCategory: [] };
@@ -510,12 +583,27 @@ export class CalculationService {
       w.push('Shopify-Umsatz vorhanden, aber keine Pakete versendet.');
     }
     // Produkt-spezifische Kosten-Luecken (§74)
+    //
+    // Geprueft wird, ob eine Kostenperiode GENAU DIESEN TAG abdeckt — nicht
+    // nur, ob ueberhaupt eine Zeile existiert. Vorher genuegte ein einziger
+    // Kostensatz ab Maerz, um die Warnung fuer den Februar verstummen zu
+    // lassen: sumProductCosts uebersprang die Position still (Wareneinsatz 0,
+    // Gewinn zu hoch), und der Nutzer bekam keinen Hinweis. Genau dieser Fall
+    // trifft jede rueckwirkende Monatserfassung, weil der Dialog beim Anlegen
+    // eines Kostensatzes "heute" vorbelegt.
+    const target = new Date(ctx.dateIso + 'T00:00:00.000Z');
+    const coversDay = (periods: Array<{ from: Date; to: Date | null }> | undefined) =>
+      (periods ?? []).some((p) =>
+        p.from.getTime() <= target.getTime()
+        && (p.to === null || p.to.getTime() >= target.getTime()),
+      );
+
     const missingCost = new Set<string>();
     const missingFulfillment = new Set<string>();
     for (const s of ctx.productSales as any[]) {
       const entry = ctx.costLookup.get(s.productId);
-      if (!entry?.cost.length) missingCost.add(s.productTitle ?? s.productId);
-      if (s.channel === 'amazon' && !entry?.fulfillment.length) {
+      if (!coversDay(entry?.cost)) missingCost.add(s.productTitle ?? s.productId);
+      if (s.channel === 'amazon' && !coversDay(entry?.fulfillment)) {
         missingFulfillment.add(s.productTitle ?? s.productId);
       }
     }

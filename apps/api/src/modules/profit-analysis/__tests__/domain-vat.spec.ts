@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { netFromGross, vatFromGross, grossFromNet, calculateMixedVat } from '../domain/vat';
+import { netFromGross, vatFromGross, grossFromNet, calculateMixedVat, roundMixedVat } from '../domain/vat';
 import { toD, round2 } from '../domain/decimal';
 
 describe('netFromGross', () => {
@@ -111,14 +111,31 @@ describe('calculateMixedVat — Retouren', () => {
     expect(round2(r.netAdjusted).toString()).toBe('1080');
   });
 
-  it('clampt negative Werte bei Ueber-Retouren', () => {
-    // Retoure > Brutto: Netto darf nicht negativ werden
+  it('rechnet Ueber-Retouren vorzeichenrichtig statt zu clampen', () => {
+    // Retoure > Brutto im selben Topf: das Netto MUSS negativ werden.
+    // Frueher wurde hier auf 0 geclampt — der Retouren-Ueberhang verschwand
+    // spurlos und der Gewinn war systematisch zu hoch.
     const r = calculateMixedVat({
       gross19: 100, gross7: 0,
       returns19: 200, returns7: 0,
     });
-    expect(round2(r.net19).toString()).toBe('0');
-    expect(round2(r.vat19).toString()).toBe('0');
+    expect(round2(r.gross19Adjusted).toString()).toBe('-100');
+    expect(round2(r.net19).toString()).toBe('-84.03');
+    expect(round2(r.vat19).toString()).toBe('-15.97');
+    expect(round2(r.grossAdjusted).toString()).toBe('-100');
+  });
+
+  it('verliert eine Retoure nicht, wenn ihr USt-Topf an dem Tag keinen Umsatz hat', () => {
+    // Alltagsfall: 19%-Verkaufstag, Rueckerstattung eines 7%-Artikels.
+    // Frueher: net7 wurde auf 0 geclampt, die 200 EUR verschwanden komplett
+    // und netAdjusted (840.34) war groesser als grossAdjusted (800).
+    const r = calculateMixedVat({
+      gross19: 1000, gross7: 0,
+      returns19: 0, returns7: 200,
+    });
+    expect(round2(r.grossAdjusted).toString()).toBe('800');
+    expect(round2(r.net7).toString()).toBe('-186.92');
+    expect(round2(r.netAdjusted).toString()).toBe('653.42');
   });
 });
 
@@ -156,5 +173,52 @@ describe('calculateMixedVat — Edge Cases', () => {
   it('akzeptiert String-Werte im Input', () => {
     const r = calculateMixedVat({ gross19: '1190.00', gross7: '107.00' });
     expect(round2(r.netAdjusted).toString()).toBe('1100');
+  });
+});
+
+// -----------------------------------------------------------------------------
+// Invariante: grossAdjusted == netAdjusted + vatTotal
+//
+// Dieser Block ist der Grund, warum zwei kritische Rechenfehler jahrelang
+// unentdeckt blieben: es gab keinen einzigen Assert auf die Grundidentitaet.
+// Sie muss roh UND gerundet gelten, in jedem Vorzeichen-Fall.
+// -----------------------------------------------------------------------------
+
+describe('calculateMixedVat — Invariante Brutto = Netto + USt', () => {
+  const faelle: Array<[string, Parameters<typeof calculateMixedVat>[0]]> = [
+    ['nur 19%',                      { gross19: 1190, gross7: 0 }],
+    ['nur 7%',                       { gross19: 0, gross7: 107 }],
+    ['gemischt',                     { gross19: 1190, gross7: 107 }],
+    ['mit Retouren in beiden Toepfen',{ gross19: 1190, gross7: 214, returns19: 119, returns7: 21.4 }],
+    ['Retoure im Topf ohne Umsatz',  { gross19: 1000, gross7: 0, returns19: 0, returns7: 200 }],
+    ['Retoure groesser als Umsatz',  { gross19: 100, gross7: 0, returns19: 200, returns7: 0 }],
+    ['reiner Retourentag',           { gross19: 0, gross7: 0, returns19: 1190, returns7: 0 }],
+    ['krumme Betraege',              { gross19: 9.99, gross7: 4.99, returns19: 1.11, returns7: 0.07 }],
+  ];
+
+  for (const [name, input] of faelle) {
+    it(`gilt roh: ${name}`, () => {
+      const r = calculateMixedVat(input);
+      expect(r.netAdjusted.plus(r.vatTotal).toString())
+        .toBe(r.grossAdjusted.toString());
+    });
+
+    it(`gilt gerundet: ${name}`, () => {
+      const r = roundMixedVat(calculateMixedVat(input));
+      expect(r.netAdjusted.plus(r.vatTotal).toString())
+        .toBe(r.grossAdjusted.toString());
+    });
+
+    it(`Einzelposten summieren sich auf die Summe: ${name}`, () => {
+      const r = roundMixedVat(calculateMixedVat(input));
+      expect(r.net19.plus(r.net7).toString()).toBe(r.netAdjusted.toString());
+      expect(r.vat19.plus(r.vat7).toString()).toBe(r.vatTotal.toString());
+    });
+  }
+
+  it('grossAdjusted bleibt grossTotal minus returnsTotal', () => {
+    const r = calculateMixedVat({ gross19: 1000, gross7: 0, returns19: 0, returns7: 200 });
+    expect(r.grossAdjusted.toString())
+      .toBe(r.grossTotal.minus(r.returnsTotal).toString());
   });
 });

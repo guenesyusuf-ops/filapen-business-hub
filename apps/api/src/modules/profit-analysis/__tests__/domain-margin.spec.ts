@@ -78,3 +78,25 @@ describe('costRatio', () => {
     expect(costRatio(100, 0)).toBeNull();
   });
 });
+
+describe('margin/costRatio — negativer Nenner', () => {
+  it('gibt NULL statt einer positiven Marge bei negativem Netto-Umsatz', () => {
+    // Frueher: -50 / -100 * 100 = +50 -> ein Verlust-Kanal erschien als
+    // bester Kanal des Monats und marginTone() stufte ihn auf 'target'.
+    expect(margin(-50, -100)).toBeNull();
+    expect(margin(300, -1000)).toBeNull();
+  });
+
+  it('gibt NULL bei negativem Netto-Umsatz auch fuer costRatio', () => {
+    expect(costRatio(50, -100)).toBeNull();
+  });
+
+  it('marginTone auf NULL bleibt NULL — kein falsches Gruen', () => {
+    expect(marginTone(margin(-50, -100))).toBeNull();
+  });
+
+  it('positiver Nenner rechnet unveraendert weiter', () => {
+    expect(margin(-50, 100)?.toString()).toBe('-50');
+    expect(costRatio(30, 100)?.toString()).toBe('30');
+  });
+});

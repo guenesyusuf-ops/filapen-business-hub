@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProductCostService } from './product-cost.service';
+import { toD, round2, ONE, HUNDRED } from './domain/decimal';
+import { margin } from './domain/margin';
 
 /**
  * Automatischer Sync des Grosshandel-Bereichs mit dem Verkauf-Modul (/sales).
@@ -50,6 +52,16 @@ export interface WholesaleAutoAggregate {
   margin: string | null;
   unmatchedOrders: number;
   unmatchedPositions: number;
+  /** Netto-Wert der nicht zugeordneten Positionen — deren Wareneinsatz fehlt. */
+  unmatchedNet: string;
+  /** Zugeordnet, aber kein Kostensatz deckt den Liefertermin ab (stille 0). */
+  positionsWithoutCostRate: number;
+  netWithoutCostRate: string;
+  /**
+   * Auftraege ohne Wunschliefertermin. Sie lassen sich keinem Monat zuordnen
+   * und tauchen deshalb in KEINER Auswertung auf — frueher restlos unsichtbar.
+   */
+  ordersWithoutDeliveryDate: number;
 }
 
 @Injectable()
@@ -79,7 +91,11 @@ export class WholesaleSyncService {
       where: {
         orgId,
         requiredDeliveryDate: { gte: from, lte: to },
-        status: { notIn: ['cancelled' as any] },
+        // 'draft' bleibt aussen vor: jeder KI-Import landet zunaechst als
+        // Entwurf, auch ungeprueft und mit niedriger Erkennungssicherheit.
+        // Ein Extraktionsfehler darf das Controlling nicht erreichen, bevor
+        // der Auftrag bestaetigt wurde.
+        status: { notIn: ['cancelled' as any, 'draft' as any] },
       },
       include: {
         customer: { select: { companyName: true } },
@@ -97,60 +113,71 @@ export class WholesaleSyncService {
     // Fuer historische Kosten: fuer jede matched-Position die pa_product_cost
     // am requiredDeliveryDate abfragen. Ein Batch pro Auftrag reicht.
     const result: WholesaleAutoOrder[] = [];
-    let aggGross = 0, aggNet = 0, aggCost = 0, aggProfit = 0;
+    let aggGross = toD(0), aggNet = toD(0), aggCost = toD(0), aggProfit = toD(0);
     let unmatchedOrders = 0, unmatchedPositions = 0;
+    let unmatchedNet = toD(0);
+    let positionsWithoutCostRate = 0;
+    let netWithoutCostRate = toD(0);
 
     for (const order of orders) {
-      const dateForCosts = order.requiredDeliveryDate ?? new Date();
-      let orderGrossBeforeSkonto = 0;
-      let orderCost = 0;
+      // requiredDeliveryDate ist durch den Query-Filter garantiert gesetzt —
+      // NULL-Termine kommen hier nie an (siehe countOrdersWithoutDeliveryDate).
+      const dateForCosts = order.requiredDeliveryDate as Date;
+      let orderGrossBeforeSkonto = toD(0);
+      let orderCost = toD(0);
       let unmatchedInOrder = 0;
-      let weightedVatRate = 19; // Fallback
 
       // gewichteten VAT ermitteln
-      let sumForVat = 0, sumVatWeighted = 0;
+      let sumForVat = toD(0), sumVatWeighted = toD(0);
       for (const it of order.lineItems) {
-        const rate = it.matchedVariant?.vatRate !== undefined
-          ? Number(it.matchedVariant.vatRate)
-          : 19;
-        const lineNet = Number(it.lineNet);
-        sumForVat += lineNet;
-        sumVatWeighted += lineNet * rate;
+        const rate = toD(it.matchedVariant?.vatRate ?? 19);
+        const lineNet = toD(it.lineNet);
+        sumForVat = sumForVat.plus(lineNet);
+        sumVatWeighted = sumVatWeighted.plus(lineNet.times(rate));
       }
-      if (sumForVat > 0) weightedVatRate = sumVatWeighted / sumForVat;
+      const weightedVatRate = sumForVat.gt(0)
+        ? sumVatWeighted.div(sumForVat)
+        : toD(19); // Fallback
 
       for (const it of order.lineItems) {
-        const rate = it.matchedVariant?.vatRate !== undefined
-          ? Number(it.matchedVariant.vatRate)
-          : 19;
-        const lineNet = Number(it.lineNet);
-        const lineGross = lineNet * (1 + rate / 100);
-        orderGrossBeforeSkonto += lineGross;
+        const rate = toD(it.matchedVariant?.vatRate ?? 19);
+        const lineNet = toD(it.lineNet);
+        const lineGross = lineNet.times(ONE.plus(rate.div(HUNDRED)));
+        orderGrossBeforeSkonto = orderGrossBeforeSkonto.plus(lineGross);
 
         if (it.matchedVariant?.productId) {
           const costStr = await this.productCosts.getCostAt(
             orgId, it.matchedVariant.productId, 'cost', dateForCosts,
           );
           if (costStr !== null) {
-            orderCost += Number(costStr) * it.quantity;
+            orderCost = orderCost.plus(toD(costStr).times(it.quantity));
+          } else {
+            // Zugeordnet, aber kein Kostensatz deckt den Liefertermin ab.
+            // Frueher lief das still auf 0 durch, OHNE den Unmatched-Zaehler
+            // zu erhoehen — die Oberflaeche gab also Entwarnung, waehrend der
+            // Gewinn mit 100 % Marge gerechnet wurde. Jetzt eigener Zaehler.
+            positionsWithoutCostRate++;
+            netWithoutCostRate = netWithoutCostRate.plus(lineNet);
           }
         } else {
           unmatchedInOrder++;
           unmatchedPositions++;
+          unmatchedNet = unmatchedNet.plus(lineNet);
         }
       }
 
-      const orderGrossAfterSkonto = orderGrossBeforeSkonto * (1 - SKONTO_PCT / 100);
-      const orderNet = orderGrossAfterSkonto / (1 + weightedVatRate / 100);
-      const orderVat = orderGrossAfterSkonto - orderNet;
-      const orderProfit = orderNet - orderCost;
-      const orderMargin = orderNet > 0 ? (orderProfit / orderNet) * 100 : null;
+      const orderGrossAfterSkonto = orderGrossBeforeSkonto
+        .times(ONE.minus(toD(SKONTO_PCT).div(HUNDRED)));
+      const orderNet = orderGrossAfterSkonto
+        .div(ONE.plus(weightedVatRate.div(HUNDRED)));
+      const orderProfit = orderNet.minus(orderCost);
+      const orderMargin = margin(orderProfit, orderNet);
 
       if (unmatchedInOrder > 0) unmatchedOrders++;
-      aggGross += orderGrossAfterSkonto;
-      aggNet += orderNet;
-      aggCost += orderCost;
-      aggProfit += orderProfit;
+      aggGross = aggGross.plus(orderGrossAfterSkonto);
+      aggNet = aggNet.plus(orderNet);
+      aggCost = aggCost.plus(orderCost);
+      aggProfit = aggProfit.plus(orderProfit);
 
       result.push({
         id: order.id,
@@ -166,7 +193,7 @@ export class WholesaleSyncService {
         totalNet: round2(orderNet).toString(),
         totalCost: round2(orderCost).toString(),
         totalProfit: round2(orderProfit).toString(),
-        margin: orderMargin !== null ? round2(orderMargin).toString() : null,
+        margin: orderMargin !== null ? orderMargin.toString() : null,
         hasUnmatched: unmatchedInOrder > 0,
       });
     }
@@ -175,12 +202,16 @@ export class WholesaleSyncService {
       orderCount: result.length,
       totalGross: round2(aggGross).toString(),
       totalNet: round2(aggNet).toString(),
-      totalVat: round2(aggGross - aggNet).toString(),
+      totalVat: round2(aggGross.minus(aggNet)).toString(),
       totalCost: round2(aggCost).toString(),
       totalProfit: round2(aggProfit).toString(),
-      margin: aggNet > 0 ? round2((aggProfit / aggNet) * 100).toString() : null,
+      margin: margin(aggProfit, aggNet)?.toString() ?? null,
       unmatchedOrders,
       unmatchedPositions,
+      unmatchedNet: round2(unmatchedNet).toString(),
+      positionsWithoutCostRate,
+      netWithoutCostRate: round2(netWithoutCostRate).toString(),
+      ordersWithoutDeliveryDate: await this.countOrdersWithoutDeliveryDate(orgId),
     };
 
     return { orders: result, aggregate };
@@ -190,6 +221,23 @@ export class WholesaleSyncService {
   async aggregateForMonth(orgId: string, year: number, month: number): Promise<WholesaleAutoAggregate> {
     const { aggregate } = await this.listForMonth(orgId, year, month);
     return aggregate;
+  }
+
+  /**
+   * Auftraege ohne Wunschliefertermin. Der Monats-Query filtert auf
+   * requiredDeliveryDate, und SQL schliesst NULL dabei aus — solche Auftraege
+   * erschienen in keinem Monat, keiner Warnung und keiner Unmatched-Liste.
+   * Wir erfinden keinen Termin (das wuerde Umsatz in einen falschen Monat
+   * schieben), machen sie aber zaehlbar, damit nichts mehr still verschwindet.
+   */
+  private async countOrdersWithoutDeliveryDate(orgId: string): Promise<number> {
+    return this.prisma.salesOrder.count({
+      where: {
+        orgId,
+        requiredDeliveryDate: null,
+        status: { notIn: ['cancelled' as any, 'draft' as any] },
+      },
+    });
   }
 
   /** Nicht-gematchte Positionen mit Kontext fuer die Match-Warnung. */
@@ -353,7 +401,10 @@ export class WholesaleSyncService {
   }
 }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+// Frueher stand hier ein eigener round2(n: number) mit Math.round(n * 100) / 100.
+// Der ueberschattete das zentrale round2 aus domain/decimal, rechnete in Float
+// und rundete an der .xx5-Grenze systematisch ab (1.005 -> 1.00, 8.165 -> 8.16),
+// weil 1.005 * 100 als Double 100.49999999999999 ergibt. Der Fehler ging immer
+// in dieselbe Richtung und summierte sich damit ueber alle Auftraege auf,
+// statt sich auszumitteln. Die gesamte Kette laeuft jetzt ueber Prisma.Decimal.
 
