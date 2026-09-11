@@ -470,7 +470,7 @@ export interface PeriodTotal {
   vatTotal: string; adsTotal: string;
   productCostsTotal: string; shippingCostsTotal: string; platformFeesTotal: string;
   wholesaleProfit: string; overheadTotal: string;
-  profitBeforeOverhead: string; operatingProfit: string;
+  profitBeforeOverhead: string; profitBeforeOverheadWithWholesale: string; operatingProfit: string;
   marginBeforeOverhead: string | null; operatingMargin: string | null;
 }
 
@@ -478,7 +478,7 @@ export interface PreflightResult {
   status: 'open' | 'closed' | 'locked' | null;
   summary: {
     dayCount: number; grossSalesTotal: string; netSalesTotal: string;
-    profitBeforeOverhead: string; operatingProfit: string;
+    profitBeforeOverhead: string; profitBeforeOverheadWithWholesale: string; operatingProfit: string;
     marginBeforeOverhead: string | null; operatingMargin: string | null;
     wholesaleOrderCount: number; overheadEntryCount: number;
   };
@@ -652,6 +652,25 @@ export interface ComputedMonth {
     orderCount: number;
     totalGross: string; totalNet: string; totalVat: string;
     totalCost: string; totalProfit: string; margin: string | null;
+    unmatchedPositions: number;
+    unmatchedNet: string;
+    positionsWithoutCostRate: number;
+    netWithoutCostRate: string;
+    ordersWithoutDeliveryDate: number;
+  };
+  /**
+   * Datenqualitaet des Monats. Reist mit der Zahl mit, damit Uebersicht,
+   * Perioden und Export nicht mehr einen Gewinn zeigen, dessen Wareneinsatz
+   * unvollstaendig ist, ohne das kenntlich zu machen.
+   */
+  dataQuality: {
+    profitIncomplete: boolean;
+    daysWithWarnings: number;
+    warnings: string[];
+    wholesaleUnmatchedPositions: number;
+    wholesaleUnmatchedNet: string;
+    wholesalePositionsWithoutCostRate: number;
+    wholesaleOrdersWithoutDeliveryDate: number;
   };
   overhead: {
     entries: Array<{

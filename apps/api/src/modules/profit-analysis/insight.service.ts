@@ -54,7 +54,22 @@ export class InsightService {
 
     const currentPoints  = points.filter((p) => isInRange(p.date, currentRange.from, currentRange.to));
     const previousPoints = points.filter((p) => isInRange(p.date, previousRange.from, previousRange.to));
-    const last4  = points.slice(-4);
+
+    // Der laufende Tag ist unfertig und darf kein Messwert sein.
+    //
+    // pa_day wird lazy beim ersten gespeicherten Feld angelegt. Wer morgens
+    // den Meta-Spend eintraegt, erzeugt damit einen Tag mit 0 EUR Umsatz.
+    // Als vollwertiger Punkt behandelt, meldet die Engine dann taeglich
+    // "Ungewoehnlich niedriger Shopify-Umsatz" oder "Umsatz 3 Tage in Folge
+    // gefallen (-98 %)" — und weil der Fingerprint das Datum enthaelt, kommt
+    // der Fehlalarm jeden Tag neu und laesst sich nicht wegdruecken.
+    //
+    // period-helpers.ts formuliert diese Regel bereits ("der laufende Tag darf
+    // Vergleiche nicht verfaelschen"), umgesetzt war sie nur fuer
+    // lastNCompleteDays.
+    const heute = now.toISOString().slice(0, 10);
+    const completePoints = points.filter((p) => p.date < heute);
+    const last4 = completePoints.slice(-4);
 
     const candidates: InsightCandidate[] = [];
 
@@ -86,9 +101,11 @@ export class InsightService {
     if (adsInsight) candidates.push(adsInsight);
 
     // §28 Anomalien fuer Meta-Spend, Shopify-Revenue, Profit
-    if (points.length >= 8) {
-      const last = points[points.length - 1];
-      const history = points.slice(0, -1);
+    // Ebenfalls nur abgeschlossene Tage — sonst wird der unfertige heutige
+    // Wert gegen den historischen Median gehalten und schlaegt jeden Morgen an.
+    if (completePoints.length >= 8) {
+      const last = completePoints[completePoints.length - 1];
+      const history = completePoints.slice(0, -1);
       const metaHist = history.map((p) => p.ads.meta).filter((v) => v > 0);
       if (metaHist.length >= 7) {
         const a = detectAnomaly({
@@ -115,7 +132,18 @@ export class InsightService {
     if (revenueTarget > 0 || profitTarget > 0) {
       const forecasts = detectRunRateTargetGap({
         year: now.getUTCFullYear(), month: now.getUTCMonth() + 1,
-        completedDays: mtdComputed.days.length,
+        // Vergangene KALENDERTAGE, nicht "Tage mit irgendeiner Zeile".
+        //
+        // mtdComputed.days enthaelt nur existierende pa_day-Zeilen. Sind von
+        // 31 Tagen erst 13 erfasst, teilte die Hochrechnung den MTD-Umsatz
+        // durch 13 und multiplizierte mit 31 — eine massive Ueberschaetzung,
+        // die als Prognose praesentiert wurde.
+        //
+        // Der laufende Tag zaehlt bewusst mit, weil currentMtdNetSales ihn
+        // ebenfalls enthaelt: Zaehler und Nenner muessen denselben Zeitraum
+        // abdecken. Das unterschaetzt leicht (der heutige Tag ist unfertig) —
+        // die konservative Richtung fuer eine Zielprognose.
+        completedDays: now.getUTCDate(),
         currentMtdNetSales: Number(mtdComputed.netSalesWithWholesale),
         currentMtdProfit: Number(mtdComputed.operatingProfit),
         monthlyRevenueTarget: revenueTarget,

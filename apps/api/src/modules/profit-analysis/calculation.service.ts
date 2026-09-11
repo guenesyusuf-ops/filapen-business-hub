@@ -209,7 +209,9 @@ export class CalculationService {
 
     // Gemeinkosten des Monats (inkl. Prozent-Anteil §54)
     const netSalesTotalWithWholesale = toD(dayTotals.netSalesTotal).plus(wsNet);
-    const overheadEntries = await this.overhead.getEntriesForMonth(orgId, monthRow.id);
+    // year/month mitgeben, damit wiederkehrende Positionen auch auf diesem
+    // Pfad materialisiert werden — nicht nur beim Oeffnen der Gemeinkosten-Seite.
+    const overheadEntries = await this.overhead.getEntriesForMonth(orgId, monthRow.id, year, month);
     const overheadRaw = aggregateOverhead(
       overheadEntries.map((e: any) => ({
         category: e.category, label: e.label,

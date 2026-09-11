@@ -85,16 +85,32 @@ export class ImportService {
       }
 
       const parsed: ImportPreviewRow['parsed'] = {};
-      const decField = (col: string) => this.parseDecimal(raw[col]);
-      if (raw['brutto19'])     parsed.gross19 = decField('brutto19') ?? undefined;
-      if (raw['brutto7'])      parsed.gross7 = decField('brutto7') ?? undefined;
-      if (raw['retouren19'])   parsed.returns19 = decField('retouren19') ?? undefined;
-      if (raw['retouren7'])    parsed.returns7 = decField('retouren7') ?? undefined;
-      if (raw['meta'])         parsed.meta = decField('meta') ?? undefined;
-      if (raw['google'])       parsed.google = decField('google') ?? undefined;
-      if (raw['influencer'])   parsed.influencer = decField('influencer') ?? undefined;
-      if (raw['amazonppc'])    parsed.amazonPpc = decField('amazonppc') ?? undefined;
-      if (raw['tiktokads'])    parsed.tiktokAds = decField('tiktokads') ?? undefined;
+      /**
+       * Eine gefuellte, aber nicht lesbare Zelle MUSS ein Zeilenfehler werden.
+       * Vorher wurde sie still zu undefined: die Zeile galt als in Ordnung,
+       * der Wert wurde nie geschrieben, und confirm() zaehlte sie trotzdem als
+       * "geschrieben". Der Nutzer las "12 Zeilen geschrieben, 0 uebersprungen"
+       * und hielt den Monat fuer importiert.
+       */
+      const decField = (col: string, label: string): string | undefined => {
+        const rohwert = raw[col];
+        if (!rohwert || !rohwert.trim()) return undefined;
+        const wert = this.parseDecimal(rohwert);
+        if (wert === null) {
+          errors.push(`${label}: Betrag nicht lesbar ("${rohwert.trim()}")`);
+          return undefined;
+        }
+        return wert;
+      };
+      parsed.gross19    = decField('brutto19', 'brutto19');
+      parsed.gross7     = decField('brutto7', 'brutto7');
+      parsed.returns19  = decField('retouren19', 'retouren19');
+      parsed.returns7   = decField('retouren7', 'retouren7');
+      parsed.meta       = decField('meta', 'meta');
+      parsed.google     = decField('google', 'google');
+      parsed.influencer = decField('influencer', 'influencer');
+      parsed.amazonPpc  = decField('amazonppc', 'amazonppc');
+      parsed.tiktokAds  = decField('tiktokads', 'tiktokads');
       if (raw['shopifypakete']) {
         const n = parseInt(raw['shopifypakete'], 10);
         if (Number.isNaN(n) || n < 0) errors.push('shopifypakete muss positive Ganzzahl sein');
@@ -146,11 +162,20 @@ export class ImportService {
    * Confirmed Import: nur akzeptierte Zeilen schreiben.
    * Fehlerhafte Zeilen werden uebersprungen (Client hat sie im Preview gesehen).
    */
-  async confirm(orgId: string, role: string, previewRows: ImportPreviewRow[]): Promise<{ written: number; skipped: number }> {
+  async confirm(orgId: string, role: string, previewRows: ImportPreviewRow[]): Promise<{
+    written: number; skipped: number; failures: Array<{ date: string | null; reason: string }>;
+  }> {
     if (!Array.isArray(previewRows)) throw new BadRequestException('rows fehlt');
     let written = 0, skipped = 0;
+    // Warum eine Zeile nicht geschrieben wurde, war bisher nicht erkennbar:
+    // catch {} schluckte jede Ursache, auch einen gesperrten Monat.
+    const failures: Array<{ date: string | null; reason: string }> = [];
     for (const r of previewRows) {
-      if (r.errors.length > 0 || !r.date) { skipped++; continue; }
+      if (r.errors.length > 0 || !r.date) {
+        skipped++;
+        failures.push({ date: r.date ?? null, reason: r.errors[0] ?? 'Kein gueltiges Datum' });
+        continue;
+      }
       try {
         if (r.channel && (r.parsed.gross19 || r.parsed.gross7 || r.parsed.returns19 || r.parsed.returns7)) {
           await this.daily.upsertChannelSales(orgId, role, r.date, r.channel, {
@@ -174,11 +199,12 @@ export class ImportService {
           });
         }
         written++;
-      } catch {
+      } catch (e: any) {
         skipped++;
+        failures.push({ date: r.date, reason: e?.message ?? 'Unbekannter Fehler' });
       }
     }
-    return { written, skipped };
+    return { written, skipped, failures };
   }
 
   // ---------------------------------------------------------------------------
@@ -223,18 +249,70 @@ export class ImportService {
     return null;
   }
 
+  /**
+   * Zahlenformat aus einer Importdatei normalisieren.
+   *
+   * Der alte Code prüfte nur auf ein Komma mit 1-2 Nachkommastellen und liess
+   * alles andere unveraendert durch. Ein deutscher Betrag OHNE Nachkommastelle
+   * fiel damit in den else-Zweig: "12.500" (= 12.500 EUR) wurde zu 12,50 EUR,
+   * "1.000" zu 1,00 EUR — Faktor 1.000 zu klein, ohne Fehler, ohne Warnung.
+   * Ein Monatsimport mit runden Tagesumsaetzen landete so verfaelscht in der
+   * DB und verdarb danach jede Marge, jeden ROAS und jeden Export.
+   *
+   * Jetzt werden Tausendergruppen erkannt:
+   *   "1.234,56" -> 1234.56   (deutsch, Punkt = Tausender)
+   *   "1,234.56" -> 1234.56   (englisch, Komma = Tausender)
+   *   "1234,56"  -> 1234.56
+   *   "12.500"   -> 12500     (deutsche Tausendergruppe)
+   *   "1234.56"  -> 1234.56   (Dezimalpunkt, keine Tausendergruppe)
+   */
   private parseDecimal(input: string | undefined): string | null {
-    if (!input) return null;
-    const s = input.trim();
-    if (!s) return null;
-    // "1.234,56" -> "1234.56", "1234,56" -> "1234.56", "1234.56" -> "1234.56"
-    let norm = s;
-    if (/,\d{1,2}$/.test(s)) {
-      norm = s.replace(/\./g, '').replace(',', '.');
-    } else {
-      norm = s.replace(',', '.');
-    }
-    if (!/^-?\d+(\.\d+)?$/.test(norm)) return null;
-    return norm;
+    return parseImportDecimal(input);
   }
+}
+
+/**
+ * Zahlenformat aus einer Importdatei normalisieren. Gibt null zurueck, wenn
+ * der Wert nicht eindeutig lesbar ist — der Aufrufer MUSS das als Zeilenfehler
+ * melden statt den Wert still zu verwerfen.
+ *
+ * Der alte Code prueft nur auf ein Komma mit 1-2 Nachkommastellen und liess
+ * alles andere unveraendert durch. Ein deutscher Betrag OHNE Nachkommastelle
+ * fiel damit in den else-Zweig: "12.500" (= 12.500 EUR) wurde zu 12,50 EUR,
+ * "1.000" zu 1,00 EUR — Faktor 1.000 zu klein, ohne Fehler, ohne Warnung.
+ * Ein Monatsimport mit runden Tagesumsaetzen landete so verfaelscht in der DB
+ * und verdarb danach jede Marge, jeden ROAS und jeden Export.
+ *
+ *   "1.234,56" -> 1234.56   deutsch, Punkt = Tausender
+ *   "1,234.56" -> 1234.56   englisch, Komma = Tausender
+ *   "1234,56"  -> 1234.56
+ *   "12.500"   -> 12500     deutsche Tausendergruppe
+ *   "1234.56"  -> 1234.56   Dezimalpunkt, keine Tausendergruppe
+ */
+export function parseImportDecimal(input: string | undefined): string | null {
+  if (!input) return null;
+  const s = input.trim().replace(/\s/g, '');
+  if (!s) return null;
+
+  const hatKomma = s.includes(',');
+  const hatPunkt = s.includes('.');
+  let norm: string;
+
+  if (hatKomma && hatPunkt) {
+    // Das zuletzt stehende Trennzeichen ist der Dezimaltrenner.
+    norm = s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? s.replace(/\./g, '').replace(',', '.')   // deutsch
+      : s.replace(/,/g, '');                      // englisch
+  } else if (hatKomma) {
+    norm = s.replace(',', '.');
+  } else if (hatPunkt) {
+    // Nur Punkte: saubere Tausendergruppen sind deutsch, alles andere ist
+    // ein Dezimalpunkt.
+    norm = /^-?\d{1,3}(\.\d{3})+$/.test(s) ? s.replace(/\./g, '') : s;
+  } else {
+    norm = s;
+  }
+
+  if (!/^-?\d+(\.\d+)?$/.test(norm)) return null;
+  return norm;
 }

@@ -74,7 +74,8 @@ export default function VergleichePage() {
               <Row label="Plattformgebühren" a={aData.platformFeesTotal} b={bData.platformFeesTotal} />
               <Row label="Großhandelsgewinn" a={aData.wholesaleProfit} b={bData.wholesaleProfit} />
               <Row label="Gemeinkosten (Netto)" a={aData.overheadTotal} b={bData.overheadTotal} />
-              <Row label="Profit vor Gemeinkosten" a={aData.profitBeforeOverhead} b={bData.profitBeforeOverhead} highlight />
+              <Row label="Profit vor GK (nur Kanäle)" a={aData.profitBeforeOverhead} b={bData.profitBeforeOverhead} />
+              <Row label="Profit vor GK (inkl. Großhandel)" a={aData.profitBeforeOverheadWithWholesale} b={bData.profitBeforeOverheadWithWholesale} highlight />
               <Row label="Marge vor GK" a={aData.marginBeforeOverhead} b={bData.marginBeforeOverhead} unit="pct" />
               <Row label="Operativer Gewinn" a={aData.operatingProfit} b={bData.operatingProfit} highlight />
               <Row label="Operative Endmarge" a={aData.operatingMargin} b={bData.operatingMargin} unit="pct" highlight />

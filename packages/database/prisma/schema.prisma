@@ -4482,6 +4482,12 @@ model PaOverheadEntry {
   @@index([monthId], map: "idx_pa_oe_month")
   @@index([orgId, monthId], map: "idx_pa_oe_org")
   @@index([sourceEntryId], map: "idx_pa_oe_source")
+  /// Eine Wiederkehr-Kopie pro (Zielmonat, Origin). Verhindert doppelte
+  /// Gemeinkosten, wenn zwei parallele Aufrufe denselben Monat materialisieren
+  /// — der Check-then-Act in materializeRecurrencesIfNeeded ist ohne diesen
+  /// Constraint nicht abgesichert. Als partieller Index ausgefuehrt, damit
+  /// normale Eintraege (sourceEntryId IS NULL) unberuehrt bleiben.
+  @@unique([monthId, sourceEntryId], map: "uq_pa_oe_month_source")
   @@map("pa_overhead_entry")
 }
 

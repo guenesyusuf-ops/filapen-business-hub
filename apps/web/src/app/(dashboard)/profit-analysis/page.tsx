@@ -100,6 +100,15 @@ export default function OverviewPage() {
   const [rangeDays, setRangeDays] = useState<ComputedDay[]>([]);
   const [rangeRawDays, setRangeRawDays] = useState<RawDay[]>([]);
   const [prevRangeDays, setPrevRangeDays] = useState<ComputedDay[]>([]);
+  // Alle Monate, die den Zeitraum abdecken — nicht nur der "Focus"-Monat.
+  // Gemeinkosten und Grosshandel haengen am Monat und muessen anteilig aus
+  // JEDEM beteiligten Monat kommen, sonst rechnet ein Juni-August-Vergleich
+  // die Gemeinkosten eines einzigen Monats mal drei.
+  const [rangeMonths, setRangeMonths] = useState<ComputedMonth[]>([]);
+  const [prevMonths, setPrevMonths] = useState<ComputedMonth[]>([]);
+  // Monate, die nicht geladen werden konnten. Fruehere Version hat sie still
+  // weggefiltert und die Teilsumme wie ein vollstaendiges Ergebnis praesentiert.
+  const [failedMonths, setFailedMonths] = useState<string[]>([]);
   const [targets, setTargets] = useState<TargetItem[]>([]);
   const [rankings, setRankings] = useState<RankingsResult | null>(null);
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
@@ -161,12 +170,21 @@ export default function OverviewPage() {
       setRangeDays(allDays.filter((d) => d.date >= range.from && d.date <= range.to));
       setRangeRawDays(allRawDays.filter((d) => d.date >= range.from && d.date <= range.to));
       setPrevRangeDays(allPrevDays.filter((d) => d.date >= prevRange.from && d.date <= prevRange.to));
+      setRangeMonths(allRes.map((res) => res.computed));
+      setPrevMonths(allPrevRes.map((res) => res.computed));
       setTargets(t.items);
       setRankings(r);
 
-      // Wenn ALLE Monate im Range fehlgeschlagen sind, ist das ein echter Fehler
-      const rangeFailed = months.length > 0 && allRes.length === 0;
-      if (rangeFailed) {
+      // Jeder fehlende Monat des Zeitraums macht ALLE Summen zu niedrig.
+      // Frueher wurde nur gemeldet, wenn gar kein Monat geladen werden konnte —
+      // faellt in einem Quartalsvergleich ein Monat aus, zeigte die Seite die
+      // Summe der uebrigen zwei unter unveraenderter Zeitraum-Ueberschrift.
+      // Eine still zu niedrige Zahl ist im Controlling schlimmer als ein Fehler.
+      const fehlend = months
+        .filter((m) => !byKey.get(monthKey(m.year, m.month)))
+        .map((m) => `${MONTH_LABELS[m.month - 1]} ${m.year}`);
+      setFailedMonths(fehlend);
+      if (months.length > 0 && allRes.length === 0) {
         setError('Konnte keinen Monat des gewaehlten Zeitraums laden — Backend erreichbar?');
       }
     } catch (e: any) {
@@ -179,8 +197,19 @@ export default function OverviewPage() {
   useEffect(() => { load(); }, [load]);
 
   // Range-Aggregate (§11 weighted ROAS)
-  const rangeAgg = useMemo(() => aggregateRange(rangeDays, rangeRawDays, focusMonth, range), [rangeDays, rangeRawDays, focusMonth, range]);
-  const prevAgg = useMemo(() => aggregateRange(prevRangeDays, [], null, null), [prevRangeDays]);
+  const rangeAgg = useMemo(
+    () => aggregateRange(rangeDays, rangeRawDays, rangeMonths, range),
+    [rangeDays, rangeRawDays, rangeMonths, range],
+  );
+  // Die Vorperiode bekommt ihre EIGENEN Monate. Vorher wurde hier null
+  // uebergeben, wodurch sie immer 0 EUR Gemeinkosten und 0 EUR Grosshandel
+  // hatte, die aktuelle Periode aber nicht. Das Delta auf "Operativer Gewinn"
+  // war damit systematisch um (Grosshandel − Gemeinkosten) verfaelscht: zwei
+  // identische Monate zeigten trotzdem eine Veraenderung, mit Pfeil und Farbe.
+  const prevAgg = useMemo(
+    () => aggregateRange(prevRangeDays, [], prevMonths, prevRange as Range),
+    [prevRangeDays, prevMonths, prevRange],
+  );
 
   // Top-Artikel im Zeitraum (Backend-Call)
   const [topProducts, setTopProducts] = useState<{ totalUnits: number; productCount: number } | null>(null);
@@ -332,6 +361,65 @@ export default function OverviewPage() {
           <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" /> {error}
         </div>
       )}
+
+      {/* Fehlende Monate machen JEDE Summe auf dieser Seite zu niedrig. */}
+      {!loading && failedMonths.length > 0 && (
+        <div className="rounded-xl border-2 border-red-400 dark:border-red-500/60 bg-red-50 dark:bg-red-500/15 px-4 py-3 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+          <div className="text-sm text-red-900 dark:text-red-200">
+            <div className="font-bold">
+              Zahlen unvollständig — {failedMonths.length === 1 ? 'ein Monat' : `${failedMonths.length} Monate`} konnte nicht geladen werden
+            </div>
+            <div className="mt-0.5">
+              Fehlt: {failedMonths.join(', ')}. Alle Summen und Diagramme auf dieser Seite
+              sind dadurch zu niedrig. Seite neu laden, bevor du auf diese Zahlen etwas gründest.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unvollstaendiger Wareneinsatz — der Gewinn erscheint dadurch zu hoch. */}
+      {!loading && (() => {
+        const dq = rangeMonths
+          .map((m) => m.dataQuality)
+          .filter((q) => q?.profitIncomplete);
+        if (dq.length === 0) return null;
+        const unmatched = dq.reduce((a, q) => a + q.wholesaleUnmatchedPositions, 0);
+        const unmatchedNet = dq.reduce((a, q) => a + Number(q.wholesaleUnmatchedNet), 0);
+        const ohneSatz = dq.reduce((a, q) => a + q.wholesalePositionsWithoutCostRate, 0);
+        const ohneTermin = Math.max(0, ...dq.map((q) => q.wholesaleOrdersWithoutDeliveryDate));
+        const tagesWarnungen = Array.from(new Set(dq.flatMap((q) => q.warnings))).slice(0, 4);
+        return (
+          <div className="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <div className="text-sm text-amber-900 dark:text-amber-200 min-w-0">
+              <div className="font-bold">Gewinn unvollständig — Wareneinsatz fehlt teilweise</div>
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {unmatched > 0 && (
+                  <li>
+                    <strong>{unmatched}</strong> Großhandelsposition{unmatched === 1 ? '' : 'en'} ohne
+                    Produkt-Zuordnung ({formatEur(unmatchedNet.toString())} Netto) — im Großhandel zuordnen,
+                    dann werden die Kosten normal berechnet.
+                  </li>
+                )}
+                {ohneSatz > 0 && (
+                  <li>
+                    <strong>{ohneSatz}</strong> zugeordnete Position{ohneSatz === 1 ? '' : 'en'} ohne
+                    gültigen Kostensatz am Liefertermin — Produktkosten mit passendem Gültig-ab-Datum hinterlegen.
+                  </li>
+                )}
+                {ohneTermin > 0 && (
+                  <li>
+                    <strong>{ohneTermin}</strong> Auftrag/Aufträge ohne Wunschliefertermin — sie lassen sich
+                    keinem Monat zuordnen und fehlen in jeder Auswertung.
+                  </li>
+                )}
+                {tagesWarnungen.map((w, i) => <li key={i}>{w}</li>)}
+              </ul>
+            </div>
+          </div>
+        );
+      })()}
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-slate-500 p-6"><Loader2 className="h-4 w-4 animate-spin" /> Lade …</div>
@@ -1078,19 +1166,35 @@ interface RangeAggregate {
   adsTotal: number;
   profitBeforeOverhead: number;              // nur Kanaele (Shopify+Amazon+TikTok) — konsistent mit Monatsseite
   profitBeforeOverheadWithWholesale: number; // Kanaele + Grosshandel (anteilig)
-  wholesaleProfit: number;                   // aus focusMonth (anteilig)
-  overheadFull: number;                      // Monats-Gemeinkosten
-  overheadPortion: number;                   // anteilig fuer rangeDays
+  wholesaleProfit: number;                   // anteilig aus allen beteiligten Monaten
+  overheadFull: number;                      // volle Gemeinkosten aller beteiligten Monate
+  overheadPortion: number;                   // anteilig nach Kalendertagen
   operatingProfit: number;                   // Profit mit Grosshandel − Gemeinkosten (anteilig)
   marginBeforeOverhead: number | null;
   operatingMargin: number | null;
   dhlPackagesTotal: number;                  // Shopify + TikTok Pakete
   dhlShippingCostsTotal: number;             // Versandkosten Shopify + TikTok
-  rangeDays: number;
-  monthDays: number;
+  rangeDays: number;                         // Kalendertage im Zeitraum
+  monthDays: number;                         // Kalendertage der beteiligten Monate
+  daysWithData: number;                      // Tage mit erfassten Werten
 }
 
-function aggregateRange(days: ComputedDay[], rawDays: RawDay[], focusMonth: ComputedMonth | null, range: Range | null): RangeAggregate {
+/**
+ * Wie viele KALENDERTAGE eines Monats liegen im gewaehlten Zeitraum?
+ * Basis fuer die anteilige Verteilung von Gemeinkosten und Grosshandel.
+ */
+function daysOfMonthWithinRange(year: number, month: number, range: Range): number {
+  const kalendertage = new Date(year, month, 0).getDate();
+  const monatsStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const monatsEnde = `${year}-${String(month).padStart(2, '0')}-${String(kalendertage).padStart(2, '0')}`;
+  const von = range.from > monatsStart ? range.from : monatsStart;
+  const bis = range.to < monatsEnde ? range.to : monatsEnde;
+  if (von > bis) return 0;
+  const ms = new Date(bis + 'T00:00:00Z').getTime() - new Date(von + 'T00:00:00Z').getTime();
+  return Math.round(ms / (24 * 60 * 60 * 1000)) + 1;
+}
+
+function aggregateRange(days: ComputedDay[], rawDays: RawDay[], months: ComputedMonth[], range: Range | null): RangeAggregate {
   let netSales = 0, vat = 0, ads = 0, profitBeforeGK = 0;
   let dhlShippingCosts = 0;
   for (const d of days) {
@@ -1105,13 +1209,37 @@ function aggregateRange(days: ComputedDay[], rawDays: RawDay[], focusMonth: Comp
     (acc, d) => acc + (d.shipping?.shopifyPackages ?? 0) + (d.shipping?.tiktokPackages ?? 0),
     0,
   );
-  const overheadFull = focusMonth ? Number(focusMonth.overhead.totalNet) : 0;
-  const wholesaleProfitFull = focusMonth ? Number(focusMonth.wholesale.totalProfit) : 0;
-  const rangeDays = days.length;
-  const monthDays = focusMonth?.days.length || rangeDays || 1;
-  const scale = monthDays > 0 ? rangeDays / monthDays : 0;
-  const overheadPortion = overheadFull * scale;
-  const wholesaleProfit = wholesaleProfitFull * scale;
+  // Gemeinkosten und Grosshandel anteilig aus JEDEM Monat, der den Zeitraum
+  // beruehrt — gewichtet nach KALENDERTAGEN.
+  //
+  // Vorher: overheadFull kam aus einem einzigen "focusMonth" und wurde mit
+  // rangeDays / focusMonth.days.length skaliert. Zwei Fehler darin:
+  //   1. focusMonth.days enthaelt nur Tage mit einer pa_day-Zeile, nicht die
+  //      Monatslaenge. Bei 13 erfassten von 31 Tagen wurden die Gemeinkosten
+  //      durch 13 geteilt — pro Tag das 2,38-fache des korrekten Werts.
+  //   2. Bei einem Zeitraum ueber mehrere Monate blieb focusMonth EIN Monat,
+  //      scale wurde ~2,97 und die Gemeinkosten eines Monats mal drei gerechnet
+  //      statt der echten Summe der drei Monate.
+  // Fuer einen vollen Monat ist der Anteil exakt 1, die Zahl also unveraendert.
+  let overheadFull = 0;
+  let overheadPortion = 0;
+  let wholesaleProfit = 0;
+  let rangeCalendarDays = 0;
+  let monthCalendarDays = 0;
+
+  for (const mo of months) {
+    const kalendertage = new Date(mo.year, mo.month, 0).getDate();
+    const tageImZeitraum = range ? daysOfMonthWithinRange(mo.year, mo.month, range) : kalendertage;
+    const anteil = kalendertage > 0 ? tageImZeitraum / kalendertage : 0;
+
+    rangeCalendarDays += tageImZeitraum;
+    monthCalendarDays += kalendertage;
+
+    const moOverhead = Number(mo.overhead.totalNet);
+    overheadFull += moOverhead;
+    overheadPortion += moOverhead * anteil;
+    wholesaleProfit += Number(mo.wholesale.totalProfit) * anteil;
+  }
   // Zwei Varianten:
   //  - profitBeforeOverhead: nur Kanaele — konsistent mit Monatsseite
   //    (computed.totals.profitBeforeOverhead)
@@ -1132,8 +1260,12 @@ function aggregateRange(days: ComputedDay[], rawDays: RawDay[], focusMonth: Comp
     operatingMargin: netSales > 0 ? (operatingProfit / netSales) * 100 : null,
     dhlPackagesTotal,
     dhlShippingCostsTotal: dhlShippingCosts,
-    rangeDays,
-    monthDays,
+    // Kalendertage, nicht Tage-mit-Daten. Ziele und Anteils-Labels beziehen
+    // sich auf den Kalender: ein halber Monat ist ein halber Monat, egal wie
+    // viele Tage davon schon erfasst sind.
+    rangeDays: rangeCalendarDays,
+    monthDays: monthCalendarDays,
+    daysWithData: days.length,
   };
 }
 

@@ -29,7 +29,10 @@ export interface PeriodTotal {
   platformFeesTotal: string;
   wholesaleProfit: string;
   overheadTotal: string;
+  /** Nur Kanaele — identisch benannt und identisch berechnet wie auf der Monatsseite. */
   profitBeforeOverhead: string;
+  /** Kanaele + Grosshandel. Frueher stand DIESER Wert faelschlich unter profitBeforeOverhead. */
+  profitBeforeOverheadWithWholesale: string;
   operatingProfit: string;
   marginBeforeOverhead: string | null;
   operatingMargin: string | null;
@@ -102,6 +105,10 @@ export class PeriodService {
     let vat = toD(0), ads = toD(0);
     let productCosts = toD(0), shipping = toD(0), fees = toD(0);
     let wholesaleProfit = toD(0), overhead = toD(0);
+    // Zwei getrennte Summen, weil "Profit vor Gemeinkosten" auf der
+    // Monatsseite OHNE und im Zeitraumvergleich bisher MIT Grosshandel
+    // gerechnet wurde — gleicher Name, verschiedene Zahl.
+    let profitBeforeChannels = toD(0);
     let profitBefore = toD(0), opProfit = toD(0);
 
     let monthCount = 0;
@@ -117,6 +124,7 @@ export class PeriodService {
       fees = fees.plus(toD(m.totals.platformFeesTotal));
       wholesaleProfit = wholesaleProfit.plus(toD(m.wholesale.totalProfit));
       overhead = overhead.plus(toD(m.overhead.totalNet));
+      profitBeforeChannels = profitBeforeChannels.plus(toD(m.totals.profitBeforeOverhead));
       profitBefore = profitBefore.plus(toD(m.profitBeforeOverheadWithWholesale));
       opProfit = opProfit.plus(toD(m.operatingProfit));
     }
@@ -134,9 +142,10 @@ export class PeriodService {
       platformFeesTotal: round2(fees).toString(),
       wholesaleProfit: round2(wholesaleProfit).toString(),
       overheadTotal: round2(overhead).toString(),
-      profitBeforeOverhead: round2(profitBefore).toString(),
+      profitBeforeOverhead: round2(profitBeforeChannels).toString(),
+      profitBeforeOverheadWithWholesale: round2(profitBefore).toString(),
       operatingProfit: round2(opProfit).toString(),
-      marginBeforeOverhead: margin(profitBefore.minus(wholesaleProfit), netSales)?.toString() ?? null,
+      marginBeforeOverhead: margin(profitBeforeChannels, netSales)?.toString() ?? null,
       operatingMargin: margin(opProfit, netSalesWithWs)?.toString() ?? null,
     };
   }
