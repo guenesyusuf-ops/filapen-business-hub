@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { wbTrace } from '@/lib/whiteboard-trace';
 import { useAuthStore } from '@/stores/auth';
 
 export const THEME_PRESETS = [
@@ -28,6 +29,10 @@ export function useThemePreset() {
   const preset = useAuthStore((s) => s.user?.themePreset);
 
   useEffect(() => {
+    // Diagnose: ein Wechsel hier setzt data-theme am <html> um und faerbt
+    // damit die gesamte App neu. Faellt der Preset nach /api/auth/me auf
+    // undefined, passiert das genau "nach einigen Sekunden".
+    wbTrace('THEME_PRESET', { preset: preset ?? 'undefined' });
     const html = document.documentElement;
     if (!preset || preset === 'standard') {
       html.removeAttribute('data-theme');

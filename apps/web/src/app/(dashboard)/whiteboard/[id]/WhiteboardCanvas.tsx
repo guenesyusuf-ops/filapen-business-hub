@@ -36,6 +36,9 @@ import { whiteboardApi, type WhiteboardDetail } from '@/lib/whiteboard';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
 import { API_URL } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import {
+  wbTrace, wbMeasureDom, wbObserveRemovals, wbClaimInstance, wbInstances, wbSafeError,
+} from '@/lib/whiteboard-trace';
 // Non-suspense API: useRoom/useOthers koennten sonst suspendieren ohne
 // passenden Suspense-Boundary in der Auth-Phase.
 import { RoomProvider, useOthers, useSelf } from '@liveblocks/react';
@@ -796,11 +799,28 @@ export function WhiteboardCanvas({ board }: Props) {
   // koennen. tldraw-State selbst wird (noch) nicht ueber Liveblocks
   // sync'd — das kommt mit @tldraw/sync wenn ihr das spaeter braucht.
   // Wenn nicht → Single-User Modus ohne Provider (currentUserCount=1).
+  const instIdRef = useRef<number | null>(null);
+  if (instIdRef.current === null) instIdRef.current = wbClaimInstance('whiteboardCanvas');
+  const renderRef = useRef(0);
+  renderRef.current += 1;
+  useEffect(() => {
+    wbTrace('WHITEBOARD_CANVAS_MOUNT', { instance: instIdRef.current, ...wbInstances() });
+    return () => wbTrace('WHITEBOARD_CANVAS_UNMOUNT', { instance: instIdRef.current });
+  }, []);
+
   const publicKey = typeof window !== 'undefined'
     ? process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY
     : undefined;
   type AuthPhase = 'loading' | 'no-liveblocks' | 'liveblocks-ok' | 'liveblocks-failed';
   const [authPhase, setAuthPhase] = useState<AuthPhase>(publicKey ? 'loading' : 'no-liveblocks');
+
+  // authPhase ist der EINZIGE Zweigwechsel in dieser Komponente: 'loading'
+  // rendert einen Spinner, 'liveblocks-ok' verschachtelt SingleUserCanvas
+  // zusaetzlich in einen RoomProvider. Ein Wechsel nach dem Einschwingen
+  // wuerde SingleUserCanvas unmounten.
+  useEffect(() => {
+    wbTrace('AUTH_PHASE', { phase: authPhase, instance: instIdRef.current, render: renderRef.current, ...wbInstances() });
+  }, [authPhase]);
 
   useEffect(() => {
     if (!publicKey) return;
@@ -857,6 +877,8 @@ export function WhiteboardCanvas({ board }: Props) {
  */
 const tldrawMountsRef = { current: 0 };
 const tldrawUnmountsRef = { current: 0 };
+const stableTldrawRenders = { current: 0 };
+const editorMounts = { current: 0 };
 
 const StableTldraw = memo(function StableTldraw({
   onMount,
@@ -866,11 +888,11 @@ const StableTldraw = memo(function StableTldraw({
   useEffect(() => {
     tldrawMountsRef.current += 1;
     // eslint-disable-next-line no-console
-    console.log(`[wb-lifecycle] Tldraw gemountet (#${tldrawMountsRef.current})`);
+    wbTrace('TLDRAW_MOUNT', { nr: tldrawMountsRef.current });
     return () => {
       tldrawUnmountsRef.current += 1;
       // eslint-disable-next-line no-console
-      console.warn(`[wb-lifecycle] Tldraw UNMOUNTET (#${tldrawUnmountsRef.current}) — React hat den Subtree entfernt`);
+      wbTrace('TLDRAW_UNMOUNT', { nr: tldrawUnmountsRef.current, hinweis: 'React-hat-entfernt' });
     };
   }, []);
   return <Tldraw onMount={onMount} components={TLDRAW_COMPONENTS} />;
@@ -890,6 +912,13 @@ function SingleUserCanvas({
 }) {
   const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
+  // Diagnose: Instanz-ID + Render-Zaehler. Steigt der Render-Zaehler ohne
+  // neue Instanz-ID, wurde nur neu gerendert (Fall A/C) — eine neue Instanz-ID
+  // bedeutet einen echten Remount.
+  const suInstIdRef = useRef<number | null>(null);
+  if (suInstIdRef.current === null) suInstIdRef.current = wbClaimInstance('singleUser');
+  const renderNrRef = useRef(0);
+  renderNrRef.current += 1;
   // Loesch-Berechtigung: Ersteller des Boards ODER role=owner
   const canDelete = !!currentUser
     && (board.createdById === currentUser.id || currentUser.role === 'owner');
@@ -897,16 +926,8 @@ function SingleUserCanvas({
   // re-rendern SingleUserCanvas; StableTldraw bailed via memo.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  /** Sichtbare Warnung, wenn das Canvas unerwartet leer wird. */
-  const [blankAlert, setBlankAlert] = useState<string | null>(null);
   /** Hoechste bisher gespeicherte Shape-Anzahl — Schutz gegen Leer-Speichern. */
   const maxSavedShapesRef = useRef(0);
-  /**
-   * Erhoehen erzwingt einen sauberen Neu-Mount des tldraw-Subtrees. Der
-   * Waechter nutzt das zur Selbstheilung, wenn das Canvas verschwindet.
-   */
-  const [canvasKey, setCanvasKey] = useState(0);
-  const recoveriesRef = useRef(0);
   // ONE-TIME flip nach onMount → einmaliger Re-Render damit EntityDock mountet.
   const [editorReady, setEditorReady] = useState(false);
   // Modals fuer Insert-Aktionen
@@ -925,6 +946,41 @@ function SingleUserCanvas({
   useEffect(() => { boardStateRef.current = board.state; }, [board.state]);
   useEffect(() => { boardIdRef.current = board.id; }, [board.id]);
 
+  // Diagnose: Lebenszyklus von SingleUserCanvas + DOM-Beobachter.
+  useEffect(() => {
+    wbTrace('SINGLE_USER_MOUNT', { instance: suInstIdRef.current, withPresence, ...wbInstances() });
+    const stop = wbObserveRemovals(canvasContainerRef.current);
+    return () => { stop(); wbTrace('SINGLE_USER_UNMOUNT', { instance: suInstIdRef.current }); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Diagnose: aendert sich die Identitaet des Users (z.B. nach /api/auth/me),
+  // rendert dieser Teilbaum neu — das ist ein Hauptverdaechtiger.
+  // Nur Booleans — keine Userdaten. Interessant ist ausschliesslich, ob sich
+  // etwas geaendert hat, das einen Render-Zweig beeinflussen koennte.
+  const vorherRef = useRef<{ id?: string; role?: string; org?: string; theme?: string } | null>(null);
+  useEffect(() => {
+    const jetzt = {
+      id: currentUser?.id,
+      role: currentUser?.role,
+      org: (currentUser as any)?.orgId,
+      theme: (currentUser as any)?.themePreset,
+    };
+    const v = vorherRef.current;
+    wbTrace('AUTH_USER_CHANGED', {
+      erstmals: !v,
+      userIdentityChanged: !!v && v.id !== jetzt.id,
+      roleChanged: !!v && v.role !== jetzt.role,
+      orgIdChanged: !!v && v.org !== jetzt.org,
+      themeChanged: !!v && v.theme !== jetzt.theme,
+      orgIdVorhanden: !!jetzt.org,
+      objektIdentitaetNeu: true,
+      render: renderNrRef.current,
+      instance: suInstIdRef.current,
+    });
+    vorherRef.current = jetzt;
+  }, [currentUser]);
+
   // STABLE handleMount — empty deps, NIEMALS re-created.
   const handleMount = useCallback((ed: Editor) => {
     // Der Guard darf nur DIESELBE Editor-Instanz abwehren, nicht eine neue.
@@ -935,7 +991,14 @@ function SingleUserCanvas({
     // Der Snapshot wurde dann nie geladen: leeres Canvas, und editorRef zeigte
     // weiter auf den alten, unsichtbaren Editor. Das Board war weg, obwohl in
     // der Datenbank alles stand.
-    if (editorRef.current === ed) return;
+    if (editorRef.current === ed) { wbTrace('EDITOR_MOUNT_SKIP', { grund: 'gleiche-instanz' }); return; }
+    // FALL E: eine NEUE Editor-Instanz bei GLEICHER stableTldraw-ID bedeutet,
+    // dass <Tldraw> intern neu erzeugt wurde, ohne dass React StableTldraw
+    // remountet hat. Genau das waere sonst falsch als Remount zu lesen.
+    const artNeu = editorRef.current ? 'NEUER_EDITOR_OHNE_REMOUNT' : 'erst';
+    editorMounts.current += 1;
+    wbClaimInstance('editor');
+    wbTrace('TLDRAW_EDITOR_MOUNT', { art: artNeu, ...wbInstances() });
     mountedOnceRef.current = true;
     editorRef.current = ed;
 
@@ -990,6 +1053,7 @@ function SingleUserCanvas({
     });
 
     try {
+      wbTrace('DOCUMENT_LOAD_START');
       const state = boardStateRef.current;
       if (state && Object.keys(state).length > 0 && !state.__template) {
         loadSnapshot(ed.store, state as TLEditorSnapshot);
@@ -1000,8 +1064,9 @@ function SingleUserCanvas({
       // kann synchronen zoomToFit direkt nach loadSnapshot den Main-Thread
       // blockieren. rAF gibt tldraw Zeit den initial-Render zu machen bevor
       // die Camera-Transformation kommt.
+      wbTrace('DOCUMENT_LOAD_END', { shapes: ed.getCurrentPageShapeIds().size });
       requestAnimationFrame(() => {
-        try { ed.zoomToFit({ animation: { duration: 0 } }); }
+        try { ed.zoomToFit({ animation: { duration: 0 } }); wbTrace('ZOOM_TO_FIT'); }
         catch (err) { console.warn('[wb] zoomToFit failed', err); }
       });
     } catch (err) {
@@ -1117,19 +1182,19 @@ function SingleUserCanvas({
           `[wb-save] ABGEBROCHEN: Board ist leer, zuletzt ${maxSavedShapesRef.current} Shapes. `
           + 'Der leere Stand wird NICHT gespeichert.',
         );
-        setBlankAlert(
-          `Das Board ist unerwartet leer (vorher ${maxSavedShapesRef.current} Elemente). `
-          + 'Speichern wurde gestoppt, dein letzter Stand ist sicher. Bitte Seite neu laden.',
-        );
         setSaveState('error');
         schedule(SAVE_INTERVAL_MS);
         return;
       }
 
+      // Der Erfolgspfad unten setzt ZWEI React-States (saveState,
+      // lastSavedAt) und drei Refs. Die States rendern SingleUserCanvas neu —
+      // ob StableTldraw dabei durchrendert, zeigt stableRenders.
       setSaveState('saving');
-      console.log(`[wb-save] saving ${json.length} bytes…`);
+      wbTrace('AUTOSAVE_START', { bytes: json.length, shapes: shapeCount });
       try {
         await whiteboardApi.update(boardIdRef.current, { state: snap });
+        wbTrace('AUTOSAVE_REQUEST_END', { status: 'ok' });
         lastSavedJsonRef.current = json;
         // Mitfuehren, damit ein Neu-Mount des Canvas den AKTUELLEN Stand
         // wiederherstellt und nicht den, der beim Oeffnen der Seite geladen
@@ -1139,12 +1204,18 @@ function SingleUserCanvas({
         setSaveState('saved');
         setLastSavedAt(new Date());
         backoff = SAVE_INTERVAL_MS; // reset nach Erfolg
-        console.log('[wb-save] OK');
+        wbTrace('AUTOSAVE_STATE_UPDATE', {
+          setzt: 'saveState+lastSavedAt',
+          stableRenders: stableTldrawRenders.current,
+          tldrawUnmounts: tldrawUnmountsRef.current,
+        });
+        wbTrace('AUTOSAVE_END', { status: 'ok' });
         setTimeout(() => setSaveState('idle'), 2000);
         schedule(SAVE_INTERVAL_MS);
       } catch (e: any) {
         setSaveState('error');
-        console.error(`[wb-save] FAILED (retry in ${backoff / 1000}s):`, e?.message ?? e);
+        wbTrace('AUTOSAVE_REQUEST_END', { status: 'FEHLER', msg: JSON.stringify(wbSafeError(e)) });
+        wbTrace('AUTOSAVE_END', { status: 'FEHLER' });
         setTimeout(() => setSaveState('idle'), Math.min(backoff, 4000));
         schedule(backoff);
         backoff = Math.min(backoff * 2, MAX_BACKOFF_MS); // exponentiell hoch
@@ -1186,8 +1257,7 @@ function SingleUserCanvas({
         jetzt = ed.getCurrentPageShapeIds().size;
       } catch (e: any) {
         gemeldet = true;
-        console.error('[wb-watchdog] Editor nicht mehr ansprechbar:', e?.message ?? e);
-        setBlankAlert('Der Editor antwortet nicht mehr. Bitte Seite neu laden — dein letzter Stand ist gespeichert.');
+        wbTrace('EDITOR_UNRESPONSIVE', { msg: JSON.stringify(e?.message ?? String(e)) });
         return;
       }
       if (jetzt > maxShapes) maxShapes = jetzt;
@@ -1224,32 +1294,17 @@ function SingleUserCanvas({
           `mounts=${tldrawMountsRef.current}`,
           `unmounts=${tldrawUnmountsRef.current}`,
         ].join(' ');
-        console.error(`[wb-watchdog] Canvas weg — ${details}`);
+        wbTrace('CANVAS_WEG', { details });
         console.error('[wb-watchdog] Container-HTML (gekuerzt):',
           container ? container.innerHTML.slice(0, 400) : '(kein Container)');
 
-        // Selbstheilung: hoechstens zweimal einen sauberen Neu-Mount
-        // erzwingen. handleMount prueft auf Editor-IDENTITAET und laedt den
-        // zuletzt gespeicherten Stand in den frischen Store — das Board ist
-        // nach etwa einer Sekunde wieder da, statt weiss zu bleiben.
-        if (recoveriesRef.current < 2) {
-          recoveriesRef.current += 1;
-          console.warn(`[wb-watchdog] erzwinge Neu-Mount (Versuch ${recoveriesRef.current}/2)`);
-          setCanvasKey((k) => k + 1);
-          // Waechter nach dem Neu-Aufbau wieder scharf schalten.
-          setTimeout(() => { gemeldet = false; }, 5000);
-          gemeldet = true;
-          return;
-        }
-
         gemeldet = true;
-        setBlankAlert(details);
+        wbMeasureDom(canvasContainerRef.current, 'canvas-weg');
         return;
       }
       if (maxShapes > 0 && jetzt === 0) {
         gemeldet = true;
-        console.error(`[wb-watchdog] Board ist leer geworden — vorher ${maxShapes} Shapes. KEIN Save wird ausgeloest.`);
-        setBlankAlert(`Das Board wurde unerwartet leer (vorher ${maxShapes} Elemente). Es wird nichts überschrieben — bitte Seite neu laden.`);
+        wbTrace('BOARD_LEER', { vorher: maxShapes });
       }
     }, 3000);
     return () => clearInterval(id);
@@ -1318,39 +1373,9 @@ function SingleUserCanvas({
         onInsertTemplate={() => setShowTemplatePicker(true)}
         onInsertTable={() => setShowTablePicker(true)}
       />
-      {blankAlert && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] max-w-xl w-[92vw] rounded-xl bg-amber-500 text-white shadow-2xl px-4 py-3">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0 text-sm">
-              <div className="font-semibold">Whiteboard unerwartet leer</div>
-              <div className="mt-0.5 text-xs opacity-95">
-                Dein gespeicherter Stand ist unberührt — es wird nichts überschrieben.
-              </div>
-              <pre className="mt-2 text-[10px] font-mono bg-black/25 rounded-lg p-2 whitespace-pre-wrap break-all max-h-32 overflow-auto">
-                {blankAlert}
-              </pre>
-            </div>
-            <div className="flex flex-shrink-0 flex-col gap-1.5">
-              <button
-                onClick={() => { navigator.clipboard?.writeText(blankAlert).catch(() => {}); }}
-                className="rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-semibold transition-colors"
-              >
-                Kopieren
-              </button>
-              <button
-                onClick={() => window.location.reload()}
-                className="rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-semibold transition-colors"
-              >
-                Neu laden
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* min-h-0 verhindert flex-collapse */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
-        <StableTldraw key={canvasKey} onMount={handleMount} />
+        <StableTldraw onMount={handleMount} />
         {editorReady && editorRef.current && <EntityDockPanel editor={editorRef.current} />}
         {/* Floating-Action-Buttons direkt UEBER "Daten einfuegen"-Button —
             gleiche horizontale Position (480px links vom Center), drueber

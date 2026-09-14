@@ -110,6 +110,7 @@ const GlobalMessenger = dynamic(() => import('@/components/shared/GlobalMessenge
   loading: () => null,
 });
 import { OrgPresenceProvider } from '@/components/screen-share/OrgPresenceProvider';
+import { wbTrace } from '@/lib/whiteboard-trace';
 import { ConfirmProvider } from '@/components/shared/ConfirmDialog';
 import { ToastProvider } from '@/components/shared/Toast';
 import { GlobalErrorBridge } from '@/components/shared/GlobalErrorBridge';
@@ -852,6 +853,7 @@ export default function DashboardLayout({
     if (!currentUser) return;
     const requiredKey = pathToPermission(pathname);
     if (!hasMenuAccess(currentUser.role, currentUser.menuPermissions, requiredKey)) {
+      wbTrace('LAYOUT_REDIRECT_HOME', { key: String(requiredKey) });
       router.replace('/home');
     }
   }, [currentUser, pathname, router]);
@@ -867,14 +869,35 @@ export default function DashboardLayout({
   // made from another session or directly in the DB are reflected here.
   useEffect(() => {
     if (!currentToken) return;
+    wbTrace('LAYOUT_AUTH_ME_START');
     fetch(`${API_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${currentToken}` },
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((me) => {
+        // NUR Booleans — keine Userdaten, keine E-Mail, keine Response.
+        // Relevant ist einzig, ob sich etwas geaendert hat, das einen
+        // Render-Zweig im Baum anders auswerten koennte.
+        const alt = useAuthStore.getState().user as any;
+        wbTrace('LAYOUT_AUTH_ME_END', {
+          ok: !!(me && me.id),
+          userIdentityChanged: !!alt && alt.id !== me?.id,
+          roleChanged: !!alt && alt.role !== me?.role,
+          orgIdChanged: !!alt && alt.orgId !== me?.orgId,
+          orgIdVorhanden: !!me?.orgId,
+          themeChanged: !!alt && alt.themePreset !== me?.themePreset,
+          themePresetVorhanden: me?.themePreset !== undefined,
+          permissionsChanged: !!alt
+            && JSON.stringify(alt.menuPermissions ?? []) !== JSON.stringify(me?.menuPermissions ?? []),
+        });
         if (me && me.id) {
+          // Diese beiden Setter rendern den GESAMTEN Dashboard-Teilbaum neu.
+          // Ein Re-Render allein unmountet nichts — entscheidend ist, ob
+          // dadurch ein Zweig (OrgPresenceProvider: user?.orgId) kippt.
+          wbTrace('AUTH_BEFORE_UPDATE', { orgIdVorher: !!alt?.orgId });
           setAuth(currentToken, me);
           setCurrentUser(me);
+          wbTrace('AUTH_AFTER_UPDATE', { orgIdNachher: !!me?.orgId });
         }
       })
       .catch(() => {
