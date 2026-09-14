@@ -10,6 +10,7 @@ import {
   ArrowLeft, Save, Users, Loader2, MoreHorizontal, History, Trash2,
   Search, ListTodo, ShoppingCart, Package, Plus, Sparkles, ZoomIn, ZoomOut, Maximize2,
   Table2, Lightbulb, Kanban as KanbanIcon, ListChecks, GitBranch, MapPinned, X,
+  AlertCircle,
 } from 'lucide-react';
 import {
   Tldraw,
@@ -797,6 +798,10 @@ function SingleUserCanvas({
   // re-rendern SingleUserCanvas; StableTldraw bailed via memo.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  /** Sichtbare Warnung, wenn das Canvas unerwartet leer wird. */
+  const [blankAlert, setBlankAlert] = useState<string | null>(null);
+  /** Hoechste bisher gespeicherte Shape-Anzahl — Schutz gegen Leer-Speichern. */
+  const maxSavedShapesRef = useRef(0);
   // ONE-TIME flip nach onMount → einmaliger Re-Render damit EntityDock mountet.
   const [editorReady, setEditorReady] = useState(false);
   // Modals fuer Insert-Aktionen
@@ -891,7 +896,13 @@ function SingleUserCanvas({
     }
 
     try {
-      lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store));
+      // Nur das Dokument als Vergleichsbasis — muss zur Pruefung im
+      // Auto-Save-Tick passen, sonst gilt die Kamera-Position beim Mount
+      // sofort als "geaendert" und loest einen ueberfluessigen Save aus.
+      lastSavedJsonRef.current = JSON.stringify(getSnapshot(ed.store).document);
+      // Ausgangswert fuer den Leer-Speichern-Schutz: was beim Laden da war,
+      // darf nicht durch ein leeres Canvas ersetzt werden.
+      maxSavedShapesRef.current = ed.getCurrentPageShapeIds().size;
     } catch (err) {
       console.error('[wb] initial snapshot failed', err);
     }
@@ -947,24 +958,67 @@ function SingleUserCanvas({
         schedule(SAVE_INTERVAL_MS);
         return;
       }
-      let json: string;
+
+      // Aenderungs-Erkennung NUR ueber das Dokument, nicht ueber die Session.
+      //
+      // getSnapshot() liefert { document, session }, und die Session enthaelt
+      // die KAMERA. Jedes Verschieben und jedes Zoomen aenderte damit das JSON
+      // und loeste einen vollen Save aus. Auf einem 5-MB-Board heisst das:
+      // JSON.stringify ueber 5 MB im Main-Thread, ein 5-MB-PUT, und
+      // serverseitig eine weitere 5-MB-Vollkopie — bei jedem Pan.
+      // Das ist die Ursache fuer "haengt bei Zoom/Pan", "crasht im Idle" und
+      // fuer das Weisswerden: ein Renderer, der unter Speicherdruck abstuerzt,
+      // hinterlaesst eine weisse Flaeche.
+      //
+      // Die Kamera wird weiterhin mitgespeichert — nur eben erst dann, wenn
+      // sich am Dokument auch wirklich etwas geaendert hat.
+      let documentJson: string;
       try {
-        json = JSON.stringify(snap);
+        documentJson = JSON.stringify(snap.document);
       } catch (e: any) {
         console.error('[wb-save] JSON.stringify failed:', e?.message ?? e);
         schedule(SAVE_INTERVAL_MS);
         return;
       }
-      if (json === lastSavedJsonRef.current) {
-        // Nichts geaendert — backoff nicht anfassen, weiter normal
+      if (documentJson === lastSavedJsonRef.current) {
+        // Nur die Kamera bewegt oder gar nichts passiert — kein Save.
         schedule(SAVE_INTERVAL_MS);
         return;
       }
+      const json = documentJson;
+
+      // Schutz gegen Leer-Speichern.
+      //
+      // Wenn das Canvas aus irgendeinem Grund leer wird — Remount mit leerem
+      // Store, abgestuerzter Editor, verlorener Snapshot — darf der naechste
+      // Auto-Save diesen leeren Stand NICHT ueber ein volles Board schreiben.
+      // Genau so verliert man in fuenf Sekunden stundenlange Arbeit.
+      // Der Nutzer sieht stattdessen eine Warnung und kann neu laden; in der
+      // DB steht weiterhin der letzte gute Stand.
+      let shapeCount = 0;
+      try {
+        shapeCount = ed.getCurrentPageShapeIds().size;
+      } catch { /* Zaehlung optional — kein Grund den Save zu verhindern */ }
+      if (shapeCount === 0 && maxSavedShapesRef.current > 0) {
+        console.error(
+          `[wb-save] ABGEBROCHEN: Board ist leer, zuletzt ${maxSavedShapesRef.current} Shapes. `
+          + 'Der leere Stand wird NICHT gespeichert.',
+        );
+        setBlankAlert(
+          `Das Board ist unerwartet leer (vorher ${maxSavedShapesRef.current} Elemente). `
+          + 'Speichern wurde gestoppt, dein letzter Stand ist sicher. Bitte Seite neu laden.',
+        );
+        setSaveState('error');
+        schedule(SAVE_INTERVAL_MS);
+        return;
+      }
+
       setSaveState('saving');
       console.log(`[wb-save] saving ${json.length} bytes…`);
       try {
         await whiteboardApi.update(boardIdRef.current, { state: snap });
         lastSavedJsonRef.current = json;
+        if (shapeCount > maxSavedShapesRef.current) maxSavedShapesRef.current = shapeCount;
         setSaveState('saved');
         setLastSavedAt(new Date());
         backoff = SAVE_INTERVAL_MS; // reset nach Erfolg
@@ -991,6 +1045,51 @@ function SingleUserCanvas({
     };
   }, [editorReady]);
 
+  // Waechter gegen das Weisswerden.
+  //
+  // Das Board ist Master schon mehrfach "nach einigen Sekunden verschwunden
+  // und weiss geworden". Ein frueherer Fix wurde ohne Stack-Trace rein
+  // defensiv gebaut und hat es nicht behoben. Dieser Waechter erzeugt den
+  // fehlenden Beweis: er merkt sich die hoechste je gesehene Shape-Anzahl und
+  // schlaegt Alarm, sobald das Canvas leer wird oder der tldraw-DOM-Knoten
+  // verschwindet — mit sichtbarem Hinweis, damit Master nicht erst die
+  // DevTools oeffnen muss.
+  //
+  // Bewusst sehr billig: nur eine Zahl und ein querySelector alle 3 Sekunden.
+  useEffect(() => {
+    if (!editorReady) return;
+    let maxShapes = 0;
+    let gemeldet = false;
+    const id = setInterval(() => {
+      const ed = editorRef.current;
+      if (!ed || gemeldet) return;
+      let jetzt = 0;
+      try {
+        jetzt = ed.getCurrentPageShapeIds().size;
+      } catch (e: any) {
+        gemeldet = true;
+        console.error('[wb-watchdog] Editor nicht mehr ansprechbar:', e?.message ?? e);
+        setBlankAlert('Der Editor antwortet nicht mehr. Bitte Seite neu laden — dein letzter Stand ist gespeichert.');
+        return;
+      }
+      if (jetzt > maxShapes) maxShapes = jetzt;
+
+      const canvasDa = !!canvasContainerRef.current?.querySelector('.tl-canvas');
+      if (!canvasDa) {
+        gemeldet = true;
+        console.error(`[wb-watchdog] tldraw-Canvas ist aus dem DOM verschwunden (zuletzt ${maxShapes} Shapes)`);
+        setBlankAlert('Das Canvas ist verschwunden. Bitte Seite neu laden — dein letzter Stand ist gespeichert.');
+        return;
+      }
+      if (maxShapes > 0 && jetzt === 0) {
+        gemeldet = true;
+        console.error(`[wb-watchdog] Board ist leer geworden — vorher ${maxShapes} Shapes. KEIN Save wird ausgeloest.`);
+        setBlankAlert(`Das Board wurde unerwartet leer (vorher ${maxShapes} Elemente). Es wird nichts überschrieben — bitte Seite neu laden.`);
+      }
+    }, 3000);
+    return () => clearInterval(id);
+  }, [editorReady]);
+
   // Save on unmount via fetch keepalive — Request laeuft auch nach
   // Component-Unmount + Page-Navigation weiter. Behaelt Bearer-Token im
   // Authorization-Header (anders als sendBeacon).
@@ -1000,7 +1099,10 @@ function SingleUserCanvas({
       if (!ed) return;
       try {
         const snap = getSnapshot(ed.store);
-        const json = JSON.stringify(snap);
+        // Auch hier nur das Dokument vergleichen — sonst schickt jedes
+        // Verlassen der Seite nach einem reinen Pan einen kompletten
+        // Multi-MB-PUT hinterher.
+        const json = JSON.stringify(snap.document);
         if (json === lastSavedJsonRef.current) return;
         const url = `${API_URL}/api/whiteboard/boards/${boardIdRef.current}`;
         fetch(url, {
@@ -1051,6 +1153,23 @@ function SingleUserCanvas({
         onInsertTemplate={() => setShowTemplatePicker(true)}
         onInsertTable={() => setShowTablePicker(true)}
       />
+      {blankAlert && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[110] max-w-xl w-[92vw] rounded-xl bg-amber-500 text-white shadow-2xl px-4 py-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0 text-sm">
+              <div className="font-semibold">Whiteboard unerwartet leer</div>
+              <div className="mt-0.5 text-xs opacity-95">{blankAlert}</div>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-shrink-0 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-semibold transition-colors"
+            >
+              Neu laden
+            </button>
+          </div>
+        </div>
+      )}
       {/* min-h-0 verhindert flex-collapse */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
         <StableTldraw onMount={handleMount} />

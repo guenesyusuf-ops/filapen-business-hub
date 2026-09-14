@@ -7,10 +7,20 @@ import { StorageService } from '../../common/storage/storage.service';
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 /**
+ * Mindestabstand zwischen zwei Versionsstaenden desselben Boards.
+ * Der Auto-Save laeuft alle 5 Sekunden — ohne diese Bremse entstand pro
+ * Save eine Vollkopie des Boards in der History.
+ */
+const SNAPSHOT_MIN_GAP_MS = 10 * 60 * 1000;   // 10 Minuten
+
+/** Wie viele Versionsstaende pro Board aufgehoben werden. */
+const SNAPSHOT_KEEP_PER_BOARD = 20;
+
+/**
  * Whiteboard-Service. Verwaltet Boards, Snapshots, Members + Liveblocks-
  * Auth-Token. Der eigentliche tldraw-State (Nodes, Verbindungen) lebt in
- * `whiteboards.state` (JSONB) — bei jedem Auto-Save (~30s) wird ein
- * neuer Snapshot erzeugt damit Versions-History entsteht.
+ * `whiteboards.state` (JSONB). Die Snapshot-Tabelle ist reine
+ * Versions-History — der aktuelle Stand steht immer im Board selbst.
  */
 @Injectable()
 export class WhiteboardService {
@@ -196,20 +206,61 @@ export class WhiteboardService {
     if (data.description !== undefined) updateData.description = data.description?.trim() || null;
     if (data.thumbnailUrl !== undefined) updateData.thumbnailUrl = data.thumbnailUrl;
 
-    // State-Update + Snapshot in EINER Transaction. Snapshot dient als
-    // Versions-History; alte Snapshots > 30 Tage werden via Cron geprunet
-    // (machen wir Phase 4 wenn die Tabelle wirklich gross wird).
+    // State-Update. Die Versions-History bekommt NICHT bei jedem Auto-Save
+    // eine Vollkopie.
+    //
+    // Vorher schrieb jeder Save eine komplette Snapshot-Zeile. Bei einem
+    // Auto-Save alle 5 Sekunden und Boards von 4-5 MB ist die Tabelle auf
+    // 2 GB bei 1.628 Zeilen angewachsen (Schnitt 1,2 MB pro Zeile) — der
+    // angekuendigte Prune-Cron wurde nie gebaut. Jeder Save war damit eine
+    // Multi-MB-Transaktion, was das Speichern langsam und die DB fett macht.
+    //
+    // Jetzt: hoechstens ein Versionsstand pro Board und SNAPSHOT_MIN_GAP_MS.
+    // Der aktuelle Stand liegt ohnehin immer in whiteboards.state — die
+    // Snapshots sind nur Historie, keine Datensicherung des Live-Zustands.
     if (data.state !== undefined) {
       updateData.state = data.state;
-      return this.prisma.$transaction(async (tx) => {
-        const wb = await tx.whiteboard.update({ where: { id }, data: updateData });
-        await tx.whiteboardSnapshot.create({
+      const wb = await this.prisma.whiteboard.update({ where: { id }, data: updateData });
+
+      const letzter = await this.prisma.whiteboardSnapshot.findFirst({
+        where: { whiteboardId: id },
+        orderBy: { capturedAt: 'desc' },
+        select: { capturedAt: true },
+      });
+      const altGenug = !letzter
+        || Date.now() - letzter.capturedAt.getTime() >= SNAPSHOT_MIN_GAP_MS;
+      if (altGenug) {
+        await this.prisma.whiteboardSnapshot.create({
           data: { whiteboardId: id, state: data.state, capturedById: userId },
         });
-        return wb;
-      });
+        await this.pruneSnapshots(id);
+      }
+      return wb;
     }
     return this.prisma.whiteboard.update({ where: { id }, data: updateData });
+  }
+
+  /**
+   * Haelt die Versions-History pro Board auf SNAPSHOT_KEEP_PER_BOARD begrenzt.
+   *
+   * Der urspruenglich angekuendigte Prune-Cron wurde nie gebaut, deshalb
+   * raeumt der Schreibpfad selbst auf — das haelt die Tabelle dauerhaft klein,
+   * ohne einen zusaetzlichen Scheduler.
+   */
+  private async pruneSnapshots(whiteboardId: string) {
+    const behalten = await this.prisma.whiteboardSnapshot.findMany({
+      where: { whiteboardId },
+      orderBy: { capturedAt: 'desc' },
+      take: SNAPSHOT_KEEP_PER_BOARD,
+      select: { id: true },
+    });
+    if (behalten.length < SNAPSHOT_KEEP_PER_BOARD) return;
+    const geloescht = await this.prisma.whiteboardSnapshot.deleteMany({
+      where: { whiteboardId, id: { notIn: behalten.map((s) => s.id) } },
+    });
+    if (geloescht.count > 0) {
+      this.logger.log(`[whiteboard] ${geloescht.count} alte Versionsstaende entfernt (Board ${whiteboardId})`);
+    }
   }
 
   async remove(id: string, userId: string) {
