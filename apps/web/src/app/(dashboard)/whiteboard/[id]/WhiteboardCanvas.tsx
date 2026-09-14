@@ -260,6 +260,80 @@ function ReactionsLayer() {
   );
 }
 
+/**
+ * Ersetzt tldraws stille Absturz-Anzeige.
+ *
+ * tldraw haelt eine EIGENE ErrorBoundary um das Canvas. Wirft irgendetwas
+ * darin — eine OnTheCanvas-Komponente, ein Shape-Renderer, ein interner
+ * Fehler — faengt tldraw das ab, entfernt `.tl-canvas` aus dem DOM und zeigt
+ * seinen Default-Fallback. Nach aussen sieht das aus wie eine weisse Flaeche,
+ * und unsere eigene WhiteboardErrorBoundary bekommt davon NICHTS mit, weil
+ * tldraw den Fehler vorher schluckt.
+ *
+ * Genau das war das "wird weiss"-Symptom. Statt der weissen Flaeche steht
+ * hier jetzt der echte Fehler samt Stack.
+ */
+function CanvasErrorFallback({ error }: { error: unknown }) {
+  const err = error as any;
+  const text = [
+    `Error: ${err?.message ?? String(error)}`,
+    '',
+    err?.stack ?? '(kein Stack)',
+  ].join('\n');
+  // eslint-disable-next-line no-console
+  console.error('[wb-canvas-crash]', error);
+  return (
+    <div data-wb-crash="1" className="absolute inset-0 z-50 flex items-center justify-center bg-white dark:bg-[#0c0e1c] p-6 overflow-auto">
+      <div className="max-w-2xl w-full rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50/60 dark:bg-red-900/10 p-6">
+        <div className="flex items-center gap-2 mb-3">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            Das Canvas ist abgestürzt
+          </h2>
+        </div>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+          Dein gespeicherter Stand ist unberührt — es wird nichts überschrieben.
+          Schick mir den folgenden Text, dann finde ich die Ursache.
+        </p>
+        <pre className="text-[11px] font-mono text-red-800 dark:text-red-300 bg-white/70 dark:bg-black/30 rounded-lg p-3 max-h-64 overflow-auto whitespace-pre-wrap break-all">
+          {text}
+        </pre>
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={() => { navigator.clipboard?.writeText(text).catch(() => {}); }}
+            className="rounded-lg border border-gray-300 dark:border-white/15 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200"
+          >
+            Fehler kopieren
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-3 py-1.5 text-xs font-semibold"
+          >
+            Neu laden
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ein einzelnes defektes Element reisst nicht mehr das ganze Board mit.
+ * Statt des Shapes erscheint ein Platzhalter, alles andere bleibt bedienbar.
+ */
+function ShapeErrorFallback({ error }: { error: any }) {
+  // eslint-disable-next-line no-console
+  console.error('[wb-shape-crash]', error);
+  return (
+    <div
+      className="rounded-lg border-2 border-dashed border-red-400 bg-red-50/70 dark:bg-red-900/20 p-2 text-[10px] text-red-700 dark:text-red-300"
+      title={error?.message ?? String(error)}
+    >
+      Element konnte nicht gezeichnet werden
+    </div>
+  );
+}
+
 // KONST auf Modul-Ebene damit React.memo immer dieselbe Referenz sieht
 // und tldraw nicht reconciled.
 const TLDRAW_COMPONENTS: TLComponents = {
@@ -268,6 +342,9 @@ const TLDRAW_COMPONENTS: TLComponents = {
   MainMenu: CustomMainMenu,
   // OnTheCanvas: lebt im transformed canvas → page coords funktionieren direkt
   OnTheCanvas: ReactionsLayer,
+  ErrorFallback: CanvasErrorFallback,
+  ShapeErrorFallback,
+  ShapeIndicatorErrorFallback: () => null,
 };
 
 interface Props { board: WhiteboardDetail }
@@ -822,7 +899,15 @@ function SingleUserCanvas({
 
   // STABLE handleMount — empty deps, NIEMALS re-created.
   const handleMount = useCallback((ed: Editor) => {
-    if (mountedOnceRef.current) return;
+    // Der Guard darf nur DIESELBE Editor-Instanz abwehren, nicht eine neue.
+    //
+    // Vorher stand hier ein reines Einmal-Flag. Mountete tldraw erneut — nach
+    // einem abgefangenen Canvas-Absturz, nach einem Reconcile —, bekam der
+    // Callback einen FRISCHEN, LEEREN Store, wurde aber sofort abgewiesen.
+    // Der Snapshot wurde dann nie geladen: leeres Canvas, und editorRef zeigte
+    // weiter auf den alten, unsichtbaren Editor. Das Board war weg, obwohl in
+    // der Datenbank alles stand.
+    if (editorRef.current === ed) return;
     mountedOnceRef.current = true;
     editorRef.current = ed;
 
@@ -1018,6 +1103,10 @@ function SingleUserCanvas({
       try {
         await whiteboardApi.update(boardIdRef.current, { state: snap });
         lastSavedJsonRef.current = json;
+        // Mitfuehren, damit ein Neu-Mount des Canvas den AKTUELLEN Stand
+        // wiederherstellt und nicht den, der beim Oeffnen der Seite geladen
+        // wurde — sonst waere alles seit dem Oeffnen weg.
+        boardStateRef.current = snap;
         if (shapeCount > maxSavedShapesRef.current) maxSavedShapesRef.current = shapeCount;
         setSaveState('saved');
         setLastSavedAt(new Date());
@@ -1074,6 +1163,12 @@ function SingleUserCanvas({
       }
       if (jetzt > maxShapes) maxShapes = jetzt;
 
+      // Zeigt tldraw bereits seinen eigenen Absturz-Dialog, ist die Ursache
+      // dort ablesbar — dann kein zweiter, weniger informativer Hinweis.
+      if (canvasContainerRef.current?.querySelector('[data-wb-crash]')) {
+        gemeldet = true;
+        return;
+      }
       const canvasDa = !!canvasContainerRef.current?.querySelector('.tl-canvas');
       if (!canvasDa) {
         gemeldet = true;
