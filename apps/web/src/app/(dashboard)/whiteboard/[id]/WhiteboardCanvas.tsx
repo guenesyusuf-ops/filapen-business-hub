@@ -846,11 +846,33 @@ export function WhiteboardCanvas({ board }: Props) {
 // TLDRAW_COMPONENTS ist eine Modul-Konstante — beide Referenzen aendern
 // sich nie → memo bailed alle Re-Renders.
 // ---------------------------------------------------------------------------
+/**
+ * Zaehler fuer den Lebenszyklus des tldraw-Subtrees.
+ *
+ * Master meldet: Canvas verschwindet, tldraw wirft dabei aber KEINEN Fehler.
+ * Damit bleiben nur zwei Erklaerungen — React unmountet den Subtree, oder das
+ * Element wird ausserhalb von React aus dem DOM genommen. Diese Zaehler
+ * unterscheiden genau das: steigt unmounts, war es React.
+ * Modul-Ebene, weil StableTldraw ausserhalb von SingleUserCanvas lebt.
+ */
+const tldrawMountsRef = { current: 0 };
+const tldrawUnmountsRef = { current: 0 };
+
 const StableTldraw = memo(function StableTldraw({
   onMount,
 }: {
   onMount: (editor: Editor) => void;
 }) {
+  useEffect(() => {
+    tldrawMountsRef.current += 1;
+    // eslint-disable-next-line no-console
+    console.log(`[wb-lifecycle] Tldraw gemountet (#${tldrawMountsRef.current})`);
+    return () => {
+      tldrawUnmountsRef.current += 1;
+      // eslint-disable-next-line no-console
+      console.warn(`[wb-lifecycle] Tldraw UNMOUNTET (#${tldrawUnmountsRef.current}) — React hat den Subtree entfernt`);
+    };
+  }, []);
   return <Tldraw onMount={onMount} components={TLDRAW_COMPONENTS} />;
 });
 
@@ -879,6 +901,12 @@ function SingleUserCanvas({
   const [blankAlert, setBlankAlert] = useState<string | null>(null);
   /** Hoechste bisher gespeicherte Shape-Anzahl — Schutz gegen Leer-Speichern. */
   const maxSavedShapesRef = useRef(0);
+  /**
+   * Erhoehen erzwingt einen sauberen Neu-Mount des tldraw-Subtrees. Der
+   * Waechter nutzt das zur Selbstheilung, wenn das Canvas verschwindet.
+   */
+  const [canvasKey, setCanvasKey] = useState(0);
+  const recoveriesRef = useRef(0);
   // ONE-TIME flip nach onMount → einmaliger Re-Render damit EntityDock mountet.
   const [editorReady, setEditorReady] = useState(false);
   // Modals fuer Insert-Aktionen
@@ -1149,6 +1177,7 @@ function SingleUserCanvas({
     if (!editorReady) return;
     let maxShapes = 0;
     let gemeldet = false;
+    const mountZeit = Date.now();
     const id = setInterval(() => {
       const ed = editorRef.current;
       if (!ed || gemeldet) return;
@@ -1169,11 +1198,52 @@ function SingleUserCanvas({
         gemeldet = true;
         return;
       }
-      const canvasDa = !!canvasContainerRef.current?.querySelector('.tl-canvas');
-      if (!canvasDa) {
+
+      // Genaue Diagnose statt einer Sammelmeldung.
+      //
+      // Die erste Fassung warf zwei voellig verschiedene Faelle in denselben
+      // Text: "Container da, aber kein Canvas darin" und "Container-Referenz
+      // ist selbst null". Master hat gemeldet, dass der gelbe Hinweis kommt,
+      // tldraws rote Fehlerkarte aber NICHT — tldraw wirft also gar keinen
+      // Fehler, das Canvas wird von aussen entfernt. Um das zu unterscheiden,
+      // muss der Waechter sagen, WAS genau fehlt.
+      const container = canvasContainerRef.current;
+      const tlContainer = container?.querySelector('.tl-container') ?? null;
+      const canvas = container?.querySelector('.tl-canvas') ?? null;
+
+      if (!canvas) {
+        const details = [
+          `container=${container ? 'da' : 'NULL'}`,
+          `imDokument=${container ? document.contains(container) : 'n/a'}`,
+          `kinder=${container ? container.childElementCount : 'n/a'}`,
+          `tlContainer=${tlContainer ? 'da' : 'fehlt'}`,
+          `editorDisposed=${(ed as any)?.isDisposed ?? 'unbekannt'}`,
+          `shapes=${jetzt}`,
+          `max=${maxShapes}`,
+          `nachMount=${Math.round((Date.now() - mountZeit) / 1000)}s`,
+          `mounts=${tldrawMountsRef.current}`,
+          `unmounts=${tldrawUnmountsRef.current}`,
+        ].join(' ');
+        console.error(`[wb-watchdog] Canvas weg — ${details}`);
+        console.error('[wb-watchdog] Container-HTML (gekuerzt):',
+          container ? container.innerHTML.slice(0, 400) : '(kein Container)');
+
+        // Selbstheilung: hoechstens zweimal einen sauberen Neu-Mount
+        // erzwingen. handleMount prueft auf Editor-IDENTITAET und laedt den
+        // zuletzt gespeicherten Stand in den frischen Store — das Board ist
+        // nach etwa einer Sekunde wieder da, statt weiss zu bleiben.
+        if (recoveriesRef.current < 2) {
+          recoveriesRef.current += 1;
+          console.warn(`[wb-watchdog] erzwinge Neu-Mount (Versuch ${recoveriesRef.current}/2)`);
+          setCanvasKey((k) => k + 1);
+          // Waechter nach dem Neu-Aufbau wieder scharf schalten.
+          setTimeout(() => { gemeldet = false; }, 5000);
+          gemeldet = true;
+          return;
+        }
+
         gemeldet = true;
-        console.error(`[wb-watchdog] tldraw-Canvas ist aus dem DOM verschwunden (zuletzt ${maxShapes} Shapes)`);
-        setBlankAlert('Das Canvas ist verschwunden. Bitte Seite neu laden — dein letzter Stand ist gespeichert.');
+        setBlankAlert(details);
         return;
       }
       if (maxShapes > 0 && jetzt === 0) {
@@ -1254,20 +1324,33 @@ function SingleUserCanvas({
             <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0 text-sm">
               <div className="font-semibold">Whiteboard unerwartet leer</div>
-              <div className="mt-0.5 text-xs opacity-95">{blankAlert}</div>
+              <div className="mt-0.5 text-xs opacity-95">
+                Dein gespeicherter Stand ist unberührt — es wird nichts überschrieben.
+              </div>
+              <pre className="mt-2 text-[10px] font-mono bg-black/25 rounded-lg p-2 whitespace-pre-wrap break-all max-h-32 overflow-auto">
+                {blankAlert}
+              </pre>
             </div>
-            <button
-              onClick={() => window.location.reload()}
-              className="flex-shrink-0 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-semibold transition-colors"
-            >
-              Neu laden
-            </button>
+            <div className="flex flex-shrink-0 flex-col gap-1.5">
+              <button
+                onClick={() => { navigator.clipboard?.writeText(blankAlert).catch(() => {}); }}
+                className="rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-semibold transition-colors"
+              >
+                Kopieren
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-semibold transition-colors"
+              >
+                Neu laden
+              </button>
+            </div>
           </div>
         </div>
       )}
       {/* min-h-0 verhindert flex-collapse */}
       <div className="flex-1 relative min-h-0" ref={canvasContainerRef}>
-        <StableTldraw onMount={handleMount} />
+        <StableTldraw key={canvasKey} onMount={handleMount} />
         {editorReady && editorRef.current && <EntityDockPanel editor={editorRef.current} />}
         {/* Floating-Action-Buttons direkt UEBER "Daten einfuegen"-Button —
             gleiche horizontale Position (480px links vom Center), drueber
