@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, FileText, Plus, X, Trash2, Upload, Download, Receipt,
   CheckCircle2, AlertCircle, Truck as TruckIcon, Ban, History, Plane, Package as PackageIcon,
@@ -39,6 +40,7 @@ export default function OrderDetailPage() {
   const [previewDoc, setPreviewDoc] = useState<NonNullable<PurchaseOrder['documents']>[number] | null>(null);
 
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
 
   const reload = () => {
     purchasesApi.getOrder(id)
@@ -46,6 +48,29 @@ export default function OrderDetailPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
     purchasesApi.orderAudit(id).then(setAudit).catch(() => {});
+
+    // Die Listen-Ansichten im Einkauf laufen ueber React Query mit
+    // staleTime 2 Minuten und refetchOnWindowFocus: false (providers.tsx).
+    // Diese Detailseite haelt ihre Daten dagegen in lokalem State und hat
+    // den Query-Cache bisher nie invalidiert. Folge: wer hier etwas aendert
+    // — Ankunftsdatum, Zahlung, Rechnung, Sendung, Status — und dann auf
+    // "Bestellungen" klickt, sieht bis zu zwei Minuten den alten Stand.
+    //
+    // reload() ist der einzige Trichter: jeder Speicherpfad dieser Seite
+    // ruft ihn. Eine Invalidierung hier deckt daher alle ab, ohne fuenfzehn
+    // Handler anzufassen.
+    //
+    // Betroffene Schluessel: 'purchase-orders' (Liste),
+    // 'purchases-dashboard' und 'purchases-orders-dash' (Einkauf-Dashboard).
+    // Das Praedikat greift alle davon und bleibt bei kuenftigen
+    // purchase*-Schluesseln gueltig.
+    //
+    // invalidateQueries markiert nur als veraltet. Die Listen sind in diesem
+    // Moment nicht gemountet, es entsteht also kein zusaetzlicher Request —
+    // nachgeladen wird erst beim naechsten Aufruf der Liste.
+    queryClient.invalidateQueries({
+      predicate: (q) => String(q.queryKey?.[0] ?? '').startsWith('purchase'),
+    });
   };
 
   useEffect(() => { reload(); }, [id]);
