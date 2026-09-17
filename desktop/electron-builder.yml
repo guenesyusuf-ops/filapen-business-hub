@@ -1,0 +1,69 @@
+# Build-Konfiguration fuer Filapen Hub (macOS).
+#
+# Bewusst arm64-only: alle eingesetzten iMacs laufen auf der jeweils neuesten
+# macOS-Version, und macOS 26 unterstuetzt keine Intel-Macs mehr. Ein
+# Universal-Build wuerde Dateigroesse und Testaufwand verdoppeln, ohne einen
+# Rechner zusaetzlich zu erreichen. Nachziehbar, falls doch ein Intel-Mac
+# dazukommt.
+
+appId: de.filapen.hub
+productName: Filapen Hub
+
+copyright: "© 2026 Filapen GmbH"
+
+directories:
+  output: dist
+  buildResources: build
+
+# Nur was die App zur Laufzeit braucht. Kein Web-Frontend, keine Kopie des
+# Hubs — die App laedt business.filapen.de.
+files:
+  - src/**/*
+  - static/**/*
+  - package.json
+
+mac:
+  category: public.app-category.business
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  # macOS 14 als Minimum: hoch genug fuer moderne System-APIs, tief genug
+  # damit ein aufgeschobenes Update oder ein neuer Rechner nicht aussperrt.
+  # Electron 44 verlangt technisch nur macOS 12.
+  minimumSystemVersion: "14.0"
+  # Hardened Runtime + Entitlements sind Voraussetzung fuer die Notarisierung.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Aus build/icon.png (1024x1024) erzeugt electron-builder die .icns selbst.
+  # Erstellt von scripts/make-icon.js aus logo-normal.svg.
+  icon: build/icon.png
+
+dmg:
+  title: "Filapen Hub"
+  # Schlicht, mit Verknuepfung zum Programme-Ordner. Kein Hintergrundbild.
+  contents:
+    - x: 140
+      y: 180
+      type: file
+    - x: 400
+      y: 180
+      type: link
+      path: /Applications
+  window:
+    width: 540
+    height: 360
+
+# Signierung und Notarisierung laufen ueber Umgebungsvariablen, damit keine
+# Zugangsdaten im Repository landen:
+#   CSC_LINK, CSC_KEY_PASSWORD        — Developer-ID-Zertifikat
+#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID  — Notarisierung
+# Solange diese fehlen, entsteht ein unsignierter lokaler Testbuild.
+afterSign: null
+
+# Auto-Update ist in V1 nur VORBEREITET, nicht aktiviert. Der Kanal wird
+# erst konfiguriert, wenn Signierung, Notarisierung und geschuetztes Hosting
+# stehen. Ohne publish-Eintrag erzeugt electron-builder keine Update-Metadaten.
+publish: null

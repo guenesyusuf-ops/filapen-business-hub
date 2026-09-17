@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'self'; script-src 'self';">
+  <title>Keine Internetverbindung</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="zustand">
+    <!-- Platzhalter bis das Logo vorliegt. Wird dann gegen die Marke getauscht. -->
+    <div class="marke">F</div>
+    <h1>Keine Internetverbindung</h1>
+    <p>
+      Dieser Mac ist gerade nicht mit dem Internet verbunden.
+      Filapen Hub versucht es im Hintergrund weiter — sobald die Verbindung
+      zurück ist, geht es automatisch weiter.
+    </p>
+    <button type="button" class="knopf" id="btn-retry">Erneut versuchen</button>
+    <div class="status" id="status"></div>
+  </div>
+  <script src="state.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'self'; script-src 'self';">
+  <title>Filapen nicht erreichbar</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="zustand">
+    <div class="marke">F</div>
+    <h1>Filapen ist gerade nicht erreichbar</h1>
+    <p>
+      Die Internetverbindung steht, aber der Filapen-Server antwortet nicht.
+      Das kann an einer laufenden Aktualisierung liegen und ist meist nach
+      wenigen Minuten vorbei.
+    </p>
+    <button type="button" class="knopf" id="btn-retry">Erneut versuchen</button>
+    <div class="status" id="status"></div>
+  </div>
+  <script src="state.js"></script>
+</body>
+</html>

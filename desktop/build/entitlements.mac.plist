@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements fuer Hardened Runtime.
+
+  Bewusst minimal: nur was Electron zum Laufen braucht, plus ausgehendes
+  Netzwerk. KEINE Kamera, KEIN Mikrofon, KEINE Bildschirmaufnahme, KEIN
+  weitreichender Dateisystemzugriff.
+
+  Screen Share ist nicht Teil von Version 1. Sobald es dazukommt, braucht es
+  zusaetzlich NSScreenCaptureUsageDescription in der Info.plist — dann wird
+  dieser Eintrag bewusst ergaenzt, nicht auf Vorrat.
+
+  Downloads brauchen keine Berechtigung: electron-builder erlaubt Schreiben
+  in den Download-Ordner ueber die Standard-Sandbox-Regeln des Nutzers.
+-->
+<plist version="1.0">
+<dict>
+    <!-- Electron/Chromium benoetigen JIT und unsignierten ausfuehrbaren Speicher -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- Ausgehende Verbindungen: business.filapen.de, Railway-API, Supabase,
+         Liveblocks-WebSocket, Google Fonts -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>
