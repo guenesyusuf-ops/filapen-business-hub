@@ -86,6 +86,7 @@ import {
   Hash,
   ListChecks as ListIcon,
   KeyRound,
+  MonitorDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -349,6 +350,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.approvals', href: '/settings/approvals', icon: ShieldCheck },
       { labelKey: 'nav.integrations', href: '/finance/integrations', icon: Plug },
       { labelKey: 'nav.manual', href: '/settings/manual', icon: BookOpen },
+      { labelKey: 'nav.appDownload', href: '/settings/app', icon: MonitorDown },
     ],
   },
   {
