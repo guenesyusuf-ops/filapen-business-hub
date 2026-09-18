@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'self'; script-src 'self';">
+  <title>Download</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="toast">
+  <!-- Eigenes Fenster, eigenes HTML. Keine Verbindung zum Markup der Web-App. -->
+  <div class="karte" id="karte">
+    <div class="symbol" id="symbol">✓</div>
+    <div class="text">
+      <div class="titel" id="dateiname">Datei</div>
+      <div class="unter" id="unter">Im Download-Ordner</div>
+    </div>
+    <div class="aktionen" id="aktionen">
+      <button type="button" id="btn-oeffnen">Öffnen</button>
+      <button type="button" id="btn-finder">Im Finder</button>
+    </div>
+    <button type="button" class="zu" id="btn-zu" title="Ausblenden">×</button>
+  </div>
+  <script src="toast.js"></script>
+</body>
+</html>

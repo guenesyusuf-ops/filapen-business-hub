@@ -20,13 +20,13 @@
 
 export const DESKTOP_APP = {
   /** Muss der Version in desktop/package.json entsprechen. */
-  version: '1.0.0',
+  version: '1.0.1',
 
   /** Datum der Installationsdatei (ISO). Erscheint hinter „Neues Update". */
   released: '2026-09-18',
 
   /** Ungefaehre Groesse in MB, nur zur Anzeige. */
-  sizeMb: 122,
+  sizeMb: 121,
 
   /** Systemvoraussetzungen, wie in electron-builder.yml festgelegt. */
   minMacOS: '14',

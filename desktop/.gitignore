@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+*.dmg
+*.zip
+*.blockmap
+build/icon.icns
+.DS_Store

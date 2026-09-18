@@ -1,0 +1,192 @@
+/*
+  Gemeinsames Aussehen fuer die eigenen Seiten der Desktop-Huelle:
+  Offline-Seite, Serverfehler, Download-Hinweis.
+
+  Bewusst eigenstaendig — kein Tailwind, keine Abhaengigkeit von der Web-App.
+  Light und Dark folgen der macOS-Systemeinstellung.
+*/
+
+:root {
+  --bg: #ffffff;
+  --surface: #f6f7f9;
+  --ink: #16181d;
+  --ink-muted: #5a6068;
+  --rule: #dcdfe5;
+  --accent: #16181d;
+  --accent-ink: #ffffff;
+  --ok: #1c6b4f;
+  --err: #9b2c20;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101215;
+    --surface: #1a1e24;
+    --ink: #e8eaed;
+    --ink-muted: #a2a8b0;
+    --rule: #2a2f36;
+    --accent: #e8eaed;
+    --accent-ink: #101215;
+    --ok: #6bc39d;
+    --err: #e08a7e;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* --- Zustandsseiten (offline, Serverfehler) --- */
+
+.zustand {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 40px;
+  text-align: center;
+}
+
+.marke {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.zustand h1 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.zustand p {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  margin: 0;
+  max-width: 34em;
+}
+
+.knopf {
+  margin-top: 8px;
+  appearance: none;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 20px;
+  cursor: pointer;
+}
+.knopf:active { opacity: 0.8; }
+.knopf:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
+
+.knopf-leise {
+  background: transparent;
+  color: var(--ink-muted);
+  border: 1px solid var(--rule);
+}
+
+.status {
+  font-size: 12px;
+  color: var(--ink-muted);
+  min-height: 1.4em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Download-Hinweis --- */
+
+body.toast {
+  background: transparent;
+  padding: 6px;
+}
+
+.karte {
+  height: 100%;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.karte .symbol {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+  color: var(--ok);
+}
+.karte.fehler .symbol {
+  background: color-mix(in srgb, var(--err) 15%, transparent);
+  color: var(--err);
+}
+
+.karte .text { flex: 1 1 auto; min-width: 0; }
+.karte .titel {
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.karte .unter {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 1px;
+}
+
+.karte .aktionen { flex: 0 0 auto; display: flex; gap: 6px; }
+.karte .aktionen button {
+  appearance: none;
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.karte .aktionen button:active { opacity: 0.7; }
+
+.karte .zu {
+  appearance: none; border: none; background: transparent;
+  color: var(--ink-muted); font-size: 15px; line-height: 1;
+  cursor: pointer; padding: 2px 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

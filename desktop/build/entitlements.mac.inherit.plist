@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements fuer die Helferprozesse (GPU, Renderer, Plugin).
+
+  Electron startet mehrere Unterprozesse. Sie duerfen NICHT dieselben
+  Entitlements wie die Hauptanwendung bekommen, sondern muessen die des
+  Elternprozesses erben. Genau dafuer gibt es com.apple.security.inherit.
+
+  Warum das hier steht: Vorher zeigten `entitlements` und
+  `entitlementsInherit` in electron-builder.yml auf dieselbe Datei. Die
+  Helfer erhielten dadurch die Haupt-Entitlements und kein `inherit`. Unter
+  Hardened Runtime bricht der Renderer damit beim Start ab — und ohne
+  Renderer startet die App gar nicht. Nachgemessen: Bundle mit gueltiger
+  Signatur, aber der Prozess war nach Sekunden weg.
+
+  com.apple.security.inherit muss allein stehen. Weitere Eintraege neben
+  `inherit` sind unzulaessig und lassen die Signatur fehlschlagen.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.inherit</key>
+    <true/>
+</dict>
+</plist>
