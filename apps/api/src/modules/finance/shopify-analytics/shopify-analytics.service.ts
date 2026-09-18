@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { ShopifyService } from '../../integration/shopify/shopify.service';
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -26,6 +27,13 @@ export interface HourlyPoint {
 export interface ShopifyAnalyticsOverview {
   range: { start: string; end: string; timezone: string };
   revenueBreakdown: RevenueBreakdown;
+  /**
+   * Woher die Aufschluesselung stammt. 'shopify' = aus Shopifys eigener
+   * Auswertung, damit per Konstruktion identisch. 'lokal' = eigene Rechnung
+   * aus den Rohdaten, weil Shopify nicht geantwortet hat; dann koennen
+   * einzelne Positionen abweichen.
+   */
+  revenueBreakdownSource: 'shopify' | 'lokal';
   hourlyRevenue: HourlyPoint[];
   ordersTimeSeries: Array<{ date: string; orders: number }>;
   aovTimeSeries: Array<{ date: string; aov: number }>;
@@ -72,7 +80,10 @@ export interface ShopifyAnalyticsOverview {
 export class ShopifyAnalyticsService {
   private readonly logger = new Logger(ShopifyAnalyticsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shopify: ShopifyService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Number helpers
@@ -128,6 +139,47 @@ export class ShopifyAnalyticsService {
       this.queryReturnsList(orgId, startDate, endDate),
     ]);
 
+    /**
+     * Umsatz-Aufschluesselung aus SHOPIFYS EIGENER Auswertung.
+     *
+     * Die eigene Berechnung oben bleibt als Rueckfall bestehen, ist aber nicht
+     * mehr die Quelle der Wahrheit. Grund: jede nachgebaute Kennzahl weicht an
+     * irgendeiner Stelle ab, weil Shopify Bruttopreise, Versandrabatte und den
+     * Begriff "Verkaufsstornierungen" anders behandelt als eine Ableitung aus
+     * den Rohfeldern es treffen kann.
+     *
+     * Bewusst NACH dem Promise.all und nicht darin: schlaegt der Aufruf fehl
+     * oder ist Shopify langsam, bleibt die Seite mit den eigenen Zahlen
+     * bedienbar statt leer.
+     */
+    let breakdownFinal = breakdown;
+    let quelle: 'shopify' | 'lokal' = 'lokal';
+
+    const integration = await this.prisma.integration.findFirst({
+      where: { orgId, type: 'shopify', status: 'connected' },
+      select: { id: true },
+    });
+
+    if (integration) {
+      const vonShopify = await this.shopify.fetchSalesBreakdown(
+        integration.id,
+        startDate,
+        endDate,
+      );
+      if (vonShopify) {
+        breakdownFinal = {
+          ...vonShopify,
+          // Rueckgabegebuehren fuehrt Shopify in dieser Abfrage nicht mit.
+          returnFees: 0,
+        };
+        quelle = 'shopify';
+      } else {
+        this.logger.warn(
+          'Aufschluesselung kommt aus eigener Berechnung — Shopify hat nicht geantwortet',
+        );
+      }
+    }
+
     // Build AOV time series from ordersDaily (needs revenue per day)
     const aovTimeSeries = ordersDaily.map((d) => ({
       date: d.date,
@@ -146,7 +198,8 @@ export class ShopifyAnalyticsService {
 
     return {
       range: { start: startDate, end: endDate, timezone: 'Europe/Berlin' },
-      revenueBreakdown: breakdown,
+      revenueBreakdown: breakdownFinal,
+      revenueBreakdownSource: quelle,
       hourlyRevenue: hourly,
       ordersTimeSeries: ordersDaily.map((d) => ({
         date: d.date,

@@ -1580,6 +1580,141 @@ export class ShopifyService {
     return { data, pagination };
   }
 
+  /**
+   * Holt die Umsatz-Aufschluesselung aus SHOPIFYS EIGENER Auswertung.
+   *
+   * Warum nicht weiter selbst rechnen: jede Kennzahl, die man nachbaut, weicht
+   * an irgendeiner Stelle ab. Nachgemessen am 18.09.2026 — links unser
+   * Nachbau aus den Rohdaten, rechts Shopify:
+   *
+   *   Bruttoumsatz           2.655,47   2.617,84
+   *   Rabatte                  279,02     232,15
+   *   Verkaufsstornierungen     85,68     161,59
+   *   Versandgebuehren           36,20      26,96
+   *   Gesamtumsatz           2.769,57   2.689,50
+   *
+   * Die Abweichungen haben verschiedene Ursachen: der Shop rechnet mit
+   * Bruttopreisen, Rabatte und Versand tragen Steuer, Versandrabatte wurden
+   * doppelt gezaehlt, und "Verkaufsstornierungen" umfasst bei Shopify mehr als
+   * klassische Erstattungen. Alle Regeln einzeln nachzubilden hiesse, Shopifys
+   * Rechenwerk dauerhaft zu spiegeln — inklusive jeder kuenftigen Aenderung.
+   *
+   * Deshalb ShopifyQL ueber die Admin-GraphQL-Schnittstelle. Die Zahlen sind
+   * damit per Konstruktion identisch, nicht per Nachbau.
+   *
+   * Voraussetzung ist die Berechtigung read_reports; die Integration besitzt
+   * sie (geprueft: scopes enthalten read_reports und read_analytics).
+   *
+   * Gibt null zurueck, wenn Shopify nicht antwortet oder die Abfrage
+   * abgelehnt wird. Der Aufrufer faellt dann auf die eigene Berechnung
+   * zurueck — die Seite darf nie leer bleiben, nur weil Shopify gerade
+   * nicht erreichbar ist.
+   */
+  async fetchSalesBreakdown(
+    integrationId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<{
+    grossSales: number;
+    discounts: number;
+    returns: number;
+    netSales: number;
+    shipping: number;
+    taxes: number;
+    totalSales: number;
+  } | null> {
+    try {
+      const integration = await this.prisma.integration.findUniqueOrThrow({
+        where: { id: integrationId },
+      });
+      const { accessToken, shopDomain } = this.decryptCredentials(
+        integration.credentials as Record<string, string>,
+      );
+
+      // SINCE/UNTIL erwarten Datumsangaben; der Zeitraum ist inklusive.
+      const shopifyQl =
+        'FROM sales SHOW gross_sales, discounts, sales_reversals, net_sales, ' +
+        `shipping_charges, taxes, total_sales SINCE ${startDate} UNTIL ${endDate}`;
+
+      const antwort = await this.shopifyApiPost<{
+        data?: {
+          shopifyqlQuery?: {
+            __typename?: string;
+            tableData?: {
+              columns?: Array<{ name: string }>;
+              rowData?: string[][];
+              unformattedData?: string;
+            };
+            parseErrors?: Array<{ code: string; message: string }>;
+          };
+        };
+        errors?: Array<{ message: string }>;
+      }>(shopDomain, accessToken, '/admin/api/2024-01/graphql.json', {
+        query: `
+          query Umsatzaufschluesselung($ql: String!) {
+            shopifyqlQuery(query: $ql) {
+              __typename
+              ... on TableResponse {
+                tableData {
+                  columns { name }
+                  rowData
+                }
+              }
+              parseErrors { code message }
+            }
+          }
+        `,
+        variables: { ql: shopifyQl },
+      });
+
+      if (antwort.errors?.length) {
+        this.logger.warn(
+          `ShopifyQL abgelehnt: ${antwort.errors.map((e) => e.message).join('; ')}`,
+        );
+        return null;
+      }
+
+      const ergebnis = antwort.data?.shopifyqlQuery;
+      if (ergebnis?.parseErrors?.length) {
+        this.logger.warn(
+          `ShopifyQL-Syntaxfehler: ${ergebnis.parseErrors.map((e) => e.message).join('; ')}`,
+        );
+        return null;
+      }
+
+      const spalten = ergebnis?.tableData?.columns?.map((c) => c.name) ?? [];
+      const zeile = ergebnis?.tableData?.rowData?.[0];
+      if (!spalten.length || !zeile) {
+        this.logger.warn('ShopifyQL lieferte keine Tabellendaten');
+        return null;
+      }
+
+      const wert = (name: string): number => {
+        const i = spalten.indexOf(name);
+        if (i < 0) return 0;
+        const n = parseFloat(String(zeile[i] ?? '0'));
+        return Number.isFinite(n) ? n : 0;
+      };
+
+      // Shopify fuehrt Rabatte und Stornierungen negativ. Unsere Oberflaeche
+      // stellt diese Zeilen selbst mit Minus dar, deshalb hier der Betrag.
+      return {
+        grossSales: wert('gross_sales'),
+        discounts: Math.abs(wert('discounts')),
+        returns: Math.abs(wert('sales_reversals')),
+        netSales: wert('net_sales'),
+        shipping: wert('shipping_charges'),
+        taxes: wert('taxes'),
+        totalSales: wert('total_sales'),
+      };
+    } catch (err: any) {
+      this.logger.warn(
+        `Umsatz-Aufschluesselung konnte nicht von Shopify geholt werden: ${err?.message ?? err}`,
+      );
+      return null;
+    }
+  }
+
   private async shopifyApiPost<T>(
     shopDomain: string,
     accessToken: string,
