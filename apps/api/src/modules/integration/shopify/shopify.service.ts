@@ -501,10 +501,164 @@ export class ShopifyService {
       return { orderId: order.id, action };
     }, { timeout: 30000, maxWait: 10000 });
 
+    /**
+     * Erstattungen aus der Bestellung selbst uebernehmen.
+     *
+     * Das ist NICHT redundant zum refunds/create-Webhook, sondern die
+     * verlaessliche Quelle. Vorher war der Webhook der einzige Schreiber, und
+     * er hatte noch nie zugestellt: die Tabelle refunds war leer und
+     * orders.total_refunded bei allen 7.741 Bestellungen 0 — obwohl 248
+     * Bestellungen den Status refunded/partially_refunded trugen. Jede
+     * Umsatzzahl der Shopify-Auswertung war dadurch dauerhaft zu hoch.
+     *
+     * Die Bestell-API liefert `refunds[]` bei JEDEM Abruf mit. Damit heilt
+     * sich der Zustand bei jedem Sync von selbst, auch rueckwirkend, und ein
+     * verlorener Webhook kann nichts mehr kaputt machen.
+     *
+     * Bewusst ausserhalb der Transaktion oben: die Bestellung ist damit auch
+     * dann gespeichert, wenn eine einzelne Erstattung Probleme macht.
+     */
+    if (shopifyOrder.refunds?.length) {
+      try {
+        await this.persistRefunds(orgId, result.orderId, shopifyOrder.refunds);
+      } catch (err: any) {
+        this.logger.error(
+          `Erstattungen fuer Bestellung ${externalId} konnten nicht uebernommen werden: ${err?.message ?? err}`,
+        );
+      }
+    }
+
     // Enqueue reaggregation for the affected date (outside transaction)
     await this.enqueueReaggregation(orgId, placedAt);
 
     return result;
+  }
+
+  /**
+   * Rechnet eine Shopify-Erstattung in die drei Groessen um, die die
+   * Auswertung braucht.
+   *
+   * Shopify zeigt eine Erstattung an zwei Stellen: den Nettobetrag in der
+   * Zeile "Verkaufsstornierungen" und den Steueranteil als Minderung der
+   * Steuerzeile. Beides getrennt zu kennen ist die Voraussetzung dafuer, dass
+   * unsere Zahlen mit Shopify uebereinstimmen.
+   *
+   * Quellen im Payload:
+   *   refund_line_items[]  Warenwert: subtotal (netto) + total_tax
+   *   order_adjustments[]  Versanderstattungen und manuelle Korrekturen:
+   *                        amount (netto) + tax_amount. Die Betraege sind dort
+   *                        negativ, deshalb der Vorzeichenwechsel.
+   *   transactions[]       tatsaechlich zurueckgezahltes Geld (brutto)
+   *
+   * Der Brutto-Betrag kommt aus den Transaktionen, weil nur sie den wirklich
+   * geflossenen Betrag nennen. Fehlen sie (kommt bei Payload-Varianten vor),
+   * wird brutto aus netto + Steuer gebildet, damit die Zeile nicht auf 0 faellt.
+   */
+  private rechneErstattung(refund: ShopifyRefundPayload): {
+    brutto: number;
+    netto: number;
+    steuer: number;
+    zeitpunkt: Date;
+  } {
+    const zahl = (v: string | undefined | null) => {
+      const n = parseFloat(String(v ?? '0'));
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    let netto = 0;
+    let steuer = 0;
+
+    for (const rli of refund.refund_line_items ?? []) {
+      netto += zahl(rli.subtotal);
+      steuer += zahl(rli.total_tax);
+    }
+
+    // Versanderstattungen und Korrekturen. Shopify fuehrt sie negativ.
+    for (const adj of refund.order_adjustments ?? []) {
+      netto += Math.abs(zahl(adj.amount));
+      steuer += Math.abs(zahl(adj.tax_amount));
+    }
+
+    const ausTransaktionen = (refund.transactions ?? [])
+      .filter((t) => t.kind === 'refund' && t.status === 'success')
+      .reduce((summe, t) => summe + zahl(t.amount), 0);
+
+    const brutto = ausTransaktionen > 0 ? ausTransaktionen : netto + steuer;
+
+    // processed_at ist Shopifys Ausfuehrungszeitpunkt, created_at der
+    // Anlagezeitpunkt. Shopify datiert die Erstattung nach der Ausfuehrung.
+    const roh = refund.processed_at || refund.created_at;
+    const zeitpunkt = roh ? new Date(roh) : new Date();
+
+    return {
+      brutto: Math.round(brutto * 100) / 100,
+      netto: Math.round(netto * 100) / 100,
+      steuer: Math.round(steuer * 100) / 100,
+      zeitpunkt,
+    };
+  }
+
+  /**
+   * Schreibt Erstattungen einer Bestellung und zieht orders.total_refunded
+   * nach. Idempotent ueber (orgId, externalId) — ein zweiter Sync derselben
+   * Bestellung aendert nichts.
+   *
+   * Gemeinsame Stelle fuer beide Wege: den Webhook und den regulaeren Sync.
+   */
+  private async persistRefunds(
+    orgId: string,
+    orderId: string,
+    refunds: ShopifyRefundPayload[],
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      for (const refund of refunds) {
+        const { brutto, netto, steuer, zeitpunkt } = this.rechneErstattung(refund);
+
+        const refundLineItems = (refund.refund_line_items ?? []).map((rli) => ({
+          lineItemExternalId: String(rli.line_item_id),
+          quantity: rli.quantity,
+          subtotal: parseFloat(rli.subtotal),
+          totalTax: parseFloat(rli.total_tax),
+          restockType: rli.restock_type,
+        }));
+
+        await tx.refund.upsert({
+          where: { orgId_externalId: { orgId, externalId: String(refund.id) } },
+          update: {
+            amount: brutto,
+            netAmount: netto,
+            taxAmount: steuer,
+            processedAt: zeitpunkt,
+            note: refund.note ?? null,
+            refundLineItems,
+          },
+          create: {
+            orgId,
+            orderId,
+            externalId: String(refund.id),
+            amount: brutto,
+            netAmount: netto,
+            taxAmount: steuer,
+            processedAt: zeitpunkt,
+            reason: refund.note ?? null,
+            note: refund.note ?? null,
+            refundLineItems,
+          },
+        });
+      }
+
+      // total_refunded aus allen Erstattungen der Bestellung neu bilden,
+      // nicht aufaddieren — sonst verdoppelt ein zweiter Sync den Betrag.
+      const summe = await tx.refund.aggregate({
+        where: { orderId, orgId },
+        _sum: { amount: true },
+      });
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { totalRefunded: Number(summe._sum.amount ?? 0) },
+      });
+    }, { timeout: 30000, maxWait: 10000 });
   }
 
   // ---------------------------------------------------------------------------
@@ -523,82 +677,35 @@ export class ShopifyService {
     const externalOrderId = String(shopifyRefund.order_id);
     const externalRefundId = String(shopifyRefund.id);
 
-    // Calculate total refund amount from transactions
-    const refundAmount = (shopifyRefund.transactions || [])
-      .filter((t) => t.kind === 'refund' && t.status === 'success')
-      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const order = await this.prisma.order.findUnique({
+      where: { orgId_externalId: { orgId, externalId: externalOrderId } },
+      select: { id: true, placedAt: true },
+    });
 
-    await this.prisma.$transaction(async (tx) => {
-      // Find the order
-      const order = await tx.order.findUnique({
-        where: {
-          orgId_externalId: { orgId, externalId: externalOrderId },
-        },
-        select: { id: true, totalRefunded: true, placedAt: true },
-      });
-
-      if (!order) {
-        this.logger.warn(
-          `Order ${externalOrderId} not found for refund ${externalRefundId}`,
-        );
-        return;
-      }
-
-      // Build refund line items JSON
-      const refundLineItems = (shopifyRefund.refund_line_items || []).map(
-        (rli) => ({
-          lineItemExternalId: String(rli.line_item_id),
-          quantity: rli.quantity,
-          subtotal: parseFloat(rli.subtotal),
-          totalTax: parseFloat(rli.total_tax),
-          restockType: rli.restock_type,
-        }),
+    if (!order) {
+      this.logger.warn(
+        `Order ${externalOrderId} not found for refund ${externalRefundId}`,
       );
+      return;
+    }
 
-      // Upsert refund record
-      await tx.refund.upsert({
-        where: {
-          orgId_externalId: { orgId, externalId: externalRefundId },
-        },
-        update: {
-          amount: refundAmount,
-          note: shopifyRefund.note ?? null,
-          refundLineItems,
-        },
-        create: {
-          orgId,
-          orderId: order.id,
-          externalId: externalRefundId,
-          amount: refundAmount,
-          reason: shopifyRefund.note ?? null,
-          note: shopifyRefund.note ?? null,
-          refundLineItems,
-        },
-      });
+    // Gemeinsame Stelle mit dem regulaeren Sync. Beide Wege muessen exakt
+    // gleich rechnen, sonst haengt das Ergebnis davon ab, welcher zuerst kam.
+    await this.persistRefunds(orgId, order.id, [shopifyRefund]);
 
-      // Recalculate total refunded for the order
-      const allRefunds = await tx.refund.aggregate({
-        where: { orderId: order.id, orgId },
-        _sum: { amount: true },
-      });
+    /**
+     * financialStatus wird hier bewusst NICHT angefasst.
+     *
+     * Vorher setzte diese Stelle den Status auf 'partially_refunded', sobald
+     * irgendein Betrag erstattet war — auch bei einer vollstaendigen
+     * Erstattung, die Shopify als 'refunded' fuehrt. Den echten Status liefert
+     * der Bestell-Sync aus dem financial_status des Payloads.
+     */
 
-      const newTotalRefunded = Number(allRefunds._sum.amount ?? 0);
-
-      await tx.order.update({
-        where: { id: order.id },
-        data: {
-          totalRefunded: newTotalRefunded,
-          financialStatus:
-            newTotalRefunded > 0 ? 'partially_refunded' : undefined,
-        },
-      });
-
-      // Trigger reaggregation
-      await this.enqueueReaggregation(orgId, order.placedAt);
-    }, { timeout: 30000, maxWait: 10000 });
+    await this.enqueueReaggregation(orgId, order.placedAt);
 
     this.logger.log(
-      `Processed refund ${externalRefundId} for order ${externalOrderId} ($${refundAmount})`,
+      `Processed refund ${externalRefundId} for order ${externalOrderId}`,
     );
   }
 

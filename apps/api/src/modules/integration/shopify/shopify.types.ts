@@ -142,6 +142,12 @@ export interface ShopifyRefundPayload {
   id: number;
   order_id: number;
   created_at: string;
+  /**
+   * Zeitpunkt der Ausfuehrung. Shopify datiert Erstattungen in seinen
+   * Auswertungen danach, nicht nach created_at und nicht nach dem
+   * Bestelldatum. Optional, weil aeltere Payload-Varianten es nicht fuehren.
+   */
+  processed_at?: string;
   note?: string;
   restock?: boolean;
   refund_line_items: ShopifyRefundLineItem[];

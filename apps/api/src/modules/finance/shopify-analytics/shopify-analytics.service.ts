@@ -191,38 +191,53 @@ export class ShopifyAnalyticsService {
           (${startDate}::date)::timestamp AT TIME ZONE 'Europe/Berlin' AS start_ts,
           ((${endDate}::date + INTERVAL '1 day'))::timestamp AT TIME ZONE 'Europe/Berlin' AS end_ts
       ),
-      filtered AS (
+      -- Bestellungen des Zeitraums, datiert nach Bestellzeitpunkt.
+      bestellungen AS (
         SELECT
-          COALESCE(total_price, 0)     AS total_price,
-          COALESCE(total_tax, 0)       AS total_tax,
-          COALESCE(total_shipping, 0)  AS total_shipping,
-          COALESCE(total_discounts, 0) AS total_discounts,
-          COALESCE(total_refunded, 0)  AS total_refunded
+          COALESCE(SUM(total_price), 0)     AS preis,
+          COALESCE(SUM(total_tax), 0)       AS steuer,
+          COALESCE(SUM(total_shipping), 0)  AS versand,
+          COALESCE(SUM(total_discounts), 0) AS rabatte
         FROM orders, bounds
         WHERE org_id = ${orgId}::uuid
           AND placed_at >= bounds.start_ts
           AND placed_at <  bounds.end_ts
           AND status != 'cancelled'
+      ),
+      -- Erstattungen des Zeitraums, datiert nach ERSTATTUNGSzeitpunkt.
+      --
+      -- Bewusst nicht nach dem Bestelldatum: Shopify rechnet eine Erstattung
+      -- dem Tag zu, an dem sie ausgefuehrt wurde. Nach Bestelldatum wuerden
+      -- sich abgeschlossene Tage rueckwirkend aendern, sobald spaeter erstattet
+      -- wird — fuer ein Controlling unbrauchbar.
+      --
+      -- Fallback auf created_at nur fuer Zeilen ohne processed_at; neue Zeilen
+      -- setzen es immer.
+      erstattungen AS (
+        SELECT
+          COALESCE(SUM(amount), 0)     AS brutto,
+          COALESCE(SUM(net_amount), 0) AS netto,
+          COALESCE(SUM(tax_amount), 0) AS steuer
+        FROM refunds, bounds
+        WHERE org_id = ${orgId}::uuid
+          AND COALESCE(processed_at, created_at) >= bounds.start_ts
+          AND COALESCE(processed_at, created_at) <  bounds.end_ts
       )
       SELECT
-        (COALESCE(SUM(total_price), 0)
-          - COALESCE(SUM(total_tax), 0)
-          - COALESCE(SUM(total_shipping), 0)
-          - COALESCE(SUM(total_refunded), 0)
-          + COALESCE(SUM(total_discounts), 0)
-          + COALESCE(SUM(total_refunded), 0)
-        )::text AS gross_sales,
-        COALESCE(SUM(total_discounts), 0)::text AS discounts,
-        COALESCE(SUM(total_refunded), 0)::text  AS returns,
-        (COALESCE(SUM(total_price), 0)
-          - COALESCE(SUM(total_tax), 0)
-          - COALESCE(SUM(total_shipping), 0)
-          - COALESCE(SUM(total_refunded), 0)
-        )::text AS net_sales,
-        COALESCE(SUM(total_shipping), 0)::text  AS shipping,
-        COALESCE(SUM(total_tax), 0)::text       AS taxes,
-        (COALESCE(SUM(total_price), 0) - COALESCE(SUM(total_refunded), 0))::text AS total_sales
-      FROM filtered
+        -- Bruttoumsatz: Warenwert vor Rabatten, ohne Steuer und Versand.
+        (b.preis - b.steuer - b.versand + b.rabatte)::text AS gross_sales,
+        b.rabatte::text                                    AS discounts,
+        -- Shopify nennt diese Zeile "Verkaufsstornierungen" und fuehrt dort
+        -- den NETTO-Betrag. Der Steueranteil wird separat von der Steuerzeile
+        -- abgezogen, nicht hier.
+        e.netto::text                                      AS returns,
+        (b.preis - b.steuer - b.versand - e.netto)::text    AS net_sales,
+        b.versand::text                                    AS shipping,
+        (b.steuer - e.steuer)::text                        AS taxes,
+        -- Gesamtumsatz: tatsaechlich vereinnahmtes Geld abzueglich des
+        -- tatsaechlich zurueckgezahlten (brutto, also inkl. Steuer).
+        (b.preis - e.brutto)::text                         AS total_sales
+      FROM bestellungen b, erstattungen e
     `;
 
     const row = rows[0] ?? {
@@ -268,7 +283,7 @@ export class ShopifyAnalyticsService {
       agg AS (
         SELECT
           EXTRACT(HOUR FROM (placed_at AT TIME ZONE 'Europe/Berlin'))::int AS hour,
-          SUM(COALESCE(total_price, 0) - COALESCE(total_refunded, 0)) AS revenue,
+          SUM(COALESCE(total_price, 0)) AS revenue,
           COUNT(*) AS orders
         FROM orders, bounds
         WHERE org_id = ${orgId}::uuid
@@ -276,13 +291,27 @@ export class ShopifyAnalyticsService {
           AND placed_at <  bounds.end_ts
           AND status != 'cancelled'
         GROUP BY 1
+      ),
+      -- Erstattungen in der Stunde, in der SIE ausgefuehrt wurden — nicht in
+      -- der Stunde der Bestellung. Sonst wandert eine heutige Erstattung in
+      -- eine Stunde von vorgestern und der Verlauf von heute bleibt zu hoch.
+      erstattet AS (
+        SELECT
+          EXTRACT(HOUR FROM (COALESCE(processed_at, created_at) AT TIME ZONE 'Europe/Berlin'))::int AS hour,
+          SUM(COALESCE(amount, 0)) AS brutto
+        FROM refunds, bounds
+        WHERE org_id = ${orgId}::uuid
+          AND COALESCE(processed_at, created_at) >= bounds.start_ts
+          AND COALESCE(processed_at, created_at) <  bounds.end_ts
+        GROUP BY 1
       )
       SELECT
         h.hour,
-        COALESCE(a.revenue, 0)::text  AS revenue,
+        (COALESCE(a.revenue, 0) - COALESCE(e.brutto, 0))::text AS revenue,
         COALESCE(a.orders, 0)::bigint AS orders
       FROM hours h
-      LEFT JOIN agg a ON a.hour = h.hour
+      LEFT JOIN agg a       ON a.hour = h.hour
+      LEFT JOIN erstattet e ON e.hour = h.hour
       ORDER BY h.hour ASC
     `;
 
@@ -318,20 +347,34 @@ export class ShopifyAnalyticsService {
         SELECT
           (placed_at AT TIME ZONE 'Europe/Berlin')::date AS day,
           COUNT(*) AS orders,
-          SUM(COALESCE(total_price, 0) - COALESCE(total_refunded, 0)) AS revenue
+          SUM(COALESCE(total_price, 0)) AS revenue
         FROM orders, bounds
         WHERE org_id = ${orgId}::uuid
           AND placed_at >= bounds.start_ts
           AND placed_at <  bounds.end_ts
           AND status != 'cancelled'
         GROUP BY 1
+      ),
+      -- Erstattungen an dem Tag, an dem SIE ausgefuehrt wurden. Damit aendern
+      -- sich abgeschlossene Tage nicht mehr rueckwirkend, wenn spaeter
+      -- erstattet wird — so rechnet Shopify auch.
+      erstattet AS (
+        SELECT
+          (COALESCE(processed_at, created_at) AT TIME ZONE 'Europe/Berlin')::date AS day,
+          SUM(COALESCE(amount, 0)) AS brutto
+        FROM refunds, bounds
+        WHERE org_id = ${orgId}::uuid
+          AND COALESCE(processed_at, created_at) >= bounds.start_ts
+          AND COALESCE(processed_at, created_at) <  bounds.end_ts
+        GROUP BY 1
       )
       SELECT
         to_char(d.day, 'YYYY-MM-DD') AS day,
         COALESCE(a.orders, 0)::bigint AS orders,
-        COALESCE(a.revenue, 0)::text  AS revenue
+        (COALESCE(a.revenue, 0) - COALESCE(e.brutto, 0))::text AS revenue
       FROM days d
-      LEFT JOIN agg a ON a.day = d.day
+      LEFT JOIN agg a       ON a.day = d.day
+      LEFT JOIN erstattet e ON e.day = d.day
       ORDER BY d.day ASC
     `;
 

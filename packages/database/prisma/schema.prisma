@@ -1034,10 +1034,20 @@ model Refund {
   orgId           String   @map("org_id") @db.Uuid
   orderId         String   @map("order_id") @db.Uuid
   externalId      String   @map("external_id") @db.VarChar(255)
+  /// Brutto-Erstattung aus den Erstattungs-Transaktionen (inkl. Steuer).
   amount          Decimal  @db.Decimal(12, 2)
+  /// Netto-Anteil ohne Steuer. Das ist Shopifys Zeile "Verkaufsstornierungen".
+  netAmount       Decimal  @default(0) @map("net_amount") @db.Decimal(12, 2)
+  /// Steueranteil der Erstattung. Wird von der Steuerzeile abgezogen.
+  taxAmount       Decimal  @default(0) @map("tax_amount") @db.Decimal(12, 2)
   reason          String?  @db.VarChar(255)
   note            String?  @db.Text
   refundLineItems Json[]   @default([]) @map("refund_line_items")
+  /// Shopifys Zeitpunkt der Erstattung. Shopify datiert Erstattungen auf den
+  /// Tag der Ausfuehrung, nicht auf den Tag der Bestellung — die Auswertung
+  /// richtet sich danach. Bewusst nullable und ohne Standardwert, damit ein
+  /// fehlender Wert auffaellt statt still den Einfuegezeitpunkt zu nehmen.
+  processedAt     DateTime? @map("processed_at") @db.Timestamptz
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -1047,6 +1057,7 @@ model Refund {
   @@index([orgId])
   @@index([orderId])
   @@index([orgId, orderId])
+  @@index([orgId, processedAt], map: "idx_refunds_org_processed_at")
   @@map("refunds")
 }
 

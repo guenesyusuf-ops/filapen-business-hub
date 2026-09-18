@@ -49,7 +49,9 @@ type BreakdownRow = {
 const BREAKDOWN_ROWS: BreakdownRow[] = [
   { key: 'grossSales', label: 'Bruttoumsatz', sign: 'positive' },
   { key: 'discounts', label: 'Rabatte', sign: 'negative' },
-  { key: 'returns', label: 'Rückgaben', sign: 'negative' },
+  // Shopify nennt diese Zeile "Verkaufsstornierungen" und fuehrt dort den
+  // Netto-Betrag der Erstattungen. Gleiche Bezeichnung = gleiche Bedeutung.
+  { key: 'returns', label: 'Verkaufsstornierungen', sign: 'negative' },
   { key: 'netSales', label: 'Nettoumsatz', sign: 'positive', emphasis: 'subtotal' },
   { key: 'shipping', label: 'Versandgebühren', sign: 'positive' },
   { key: 'returnFees', label: 'Rückgabegebühren', sign: 'positive' },
