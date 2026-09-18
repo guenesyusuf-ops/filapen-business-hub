@@ -70,14 +70,14 @@ Nichts davon gehört ins Repository.
 | `src/main.js` | Einstiegspunkt, App-Lebenszyklus, Sicherheitsregeln anwenden |
 | `src/config.js` | Adressen, Fenstermaße, Grenzwerte — eine einzige Stelle |
 | `src/window.js` | Fenster, gemerkter Zustand, Monitor-Rückkehr, Zoom |
-| `src/menu.js` | Deutsche Menüleiste inkl. „Gehe zu" über 20 Bereiche |
+| `src/menu.js` | Deutsche Menüleiste, Zurück/Vorwärts, Drucken |
 | `src/navigation.js` | Eigene Domain bleibt drin, Fremdes geht an den Browser |
 | `src/permissions.js` | Lehnt **alle** Berechtigungen ab |
 | `src/downloads.js` | Download-Ordner ohne Dialog, Namenskollisionen |
 | `src/download-toast.js` | Eigenes Hinweis-Fenster, ohne Web-Kopplung |
 | `src/toast-preload.js` | Enge Brücke **nur** für das eigene Toast-Fenster |
 | `src/connectivity.js` | Unterscheidet „kein Internet" von „Filapen weg" |
-| `src/updater.js` | Vorbereitet, **nicht aktiviert** |
+| `src/updater.js` | Vorbereitet, **nicht aktiviert** — Bedingungen und Verhalten dort dokumentiert |
 | `src/diagnostics.js` | Logs mit Rotation, Diagnose-Kopie |
 | `static/*` | Eigene Seiten: offline, Serverfehler, Download-Hinweis |
 
@@ -98,12 +98,33 @@ ausgelöst, nicht durch Aufrufe der Web-App. Das einzige Preload im Projekt
 gehört zum eigenen Toast-Fenster und kennt drei feste Aktionen ohne freie
 Parameter.
 
+## Navigation im Menü — bewusst minimal
+
+Es gibt **kein** „Gehe zu"-Menü mit allen Bereichen. Eine rollenabhängige
+Filterung hätte eine Kopie der Berechtigungslogik aus
+`apps/web/src/lib/permissions.ts` in die Hülle gebracht. Ändert sich die
+Zuordnung im Web, wird das sofort deployt, während eine ältere Desktop-App
+die alte Zuordnung kennt — eine unnötige Versionskopplung.
+
+Als Sprungziele bleiben nur Pfade, die **strukturell** immer erreichbar sind
+und keine Rollenkenntnis brauchen:
+
+| Ziel | Warum unbedenklich |
+|---|---|
+| `/home` | ist selbst der Redirect-Fallback der Web-App |
+| `/settings` | steht in `pathToPermission` nicht, hat also keine Schranke |
+| `/settings/manual` | Unterseite davon |
+
+Die Feinnavigation bleibt in der Sidebar und in der Schnellsuche (Cmd+K), die
+die Web-App ohnehin mitbringt. Der Hauptprozess liest **nichts** aus dem
+localStorage der Seite und kennt weder Rollen noch Freigaben.
+
 ## Was diese Version nicht tut
 
 Screen Share, direkte Etikettendrucker-Ansteuerung, aktive Auto-Updates,
 Pflichtupdates, Dock-Badges, Systembenachrichtigungen, eigene
 Download-Verwaltung, integrierte Titelleiste, angepasste Scrollbars,
-Deep Links, mehrere Fenster.
+Deep Links, mehrere Fenster, rollenabhängiges Navigationsmenü.
 
 ## Was am Web-Projekt geändert wurde
 

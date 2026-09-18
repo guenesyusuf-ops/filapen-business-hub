@@ -11,37 +11,26 @@ const { diagnoseKopieren, logVerzeichnis, log } = require('./diagnostics');
  * Sie ist keine Kosmetik: OHNE eigene Menueleiste funktionieren Kopieren und
  * Einfuegen in Electron nicht. Deshalb sind die Standard-Rollen Pflicht.
  *
- * "Gehe zu" fuehrt die 20 Hauptbereiche. Alle 111 Einzelseiten aufzunehmen
- * waere unbedienbar — die Feinnavigation bleibt in der Sidebar und in der
- * Schnellsuche (Cmd+K), die die Web-App selbst mitbringt.
+ * Bewusst OHNE "Gehe zu"-Menue mit allen Bereichen.
+ *
+ * Eine rollenabhaengige Filterung haette eine Kopie der Berechtigungslogik
+ * aus apps/web/src/lib/permissions.ts in die Huelle gebracht. Aendert sich
+ * die Zuordnung im Web, wird das sofort deployt, waehrend eine aeltere
+ * Desktop-App die alte Zuordnung kennt — eine unnoetige Versionskopplung.
+ * Der Hauptprozess soll so wenig wie moeglich ueber interne Strukturen der
+ * Web-App wissen.
+ *
+ * Als Sprungziele bleiben daher nur Pfade, die STRUKTURELL immer erreichbar
+ * sind und keine Rollenkenntnis brauchen:
+ *   /home            — der Redirect-Fallback der Web-App selbst
+ *   /settings        — steht in pathToPermission nicht, hat also keine Schranke
+ *   /settings/manual — Unterseite davon
+ * Die Feinnavigation bleibt in der Sidebar und in der Schnellsuche (Cmd+K),
+ * die die Web-App ohnehin mitbringt.
  *
  * Bewusst KEINE Cmd+1…4-Kuerzel: diese Kombinationen sind systemseitig fuer
  * Tab-Wechsel konventioniert.
  */
-
-/** Die 20 Hauptbereiche, Reihenfolge wie in der Sidebar der Web-App. */
-const BEREICHE = [
-  ['Start', '/home'],
-  ['Finance Hub', '/finance'],
-  ['Creator Hub', '/creators'],
-  ['Influencer Hub', '/influencers'],
-  ['Content Hub', '/content'],
-  ['Aufgaben', '/work-management'],
-  ['Whiteboard', '/whiteboard'],
-  ['Einkauf', '/purchases'],
-  ['E-Mail-Marketing', '/email-marketing'],
-  ['Versand', '/shipping'],
-  ['Verkauf', '/sales'],
-  ['NFC', '/nfc'],
-  ['Retouren', '/returns'],
-  ['Rechnungen', '/invoices'],
-  ['Dokumente', '/documents'],
-  ['Screen Share', '/screen-share'],
-  ['Filapen Send', '/send'],
-  ['Passwörter', '/passwords'],
-  ['Gewinnanalyse', '/profit-analysis'],
-  ['Einstellungen', '/settings'],
-];
 
 /** Navigiert im Hauptfenster auf einen Pfad der eigenen Domain. */
 function geheZu(pfad) {
@@ -62,6 +51,48 @@ function schnellsuche() {
   const c = w.webContents;
   c.sendInputEvent({ type: 'keyDown', keyCode: 'k', modifiers: ['cmd'] });
   c.sendInputEvent({ type: 'keyUp', keyCode: 'k', modifiers: ['cmd'] });
+}
+
+/**
+ * Zurueck und Vorwaerts im Verlauf.
+ *
+ * In einer App ohne Adressleiste gibt es sonst KEINEN Weg zurueck ausser
+ * ueber die Sidebar. In Electron 44 laeuft das ueber webContents.
+ * navigationHistory; die alten Methoden am webContents sind veraltet.
+ *
+ * Bewusst nur innerhalb der eigenen Domain: fremde Ziele landen ohnehin im
+ * Browser und stehen damit nie im Verlauf des Hauptfensters.
+ */
+function zurueck() {
+  const h = getMainWindow()?.webContents.navigationHistory;
+  if (h?.canGoBack()) h.goBack();
+}
+
+function vorwaerts() {
+  const h = getMainWindow()?.webContents.navigationHistory;
+  if (h?.canGoForward()) h.goForward();
+}
+
+/**
+ * Drucken.
+ *
+ * Bewusst NICHT webContents.print(): Die Gewinnanalyse ruft window.print()
+ * erst nach einem setTimeout auf, damit React einen Repaint-Tick bekommt,
+ * falls ein State-Update noch nicht uebernommen war (siehe printAsPdf() in
+ * profit-analysis/page.tsx). Ein direkter webContents.print() ueberspringt
+ * diesen Tick und koennte einen veralteten Stand drucken.
+ *
+ * Stattdessen wird window.print() IN der Seite ausgeloest — identisch zum
+ * Knopf der Web-App, inklusive ihrer Print-CSS und ihres Timings.
+ */
+function drucken() {
+  const c = getMainWindow()?.webContents;
+  if (!c) return;
+  c.executeJavaScript('setTimeout(function(){ window.print(); }, 0);', true)
+    .catch((err) => {
+      log(`window.print() fehlgeschlagen, nutze Fallback: ${err?.message}`);
+      c.print();
+    });
 }
 
 function ueberDialog() {
@@ -118,6 +149,7 @@ function buildMenu() {
       submenu: [
         { label: 'Über Filapen Hub', click: ueberDialog },
         { type: 'separator' },
+        { label: 'Start', accelerator: 'Cmd+Shift+H', click: () => geheZu('/home') },
         { label: 'Einstellungen …', accelerator: 'Cmd+,', click: () => geheZu('/settings') },
         { type: 'separator' },
         { role: 'hide', label: 'Filapen Hub ausblenden' },
@@ -130,7 +162,7 @@ function buildMenu() {
     {
       label: 'Datei',
       submenu: [
-        { label: 'Drucken …', accelerator: 'Cmd+P', click: () => getMainWindow()?.webContents.print() },
+        { label: 'Drucken …', accelerator: 'Cmd+P', click: drucken },
         { type: 'separator' },
         { role: 'close', label: 'Fenster schließen' },
       ],
@@ -155,6 +187,9 @@ function buildMenu() {
     {
       label: 'Ansicht',
       submenu: [
+        { label: 'Zurück', accelerator: 'Cmd+Left', click: zurueck },
+        { label: 'Vorwärts', accelerator: 'Cmd+Right', click: vorwaerts },
+        { type: 'separator' },
         { label: 'Neu laden', accelerator: 'Cmd+R', click: () => getMainWindow()?.webContents.reload() },
         { type: 'separator' },
         { label: 'Vergrößern', accelerator: 'Cmd+Plus', click: () => adjustZoom(ZOOM.step) },
@@ -171,15 +206,6 @@ function buildMenu() {
       ],
     },
     {
-      label: 'Gehe zu',
-      submenu: [
-        ...BEREICHE.map(([label, pfad]) => ({
-          label,
-          click: () => (label === 'Screen Share' ? screenShareHinweis() : geheZu(pfad)),
-        })),
-      ],
-    },
-    {
       label: 'Fenster',
       submenu: [
         { role: 'minimize', label: 'Minimieren' },
@@ -192,6 +218,7 @@ function buildMenu() {
       label: 'Hilfe',
       submenu: [
         { label: 'Handbuch', click: () => geheZu('/settings/manual') },
+        { label: 'Bildschirmfreigabe …', click: screenShareHinweis },
         { type: 'separator' },
         {
           label: 'Rechtliche Hinweise',
@@ -216,4 +243,4 @@ function buildMenu() {
   log('Menueleiste gesetzt');
 }
 
-module.exports = { buildMenu, geheZu, BEREICHE };
+module.exports = { buildMenu, geheZu };

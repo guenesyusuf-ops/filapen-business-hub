@@ -105,6 +105,7 @@ function starten() {
     log('Fenster sichtbar');
   });
 
+
   fenster.webContents.loadURL(APP_ORIGIN).catch((err) => {
     // Der Fehlerfall laeuft ueber did-fail-load in connectivity.js; hier nur
     // protokollieren, damit nichts still verschwindet.
