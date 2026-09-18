@@ -1584,55 +1584,104 @@ export class ShopifyService {
    * Gemerkte Abfrageform fuer ShopifyQL. -1 = noch unbekannt. Statisch, damit
    * die Ermittlung nur einmal pro Prozess anfaellt.
    */
-  private static qlFormIndex = -1;
+  private static qlForm: string | null = null;
 
   /**
-   * Fragt das Antwortschema von shopifyqlQuery ab und gibt die Feldnamen als
-   * Text zurueck. Nur fuer den Fehlerfall — damit die richtige Abfrageform
-   * bekannt ist, ohne sie zu erraten.
+   * Ermittelt die Auswahlmenge fuer shopifyqlQuery aus dem Schema.
+   *
+   * Warum ueberhaupt: zwei Rateversuche sind gescheitert. Erst gab es keinen
+   * Typ TableResponse, dann kein Feld rowData auf ShopifyqlTableData. Das
+   * Antwortschema unterscheidet sich zwischen API-Versionen, und jeder
+   * Rateversuch kostet einen Deploy-Zyklus.
+   *
+   * Vorgehen: Rueckgabetyp von shopifyqlQuery bestimmen, dessen Felder holen,
+   * und fuer objektartige Unterfelder eine Ebene tiefer gehen. Aus den
+   * gefundenen Namen wird die Auswahlmenge zusammengesetzt. Ergebnis wird
+   * fuer die Laufzeit des Prozesses gemerkt.
    */
-  private async ermittleQlSchema(
+  private async ermittleQlForm(
     shopDomain: string,
     accessToken: string,
-  ): Promise<string> {
+  ): Promise<{ form: string | null; beschreibung: string }> {
+    const frage = async (q: string) =>
+      this.shopifyApiPost<any>(shopDomain, accessToken, '/admin/api/2024-01/graphql.json', { query: q });
+
+    const typName = async (name: string): Promise<{
+      name: string | null;
+      felder: Array<{ name: string; kind: string; sub: string[] }>;
+    }> => {
+      const a = await frage(`{
+        __type(name: "${name}") {
+          name
+          fields {
+            name
+            type { kind name ofType { kind name ofType { kind name } } }
+          }
+        }
+      }`);
+      const felder = (a?.data?.__type?.fields ?? []).map((f: any) => {
+        // LIST/NON_NULL aufwickeln bis zum Kern
+        let ty = f.type;
+        while (ty?.ofType) ty = ty.ofType;
+        return { name: f.name, kind: ty?.kind ?? 'SCALAR', typ: ty?.name ?? '', sub: [] as string[] };
+      });
+      return { name: a?.data?.__type?.name ?? null, felder };
+    };
+
     try {
-      const a = await this.shopifyApiPost<any>(
-        shopDomain, accessToken, '/admin/api/2024-01/graphql.json',
-        {
-          query: `{
-            __type(name: "QueryRoot") {
-              fields { name type { kind name ofType { kind name } } }
-            }
-          }`,
-        },
-      );
-      const feld = (a?.data?.__type?.fields ?? []).find(
+      // 1) Rueckgabetyp von shopifyqlQuery finden
+      const wurzel = await frage(`{
+        __type(name: "QueryRoot") { fields { name type { kind name ofType { kind name } } } }
+      }`);
+      const feld = (wurzel?.data?.__type?.fields ?? []).find(
         (f: any) => f.name === 'shopifyqlQuery',
       );
-      if (!feld) return 'shopifyqlQuery existiert nicht auf QueryRoot';
-      const typName = feld.type?.name ?? feld.type?.ofType?.name;
-      if (!typName) return 'Rueckgabetyp unbekannt';
+      if (!feld) return { form: null, beschreibung: 'shopifyqlQuery existiert nicht' };
+      const antwortTyp = feld.type?.name ?? feld.type?.ofType?.name;
+      if (!antwortTyp) return { form: null, beschreibung: 'Rueckgabetyp unbekannt' };
 
-      const b = await this.shopifyApiPost<any>(
-        shopDomain, accessToken, '/admin/api/2024-01/graphql.json',
-        {
-          query: `{
-            __type(name: "${typName}") {
-              kind name
-              fields { name type { kind name } }
-              possibleTypes { name fields { name } }
-            }
-          }`,
-        },
-      );
-      const ty = b?.data?.__type;
-      const felder = (ty?.fields ?? []).map((f: any) => f.name);
-      const moegliche = (ty?.possibleTypes ?? []).map(
-        (pt: any) => `${pt.name}(${(pt.fields ?? []).map((f: any) => f.name).join(',')})`,
-      );
-      return `${ty?.kind} ${ty?.name} felder=[${felder.join(',')}] typen=[${moegliche.join(' ')}]`.slice(0, 900);
+      // 2) Felder des Antworttyps
+      const antwort = await typName(antwortTyp);
+      const tabellenFeld = antwort.felder.find((f: any) => f.kind === 'OBJECT');
+      if (!tabellenFeld) {
+        return {
+          form: null,
+          beschreibung: `${antwortTyp} hat kein Objektfeld, nur [${antwort.felder.map((f: any) => f.name).join(',')}]`,
+        };
+      }
+
+      // 3) Felder der Tabellenstruktur, eine Ebene tiefer
+      const tabelle = await typName((tabellenFeld as any).typ);
+      const teile: string[] = [];
+      for (const f of tabelle.felder as any[]) {
+        if (f.kind === 'OBJECT') {
+          const unter = await typName(f.typ);
+          const skalare = (unter.felder as any[])
+            .filter((u) => u.kind !== 'OBJECT')
+            .map((u) => u.name);
+          if (skalare.length) teile.push(`${f.name} { ${skalare.join(' ')} }`);
+        } else {
+          teile.push(f.name);
+        }
+      }
+      if (!teile.length) {
+        return { form: null, beschreibung: `${(tabellenFeld as any).typ} hat keine nutzbaren Felder` };
+      }
+
+      const skalareAntwort = antwort.felder
+        .filter((f: any) => f.kind !== 'OBJECT')
+        .map((f: any) => f.name);
+
+      const form = `{ ${skalareAntwort.join(' ')} ${tabellenFeld.name} { ${teile.join(' ')} } }`;
+      return {
+        form,
+        beschreibung: `${antwortTyp}.${tabellenFeld.name}:${(tabellenFeld as any).typ} -> ${teile.join(' | ')}`,
+      };
     } catch (err: any) {
-      return `Schema-Abfrage fehlgeschlagen: ${String(err?.message ?? err).slice(0, 200)}`;
+      return {
+        form: null,
+        beschreibung: `Schema-Abfrage fehlgeschlagen: ${String(err?.message ?? err).slice(0, 200)}`,
+      };
     }
   }
 
@@ -1701,96 +1750,101 @@ export class ShopifyService {
         `shipping_charges, taxes, total_sales SINCE ${startDate} UNTIL ${endDate}`;
 
       /**
-       * Die Auswahlmenge wird NICHT geraten.
-       *
-       * Der erste Versuch scheiterte an Annahmen ueber das Antwortschema:
-       * "No such type TableResponse" und "parseErrors returns String but has
-       * selections". Das Schema hat sich zwischen API-Versionen geaendert.
-       * Deshalb werden bekannte Formen der Reihe nach probiert; die erste,
-       * die durchkommt, wird fuer die Laufzeit des Prozesses gemerkt.
-       *
-       * Schlaegt alles fehl, wird das Schema abgefragt und die vorhandenen
-       * Feldnamen als Grund zurueckgegeben — damit ist die richtige Form nach
-       * EINEM Durchlauf bekannt statt nach mehreren Rateversuchen.
+       * Die Auswahlmenge wird aus dem Schema ermittelt, nicht geraten.
+       * Zwei Rateversuche sind gescheitert (kein Typ TableResponse, kein Feld
+       * rowData) — jeder kostete einen Deploy-Zyklus.
        */
-      const formen = [
-        '{ tableData { columns { name } rowData } parseErrors }',
-        '{ __typename tableData { columns { name } rowData } parseErrors }',
-        '{ tableData { columns { name } rowData } }',
-      ];
-
-      const reihenfolge = ShopifyService.qlFormIndex >= 0
-        ? [formen[ShopifyService.qlFormIndex], ...formen.filter((_, i) => i !== ShopifyService.qlFormIndex)]
-        : formen;
-
-      let letzterFehler = '';
-
-      for (const form of reihenfolge) {
-        const antwort = await this.shopifyApiPost<{
-          data?: {
-            shopifyqlQuery?: {
-              __typename?: string;
-              tableData?: { columns?: Array<{ name: string }>; rowData?: string[][] };
-              parseErrors?: string | null;
-            };
-          };
-          errors?: Array<{ message: string }>;
-        }>(shopDomain, accessToken, '/admin/api/2024-01/graphql.json', {
-          query: `query Umsatz($ql: String!) { shopifyqlQuery(query: $ql) ${form} }`,
-          variables: { ql: shopifyQl },
-        });
-
-        if (antwort.errors?.length) {
-          letzterFehler = antwort.errors.map((e) => e.message).join('; ');
-          continue;   // naechste Form probieren
-        }
-
-        const ergebnis = antwort.data?.shopifyqlQuery;
-        if (ergebnis?.parseErrors) {
-          const grund = `ShopifyQL-Syntaxfehler: ${ergebnis.parseErrors}`;
+      if (!ShopifyService.qlForm) {
+        const { form, beschreibung } = await this.ermittleQlForm(shopDomain, accessToken);
+        if (!form) {
+          const grund = `Abfrageform nicht ermittelbar: ${beschreibung}`;
           this.logger.warn(grund);
           return { daten: null, grund };
         }
-
-        const spalten = ergebnis?.tableData?.columns?.map((c) => c.name) ?? [];
-        const zeile = ergebnis?.tableData?.rowData?.[0];
-        if (!spalten.length || !zeile) {
-          letzterFehler = `keine Tabellendaten (typ=${ergebnis?.__typename ?? 'unbekannt'})`;
-          continue;
-        }
-
-        // Form hat funktioniert — fuer weitere Aufrufe merken.
-        ShopifyService.qlFormIndex = formen.indexOf(form);
-
-        const wert = (name: string): number => {
-          const i = spalten.indexOf(name);
-          if (i < 0) return 0;
-          const n = parseFloat(String(zeile[i] ?? '0'));
-          return Number.isFinite(n) ? n : 0;
-        };
-
-        // Shopify fuehrt Rabatte und Stornierungen negativ. Unsere Oberflaeche
-        // stellt diese Zeilen selbst mit Minus dar, deshalb hier der Betrag.
-        return {
-          daten: {
-            grossSales: wert('gross_sales'),
-            discounts: Math.abs(wert('discounts')),
-            returns: Math.abs(wert('sales_reversals')),
-            netSales: wert('net_sales'),
-            shipping: wert('shipping_charges'),
-            taxes: wert('taxes'),
-            totalSales: wert('total_sales'),
-          },
-          grund: null,
-        };
+        ShopifyService.qlForm = form;
+        this.logger.log(`ShopifyQL-Form ermittelt: ${beschreibung}`);
       }
 
-      // Keine Form hat gepasst: Schema abfragen, damit der naechste Versuch
-      // nicht wieder ein Rateversuch ist.
-      const schema = await this.ermittleQlSchema(shopDomain, accessToken);
-      const grund = `keine passende Abfrageform. Letzter Fehler: ${letzterFehler}. Schema: ${schema}`;
-      this.logger.warn(grund);
-      return { daten: null, grund };
+      const antwort = await this.shopifyApiPost<any>(
+        shopDomain, accessToken, '/admin/api/2024-01/graphql.json',
+        {
+          query: `query Umsatz($ql: String!) { shopifyqlQuery(query: $ql) ${ShopifyService.qlForm} }`,
+          variables: { ql: shopifyQl },
+        },
+      );
+
+      if (antwort.errors?.length) {
+        // Form nochmal ermitteln lassen — vielleicht hat sich das Schema geaendert.
+        ShopifyService.qlForm = null;
+        const grund = `abgelehnt: ${antwort.errors.map((e: any) => e.message).join('; ')}`;
+        this.logger.warn(`ShopifyQL ${grund}`);
+        return { daten: null, grund };
+      }
+
+      const ergebnis = antwort?.data?.shopifyqlQuery;
+      const syntax = ergebnis?.parseErrors;
+      if (syntax && String(syntax).trim() && String(syntax) !== 'null') {
+        const grund = `ShopifyQL-Syntaxfehler: ${String(syntax).slice(0, 300)}`;
+        this.logger.warn(grund);
+        return { daten: null, grund };
+      }
+
+      /**
+       * Allgemeine Auswertung: die Feldnamen der Tabellenstruktur sind aus dem
+       * Schema gekommen und koennen sich aendern. Statt sie zu hartcodieren
+       * werden Spalten und Zeilen an ihrer FORM erkannt — Spalten sind eine
+       * Liste von Objekten mit name, Zeilen eine Liste von Listen.
+       */
+      const tabelle = Object.values(ergebnis ?? {}).find(
+        (v) => v && typeof v === 'object' && !Array.isArray(v),
+      ) as Record<string, unknown> | undefined;
+
+      if (!tabelle) {
+        const grund = 'ShopifyQL lieferte keine Tabellenstruktur';
+        this.logger.warn(grund);
+        return { daten: null, grund };
+      }
+
+      let spalten: string[] = [];
+      let zeile: unknown[] | null = null;
+
+      for (const wert of Object.values(tabelle)) {
+        if (!Array.isArray(wert) || wert.length === 0) continue;
+        const erstes = wert[0];
+        if (Array.isArray(erstes)) {
+          zeile = erstes as unknown[];
+        } else if (erstes && typeof erstes === 'object' && 'name' in (erstes as any)) {
+          spalten = (wert as any[]).map((c) => String(c.name));
+        }
+      }
+
+      if (!spalten.length || !zeile) {
+        const grund = `Tabelle unerwartet aufgebaut: felder=[${Object.keys(tabelle).join(',')}], spalten=${spalten.length}, zeile=${zeile ? 'ja' : 'nein'}`;
+        this.logger.warn(grund);
+        return { daten: null, grund };
+      }
+
+      const wert = (name: string): number => {
+        const i = spalten.indexOf(name);
+        if (i < 0) return 0;
+        const n = parseFloat(String((zeile as unknown[])[i] ?? '0'));
+        return Number.isFinite(n) ? n : 0;
+      };
+
+      // Shopify fuehrt Rabatte und Stornierungen negativ. Unsere Oberflaeche
+      // stellt diese Zeilen selbst mit Minus dar, deshalb hier der Betrag.
+      return {
+        daten: {
+          grossSales: wert('gross_sales'),
+          discounts: Math.abs(wert('discounts')),
+          returns: Math.abs(wert('sales_reversals')),
+          netSales: wert('net_sales'),
+          shipping: wert('shipping_charges'),
+          taxes: wert('taxes'),
+          totalSales: wert('total_sales'),
+        },
+        grund: null,
+      };
     } catch (err: any) {
       const grund = `Aufruf fehlgeschlagen: ${String(err?.message ?? err).slice(0, 300)}`;
       this.logger.warn(`ShopifyQL ${grund}`);
