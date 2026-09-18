@@ -1615,14 +1615,22 @@ export class ShopifyService {
     startDate: string,
     endDate: string,
   ): Promise<{
-    grossSales: number;
-    discounts: number;
-    returns: number;
-    netSales: number;
-    shipping: number;
-    taxes: number;
-    totalSales: number;
-  } | null> {
+    daten: {
+      grossSales: number;
+      discounts: number;
+      returns: number;
+      netSales: number;
+      shipping: number;
+      taxes: number;
+      totalSales: number;
+    } | null;
+    /**
+     * Warum es nicht geklappt hat. Wird bis in die Antwort durchgereicht:
+     * das Railway-Log ist im Zweifel nicht zur Hand, und "geht nicht" ohne
+     * Grund kostet einen kompletten Deploy-Zyklus zum Nachsehen.
+     */
+    grund: string | null;
+  }> {
     try {
       const integration = await this.prisma.integration.findUniqueOrThrow({
         where: { id: integrationId },
@@ -1668,25 +1676,24 @@ export class ShopifyService {
       });
 
       if (antwort.errors?.length) {
-        this.logger.warn(
-          `ShopifyQL abgelehnt: ${antwort.errors.map((e) => e.message).join('; ')}`,
-        );
-        return null;
+        const grund = `abgelehnt: ${antwort.errors.map((e) => e.message).join('; ')}`;
+        this.logger.warn(`ShopifyQL ${grund}`);
+        return { daten: null, grund };
       }
 
       const ergebnis = antwort.data?.shopifyqlQuery;
       if (ergebnis?.parseErrors?.length) {
-        this.logger.warn(
-          `ShopifyQL-Syntaxfehler: ${ergebnis.parseErrors.map((e) => e.message).join('; ')}`,
-        );
-        return null;
+        const grund = `Syntaxfehler: ${ergebnis.parseErrors.map((e) => `${e.code} ${e.message}`).join('; ')}`;
+        this.logger.warn(`ShopifyQL ${grund}`);
+        return { daten: null, grund };
       }
 
       const spalten = ergebnis?.tableData?.columns?.map((c) => c.name) ?? [];
       const zeile = ergebnis?.tableData?.rowData?.[0];
       if (!spalten.length || !zeile) {
-        this.logger.warn('ShopifyQL lieferte keine Tabellendaten');
-        return null;
+        const grund = `keine Tabellendaten (typ=${ergebnis?.__typename ?? 'unbekannt'}, spalten=${spalten.length})`;
+        this.logger.warn(`ShopifyQL ${grund}`);
+        return { daten: null, grund };
       }
 
       const wert = (name: string): number => {
@@ -1699,19 +1706,21 @@ export class ShopifyService {
       // Shopify fuehrt Rabatte und Stornierungen negativ. Unsere Oberflaeche
       // stellt diese Zeilen selbst mit Minus dar, deshalb hier der Betrag.
       return {
-        grossSales: wert('gross_sales'),
-        discounts: Math.abs(wert('discounts')),
-        returns: Math.abs(wert('sales_reversals')),
-        netSales: wert('net_sales'),
-        shipping: wert('shipping_charges'),
-        taxes: wert('taxes'),
-        totalSales: wert('total_sales'),
+        daten: {
+          grossSales: wert('gross_sales'),
+          discounts: Math.abs(wert('discounts')),
+          returns: Math.abs(wert('sales_reversals')),
+          netSales: wert('net_sales'),
+          shipping: wert('shipping_charges'),
+          taxes: wert('taxes'),
+          totalSales: wert('total_sales'),
+        },
+        grund: null,
       };
     } catch (err: any) {
-      this.logger.warn(
-        `Umsatz-Aufschluesselung konnte nicht von Shopify geholt werden: ${err?.message ?? err}`,
-      );
-      return null;
+      const grund = `Aufruf fehlgeschlagen: ${String(err?.message ?? err).slice(0, 300)}`;
+      this.logger.warn(`ShopifyQL ${grund}`);
+      return { daten: null, grund };
     }
   }
 

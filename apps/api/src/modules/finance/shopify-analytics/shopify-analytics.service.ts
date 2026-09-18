@@ -34,6 +34,12 @@ export interface ShopifyAnalyticsOverview {
    * einzelne Positionen abweichen.
    */
   revenueBreakdownSource: 'shopify' | 'lokal';
+  /**
+   * Bei 'lokal': warum Shopify nicht geantwortet hat. Bewusst in der Antwort
+   * und nicht nur im Log — ohne Grund kostet jede Nachfrage einen kompletten
+   * Deploy-Zyklus.
+   */
+  revenueBreakdownNote: string | null;
   hourlyRevenue: HourlyPoint[];
   ordersTimeSeries: Array<{ date: string; orders: number }>;
   aovTimeSeries: Array<{ date: string; aov: number }>;
@@ -154,6 +160,7 @@ export class ShopifyAnalyticsService {
      */
     let breakdownFinal = breakdown;
     let quelle: 'shopify' | 'lokal' = 'lokal';
+    let hinweis: string | null = 'keine verbundene Shopify-Integration';
 
     const integration = await this.prisma.integration.findFirst({
       where: { orgId, type: 'shopify', status: 'connected' },
@@ -161,21 +168,23 @@ export class ShopifyAnalyticsService {
     });
 
     if (integration) {
-      const vonShopify = await this.shopify.fetchSalesBreakdown(
+      const { daten, grund } = await this.shopify.fetchSalesBreakdown(
         integration.id,
         startDate,
         endDate,
       );
-      if (vonShopify) {
+      if (daten) {
         breakdownFinal = {
-          ...vonShopify,
+          ...daten,
           // Rueckgabegebuehren fuehrt Shopify in dieser Abfrage nicht mit.
           returnFees: 0,
         };
         quelle = 'shopify';
+        hinweis = null;
       } else {
+        hinweis = grund;
         this.logger.warn(
-          'Aufschluesselung kommt aus eigener Berechnung — Shopify hat nicht geantwortet',
+          `Aufschluesselung aus eigener Berechnung — ${grund ?? 'Grund unbekannt'}`,
         );
       }
     }
@@ -200,6 +209,7 @@ export class ShopifyAnalyticsService {
       range: { start: startDate, end: endDate, timezone: 'Europe/Berlin' },
       revenueBreakdown: breakdownFinal,
       revenueBreakdownSource: quelle,
+      revenueBreakdownNote: hinweis,
       hourlyRevenue: hourly,
       ordersTimeSeries: ordersDaily.map((d) => ({
         date: d.date,
