@@ -1,7 +1,7 @@
 {
   "name": "filapen-hub-desktop",
   "productName": "Filapen Hub",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Filapen Hub als macOS-Anwendung. Native Huelle um die bestehende Web-App.",
   "main": "src/main.js",
