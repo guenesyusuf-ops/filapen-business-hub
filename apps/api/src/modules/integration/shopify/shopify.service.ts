@@ -543,16 +543,30 @@ export class ShopifyService {
    * Steuerzeile. Beides getrennt zu kennen ist die Voraussetzung dafuer, dass
    * unsere Zahlen mit Shopify uebereinstimmen.
    *
-   * Quellen im Payload:
-   *   refund_line_items[]  Warenwert: subtotal (netto) + total_tax
-   *   order_adjustments[]  Versanderstattungen und manuelle Korrekturen:
-   *                        amount (netto) + tax_amount. Die Betraege sind dort
-   *                        negativ, deshalb der Vorzeichenwechsel.
-   *   transactions[]       tatsaechlich zurueckgezahltes Geld (brutto)
+   * Vorgehen: der BRUTTO-Betrag ist fuehrend, die Steuer wird daraus
+   * herausgerechnet. Netto ergibt sich als Differenz.
    *
-   * Der Brutto-Betrag kommt aus den Transaktionen, weil nur sie den wirklich
-   * geflossenen Betrag nennen. Fehlen sie (kommt bei Payload-Varianten vor),
-   * wird brutto aus netto + Steuer gebildet, damit die Zeile nicht auf 0 faellt.
+   *   brutto = Summe der erfolgreichen Erstattungs-Transaktionen
+   *   steuer = Steuer der zurueckgenommenen Ware + Steuer der Versanderstattung
+   *   netto  = brutto - steuer
+   *
+   * Warum nicht netto direkt aus den Positionen summieren: order_adjustments
+   * enthaelt zwei grundverschiedene Arten. `shipping_refund` ist eine echte
+   * Versanderstattung, `refund_discrepancy` dagegen nur der Ausgleich zwischen
+   * rechnerischem und tatsaechlich erstattetem Betrag. Zaehlt man beide als
+   * Erstattung, kommt Unsinn heraus — nachgemessen an Erstattung
+   * 1142998204684: leere refund_line_items, tatsaechlich zurueckgezahlt 12,74,
+   * aus den Adjustments aufsummiert aber 38,22. Netto war damit groesser als
+   * brutto.
+   *
+   * Der Brutto-Betrag aus den Transaktionen ist das Geld, das das Konto
+   * wirklich verlassen hat, und damit die verlaesslichste Groesse. Die
+   * Ableitung netto = brutto - steuer stellt zugleich sicher, dass
+   * netto + steuer immer exakt brutto ergibt — sonst passt die
+   * Umsatz-Aufschluesselung in sich nicht zusammen.
+   *
+   * Fehlen Transaktionen (kommt bei Payload-Varianten vor), wird brutto aus
+   * Ware plus Versanderstattung gebildet, damit die Zeile nicht auf 0 faellt.
    */
   private rechneErstattung(refund: ShopifyRefundPayload): {
     brutto: number;
@@ -565,17 +579,20 @@ export class ShopifyService {
       return Number.isFinite(n) ? n : 0;
     };
 
-    let netto = 0;
+    let wareNetto = 0;
     let steuer = 0;
 
     for (const rli of refund.refund_line_items ?? []) {
-      netto += zahl(rli.subtotal);
+      wareNetto += zahl(rli.subtotal);
       steuer += zahl(rli.total_tax);
     }
 
-    // Versanderstattungen und Korrekturen. Shopify fuehrt sie negativ.
+    // Nur echte Versanderstattungen. refund_discrepancy und andere Arten
+    // bewusst NICHT — siehe Begruendung oben.
+    let versandNetto = 0;
     for (const adj of refund.order_adjustments ?? []) {
-      netto += Math.abs(zahl(adj.amount));
+      if (adj.kind !== 'shipping_refund') continue;
+      versandNetto += Math.abs(zahl(adj.amount));
       steuer += Math.abs(zahl(adj.tax_amount));
     }
 
@@ -583,17 +600,26 @@ export class ShopifyService {
       .filter((t) => t.kind === 'refund' && t.status === 'success')
       .reduce((summe, t) => summe + zahl(t.amount), 0);
 
-    const brutto = ausTransaktionen > 0 ? ausTransaktionen : netto + steuer;
+    const brutto = ausTransaktionen > 0
+      ? ausTransaktionen
+      : wareNetto + versandNetto + steuer;
+
+    // Steuer kann nicht groesser sein als das zurueckgezahlte Geld. Wuerde es
+    // vorkommen, waere die Steuerzeile zu stark gemindert und der Nettoumsatz
+    // zu hoch — deshalb hier begrenzen statt still falsch rechnen.
+    const steuerBegrenzt = Math.min(steuer, brutto);
+    const netto = brutto - steuerBegrenzt;
 
     // processed_at ist Shopifys Ausfuehrungszeitpunkt, created_at der
     // Anlagezeitpunkt. Shopify datiert die Erstattung nach der Ausfuehrung.
     const roh = refund.processed_at || refund.created_at;
     const zeitpunkt = roh ? new Date(roh) : new Date();
 
+    const rund = (n: number) => Math.round(n * 100) / 100;
     return {
-      brutto: Math.round(brutto * 100) / 100,
-      netto: Math.round(netto * 100) / 100,
-      steuer: Math.round(steuer * 100) / 100,
+      brutto: rund(brutto),
+      netto: rund(netto),
+      steuer: rund(steuerBegrenzt),
       zeitpunkt,
     };
   }
