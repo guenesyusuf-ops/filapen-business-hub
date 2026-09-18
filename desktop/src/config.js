@@ -23,6 +23,22 @@ const DEV_ORIGIN = 'http://localhost:3000';
 const APP_ORIGIN = isDev ? DEV_ORIGIN : PRODUCTION_ORIGIN;
 
 /**
+ * Womit die App startet — und zwar NICHT mit der nackten Adresse.
+ *
+ * `/` ist eine statische Werbeseite ohne jede Anmeldepruefung. Wer die App
+ * oeffnete, landete dort und musste sich erst weiterklicken; wer gerade
+ * neugestartet hatte, hielt das verstaendlicherweise fuer einen verlorenen
+ * Login.
+ *
+ * `/home` ist der richtige Einstieg: die Seite liegt hinter dem
+ * Dashboard-Layout, und das leitet von sich aus auf `/login` weiter, wenn
+ * keine gueltige Anmeldung vorliegt. Beide Faelle sind damit abgedeckt,
+ * ohne dass die Huelle etwas ueber den Anmeldezustand wissen muss.
+ */
+const START_PATH = '/home';
+const START_URL = `${APP_ORIGIN}${START_PATH}`;
+
+/**
  * Hosts, deren Navigation IM Hauptfenster erlaubt ist.
  *
  * Wichtig: Diese Liste steuert ausschliesslich Navigationen des Hauptfensters.
@@ -63,6 +79,8 @@ const SLOW_LOAD_MS = 2000;
 module.exports = {
   isDev,
   APP_ORIGIN,
+  START_PATH,
+  START_URL,
   PRODUCTION_ORIGIN,
   INTERNAL_HOSTS,
   WINDOW,

@@ -2,7 +2,7 @@
 
 const { net } = require('electron');
 const path = require('node:path');
-const { APP_ORIGIN, RETRY_MS, SLOW_LOAD_MS } = require('./config');
+const { START_URL, RETRY_MS, SLOW_LOAD_MS } = require('./config');
 const { log } = require('./diagnostics');
 
 /**
@@ -70,7 +70,7 @@ function applyConnectivityPolicy(fenster) {
   /** Laedt die App neu. Wird vom Knopf und von der Automatik gerufen. */
   const erneutVersuchen = () => {
     log('Erneuter Verbindungsversuch');
-    contents.loadURL(APP_ORIGIN).catch(() => { /* Fehler laeuft in did-fail-load */ });
+    contents.loadURL(START_URL).catch(() => { /* Fehler laeuft in did-fail-load */ });
   };
 
   /**
@@ -114,7 +114,7 @@ function applyConnectivityPolicy(fenster) {
     // origin als Query mitgeben: die Zustandsseite braucht die App-Adresse
     // fuer ihren Erneut-versuchen-Knopf, ohne sie hartcodieren zu muessen
     // und ohne Preload-Bruecke.
-    contents.loadFile(statischeSeite(seite), { query: { origin: APP_ORIGIN } })
+    contents.loadFile(statischeSeite(seite), { query: { origin: START_URL } })
       .then(() => { fenster.show(); starteWiederholung(); })
       .catch((err) => log(`Zustandsseite konnte nicht geladen werden: ${err?.message}`));
   });

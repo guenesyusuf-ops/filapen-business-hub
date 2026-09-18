@@ -3,7 +3,7 @@
 const { app, session, BrowserWindow } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { APP_ORIGIN, isDev } = require('./config');
+const { APP_ORIGIN, START_URL, isDev } = require('./config');
 const { initLogging, log } = require('./diagnostics');
 const { createMainWindow, getMainWindow, focusMainWindow } = require('./window');
 const { applyNavigationPolicy } = require('./navigation');
@@ -75,7 +75,27 @@ function dockIconImDevModus() {
   }
 }
 
-function starten() {
+/**
+ * Einrichtung, die genau EINMAL pro Prozess gehoert.
+ *
+ * Diese Trennung ist keine Kosmetik. Vorher lag alles in einer Funktion, die
+ * sowohl beim Start als auch beim Dock-Klick nach Cmd+W lief. Beim zweiten
+ * Durchgang warf `ipcMain.handle('toast:abfragen')` — ein Kanal darf nur
+ * einmal registriert werden. Die Ausnahme riss den Rest des Ablaufs ab, also
+ * auch `loadURL`: das Fenster entstand mit `show: false`, lud nie etwas und
+ * wurde nie gezeigt. Erst der zweite Dock-Klick holte es per `show()` nach
+ * vorn — als schwarze Flaeche, weil nur die Fensterfarbe zu sehen war.
+ *
+ * Zwei weitere Folgen desselben Fehlers: `applyDownloadPolicy` haengte bei
+ * jedem Durchgang einen zusaetzlichen `will-download`-Listener an, und
+ * `userAgentSetzen` verlaengerte den User-Agent jedes Mal erneut.
+ */
+let eingerichtet = false;
+
+function einmaligEinrichten() {
+  if (eingerichtet) return;
+  eingerichtet = true;
+
   initLogging();
   dockIconImDevModus();
   log(`Start — Modus ${isDev ? 'development' : 'production'}, Ziel ${APP_ORIGIN}`);
@@ -86,6 +106,15 @@ function starten() {
   applyPermissionPolicy(sitzung);
   applyDownloadPolicy(sitzung);
 
+  registerToastIpc({ dateiOeffnen, imFinderZeigen });
+  buildMenu();
+  initUpdater();
+}
+
+/** Oeffnet das Hauptfenster. Darf beliebig oft laufen. */
+function fensterOeffnen() {
+  einmaligEinrichten();
+
   // WICHTIG: kein Preload fuer das Hauptfenster. Der Remote-Inhalt erhaelt
   // keinerlei Bruecke ins Betriebssystem.
   const fenster = createMainWindow(undefined);
@@ -94,9 +123,6 @@ function starten() {
     log(`Extern geoeffnet: ${new URL(url).hostname}`);
   });
   applyConnectivityPolicy(fenster);
-  registerToastIpc({ dateiOeffnen, imFinderZeigen });
-  buildMenu();
-  initUpdater();
 
   // Fenster erst zeigen, wenn Inhalt da ist — verhindert die weisse Flaeche
   // beim Start und wirkt hochwertiger als ein Splashscreen.
@@ -105,15 +131,14 @@ function starten() {
     log('Fenster sichtbar');
   });
 
-
-  fenster.webContents.loadURL(APP_ORIGIN).catch((err) => {
+  fenster.webContents.loadURL(START_URL).catch((err) => {
     // Der Fehlerfall laeuft ueber did-fail-load in connectivity.js; hier nur
     // protokollieren, damit nichts still verschwindet.
     log(`Initiales Laden fehlgeschlagen: ${err?.message}`);
   });
 }
 
-app.whenReady().then(starten);
+app.whenReady().then(fensterOeffnen);
 
 /**
  * macOS-Verhalten: Das Schliessen des letzten Fensters beendet die App NICHT.
@@ -127,7 +152,7 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (!focusMainWindow()) {
     log('Dock-Klick ohne Fenster — neues Fenster');
-    starten();
+    fensterOeffnen();
   }
 });
 

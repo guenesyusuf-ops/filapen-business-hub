@@ -15,6 +15,18 @@ directories:
   output: dist
   buildResources: build
 
+# Kein Rebuild nativer Module.
+#
+# Es gibt keine: electron-updater ist reines JavaScript. Der Schritt ist also
+# ohnehin unnoetig — und er ist schaedlich. electron-builder erkennt wegen des
+# "workspaces"-Feldes der Root-package.json einen Workspace-Wurzelordner
+# (workspaceRoot=/Users/yumaya/filapen), obwohl /desktop gar kein Mitglied
+# ist. In diesem Modus schreibt es beim Rebuild die fuer das Paket getrimmte
+# Metadatei UEBER die Quelldatei und entfernt dabei "scripts" und
+# "devDependencies" — ein zweiter `npm run build` scheitert danach, weil das
+# Skript nicht mehr existiert. Nachgewiesen beim ersten Testbuild.
+npmRebuild: false
+
 # Nur was die App zur Laufzeit braucht. Kein Web-Frontend, keine Kopie des
 # Hubs — die App laedt business.filapen.de.
 files:
