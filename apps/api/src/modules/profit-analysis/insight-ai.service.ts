@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_UI_LONG_TIMEOUT_MS, AI_UI_MAX_RETRIES } from '../../common/http/timeouts';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -71,7 +72,9 @@ export class PaInsightAiService {
     private readonly config: ConfigService,
   ) {
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
-    this.client = apiKey ? new Anthropic({ apiKey }) : null;
+    this.client = apiKey
+      ? new Anthropic({ apiKey, timeout: AI_UI_LONG_TIMEOUT_MS, maxRetries: AI_UI_MAX_RETRIES })
+      : null;
     if (!apiKey) {
       this.logger.warn('ANTHROPIC_API_KEY not set — Insight AI Layer deaktiviert, deterministische Fallback-Texte werden verwendet.');
     }

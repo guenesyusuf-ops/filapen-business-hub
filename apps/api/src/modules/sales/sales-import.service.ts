@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_UI_LONG_TIMEOUT_MS, AI_UI_MAX_RETRIES } from '../../common/http/timeouts';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SalesCustomerService } from './sales-customer.service';
 import { SalesDocumentService } from './sales-document.service';
@@ -150,7 +151,9 @@ export class SalesImportService {
     private readonly documents: SalesDocumentService,
   ) {
     const key = this.config.get<string>('ANTHROPIC_API_KEY');
-    this.client = key ? new Anthropic({ apiKey: key }) : null;
+    this.client = key
+      ? new Anthropic({ apiKey: key, timeout: AI_UI_LONG_TIMEOUT_MS, maxRetries: AI_UI_MAX_RETRIES })
+      : null;
   }
 
   /**

@@ -12,6 +12,10 @@ import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AggregationService } from '../../finance/profit/aggregation.service';
 import { ShopifyRateLimiter } from './shopify-rate-limiter';
+import {
+  FAST_API_TIMEOUT_MS,
+  STANDARD_EXTERNAL_TIMEOUT_MS,
+} from '../../../common/http/timeouts';
 import { ContactSyncService, ShopifyCustomerPayload } from '../../email-marketing/contact-sync.service';
 import {
   ShopifyOrder,
@@ -1506,6 +1510,7 @@ export class ShopifyService {
         'X-Shopify-Access-Token': accessToken,
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(STANDARD_EXTERNAL_TIMEOUT_MS),
     });
 
     rateLimiter.updateFromHeaders(
@@ -1550,6 +1555,7 @@ export class ShopifyService {
         'X-Shopify-Access-Token': accessToken,
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(STANDARD_EXTERNAL_TIMEOUT_MS),
     });
 
     rateLimiter.updateFromHeaders(
@@ -1870,6 +1876,7 @@ export class ShopifyService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(STANDARD_EXTERNAL_TIMEOUT_MS),
     });
 
     rateLimiter.updateFromHeaders(
@@ -1911,6 +1918,7 @@ export class ShopifyService {
         'X-Shopify-Access-Token': accessToken,
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(FAST_API_TIMEOUT_MS),
     });
 
     rateLimiter.updateFromHeaders(
@@ -1954,6 +1962,7 @@ export class ShopifyService {
         client_secret: clientSecret,
         code,
       }),
+      signal: AbortSignal.timeout(FAST_API_TIMEOUT_MS),
     });
 
     if (!response.ok) {

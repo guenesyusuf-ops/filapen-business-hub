@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AI_UI_TIMEOUT_MS } from '../../common/http/timeouts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -130,6 +131,7 @@ this.openaiModel = modelMap[rawModel ?? ''] || rawModel || 'gpt-4o-mini';
             { role: 'user', content: userPrompt },
           ],
         }),
+        signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
       });
       if (!response.ok) {
         const errorBody = await response.text().catch(() => 'unknown');
@@ -164,6 +166,7 @@ this.openaiModel = modelMap[rawModel ?? ''] || rawModel || 'gpt-4o-mini';
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
         }),
+        signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
       });
       if (!response.ok) {
         const errorBody = await response.text().catch(() => 'unknown');

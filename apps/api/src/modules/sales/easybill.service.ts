@@ -1,7 +1,18 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SalesDocumentService } from './sales-document.service';
+import {
+  STANDARD_EXTERNAL_TIMEOUT_MS,
+  LONG_API_TIMEOUT_MS,
+  isTimeoutError,
+} from '../../common/http/timeouts';
 
 /**
  * Minimal wrapper around the easybill REST API (https://api.easybill.de/rest/v1).
@@ -43,18 +54,32 @@ export class EasybillService {
   ): Promise<T> {
     const key = await this.apiKey(orgId);
     const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
-      method: init.method ?? 'GET',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(init.headers || {}),
-      },
-      body: init.body == null
-        ? undefined
-        : typeof init.body === 'string' ? init.body : JSON.stringify(init.body),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: init.method ?? 'GET',
+        headers: {
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(init.headers || {}),
+        },
+        body: init.body == null
+          ? undefined
+          : typeof init.body === 'string' ? init.body : JSON.stringify(init.body),
+        // Rechnung/Lieferschein anlegen + senden ist UI-synchron. Ohne Timeout
+        // hängt der Vorgang minutenlang. Kein Retry — nicht-idempotent.
+        signal: AbortSignal.timeout(STANDARD_EXTERNAL_TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (isTimeoutError(err)) {
+        throw new HttpException(
+          'easybill antwortet derzeit nicht. Bitte versuche es erneut.',
+          HttpStatus.GATEWAY_TIMEOUT,
+        );
+      }
+      throw err;
+    }
     const text = await res.text();
     if (!res.ok) {
       this.logger.error(`easybill ${init.method ?? 'GET'} ${path} → ${res.status}: ${text.slice(0, 400)}`);
@@ -521,9 +546,21 @@ export class EasybillService {
 
   private async downloadPdf(orgId: string, documentId: string): Promise<Buffer> {
     const key = await this.apiKey(orgId);
-    const res = await fetch(`${this.baseUrl}/documents/${documentId}/pdf`, {
-      headers: { Authorization: `Bearer ${key}`, Accept: 'application/pdf' },
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/documents/${documentId}/pdf`, {
+        headers: { Authorization: `Bearer ${key}`, Accept: 'application/pdf' },
+        signal: AbortSignal.timeout(LONG_API_TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (isTimeoutError(err)) {
+        throw new HttpException(
+          'easybill PDF-Download hat zu lange gedauert. Bitte erneut versuchen.',
+          HttpStatus.GATEWAY_TIMEOUT,
+        );
+      }
+      throw err;
+    }
     if (!res.ok) {
       const t = await res.text().catch(() => '');
       throw new BadRequestException(`easybill PDF-Download (${res.status}): ${t.slice(0, 200)}`);

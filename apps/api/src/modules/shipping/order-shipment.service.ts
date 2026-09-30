@@ -9,6 +9,10 @@ import { ShippingEmailAutomationService } from './shipping-email-automation.serv
 import { ShopifyService } from '../integration/shopify/shopify.service';
 import type { ShipmentCreateInput } from './carriers/carrier-adapter.interface';
 import { StepTimerService } from '../../common/telemetry/step-timer';
+import {
+  STANDARD_EXTERNAL_TIMEOUT_MS,
+  LONG_API_TIMEOUT_MS,
+} from '../../common/http/timeouts';
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib';
 
 export interface CreateShipmentInput {
@@ -590,6 +594,7 @@ export class OrderShipmentService {
           Accept: 'application/json',
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(STANDARD_EXTERNAL_TIMEOUT_MS),
       });
     } catch (err: any) {
       throw new HttpException(
@@ -691,7 +696,9 @@ export class OrderShipmentService {
 
     for (const t of targets) {
       try {
-        const res = await fetch(t.url);
+        const res = await fetch(t.url, {
+          signal: AbortSignal.timeout(LONG_API_TIMEOUT_MS),
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const pdfBytes = Buffer.from(await res.arrayBuffer());
         const src = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });

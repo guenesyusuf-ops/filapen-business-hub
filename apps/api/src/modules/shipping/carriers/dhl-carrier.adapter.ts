@@ -3,6 +3,10 @@ import { performance } from 'perf_hooks';
 import type { CarrierAdapter, CarrierShipmentResult, CarrierTrackingResult, ShipmentCreateInput } from './carrier-adapter.interface';
 import { buildLabelHtml } from './label-html-builder';
 import { resolveDhlProduct } from './dhl-billing';
+import {
+  STANDARD_EXTERNAL_TIMEOUT_MS,
+  FAST_API_TIMEOUT_MS,
+} from '../../../common/http/timeouts';
 import * as crypto from 'crypto';
 
 /**
@@ -129,6 +133,9 @@ export class DhlCarrierAdapter implements CarrierAdapter {
             'Accept': 'application/json',
           },
           body: JSON.stringify(body),
+          // Label-Erzeugung ist UI-synchron — ohne Timeout hängt der Button
+          // minutenlang, wenn DHL nicht antwortet. Kein Auto-Retry (Doppel-Label).
+          signal: AbortSignal.timeout(STANDARD_EXTERNAL_TIMEOUT_MS),
         });
         fetchMs = Math.round(performance.now() - t0);
       } catch (err: any) {
@@ -211,6 +218,7 @@ export class DhlCarrierAdapter implements CarrierAdapter {
     try {
       const res = await fetch(url, {
         headers: { 'dhl-api-key': credentials.apiKey, Accept: 'application/json' },
+        signal: AbortSignal.timeout(FAST_API_TIMEOUT_MS),
       });
       if (!res.ok) return null;
       const data = await res.json();

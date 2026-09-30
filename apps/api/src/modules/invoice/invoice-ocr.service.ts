@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
+import { AI_OCR_TIMEOUT_MS, AI_UI_MAX_RETRIES } from '../../common/http/timeouts';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeInvoiceStatus } from './invoice-status.helper';
@@ -97,7 +98,9 @@ export class InvoiceOcrService {
     private readonly config: ConfigService,
   ) {
     const key = this.config.get<string>('ANTHROPIC_API_KEY');
-    this.client = key ? new Anthropic({ apiKey: key }) : null;
+    this.client = key
+      ? new Anthropic({ apiKey: key, timeout: AI_OCR_TIMEOUT_MS, maxRetries: AI_UI_MAX_RETRIES })
+      : null;
   }
 
   /**
