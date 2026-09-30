@@ -47,11 +47,12 @@ export interface ProductDetail {
 // ---------------------------------------------------------------------------
 
 import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 
 const API_BASE = `${API_URL}/api/finance`;
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(new URL(path, window.location.origin).toString());
+  const res = await fetch(new URL(path, window.location.origin).toString(), { headers: getAuthHeaders() });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
@@ -61,7 +62,7 @@ async function getJson<T>(path: string): Promise<T> {
 async function patchJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(new URL(path, window.location.origin).toString(), {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) {

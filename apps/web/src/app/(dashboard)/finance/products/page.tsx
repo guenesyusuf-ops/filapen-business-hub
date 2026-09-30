@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Package, ImageIcon, Barcode, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getAuthHeaders } from '@/stores/auth';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,7 +94,7 @@ async function fetchCatalog(params: {
   url.searchParams.set('sortOrder', params.sortOrder);
   url.searchParams.set('pageSize', '100');
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: getAuthHeaders() });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }

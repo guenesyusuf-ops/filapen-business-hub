@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 import {
   useBriefings,
   useBriefing,
@@ -41,7 +42,7 @@ function useProductCatalog() {
   return useQuery<CatalogProduct[]>({
     queryKey: ['product-catalog'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/api/finance/products/catalog`);
+      const res = await fetch(`${API_URL}/api/finance/products/catalog`, { headers: getAuthHeaders() });
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data) ? data : data.items ?? [];

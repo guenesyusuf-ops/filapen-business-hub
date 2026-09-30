@@ -11,6 +11,7 @@ import type { ProductsListResponse } from '@filapen/shared/src/types/finance';
 // ---------------------------------------------------------------------------
 
 import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 
 const API_BASE = `${API_URL}/api/finance`;
 
@@ -19,7 +20,7 @@ async function fetchApi<T>(path: string, params?: Record<string, string>): Promi
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: getAuthHeaders() });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
@@ -29,7 +30,7 @@ async function fetchApi<T>(path: string, params?: Record<string, string>): Promi
 async function postApi<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(new URL(path, window.location.origin).toString(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -41,7 +42,7 @@ async function postApi<T>(path: string, body: unknown): Promise<T> {
 async function patchApi<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(new URL(path, window.location.origin).toString(), {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -155,7 +156,7 @@ export function useImportCogs() {
       formData.append('file', file);
       const res = await fetch(
         new URL(`${API_BASE}/products/import-cogs`, window.location.origin).toString(),
-        { method: 'POST', body: formData },
+        { method: 'POST', body: formData, headers: getAuthHeaders() },
       );
       if (!res.ok) {
         throw new Error(`Import failed: ${res.status} ${res.statusText}`);

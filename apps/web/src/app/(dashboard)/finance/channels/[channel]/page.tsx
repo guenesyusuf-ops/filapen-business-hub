@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatDate } from '@filapen/shared/src/utils/date';
+import { getAuthHeaders } from '@/stores/auth';
 
 // ---------------------------------------------------------------------------
 // Channel config
@@ -83,7 +84,7 @@ function useChannelTimeSeries(channel: string) {
       url.searchParams.set('endDate', formatDate(dateRange.end));
       url.searchParams.set('metrics', 'revenue,profit,adSpend');
       url.searchParams.set('channel', channel);
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       return res.json();
     },
