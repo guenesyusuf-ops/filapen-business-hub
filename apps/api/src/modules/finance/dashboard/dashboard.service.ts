@@ -95,11 +95,12 @@ export class DashboardService {
   }> {
     // Always filter by channel — default to 'all' which is the pre-aggregated total
     const effectiveChannel = channel || 'all';
-    // channel als gebundenen Parameter ($4) statt roher Interpolation —
-    // sonst SQL-Injection über den Query-Parameter. Verhaltensgleich:
-    // 'all' ist der vor-aggregierte Gesamtwert, ein konkreter Channel filtert
-    // wie zuvor.
-    const channelFilter = `AND channel = $4`;
+    // channel als gebundenen Parameter statt roher Interpolation (sonst
+    // SQL-Injection). channel ist ein Postgres-ENUM — deshalb channel::text
+    // = $4 (enum = text-Parameter waere ein Typfehler -> 500). Verhaltens-
+    // gleich: 'all' ist der vor-aggregierte Gesamtwert, ein konkreter Channel
+    // filtert wie zuvor. Unerwartete Werte liefern leeres Ergebnis statt 500.
+    const channelFilter = `AND channel::text = $4`;
 
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{
