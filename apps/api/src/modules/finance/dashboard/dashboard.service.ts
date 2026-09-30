@@ -131,6 +131,7 @@ export class DashboardService {
       orgId,
       startDate.toISOString().slice(0, 10),
       endDate.toISOString().slice(0, 10),
+      effectiveChannel,
     );
 
     const row = rows[0];
