@@ -6,34 +6,45 @@ import {
   Delete,
   Param,
   Body,
-  Req,
-  UseGuards,
+  Headers,
   HttpCode,
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { AuthGuard } from '../../common/guards/auth.guard';
+import { AuthService } from '../auth/auth.service';
+import { extractAdminAuth, assertIsAdmin } from './admin-auth';
 import { UserRole } from '@prisma/client';
-
-interface AuthenticatedRequest {
-  userId: string;
-  orgId: string;
-}
 
 const VALID_ROLES: UserRole[] = ['owner', 'admin', 'member', 'viewer'];
 
 @Controller('admin')
 export class AdminController {
-  private readonly DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly auth: AuthService,
+  ) {}
 
-  constructor(private readonly adminService: AdminService) {}
+  /**
+   * Zentrale Absicherung fuer jede Admin-Route: authentifizieren und
+   * Owner/Admin-Rolle verlangen, dann den Auth-Kontext zurueckgeben.
+   *
+   * orgId kommt aus dem Token, nicht mehr aus einem hartcodierten Wert —
+   * damit ist die Organisation an den angemeldeten Nutzer gebunden. Da aktuell
+   * nur eine Organisation existiert und alle Tokens deren orgId tragen, ist das
+   * fuer bestehende Nutzer verhaltensgleich und zugleich korrekt gescoped.
+   */
+  private requireAdmin(authHeader: string | undefined) {
+    const ctx = extractAdminAuth(authHeader, this.auth);
+    assertIsAdmin(ctx.role);
+    return ctx;
+  }
 
   @Get('team')
-  async listTeam() {
-    const orgId = this.DEV_ORG_ID;
-    const members = await this.adminService.listTeamMembers(this.DEV_ORG_ID);
-    const invites = await this.adminService.listPendingInvites(this.DEV_ORG_ID);
+  async listTeam(@Headers('authorization') authHeader?: string) {
+    const ctx = this.requireAdmin(authHeader);
+    const members = await this.adminService.listTeamMembers(ctx.orgId);
+    const invites = await this.adminService.listPendingInvites(ctx.orgId);
     return { members, invites };
   }
 
@@ -41,7 +52,10 @@ export class AdminController {
   @HttpCode(HttpStatus.CREATED)
   async inviteTeamMember(
     @Body() body: { email: string; role?: UserRole; menuPermissions?: string[] },
+    @Headers('authorization') authHeader?: string,
   ) {
+    const ctx = this.requireAdmin(authHeader);
+
     if (!body.email || !body.email.includes('@')) {
       throw new BadRequestException('Valid email is required');
     }
@@ -52,8 +66,8 @@ export class AdminController {
     }
 
     return this.adminService.inviteTeamMember(
-      this.DEV_ORG_ID,
-      '00000000-0000-0000-0000-000000000002',
+      ctx.orgId,
+      ctx.userId,
       body.email.toLowerCase().trim(),
       role,
       Array.isArray(body.menuPermissions) ? body.menuPermissions : [],
@@ -64,12 +78,14 @@ export class AdminController {
   async updatePermissions(
     @Param('userId') userId: string,
     @Body() body: { menuPermissions: string[] },
+    @Headers('authorization') authHeader?: string,
   ) {
+    const ctx = this.requireAdmin(authHeader);
     if (!Array.isArray(body.menuPermissions)) {
       throw new BadRequestException('menuPermissions must be an array');
     }
     return this.adminService.updateMenuPermissions(
-      this.DEV_ORG_ID,
+      ctx.orgId,
       userId,
       body.menuPermissions,
     );
@@ -77,38 +93,49 @@ export class AdminController {
 
   @Delete('team/invite/:inviteId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async cancelInvite(@Param('inviteId') inviteId: string) {
-    await this.adminService.cancelInvite(this.DEV_ORG_ID, inviteId);
+  async cancelInvite(
+    @Param('inviteId') inviteId: string,
+    @Headers('authorization') authHeader?: string,
+  ) {
+    const ctx = this.requireAdmin(authHeader);
+    await this.adminService.cancelInvite(ctx.orgId, inviteId);
   }
 
   @Delete('team/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeTeamMember(
     @Param('userId') userId: string,
+    @Headers('authorization') authHeader?: string,
   ) {
-    await this.adminService.removeTeamMember(this.DEV_ORG_ID, userId);
+    const ctx = this.requireAdmin(authHeader);
+    await this.adminService.removeTeamMember(ctx.orgId, userId);
   }
 
   @Put('team/:userId/role')
   async changeRole(
     @Param('userId') userId: string,
     @Body() body: { role: UserRole },
+    @Headers('authorization') authHeader?: string,
   ) {
+    const ctx = this.requireAdmin(authHeader);
+
     if (!body.role || !VALID_ROLES.includes(body.role)) {
       throw new BadRequestException(`Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
     }
 
-    return this.adminService.changeUserRole(this.DEV_ORG_ID, userId, body.role);
+    return this.adminService.changeUserRole(ctx.orgId, userId, body.role);
   }
 
   @Get('pending-users')
-  async listPendingUsers() {
-    return this.adminService.listPendingUsers(this.DEV_ORG_ID);
+  async listPendingUsers(@Headers('authorization') authHeader?: string) {
+    const ctx = this.requireAdmin(authHeader);
+    return this.adminService.listPendingUsers(ctx.orgId);
   }
 
   @Get('pending-users/count')
-  async countPendingUsers() {
-    const count = await this.adminService.countPendingUsers(this.DEV_ORG_ID);
+  async countPendingUsers(@Headers('authorization') authHeader?: string) {
+    const ctx = this.requireAdmin(authHeader);
+    const count = await this.adminService.countPendingUsers(ctx.orgId);
     return { count };
   }
 
@@ -116,27 +143,35 @@ export class AdminController {
   async approveUser(
     @Param('userId') userId: string,
     @Body() body: { role?: UserRole },
+    @Headers('authorization') authHeader?: string,
   ) {
+    const ctx = this.requireAdmin(authHeader);
     const role = body.role;
     if (role && !VALID_ROLES.includes(role)) {
       throw new BadRequestException(`Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
     }
-    return this.adminService.approveUser(this.DEV_ORG_ID, userId, role);
+    return this.adminService.approveUser(ctx.orgId, userId, role);
   }
 
   @Put('reject-user/:userId')
-  async rejectUser(@Param('userId') userId: string) {
-    return this.adminService.rejectUser(this.DEV_ORG_ID, userId);
+  async rejectUser(
+    @Param('userId') userId: string,
+    @Headers('authorization') authHeader?: string,
+  ) {
+    const ctx = this.requireAdmin(authHeader);
+    return this.adminService.rejectUser(ctx.orgId, userId);
   }
 
   @Get('reviewed-users')
-  async listReviewedUsers() {
-    return this.adminService.listRecentlyReviewedUsers(this.DEV_ORG_ID);
+  async listReviewedUsers(@Headers('authorization') authHeader?: string) {
+    const ctx = this.requireAdmin(authHeader);
+    return this.adminService.listRecentlyReviewedUsers(ctx.orgId);
   }
 
   @Get('settings')
-  async getSettings() {
-    return this.adminService.getOrgSettings(this.DEV_ORG_ID);
+  async getSettings(@Headers('authorization') authHeader?: string) {
+    const ctx = this.requireAdmin(authHeader);
+    return this.adminService.getOrgSettings(ctx.orgId);
   }
 
   @Put('settings')
@@ -147,7 +182,9 @@ export class AdminController {
       timezone?: string;
       settings?: Record<string, unknown>;
     },
+    @Headers('authorization') authHeader?: string,
   ) {
-    return this.adminService.updateOrgSettings(this.DEV_ORG_ID, body);
+    const ctx = this.requireAdmin(authHeader);
+    return this.adminService.updateOrgSettings(ctx.orgId, body);
   }
 }
