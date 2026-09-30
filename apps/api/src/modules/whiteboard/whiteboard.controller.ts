@@ -29,17 +29,20 @@ export class WhiteboardController {
   // CRUD --------------------------------------------------------------
 
   @Get('boards')
-  async list() {
+  async list(@Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.service.list();
     } catch (err: any) {
+      if (err instanceof HttpException) throw err;
       this.logger.error(`list failed: ${err?.message ?? err}`);
       throw new HttpException('Whiteboards konnten nicht geladen werden', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   @Get('boards/:id')
-  async get(@Param('id') id: string) {
+  async get(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     return this.service.get(id);
   }
 
@@ -84,7 +87,8 @@ export class WhiteboardController {
   // Ordner -----------------------------------------------------------
 
   @Get('folders')
-  async listFolders() {
+  async listFolders(@Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     return this.service.listFolders();
   }
 
@@ -119,7 +123,8 @@ export class WhiteboardController {
   // Snapshots --------------------------------------------------------
 
   @Get('boards/:id/snapshots')
-  async listSnapshots(@Param('id') id: string) {
+  async listSnapshots(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     return this.service.listSnapshots(id);
   }
 
@@ -183,7 +188,8 @@ export class WhiteboardController {
    * jeweiligen Modul. Limit 20 Treffer pro Call damit das UI schnell ist.
    */
   @Get('search/tasks')
-  async searchTasks(@Query('q') q?: string) {
+  async searchTasks(@Query('q') q?: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     const where: any = { orgId: '00000000-0000-0000-0000-000000000001' };
     if (q?.trim()) where.title = { contains: q.trim(), mode: 'insensitive' };
     const rows = await this.prisma.wmTask.findMany({
@@ -210,7 +216,8 @@ export class WhiteboardController {
   }
 
   @Get('search/orders')
-  async searchOrders(@Query('q') q?: string) {
+  async searchOrders(@Query('q') q?: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     const where: any = { orgId: '00000000-0000-0000-0000-000000000001', status: { not: 'cancelled' } };
     if (q?.trim()) {
       where.OR = [
@@ -241,7 +248,8 @@ export class WhiteboardController {
   }
 
   @Get('search/products')
-  async searchProducts(@Query('q') q?: string) {
+  async searchProducts(@Query('q') q?: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     const where: any = { orgId: '00000000-0000-0000-0000-000000000001' };
     if (q?.trim()) {
       where.OR = [

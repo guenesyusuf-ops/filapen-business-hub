@@ -40,17 +40,20 @@ export class WmDashboardController {
   // =========================================================================
 
   @Get('dashboard')
-  async getDashboard() {
+  async getDashboard(@Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.dashboardService.getDashboard();
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('getDashboard failed', error);
       throw new HttpException('Failed to get dashboard data', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   @Get('dashboard/bucket')
-  async getTasksByBucket(@Query('bucket') bucket?: string) {
+  async getTasksByBucket(@Query('bucket') bucket?: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     const allowed = ['open', 'overdue', 'today', 'completed7d'] as const;
     if (!bucket || !allowed.includes(bucket as any)) {
       throw new HttpException(`Invalid bucket. Allowed: ${allowed.join(', ')}`, HttpStatus.BAD_REQUEST);
@@ -58,6 +61,7 @@ export class WmDashboardController {
     try {
       return await this.dashboardService.getTasksByBucket(bucket as typeof allowed[number]);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error(`getTasksByBucket(${bucket}) failed`, error);
       throw new HttpException('Failed to load tasks for bucket', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -73,6 +77,7 @@ export class WmDashboardController {
       const userId = this.extractUserId(authHeader);
       return await this.dashboardService.getMyTasks(userId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('getMyTasks failed', error);
       throw new HttpException('Failed to get my tasks', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -113,10 +118,12 @@ export class WmDashboardController {
   }
 
   @Get('projects-with-category')
-  async listProjectsWithCategory() {
+  async listProjectsWithCategory(@Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.dashboardService.listProjectsWithCategory();
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('listProjectsWithCategory failed', error);
       throw new HttpException('Failed to list projects', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -132,6 +139,7 @@ export class WmDashboardController {
       const userId = this.extractUserId(authHeader);
       return await this.notificationService.getNotifications(userId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('getNotifications failed', error);
       throw new HttpException('Failed to get notifications', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -143,6 +151,7 @@ export class WmDashboardController {
       const userId = this.extractUserId(authHeader);
       return await this.notificationService.getUnreadCount(userId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('getUnreadCount failed', error);
       throw new HttpException('Failed to get unread count', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -153,6 +162,7 @@ export class WmDashboardController {
     try {
       return await this.notificationService.markAsRead(id);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('markNotificationRead failed', error);
       throw new HttpException('Failed to mark notification as read', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -164,6 +174,7 @@ export class WmDashboardController {
       const userId = this.extractUserId(authHeader);
       return await this.notificationService.markAllAsRead(userId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('markAllNotificationsRead failed', error);
       throw new HttpException('Failed to mark all as read', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -174,7 +185,8 @@ export class WmDashboardController {
   // =========================================================================
 
   @Get('projects/:id/burndown')
-  async getBurndown(@Param('id') projectId: string) {
+  async getBurndown(@Param('id') projectId: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.dashboardService.getBurndownData(projectId);
     } catch (error) {

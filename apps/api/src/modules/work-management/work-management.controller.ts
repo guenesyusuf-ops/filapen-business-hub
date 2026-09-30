@@ -50,10 +50,12 @@ export class WorkManagementController {
   // =========================================================================
 
   @Get('projects')
-  async listProjects() {
+  async listProjects(@Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.listProjects();
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('listProjects failed', error);
       throw new HttpException('Failed to list projects', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -101,7 +103,8 @@ export class WorkManagementController {
   }
 
   @Get('projects/:id')
-  async getProject(@Param('id') id: string) {
+  async getProject(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.getProjectById(id);
     } catch (error) {
@@ -162,6 +165,7 @@ export class WorkManagementController {
     try {
       return await this.wmService.updateColumn(id, body);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('updateColumn failed', error);
       throw new HttpException('Failed to update column', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -197,7 +201,8 @@ export class WorkManagementController {
   // =========================================================================
 
   @Get('projects/:id/tasks')
-  async listProjectTasks(@Param('id') projectId: string) {
+  async listProjectTasks(@Param('id') projectId: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.listProjectTasks(projectId);
     } catch (error) {
@@ -267,7 +272,8 @@ export class WorkManagementController {
   }
 
   @Get('tasks/:id')
-  async getTask(@Param('id') id: string) {
+  async getTask(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.getTaskById(id);
     } catch (error) {
@@ -334,7 +340,8 @@ export class WorkManagementController {
   // =========================================================================
 
   @Get('tasks/:id/approval-detail')
-  async getApprovalDetail(@Param('id') taskId: string) {
+  async getApprovalDetail(@Param('id') taskId: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmApproval.getApprovalTaskDetail(taskId);
     } catch (error) {
@@ -381,6 +388,7 @@ export class WorkManagementController {
       const userId = this.extractUserId(authHeader);
       return await this.wmApproval.getPendingApprovals(userId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('getPendingApprovals failed', error);
       throw new HttpException('Failed to get pending approvals', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -441,10 +449,12 @@ export class WorkManagementController {
   // =========================================================================
 
   @Get('tasks/:id/comments')
-  async listComments(@Param('id') taskId: string) {
+  async listComments(@Param('id') taskId: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.listComments(taskId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('listComments failed', error);
       throw new HttpException('Failed to list comments', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -514,10 +524,12 @@ export class WorkManagementController {
   // =========================================================================
 
   @Get('tasks/:id/activities')
-  async listActivities(@Param('id') taskId: string) {
+  async listActivities(@Param('id') taskId: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.listActivities(taskId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('listActivities failed', error);
       throw new HttpException('Failed to list activities', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -528,10 +540,12 @@ export class WorkManagementController {
   // =========================================================================
 
   @Get('projects/:id/labels')
-  async listLabels(@Param('id') projectId: string) {
+  async listLabels(@Param('id') projectId: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.listLabels(projectId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('listLabels failed', error);
       throw new HttpException('Failed to list labels', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -556,6 +570,7 @@ export class WorkManagementController {
     try {
       return await this.wmService.deleteLabel(id);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('deleteLabel failed', error);
       throw new HttpException('Failed to delete label', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -583,6 +598,7 @@ export class WorkManagementController {
     try {
       return await this.wmService.removeLabelFromTask(taskId, labelId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('removeLabelFromTask failed', error);
       throw new HttpException('Failed to remove label', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -593,10 +609,12 @@ export class WorkManagementController {
   // =========================================================================
 
   @Get('projects/:id/members')
-  async listMembers(@Param('id') projectId: string) {
+  async listMembers(@Param('id') projectId: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.listMembers(projectId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('listMembers failed', error);
       throw new HttpException('Failed to list members', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -624,6 +642,7 @@ export class WorkManagementController {
     try {
       return await this.wmService.updateMember(id, body);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('updateMember failed', error);
       throw new HttpException('Failed to update member', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -634,6 +653,7 @@ export class WorkManagementController {
     try {
       return await this.wmService.removeMember(id);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('removeMember failed', error);
       throw new HttpException('Failed to remove member', HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -644,10 +664,12 @@ export class WorkManagementController {
   // =========================================================================
 
   @Get('workload')
-  async getWorkload(@Query('projectId') projectId?: string) {
+  async getWorkload(@Query('projectId') projectId?: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.getWorkload(projectId);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       this.logger.error('getWorkload failed', error);
       throw new HttpException('Failed to get workload', HttpStatus.INTERNAL_SERVER_ERROR);
     }

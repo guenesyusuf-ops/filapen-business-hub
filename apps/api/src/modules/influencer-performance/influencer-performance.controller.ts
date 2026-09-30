@@ -34,7 +34,9 @@ export class InfluencerPerformanceController {
     @Query('minRoas') minRoas?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+      @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     return this.service.list({
       search,
       platform,
@@ -63,7 +65,9 @@ export class InfluencerPerformanceController {
     @Query('blacklist') blacklist?: string,
     @Query('profitableOnly') profitableOnly?: string,
     @Query('minRoas') minRoas?: string,
+      @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     return this.service.kpis({
       search,
       platform,
@@ -79,7 +83,8 @@ export class InfluencerPerformanceController {
   }
 
   @Get(':id')
-  async getOne(@Param('id') id: string) {
+  async getOne(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     return this.service.get(id);
   }
 

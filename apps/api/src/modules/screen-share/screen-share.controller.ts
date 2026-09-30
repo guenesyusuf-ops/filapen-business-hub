@@ -94,17 +94,20 @@ export class ScreenShareController {
   }
 
   @Get('active')
-  async listActive() {
+  async listActive(@Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     return this.service.listActive();
   }
 
   @Get('history')
-  async listHistory() {
+  async listHistory(@Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     return this.service.listHistory();
   }
 
   @Get(':id')
-  async getOne(@Param('id') id: string) {
+  async getOne(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     return this.service.getSession(id);
   }
 
