@@ -95,7 +95,11 @@ export class DashboardService {
   }> {
     // Always filter by channel — default to 'all' which is the pre-aggregated total
     const effectiveChannel = channel || 'all';
-    const channelFilter = `AND channel = '${effectiveChannel}'`;
+    // channel als gebundenen Parameter ($4) statt roher Interpolation —
+    // sonst SQL-Injection über den Query-Parameter. Verhaltensgleich:
+    // 'all' ist der vor-aggregierte Gesamtwert, ein konkreter Channel filtert
+    // wie zuvor.
+    const channelFilter = `AND channel = $4`;
 
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{
