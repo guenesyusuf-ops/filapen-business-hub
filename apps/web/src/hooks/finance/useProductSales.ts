@@ -26,6 +26,7 @@ export interface ProductSalesSummary {
 // ---------------------------------------------------------------------------
 
 import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 
 const API_BASE = `${API_URL}/api/finance/products/sales-summary`;
 
@@ -36,7 +37,7 @@ async function fetchProductSales(
 ): Promise<ProductSalesSummary> {
   const params = new URLSearchParams({ start, end });
   if (channel) params.set('channel', channel);
-  const res = await fetch(`${API_BASE}?${params.toString()}`);
+  const res = await fetch(`${API_BASE}?${params.toString()}`, { headers: getAuthHeaders() });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }

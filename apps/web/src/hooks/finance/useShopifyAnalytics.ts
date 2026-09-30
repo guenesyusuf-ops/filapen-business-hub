@@ -72,6 +72,7 @@ export interface ShopifyAnalyticsOverview {
 // ---------------------------------------------------------------------------
 
 import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 
 const API_BASE = `${API_URL}/api/finance/shopify-analytics`;
 
@@ -80,7 +81,7 @@ async function fetchOverview(
   end: string,
 ): Promise<ShopifyAnalyticsOverview> {
   const params = new URLSearchParams({ start, end });
-  const res = await fetch(`${API_BASE}/overview?${params.toString()}`);
+  const res = await fetch(`${API_BASE}/overview?${params.toString()}`, { headers: getAuthHeaders() });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }

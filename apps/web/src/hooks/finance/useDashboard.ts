@@ -10,6 +10,7 @@ import type {
   KpiValue,
 } from '@filapen/shared/src/types/finance';
 import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 
 // ---------------------------------------------------------------------------
 // Generic fetch helper
@@ -22,7 +23,7 @@ async function fetchApi<T>(path: string, params?: Record<string, string>): Promi
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: getAuthHeaders() });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }

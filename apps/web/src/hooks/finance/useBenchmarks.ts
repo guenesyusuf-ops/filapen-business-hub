@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useFinanceUI } from '@/stores/finance-ui';
 import { formatDate } from '@filapen/shared/src/utils/date';
 import { API_URL } from '@/lib/api';
+import { getAuthHeaders } from '@/stores/auth';
 
 const API_BASE = `${API_URL}/api/finance`;
 
@@ -12,7 +13,7 @@ async function fetchApi<T>(path: string, params?: Record<string, string>): Promi
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { headers: getAuthHeaders() });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
