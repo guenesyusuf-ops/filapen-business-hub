@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Param, Body, Headers, Logger, BadRequestException,
-} from '@nestjs/common';
+  UnauthorizedException,} from '@nestjs/common';
 import { ScreenShareService } from './screen-share.service';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,10 +18,10 @@ export class ScreenShareController {
   ) {}
 
   private extractUserId(authHeader: string | undefined): string {
-    if (!authHeader) return DEV_USER_ID;
+    if (!authHeader) throw new UnauthorizedException('Kein gueltiger Token');
     const parts = authHeader.split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer') return DEV_USER_ID;
-    try { return this.auth.validateToken(parts[1]).sub; } catch { return DEV_USER_ID; }
+    if (parts.length !== 2 || parts[0] !== 'Bearer') throw new UnauthorizedException('Kein gueltiger Token');
+    try { return this.auth.validateToken(parts[1]).sub; } catch { throw new UnauthorizedException('Kein gueltiger Token'); }
   }
 
   // Sessions ---------------------------------------------------------

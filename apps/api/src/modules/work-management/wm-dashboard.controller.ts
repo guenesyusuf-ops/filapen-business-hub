@@ -9,7 +9,7 @@ import {
   Logger,
   HttpException,
   HttpStatus,
-} from '@nestjs/common';
+  UnauthorizedException,} from '@nestjs/common';
 import { WmDashboardService } from './wm-dashboard.service';
 import { WmNotificationService } from './wm-notification.service';
 import { AuthService } from '../auth/auth.service';
@@ -25,13 +25,13 @@ export class WmDashboardController {
   ) {}
 
   private extractUserId(authHeader: string | undefined): string | undefined {
-    if (!authHeader) return undefined;
+    if (!authHeader) throw new UnauthorizedException('Kein gueltiger Token');
     const parts = authHeader.split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer') return undefined;
+    if (parts.length !== 2 || parts[0] !== 'Bearer') throw new UnauthorizedException('Kein gueltiger Token');
     try {
       return this.auth.validateToken(parts[1]).sub;
     } catch {
-      return undefined;
+      throw new UnauthorizedException('Kein gueltiger Token');
     }
   }
 
