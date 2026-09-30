@@ -108,7 +108,8 @@ export class InfluencerPerformanceController {
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     return this.service.remove(id);
   }
 }

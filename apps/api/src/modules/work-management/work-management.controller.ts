@@ -118,7 +118,9 @@ export class WorkManagementController {
   async updateProject(
     @Param('id') id: string,
     @Body() body: { name?: string; description?: string; color?: string },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.updateProject(id, body);
     } catch (error) {
@@ -129,7 +131,8 @@ export class WorkManagementController {
   }
 
   @Delete('projects/:id')
-  async deleteProject(@Param('id') id: string) {
+  async deleteProject(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.deleteProject(id);
     } catch (error) {
@@ -147,7 +150,9 @@ export class WorkManagementController {
   async createColumn(
     @Param('id') projectId: string,
     @Body() body: { name: string; color?: string },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.createColumn(projectId, body);
     } catch (error) {
@@ -161,7 +166,9 @@ export class WorkManagementController {
   async updateColumn(
     @Param('id') id: string,
     @Body() body: { name?: string; color?: string },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.updateColumn(id, body);
     } catch (error) {
@@ -172,7 +179,8 @@ export class WorkManagementController {
   }
 
   @Delete('columns/:id')
-  async deleteColumn(@Param('id') id: string) {
+  async deleteColumn(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.deleteColumn(id);
     } catch (error) {
@@ -186,7 +194,9 @@ export class WorkManagementController {
   async reorderColumns(
     @Param('id') projectId: string,
     @Body() body: { columnIds: string[] },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.reorderColumns(projectId, body.columnIds);
     } catch (error) {
@@ -300,7 +310,9 @@ export class WorkManagementController {
       color?: string | null;
       section?: string | null;
     },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.updateTask(id, body);
     } catch (error) {
@@ -311,7 +323,8 @@ export class WorkManagementController {
   }
 
   @Delete('tasks/:id')
-  async deleteTask(@Param('id') id: string) {
+  async deleteTask(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.deleteTask(id);
     } catch (error) {
@@ -325,7 +338,9 @@ export class WorkManagementController {
   async moveTask(
     @Param('id') id: string,
     @Body() body: { columnId: string; position: number },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.moveTask(id, body);
     } catch (error) {
@@ -402,7 +417,9 @@ export class WorkManagementController {
   async bulkReorderTasks(
     @Param('id') projectId: string,
     @Body() body: { taskId: string; columnId: string; position: number }[],
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.bulkReorderTasks(projectId, body);
     } catch (error) {
@@ -420,7 +437,9 @@ export class WorkManagementController {
   async createSubtask(
     @Param('id') parentTaskId: string,
     @Body() body: { title: string; assigneeId?: string },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.createSubtask(parentTaskId, {
         ...body,
@@ -434,7 +453,8 @@ export class WorkManagementController {
   }
 
   @Patch('subtasks/:id/toggle')
-  async toggleSubtask(@Param('id') id: string) {
+  async toggleSubtask(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.toggleSubtask(id);
     } catch (error) {
@@ -495,7 +515,9 @@ export class WorkManagementController {
   async uploadAttachment(
     @Param('id') taskId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.extractUserId(authHeader);
     if (!file) throw new BadRequestException('No file provided');
     if (!file.buffer) throw new BadRequestException('File buffer missing');
 
@@ -509,7 +531,8 @@ export class WorkManagementController {
   }
 
   @Delete('attachments/:id')
-  async deleteAttachment(@Param('id') id: string) {
+  async deleteAttachment(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.deleteAttachment(id);
     } catch (error) {
@@ -555,7 +578,9 @@ export class WorkManagementController {
   async createLabel(
     @Param('id') projectId: string,
     @Body() body: { name: string; color: string },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.createLabel(projectId, body);
     } catch (error) {
@@ -566,7 +591,8 @@ export class WorkManagementController {
   }
 
   @Delete('labels/:id')
-  async deleteLabel(@Param('id') id: string) {
+  async deleteLabel(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.deleteLabel(id);
     } catch (error) {
@@ -580,7 +606,9 @@ export class WorkManagementController {
   async addLabelToTask(
     @Param('taskId') taskId: string,
     @Param('labelId') labelId: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.addLabelToTask(taskId, labelId);
     } catch (error) {
@@ -594,7 +622,9 @@ export class WorkManagementController {
   async removeLabelFromTask(
     @Param('taskId') taskId: string,
     @Param('labelId') labelId: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.removeLabelFromTask(taskId, labelId);
     } catch (error) {
@@ -624,7 +654,9 @@ export class WorkManagementController {
   async addMember(
     @Param('id') projectId: string,
     @Body() body: { userId: string; userName: string; role?: string },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.addMember(projectId, body);
     } catch (error) {
@@ -638,7 +670,9 @@ export class WorkManagementController {
   async updateMember(
     @Param('id') id: string,
     @Body() body: { role: string },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       return await this.wmService.updateMember(id, body);
     } catch (error) {
@@ -649,7 +683,8 @@ export class WorkManagementController {
   }
 
   @Delete('members/:id')
-  async removeMember(@Param('id') id: string) {
+  async removeMember(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.wmService.removeMember(id);
     } catch (error) {

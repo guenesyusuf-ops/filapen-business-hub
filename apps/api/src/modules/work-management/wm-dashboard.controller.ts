@@ -88,7 +88,8 @@ export class WmDashboardController {
   // =========================================================================
 
   @Patch('tasks/:id/auto-complete')
-  async autoCompleteTask(@Param('id') id: string) {
+  async autoCompleteTask(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.dashboardService.checkCompletionTrigger(id);
     } catch (error) {
@@ -106,7 +107,9 @@ export class WmDashboardController {
   async updateCategory(
     @Param('id') id: string,
     @Body() body: { category: string | null },
+    @Headers('authorization') authHeader?: string,
   ) {
+      this.extractUserId(authHeader);
     try {
       await this.dashboardService.updateProjectCategory(id, body.category);
       return { updated: true };
@@ -158,7 +161,8 @@ export class WmDashboardController {
   }
 
   @Patch('notifications/:id/read')
-  async markNotificationRead(@Param('id') id: string) {
+  async markNotificationRead(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.extractUserId(authHeader);
     try {
       return await this.notificationService.markAsRead(id);
     } catch (error) {
