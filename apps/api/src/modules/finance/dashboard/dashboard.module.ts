@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../../auth/auth.module';
 import { ProfitCalculationModule } from '../profit/profit.module';
 import { CostModule } from '../cost/cost.module';
 import { ProductModule } from '../product/product.module';
@@ -16,6 +17,7 @@ import { DashboardService } from './dashboard.service';
  */
 @Module({
   imports: [
+    AuthModule,
     ProfitCalculationModule,
     CostModule,
     ProductModule,

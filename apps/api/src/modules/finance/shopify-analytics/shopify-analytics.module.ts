@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ShopifyAnalyticsController } from './shopify-analytics.controller';
 import { ShopifyAnalyticsService } from './shopify-analytics.service';
 import { IntegrationModule } from '../../integration/integration.module';
+import { AuthModule } from '../../auth/auth.module';
 
 /**
  * Shopify Analytics module — replicates Shopify Admin Analytics dashboard
@@ -11,7 +12,7 @@ import { IntegrationModule } from '../../integration/integration.module';
 @Module({
   // IntegrationModule wegen ShopifyService: die Umsatz-Aufschluesselung kommt
   // aus Shopifys eigener Auswertung, nicht mehr aus eigener Rechnung.
-  imports: [IntegrationModule],
+  imports: [IntegrationModule, AuthModule],
   controllers: [ShopifyAnalyticsController],
   providers: [ShopifyAnalyticsService],
 })

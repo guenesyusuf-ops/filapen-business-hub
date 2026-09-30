@@ -10,6 +10,7 @@ import {
   Body,
   Logger,
   HttpCode,
+  Headers,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -23,6 +24,7 @@ import { CohortService } from '../cohort/cohort.service';
 import { BenchmarkService } from '../benchmark/benchmark.service';
 import { DashboardService } from './dashboard.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { AuthService } from '../../auth/auth.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -64,7 +66,30 @@ export class DashboardController {
     private readonly cohortService: CohortService,
     private readonly benchmarkService: BenchmarkService,
     private readonly prisma: PrismaService,
+    private readonly auth: AuthService,
   ) {}
+
+  /**
+   * Authentifizierung (AUTHENTICATED) — identisch zum etablierten Muster in
+   * finance/profitability und den bereits geschuetzten WM-/Whiteboard-Routen:
+   * ein gueltiger Bearer-JWT ist Pflicht, sonst 401. Bewusst KEINE neue
+   * Rollen-, Ownership- oder Org-Logik und KEINE Aenderung an DEV_ORG_ID —
+   * nur der anonyme Zugriff wird geschlossen.
+   */
+  private requireAuth(authHeader?: string): void {
+    if (!authHeader) {
+      throw new HttpException('Kein gueltiger Token', HttpStatus.UNAUTHORIZED);
+    }
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      throw new HttpException('Kein gueltiger Token', HttpStatus.UNAUTHORIZED);
+    }
+    try {
+      this.auth.validateToken(parts[1]);
+    } catch {
+      throw new HttpException('Kein gueltiger Token', HttpStatus.UNAUTHORIZED);
+    }
+  }
 
   // =========================================================================
   // GET /api/finance/dashboard
@@ -75,7 +100,9 @@ export class DashboardController {
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
     @Query('channel') channel?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
     const ch = channel === 'all' ? undefined : channel;
@@ -103,7 +130,9 @@ export class DashboardController {
     @Query('sortOrder') sortOrder?: string,
     @Query('page') pageStr?: string,
     @Query('pageSize') pageSizeStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
     const pageSize = Math.min(200, Math.max(1, parseInt(pageSizeStr || '60', 10) || 60));
     const validSortBy = ['title', 'price', 'createdAt'] as const;
@@ -135,7 +164,8 @@ export class DashboardController {
   // product detail page under /finance/products/[id].
   //
   @Get('products/catalog/:id')
-  async getProductCatalogDetail(@Param('id') id: string) {
+  async getProductCatalogDetail(@Param('id') id: string, @Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       return await this.productService.getProductDetail(DEV_ORG_ID, id);
     } catch (error) {
@@ -159,7 +189,9 @@ export class DashboardController {
   async updateProductInternal(
     @Param('id') id: string,
     @Body() body: { internalNotes?: string | null; internalTags?: string[] },
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     try {
       return await this.productService.updateProductInternal(DEV_ORG_ID, id, {
         internalNotes: body?.internalNotes,
@@ -186,7 +218,9 @@ export class DashboardController {
   async updateVariantCogs(
     @Param('id') id: string,
     @Body() body: { cogs?: number | null; cogsCurrency?: string | null; vatRate?: number; barcode?: string | null; sku?: string | null },
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     try {
       return await this.productService.updateVariantCogs(DEV_ORG_ID, id, {
         cogs: body?.cogs,
@@ -224,7 +258,9 @@ export class DashboardController {
     @Query('start') startStr?: string,
     @Query('end') endStr?: string,
     @Query('channel') channel?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     // Default to last 30 days if no date supplied.
     const today = new Date();
     const thirtyDaysAgo = new Date();
@@ -376,7 +412,9 @@ export class DashboardController {
     @Query('sortOrder') sortOrder?: string,
     @Query('search') search?: string,
     @Query('category') category?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
     const page = Math.max(1, parseInt(pageStr || '1', 10) || 1);
@@ -410,7 +448,9 @@ export class DashboardController {
   async getChannels(
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
 
@@ -432,7 +472,9 @@ export class DashboardController {
     @Query('endDate') endDateStr?: string,
     @Query('metrics') metricsStr?: string,
     @Query('channel') channel?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
     const metrics = metricsStr
@@ -517,7 +559,8 @@ export class DashboardController {
   }
 
   @Get('costs/payment-methods')
-  async getPaymentMethods() {
+  async getPaymentMethods(@Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       const rows = await this.costService.listPaymentMethods(DEV_ORG_ID);
       return rows.map((r) => this.mapPaymentMethodOut(r));
@@ -528,7 +571,8 @@ export class DashboardController {
   }
 
   @Post('costs/payment-methods')
-  async upsertPaymentMethod(@Body() body: any) {
+  async upsertPaymentMethod(@Body() body: any, @Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       const dto = this.mapPaymentMethodIn(body);
       const row = await this.costService.upsertPaymentMethod(DEV_ORG_ID, dto);
@@ -543,14 +587,16 @@ export class DashboardController {
   }
 
   @Put('costs/payment-methods/:id')
-  async updatePaymentMethod(@Param('id') _id: string, @Body() body: any) {
+  async updatePaymentMethod(@Param('id') _id: string, @Body() body: any, @Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     // Service nutzt upsert via @@unique([orgId, gatewayName]) — gleicher Pfad wie POST.
-    return this.upsertPaymentMethod(body);
+    return this.upsertPaymentMethod(body, authHeader);
   }
 
   @Delete('costs/payment-methods/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deletePaymentMethod(@Param('id') id: string): Promise<void> {
+  async deletePaymentMethod(@Param('id') id: string, @Headers('authorization') authHeader?: string): Promise<void> {
+    this.requireAuth(authHeader);
     try {
       await this.costService.deletePaymentMethod(DEV_ORG_ID, id);
     } catch (error: any) {
@@ -563,7 +609,8 @@ export class DashboardController {
   }
 
   @Get('costs/fixed')
-  async getFixedCosts() {
+  async getFixedCosts(@Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       const rows = await this.costService.listFixedCosts(DEV_ORG_ID);
       return rows.map((r) => this.mapFixedCostOut(r));
@@ -574,7 +621,8 @@ export class DashboardController {
   }
 
   @Post('costs/fixed')
-  async createFixedCost(@Body() body: any) {
+  async createFixedCost(@Body() body: any, @Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       const dto = this.mapFixedCostIn(body);
       const row = await this.costService.createFixedCost(DEV_ORG_ID, dto);
@@ -589,7 +637,8 @@ export class DashboardController {
   }
 
   @Put('costs/fixed/:id')
-  async updateFixedCost(@Param('id') id: string, @Body() body: any) {
+  async updateFixedCost(@Param('id') id: string, @Body() body: any, @Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       const dto = this.mapFixedCostIn(body);
       const row = await this.costService.updateFixedCost(DEV_ORG_ID, id, dto);
@@ -605,7 +654,8 @@ export class DashboardController {
 
   @Delete('costs/fixed/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteFixedCost(@Param('id') id: string): Promise<void> {
+  async deleteFixedCost(@Param('id') id: string, @Headers('authorization') authHeader?: string): Promise<void> {
+    this.requireAuth(authHeader);
     try {
       await this.costService.deleteFixedCost(DEV_ORG_ID, id);
     } catch (error: any) {
@@ -622,7 +672,8 @@ export class DashboardController {
   // =========================================================================
 
   @Get('alerts')
-  async getAlerts() {
+  async getAlerts(@Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       const alerts = await this.prisma.alert.findMany({
         where: {
@@ -655,7 +706,8 @@ export class DashboardController {
   // =========================================================================
 
   @Get('integrations')
-  async getIntegrations() {
+  async getIntegrations(@Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       const integrations = await this.prisma.integration.findMany({
         where: { orgId: DEV_ORG_ID },
@@ -683,7 +735,9 @@ export class DashboardController {
   async getRevenueBreakdown(
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
 
@@ -753,7 +807,9 @@ export class DashboardController {
   async getShopifyRevenueBreakdown(
     @Query('date') dateStr?: string,
     @Query('end') endStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     // Default to today (server day) if no date supplied.
     const startDate = dateStr ?? new Date().toISOString().slice(0, 10);
     const endDate = endStr ?? startDate;
@@ -921,7 +977,9 @@ export class DashboardController {
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
     @Query('channel') channel?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
     const ch = channel === 'all' ? undefined : channel;
@@ -943,7 +1001,9 @@ export class DashboardController {
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
     @Query('platform') platform?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
 
@@ -969,7 +1029,9 @@ export class DashboardController {
     @Param('id') id: string,
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
 
@@ -995,7 +1057,9 @@ export class DashboardController {
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
     @Query('model') model?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
     const validModels = ['last_touch', 'linear', 'time_decay', 'data_driven'];
@@ -1024,7 +1088,9 @@ export class DashboardController {
   async getMarketingMix(
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
 
@@ -1048,7 +1114,9 @@ export class DashboardController {
   async getCohorts(
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 90);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
 
@@ -1069,7 +1137,8 @@ export class DashboardController {
   // =========================================================================
 
   @Get('ltv')
-  async getLTV() {
+  async getLTV(@Headers('authorization') authHeader?: string) {
+    this.requireAuth(authHeader);
     try {
       return await this.cohortService.getLTV(DEV_ORG_ID);
     } catch (error) {
@@ -1086,7 +1155,9 @@ export class DashboardController {
   async getBenchmarks(
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
 
@@ -1110,7 +1181,9 @@ export class DashboardController {
   async getCreativePerformance(
     @Query('startDate') startDateStr?: string,
     @Query('endDate') endDateStr?: string,
+    @Headers('authorization') authHeader?: string,
   ) {
+    this.requireAuth(authHeader);
     const startDate = parseDateOrDefault(startDateStr, 30);
     const endDate = endDateStr ? parseDateOrDefault(endDateStr, 0) : today();
 
