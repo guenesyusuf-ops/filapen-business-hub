@@ -20,17 +20,27 @@ export class MetaAdsController {
 
   // --- Stammdaten-Referenzen (Product Switcher, Angles, Offers) ---
 
+  @Get('product-groups')
+  async productGroups(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return { items: await this.svc.listProductGroups(orgId) };
+  }
+
+  @Post('product-groups')
+  async createProductGroup(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { name?: string; type?: string; productId?: string | null },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.svc.createProductGroup(orgId, body);
+  }
+
+  /** Roher Shop-Katalog — nur zum Verknüpfen beim Anlegen einer linked-Gruppe. */
   @Get('products')
   async products(@Headers('authorization') authHeader: string) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
-    return { items: await this.svc.listProducts(orgId) };
-  }
-
-  @Post('products')
-  async createProduct(@Headers('authorization') authHeader: string, @Body() body: { title: string }) {
-    const { orgId, role } = extractAuthContext(authHeader, this.auth);
-    assertCanWrite(role);
-    return this.svc.createProduct(orgId, body?.title);
+    return { items: await this.svc.listShopProducts(orgId) };
   }
 
   @Get('angles')
@@ -64,13 +74,13 @@ export class MetaAdsController {
   @Get('overview')
   async overview(
     @Headers('authorization') authHeader: string,
-    @Query('productId') productId?: string,
+    @Query('productGroupId') productGroupId?: string,
     @Query('range') range?: PeriodRange,
     @Query('start') start?: string,
     @Query('end') end?: string,
   ) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
-    return this.svc.overview(orgId, { productId, range, start, end });
+    return this.svc.overview(orgId, { productGroupId, range, start, end });
   }
 
   // --- Ads ---
@@ -78,7 +88,7 @@ export class MetaAdsController {
   @Get('ads')
   async listAds(
     @Headers('authorization') authHeader: string,
-    @Query('productId') productId?: string,
+    @Query('productGroupId') productGroupId?: string,
     @Query('format') format?: string,
     @Query('angleId') angleId?: string,
     @Query('offerId') offerId?: string,
@@ -92,7 +102,7 @@ export class MetaAdsController {
   ) {
     const { orgId } = extractAuthContext(authHeader, this.auth);
     return this.svc.listAds(orgId, {
-      productId, format, angleId, offerId, status, search, range, start, end,
+      productGroupId, format, angleId, offerId, status, search, range, start, end,
       page: page ? parseInt(page, 10) : undefined,
       pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
     });

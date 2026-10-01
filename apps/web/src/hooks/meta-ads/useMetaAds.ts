@@ -47,10 +47,13 @@ export type MaFormat = 'video' | 'static' | 'carousel' | 'gif' | 'ugc' | 'vsl' |
 export type MaAwareness = 'unaware' | 'problem_aware' | 'solution_aware' | 'product_aware' | 'most_aware';
 export type MaAdStatus = 'draft' | 'active' | 'paused' | 'ended' | 'archived';
 
+export type MaProductGroupType = 'linked' | 'manual' | 'bundle';
+
 export interface MetaAd {
   id: string;
-  productId: string;
-  productName: string | null;
+  productGroupId: string | null;
+  productGroupName: string | null;
+  productGroupType: MaProductGroupType | null;
   name: string;
   metaAdId: string | null;
   startDate: string | null;
@@ -151,9 +154,10 @@ export interface Period { from?: string; to?: string; range: PeriodRange }
 export interface AdWithMetrics extends MetaAd { metrics: AggregatedMetrics }
 export interface NamedRef { id: string; name: string }
 export interface ProductRef { id: string; title: string }
+export interface ProductGroupRef { id: string; name: string; type: MaProductGroupType; productId: string | null }
 
 export interface AdListParams {
-  productId?: string;
+  productGroupId?: string;
   format?: string;
   angleId?: string;
   offerId?: string;
@@ -170,6 +174,15 @@ export interface AdListParams {
 // Query Hooks
 // ---------------------------------------------------------------------------
 
+/** Analysegruppen (linked | manual | bundle) — Product Switcher + Modal. */
+export function useMetaProductGroups() {
+  return useQuery({
+    queryKey: ['meta-ads', 'product-groups'],
+    queryFn: () => getApi<{ items: ProductGroupRef[] }>('/product-groups'),
+  });
+}
+
+/** Roher Shop-Katalog — nur zum Verknüpfen (type=linked). */
 export function useMetaProducts() {
   return useQuery({
     queryKey: ['meta-ads', 'products'],
@@ -191,12 +204,12 @@ export function useMetaOffers() {
   });
 }
 
-export function useMetaOverview(params: { productId?: string; range?: PeriodRange; start?: string; end?: string }) {
+export function useMetaOverview(params: { productGroupId?: string; range?: PeriodRange; start?: string; end?: string }) {
   return useQuery({
     queryKey: ['meta-ads', 'overview', params],
     queryFn: () =>
       getApi<{ kpis: AggregatedMetrics; counts: Record<string, number>; period: Period }>('/overview', {
-        productId: params.productId,
+        productGroupId: params.productGroupId,
         range: params.range,
         start: params.start,
         end: params.end,
@@ -211,7 +224,7 @@ export function useMetaAdsList(params: AdListParams) {
       getApi<{ items: AdWithMetrics[]; total: number; page: number; pageSize: number; totalPages: number; period: Period }>(
         '/ads',
         {
-          productId: params.productId,
+          productGroupId: params.productGroupId,
           format: params.format,
           angleId: params.angleId,
           offerId: params.offerId,
@@ -311,11 +324,12 @@ export function useDeleteMetric(adId: string) {
   });
 }
 
-export function useCreateProduct() {
+export function useCreateProductGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (title: string) => sendApi<ProductRef>('POST', '/products', { title }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['meta-ads', 'products'] }),
+    mutationFn: (body: { name?: string; type: MaProductGroupType; productId?: string | null }) =>
+      sendApi<ProductGroupRef>('POST', '/product-groups', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meta-ads', 'product-groups'] }),
   });
 }
 

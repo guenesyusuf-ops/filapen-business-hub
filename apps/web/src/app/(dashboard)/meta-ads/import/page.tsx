@@ -9,7 +9,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { MetaPageHeader, MetaSectionHeader, MetaEmptyState, META_CARD } from '@/components/meta-ads/MetaUI';
-import { useMetaProducts } from '@/hooks/meta-ads/useMetaAds';
+import { useMetaProductGroups } from '@/hooks/meta-ads/useMetaAds';
 import {
   useAnalyzeImport, useCommitImport, useImportHistory,
   ImportType, AnalyzeResult, PreviewRow, CommitRow, CommitResult, RowStatus,
@@ -99,7 +99,7 @@ function ImportFlow({ type, onViewHistory }: { type: ImportType; onViewHistory: 
   const toast = useToast();
   const analyze = useAnalyzeImport();
   const commit = useCommitImport();
-  const { data: products } = useMetaProducts();
+  const { data: groups } = useMetaProductGroups();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>('upload');
@@ -111,7 +111,7 @@ function ImportFlow({ type, onViewHistory }: { type: ImportType; onViewHistory: 
   const [statusFilter, setStatusFilter] = useState<RowStatus | 'all'>('all');
   const [dup, setDup] = useState<DupStrategy>('update');
   const [unknown, setUnknown] = useState<UnknownStrategy>('skip');
-  const [newAdProductId, setNewAdProductId] = useState('');
+  const [newAdGroupId, setNewAdProductId] = useState('');
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null);
 
   const fieldKeys = type === 'meta' ? META_FIELD_KEYS : HYROS_FIELD_KEYS;
@@ -143,7 +143,7 @@ function ImportFlow({ type, onViewHistory }: { type: ImportType; onViewHistory: 
   const summary = result?.summary;
   const rows = result?.rows ?? [];
   const filtered = statusFilter === 'all' ? rows : rows.filter((r) => r.status === statusFilter);
-  const plan = useMemo(() => buildCommitRows(rows, dup, unknown, newAdProductId || null), [rows, dup, unknown, newAdProductId]);
+  const plan = useMemo(() => buildCommitRows(rows, dup, unknown, newAdGroupId || null), [rows, dup, unknown, newAdGroupId]);
   const willImport = plan.filter((p) => p.action !== 'skip').length;
 
   const reset = () => {
@@ -153,7 +153,7 @@ function ImportFlow({ type, onViewHistory }: { type: ImportType; onViewHistory: 
 
   const doCommit = async () => {
     if (!result) return;
-    if (unknown === 'create' && !newAdProductId && summary && summary.unknown > 0) {
+    if (unknown === 'create' && !newAdGroupId && summary && summary.unknown > 0) {
       toast.error('Produkt für neue Ads wählen oder unbekannte Ads überspringen'); return;
     }
     try {
@@ -271,9 +271,9 @@ function ImportFlow({ type, onViewHistory }: { type: ImportType; onViewHistory: 
                 <div className="flex items-center gap-2">
                   <Segmented value={unknown} onChange={(v) => setUnknown(v as UnknownStrategy)} options={[['create', 'Neu anlegen'], ['skip', 'Überspringen']]} />
                   {unknown === 'create' && (
-                    <select value={newAdProductId} onChange={(e) => setNewAdProductId(e.target.value)} className="rounded-lg border border-border bg-transparent px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-accent-meta/30">
-                      <option value="">Produkt für neue Ads…</option>
-                      {products?.items.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                    <select value={newAdGroupId} onChange={(e) => setNewAdProductId(e.target.value)} className="rounded-lg border border-border bg-transparent px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-accent-meta/30">
+                      <option value="">Gruppe für neue Ads…</option>
+                      {groups?.items.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                     </select>
                   )}
                 </div>
@@ -388,15 +388,15 @@ function Segmented({ value, onChange, options }: { value: string; onChange: (v: 
   );
 }
 
-function buildCommitRows(rows: PreviewRow[], dup: DupStrategy, unknown: UnknownStrategy, newAdProductId: string | null): CommitRow[] {
+function buildCommitRows(rows: PreviewRow[], dup: DupStrategy, unknown: UnknownStrategy, newAdGroupId: string | null): CommitRow[] {
   const out: CommitRow[] = [];
   for (const r of rows) {
     const base = { date: r.date ?? '', values: r.values };
     if (r.status === 'invalid') { out.push({ ...base, action: 'skip' }); continue; }
     if (r.status === 'unknown') {
       const name = r.adName || r.metaAdId;
-      if (unknown === 'skip' || !newAdProductId || !name) { out.push({ ...base, action: 'skip' }); continue; }
-      out.push({ ...base, action: 'insert', createAd: { name, productId: newAdProductId, metaAdId: r.metaAdId ?? null } });
+      if (unknown === 'skip' || !newAdGroupId || !name) { out.push({ ...base, action: 'skip' }); continue; }
+      out.push({ ...base, action: 'insert', createAd: { name, productGroupId: newAdGroupId, metaAdId: r.metaAdId ?? null } });
       continue;
     }
     if (r.status === 'duplicate') {

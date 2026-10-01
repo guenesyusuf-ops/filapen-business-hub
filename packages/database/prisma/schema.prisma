@@ -394,6 +394,7 @@ model Organization {
   maAngles                 MaAngle[]
   maOffers                 MaOffer[]
   maDataImports            MaDataImport[]
+  maProductGroups          MaProductGroup[]
 
   @@map("organizations")
 }
@@ -904,6 +905,7 @@ model Product {
   paProductChannels        PaProductChannel[]
   paProductSettings        PaProductSettings?
   maAds                    MaAd[]
+  maProductGroups          MaProductGroup[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
@@ -4723,7 +4725,8 @@ model MaOffer {
 model MaAd {
   id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId              String       @map("org_id") @db.Uuid
-  productId          String       @map("product_id") @db.Uuid
+  productId          String?      @map("product_id") @db.Uuid
+  productGroupId     String?      @map("product_group_id") @db.Uuid
   name               String       @db.VarChar(300)
   metaAdId           String?      @map("meta_ad_id") @db.VarChar(255)
   startDate          DateTime?    @map("start_date") @db.Date
@@ -4743,7 +4746,8 @@ model MaAd {
   updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz
 
   organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product      Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productGroup MaProductGroup?   @relation(fields: [productGroupId], references: [id], onDelete: SetNull)
   angle        MaAngle?          @relation(fields: [angleId], references: [id], onDelete: SetNull)
   offer        MaOffer?          @relation(fields: [offerId], references: [id], onDelete: SetNull)
   parentAd     MaAd?             @relation("MaAdLineage", fields: [parentAdId], references: [id], onDelete: SetNull)
@@ -4753,6 +4757,7 @@ model MaAd {
   @@unique([orgId, metaAdId], map: "uq_ma_ad_org_meta_id")
   @@index([orgId], map: "idx_ma_ad_org")
   @@index([orgId, productId], map: "idx_ma_ad_org_product")
+  @@index([productGroupId], map: "idx_ma_ad_product_group")
   @@index([orgId, status], map: "idx_ma_ad_org_status")
   @@index([metaAdId], map: "idx_ma_ad_meta_id")
   @@index([orgId, startDate], map: "idx_ma_ad_org_start")
@@ -4844,4 +4849,34 @@ model MaDataImport {
 
   @@index([orgId, createdAt(sort: Desc)], map: "idx_ma_import_org_created")
   @@map("ma_data_import")
+}
+
+// --- Meta Ads Produkt-/Analysegruppen (Phase: Redesign) ---
+// Trennt die Meta-Ads-Analyseebene vom Shop-Produktkatalog. linked = echtes
+// Shop-Produkt verknüpft; manual = frei angelegt; bundle = Produktbündel.
+
+enum MaProductGroupType {
+  linked
+  manual
+  bundle
+
+  @@map("ma_product_group_type")
+}
+
+model MaProductGroup {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String             @map("org_id") @db.Uuid
+  name      String             @db.VarChar(200)
+  type      MaProductGroupType @default(manual)
+  productId String?            @map("product_id") @db.Uuid
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  ads          MaAd[]
+
+  @@unique([orgId, name], map: "uq_ma_product_group_org_name")
+  @@index([orgId], map: "idx_ma_product_group_org")
+  @@map("ma_product_group")
 }

@@ -1,6 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
-import { Prisma, MaFormat, MaAwareness, MaAdStatus, ProductStatus } from '@prisma/client';
+import { Prisma, MaFormat, MaAwareness, MaAdStatus, MaProductGroupType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { aggregate, deriveRow, DailyMetricInput } from './meta-ads-calc';
 
@@ -10,7 +9,7 @@ export type PeriodRange =
   | 'today' | 'yesterday' | 'last3' | 'last7' | 'last14' | 'last30' | 'lifetime' | 'custom';
 
 export interface AdInput {
-  productId: string;
+  productGroupId: string;
   name: string;
   metaAdId?: string | null;
   startDate?: string | null;
@@ -58,10 +57,20 @@ export class MetaAdsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // =========================================================================
-  // Produkte (für den Product Switcher) + Angles + Offers
+  // Produkt-/Analysegruppen (Product Switcher) + Shop-Katalog + Angles + Offers
   // =========================================================================
 
-  async listProducts(orgId: string) {
+  /** Analysegruppen der Org (linked | manual | bundle) — für Switcher + Modal. */
+  async listProductGroups(orgId: string) {
+    const rows = await this.prisma.maProductGroup.findMany({
+      where: { orgId },
+      orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    });
+    return rows.map((g) => ({ id: g.id, name: g.name, type: g.type, productId: g.productId ?? null }));
+  }
+
+  /** Roher Shop-Produktkatalog — nur zum Verknüpfen (type=linked). */
+  async listShopProducts(orgId: string) {
     const rows = await this.prisma.product.findMany({
       where: { orgId },
       select: { id: true, title: true },
@@ -71,28 +80,35 @@ export class MetaAdsService {
   }
 
   /**
-   * Manuelles Produkt anlegen. Reuse der echten products-Tabelle (zentrale
-   * Produktebene). Da products.shop_id NOT NULL + external_id unique sind,
-   * wird am ersten Shop der Org mit external_id "manual-<uuid>" angelegt.
+   * Analysegruppe anlegen OHNE den Shop-Katalog zu verschmutzen.
+   * - type=linked  → productId eines echten Shop-Produkts (Pflicht), Name default = Produkttitel
+   * - type=manual  → frei (z. B. "Test Offer XY")
+   * - type=bundle  → frei (z. B. "Bundle A+B")
    */
-  async createProduct(orgId: string, title: string) {
-    const clean = (title ?? '').trim();
-    if (!clean) throw new BadRequestException('Produktname darf nicht leer sein');
-    const shop = await this.prisma.shop.findFirst({ where: { orgId }, select: { id: true } });
-    if (!shop) {
-      throw new BadRequestException('Kein Shop verbunden — ein manuelles Produkt benötigt einen Shop.');
+  async createProductGroup(orgId: string, input: { name?: string; type?: string; productId?: string | null }) {
+    const type = this.parseGroupType(input?.type ?? 'manual');
+    let productId: string | null = null;
+    let name = (input?.name ?? '').trim();
+
+    if (type === MaProductGroupType.linked) {
+      if (!input?.productId) throw new BadRequestException('Für eine verknüpfte Gruppe ist ein Shop-Produkt erforderlich');
+      const product = await this.prisma.product.findFirst({ where: { id: input.productId, orgId }, select: { id: true, title: true } });
+      if (!product) throw new BadRequestException('Produkt gehört nicht zu dieser Organisation');
+      productId = product.id;
+      if (!name) name = product.title;
     }
-    const product = await this.prisma.product.create({
-      data: {
-        orgId,
-        shopId: shop.id,
-        externalId: `manual-${randomUUID()}`,
-        title: clean,
-        status: ProductStatus.active,
-      },
-      select: { id: true, title: true },
-    });
-    return { id: product.id, title: product.title };
+    if (!name) throw new BadRequestException('Name darf nicht leer sein');
+
+    const existing = await this.prisma.maProductGroup.findFirst({ where: { orgId, name }, select: { id: true } });
+    if (existing) throw new BadRequestException(`Eine Gruppe "${name}" existiert bereits`);
+
+    const g = await this.prisma.maProductGroup.create({ data: { orgId, name, type, productId } });
+    return { id: g.id, name: g.name, type: g.type, productId: g.productId ?? null };
+  }
+
+  private parseGroupType(v: string): MaProductGroupType {
+    if (!(v in MaProductGroupType)) throw new BadRequestException(`Ungültiger Gruppentyp: ${v}`);
+    return MaProductGroupType[v as keyof typeof MaProductGroupType];
   }
 
   async listAngles(orgId: string) {
@@ -157,13 +173,13 @@ export class MetaAdsService {
   async getAd(orgId: string, id: string) {
     const ad = await this.prisma.maAd.findFirst({
       where: { id, orgId },
-      include: { angle: true, offer: true, product: { select: { title: true } } },
+      include: { angle: true, offer: true, productGroup: true },
     });
     if (!ad) throw new NotFoundException('Ad nicht gefunden');
     return this.serializeAd(ad, {
       angleName: ad.angle?.name ?? null,
       offerName: ad.offer?.name ?? null,
-      productName: ad.product?.title ?? null,
+      productGroup: ad.productGroup,
     });
   }
 
@@ -174,7 +190,7 @@ export class MetaAdsService {
   async listAds(
     orgId: string,
     opts: {
-      productId?: string;
+      productGroupId?: string;
       format?: string;
       angleId?: string;
       offerId?: string;
@@ -189,7 +205,7 @@ export class MetaAdsService {
   ) {
     const period = this.resolvePeriod(opts.range, opts.start, opts.end);
     const where: Prisma.MaAdWhereInput = { orgId };
-    if (opts.productId) where.productId = opts.productId;
+    if (opts.productGroupId) where.productGroupId = opts.productGroupId;
     if (opts.format) where.format = this.parseFormat(opts.format);
     if (opts.angleId) where.angleId = opts.angleId;
     if (opts.offerId) where.offerId = opts.offerId;
@@ -210,7 +226,7 @@ export class MetaAdsService {
       this.prisma.maAd.count({ where }),
       this.prisma.maAd.findMany({
         where,
-        include: { angle: true, offer: true, product: { select: { title: true } } },
+        include: { angle: true, offer: true, productGroup: true },
         orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -226,7 +242,7 @@ export class MetaAdsService {
         ...this.serializeAd(ad, {
           angleName: ad.angle?.name ?? null,
           offerName: ad.offer?.name ?? null,
-          productName: ad.product?.title ?? null,
+          productGroup: ad.productGroup,
         }),
         metrics: agg,
       };
@@ -313,10 +329,10 @@ export class MetaAdsService {
   // Overview — KPI-Aggregate + Zählungen
   // =========================================================================
 
-  async overview(orgId: string, opts: { productId?: string; range?: PeriodRange; start?: string; end?: string }) {
+  async overview(orgId: string, opts: { productGroupId?: string; range?: PeriodRange; start?: string; end?: string }) {
     const period = this.resolvePeriod(opts.range, opts.start, opts.end);
     const adWhere: Prisma.MaAdWhereInput = { orgId };
-    if (opts.productId) adWhere.productId = opts.productId;
+    if (opts.productGroupId) adWhere.productGroupId = opts.productGroupId;
 
     const ads = await this.prisma.maAd.findMany({ where: adWhere, select: { id: true, status: true } });
     const adIds = ads.map((a) => a.id);
@@ -353,11 +369,13 @@ export class MetaAdsService {
   private async buildAdData(orgId: string, input: Partial<AdInput>, isCreate: boolean): Promise<Record<string, unknown>> {
     const data: Record<string, unknown> = {};
 
-    if (isCreate || input.productId !== undefined) {
-      if (!input.productId) throw new BadRequestException('Produkt ist erforderlich');
-      const product = await this.prisma.product.findFirst({ where: { id: input.productId, orgId }, select: { id: true } });
-      if (!product) throw new BadRequestException('Produkt gehört nicht zu dieser Organisation');
-      data.productId = input.productId;
+    if (isCreate || input.productGroupId !== undefined) {
+      if (!input.productGroupId) throw new BadRequestException('Produkt / Analysegruppe ist erforderlich');
+      const group = await this.prisma.maProductGroup.findFirst({ where: { id: input.productGroupId, orgId }, select: { id: true, productId: true } });
+      if (!group) throw new BadRequestException('Produktgruppe gehört nicht zu dieser Organisation');
+      data.productGroupId = group.id;
+      // Spiegel das verknüpfte Shop-Produkt (falls linked) ins Legacy-Feld — sonst null.
+      data.productId = group.productId ?? null;
     }
     if (isCreate || input.name !== undefined) {
       const name = (input.name ?? '').trim();
@@ -516,11 +534,13 @@ export class MetaAdsService {
     return MaAwareness[v as keyof typeof MaAwareness];
   }
 
-  private serializeAd(ad: any, extra?: { angleName?: string | null; offerName?: string | null; productName?: string | null }) {
+  private serializeAd(ad: any, extra?: { angleName?: string | null; offerName?: string | null; productGroup?: { id: string; name: string; type: string } | null }) {
+    const pg = extra?.productGroup ?? null;
     return {
       id: ad.id,
-      productId: ad.productId,
-      productName: extra?.productName ?? null,
+      productGroupId: ad.productGroupId ?? null,
+      productGroupName: pg?.name ?? null,
+      productGroupType: pg?.type ?? null,
       name: ad.name,
       metaAdId: ad.metaAdId ?? null,
       startDate: ad.startDate ? ad.startDate.toISOString().slice(0, 10) : null,
