@@ -44,7 +44,7 @@ export function AddableSelect({ label, value, options, onChange, onCreate, place
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); create(); } }}
             placeholder={`Neues ${label}…`}
-            className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30"
+            className="min-w-0 flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30"
           />
           <button type="button" onClick={create} disabled={busy} className="rounded-lg bg-accent-meta/10 p-2 text-accent-meta hover:bg-accent-meta/20 disabled:opacity-50">
             <Check className="h-4 w-4" />
@@ -58,7 +58,7 @@ export function AddableSelect({ label, value, options, onChange, onCreate, place
           <select
             value={value ?? ''}
             onChange={(e) => onChange(e.target.value || undefined)}
-            className="flex-1 rounded-lg border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30"
+            className="min-w-0 flex-1 truncate rounded-lg border border-border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30"
           >
             <option value="">{placeholder ?? '—'}</option>
             {options.map((o) => (
