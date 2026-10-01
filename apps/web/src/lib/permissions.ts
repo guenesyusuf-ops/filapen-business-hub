@@ -9,6 +9,7 @@ export const MENU_PERMISSIONS = [
   { key: 'creators', label: 'Creator Hub', description: 'Creator, Projekte, Uploads, Briefings' },
   { key: 'influencers', label: 'Influencer Hub', description: 'Influencer Discovery, Brands, Watchlists' },
   { key: 'content', label: 'Content Hub', description: 'Content Bibliothek, Generator, Templates' },
+  { key: 'meta-ads', label: 'Meta Ads', description: 'Creative Intelligence: Ads, Performance, Retention, Creative Lab, Generator' },
   { key: 'work-management', label: 'Work Management', description: 'Projekte, Aufgaben, Board, Team-Chat' },
   { key: 'whiteboard', label: 'Whiteboard', description: 'Kollaboratives Canvas: Brainstorming, Roadmaps, Workshops' },
   { key: 'purchases', label: 'Einkauf', description: 'Lieferanten, Bestellungen, Rechnungen, Zahlungen, CSV/DATEV-Export' },
@@ -46,6 +47,7 @@ export function pathToPermission(pathname: string): MenuPermissionKey | null {
   if (pathname.startsWith('/channels')) return 'channels';
   if (pathname.startsWith('/creators')) return 'creators';
   if (pathname.startsWith('/influencers')) return 'influencers';
+  if (pathname.startsWith('/meta-ads')) return 'meta-ads';
   if (pathname.startsWith('/content')) return 'content';
   if (pathname.startsWith('/work-management')) return 'work-management';
   if (pathname.startsWith('/whiteboard')) return 'whiteboard';

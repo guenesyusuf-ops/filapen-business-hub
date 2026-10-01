@@ -10,6 +10,17 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      // "Generieren" ist von Content Hub nach Meta Ads umgezogen. Alte
+      // Deep-Links / Bookmarks bleiben gueltig.
+      {
+        source: '/content/generate',
+        destination: '/meta-ads/generate',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

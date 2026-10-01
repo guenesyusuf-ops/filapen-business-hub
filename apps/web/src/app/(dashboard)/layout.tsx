@@ -192,9 +192,20 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { labelKey: 'nav.overview', href: '/content', icon: BarChart3 },
       { labelKey: 'nav.library', href: '/content/library', icon: BookOpen },
-      { labelKey: 'nav.generate', href: '/content/generate', icon: Wand2 },
       { labelKey: 'nav.templates', href: '/content/templates', icon: LayoutTemplate },
       { labelKey: 'nav.brandVoice', href: '/content/brand-voice', icon: Mic },
+    ],
+  },
+  {
+    labelKey: 'nav.metaAds',
+    href: '/meta-ads',
+    icon: Target,
+    permissionKey: 'meta-ads',
+    accent: 'text-accent-meta',
+    children: [
+      { labelKey: 'nav.overview', href: '/meta-ads', icon: BarChart3 },
+      { labelKey: 'nav.ads', href: '/meta-ads/ads', icon: ListIcon },
+      { labelKey: 'nav.generate', href: '/meta-ads/generate', icon: Wand2 },
     ],
   },
   {

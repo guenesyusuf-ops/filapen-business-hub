@@ -389,6 +389,10 @@ model Organization {
   paProductChannels        PaProductChannel[]
   paProductSettings        PaProductSettings[]
   paInsights               PaInsight[]
+  maAds                    MaAd[]
+  maAdDailyMetrics         MaAdDailyMetric[]
+  maAngles                 MaAngle[]
+  maOffers                 MaOffer[]
 
   @@map("organizations")
 }
@@ -898,6 +902,7 @@ model Product {
   paWholesaleOrderItems    PaWholesaleOrderItem[]
   paProductChannels        PaProductChannel[]
   paProductSettings        PaProductSettings?
+  maAds                    MaAd[]
 
   @@unique([orgId, externalId], map: "uq_product_org_external")
   @@index([orgId])
@@ -4644,4 +4649,158 @@ model PaMonthSnapshot {
 
   @@index([computedAt(sort: Desc)], map: "idx_pa_month_snapshot_time")
   @@map("pa_month_snapshot")
+}
+
+// ===========================================================================
+// META ADS — Creative Intelligence & Production OS (Phase: Fundament)
+// Isoliertes Modul nach dem pa_*-Vorbild. Alles org-scoped (echte orgId aus
+// dem Token), Produkt als zentrale Zuordnung. Spätere Phasen (Creative
+// Components, Imports, AI Insights, Lineage) bauen additiv darauf auf.
+// ===========================================================================
+
+enum MaFormat {
+  video
+  static
+  carousel
+  gif
+  ugc
+  vsl
+  image
+  collection
+
+  @@map("ma_format")
+}
+
+enum MaAwareness {
+  unaware
+  problem_aware
+  solution_aware
+  product_aware
+  most_aware
+
+  @@map("ma_awareness")
+}
+
+enum MaAdStatus {
+  draft
+  active
+  paused
+  ended
+  archived
+
+  @@map("ma_ad_status")
+}
+
+model MaAngle {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  name      String   @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ads          MaAd[]
+
+  @@unique([orgId, name], map: "uq_ma_angle_org_name")
+  @@index([orgId], map: "idx_ma_angle_org")
+  @@map("ma_angle")
+}
+
+model MaOffer {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  name      String   @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ads          MaAd[]
+
+  @@unique([orgId, name], map: "uq_ma_offer_org_name")
+  @@index([orgId], map: "idx_ma_offer_org")
+  @@map("ma_offer")
+}
+
+model MaAd {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId              String       @map("org_id") @db.Uuid
+  productId          String       @map("product_id") @db.Uuid
+  name               String       @db.VarChar(300)
+  metaAdId           String?      @map("meta_ad_id") @db.VarChar(255)
+  startDate          DateTime?    @map("start_date") @db.Date
+  format             MaFormat     @default(video)
+  angleId            String?      @map("angle_id") @db.Uuid
+  hookText           String?      @map("hook_text") @db.Text
+  awareness          MaAwareness?
+  offerId            String?      @map("offer_id") @db.Uuid
+  adLink             String?      @map("ad_link") @db.Text
+  status             MaAdStatus   @default(draft)
+  videoLengthSeconds Int?         @map("video_length_seconds")
+  parentAdId         String?      @map("parent_ad_id") @db.Uuid
+  changeType         String?      @map("change_type") @db.VarChar(120)
+  notes              String?      @db.Text
+  createdById        String?      @map("created_by_id") @db.Uuid
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  angle        MaAngle?          @relation(fields: [angleId], references: [id], onDelete: SetNull)
+  offer        MaOffer?          @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  parentAd     MaAd?             @relation("MaAdLineage", fields: [parentAdId], references: [id], onDelete: SetNull)
+  childAds     MaAd[]            @relation("MaAdLineage")
+  dailyMetrics MaAdDailyMetric[]
+
+  @@unique([orgId, metaAdId], map: "uq_ma_ad_org_meta_id")
+  @@index([orgId], map: "idx_ma_ad_org")
+  @@index([orgId, productId], map: "idx_ma_ad_org_product")
+  @@index([orgId, status], map: "idx_ma_ad_org_status")
+  @@index([metaAdId], map: "idx_ma_ad_meta_id")
+  @@index([orgId, startDate], map: "idx_ma_ad_org_start")
+  @@index([parentAdId], map: "idx_ma_ad_parent")
+  @@map("ma_ad")
+}
+
+model MaAdDailyMetric {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                   String   @map("org_id") @db.Uuid
+  adId                    String   @map("ad_id") @db.Uuid
+  date                    DateTime @db.Date
+
+  // Meta — Delivery
+  spend                   Decimal? @db.Decimal(12, 2)
+  impressions             Int?
+
+  // Meta — Attention / Retention (Raten als Prozent 0–100; absolute View-Zahlen bevorzugt)
+  hookRate                Decimal? @map("hook_rate") @db.Decimal(8, 4)
+  holdRate                Decimal? @map("hold_rate") @db.Decimal(8, 4)
+  videoViews3s            Int?     @map("video_views_3s")
+  videoViews25            Int?     @map("video_views_25")
+  videoViews50            Int?     @map("video_views_50")
+  videoViews75            Int?     @map("video_views_75")
+  videoViews95            Int?     @map("video_views_95")
+  videoViews100           Int?     @map("video_views_100")
+  thruplays               Int?
+  averageWatchTimeSeconds Decimal? @map("average_watch_time_seconds") @db.Decimal(10, 3)
+
+  // Meta — Traffic
+  cpcAll                  Decimal? @map("cpc_all") @db.Decimal(12, 4)
+  ctrAll                  Decimal? @map("ctr_all") @db.Decimal(8, 4)
+  outboundCtr             Decimal? @map("outbound_ctr") @db.Decimal(8, 4)
+
+  // Hyros (führende Conversion-/Revenue-Werte; Hyros ROAS ist der primäre ROAS)
+  totalSales              Int?     @map("total_sales")
+  uniqueSales             Int?     @map("unique_sales")
+  hyrosRoas               Decimal? @map("hyros_roas") @db.Decimal(10, 4)
+  revenue                 Decimal? @db.Decimal(12, 2)
+
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ad           MaAd         @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([adId, date], map: "uq_ma_ad_daily_metric")
+  @@index([orgId], map: "idx_ma_adm_org")
+  @@index([orgId, date], map: "idx_ma_adm_org_date")
+  @@index([adId, date], map: "idx_ma_adm_ad_date")
+  @@map("ma_ad_daily_metric")
 }

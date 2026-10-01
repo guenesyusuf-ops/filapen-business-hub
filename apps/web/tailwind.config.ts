@@ -41,6 +41,7 @@ const config: Config = {
         'accent-influencer': 'rgb(var(--color-accent-influencer) / <alpha-value>)',
         'accent-purchase':   'rgb(var(--color-accent-purchase) / <alpha-value>)',
         'accent-documents':  'rgb(var(--color-accent-documents) / <alpha-value>)',
+        'accent-meta':       'rgb(var(--color-accent-meta) / <alpha-value>)',
         'theme-1': 'rgb(var(--accent-1) / <alpha-value>)',
         'theme-2': 'rgb(var(--accent-2) / <alpha-value>)',
         'theme-3': 'rgb(var(--accent-3) / <alpha-value>)',

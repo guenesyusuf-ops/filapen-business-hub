@@ -127,6 +127,7 @@ html {
     --color-accent-influencer: var(--accent-1);
     --color-accent-purchase: var(--accent-2);
     --color-accent-documents: var(--accent-1);
+    --color-accent-meta: var(--accent-4);
 
     /* Layout */
     --sidebar-width: 260px;
