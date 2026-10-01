@@ -248,6 +248,40 @@ export function useMetaAd(id: string | null) {
   });
 }
 
+export interface RetentionStepT {
+  key: '25' | '50' | '75' | '95' | '100';
+  label: string;
+  viewers: number;
+  retentionFromPrev: number | null;
+  dropFromPrev: number | null;
+  completionFrom25: number | null;
+  timeSeconds: number | null;
+}
+export interface RetentionProfile {
+  hookRate: number | null; holdRate: number | null; ctrAll: number | null; outboundCtr: number | null;
+  retention25to50: number | null; retention50to75: number | null; retention75to95: number | null; retention95to100: number | null;
+  completion25to100: number | null; watchPercentage: number | null;
+}
+export interface RetentionBaseline extends RetentionProfile { label: string; adCount: number; }
+export interface RetentionAnalysis {
+  adId: string; name: string; format: MaFormat; videoLengthSeconds: number | null;
+  self: RetentionProfile | null;
+  steps: RetentionStepT[];
+  biggestDrop: { segment: string; fromPct: number; toPct: number; dropPct: number; fromSeconds: number | null; toSeconds: number | null } | null;
+  confidence: { level: 'low' | 'medium' | 'high'; reasons: string[] };
+  averageWatchTimeSeconds: number | null;
+  dataPoints: number;
+  baselines: { productGroup: RetentionBaseline | null; format: RetentionBaseline | null };
+}
+
+export function useRetentionAnalysis(id: string | null, params: { range?: PeriodRange; start?: string; end?: string }) {
+  return useQuery({
+    queryKey: ['meta-ads', 'retention', id, params],
+    queryFn: () => getApi<RetentionAnalysis>(`/ads/${id}/retention`, { range: params.range, start: params.start, end: params.end }),
+    enabled: !!id,
+  });
+}
+
 export function useMetaAdMetrics(id: string | null, params: { range?: PeriodRange; start?: string; end?: string }) {
   return useQuery({
     queryKey: ['meta-ads', 'ad-metrics', id, params],

@@ -11,6 +11,9 @@ import {
   weightedAverage,
   deriveRow,
   aggregate,
+  buildRetentionSteps,
+  biggestDrop,
+  confidenceFrom,
   DailyMetricInput,
 } from '../meta-ads-calc';
 
@@ -142,5 +145,46 @@ describe('aggregate (Zeitraum)', () => {
   it('Retention aus summierten Views', () => {
     const a = aggregate(rows);
     expect(a.retention25to50).toBe(79); // 7900/10000
+  });
+});
+
+describe('Retention-Analytics (deterministisch)', () => {
+  const agg = aggregate([
+    row({ impressions: 60000, uniqueSales: 20, videoViews25: 10000, videoViews50: 7900, videoViews75: 3100, videoViews95: 2600, videoViews100: 2500 }),
+  ]);
+
+  it('buildRetentionSteps: Viewer, Retention/Drop je Stufe, Zeitposition (40s-Video)', () => {
+    const steps = buildRetentionSteps(agg, 40);
+    expect(steps.map((s) => s.key)).toEqual(['25', '50', '75', '95', '100']);
+    expect(steps[0].viewers).toBe(10000);
+    expect(steps[0].retentionFromPrev).toBeNull();     // erste Stufe
+    expect(steps[0].timeSeconds).toBe(10);             // 25% von 40s
+    expect(steps[1].retentionFromPrev).toBe(79);       // 7900/10000
+    expect(steps[1].dropFromPrev).toBe(21);
+    expect(steps[1].timeSeconds).toBe(20);
+    expect(steps[4].completionFrom25).toBe(25);        // 2500/10000
+  });
+
+  it('ohne Video-Länge keine Zeitposition', () => {
+    const steps = buildRetentionSteps(agg, null);
+    expect(steps[0].timeSeconds).toBeNull();
+  });
+
+  it('biggestDrop findet den stärksten Abschnitt (50–75) + Sekunden', () => {
+    const b = biggestDrop(agg, 40)!;
+    expect(b.segment).toBe('50–75 %');
+    expect(b.fromSeconds).toBe(20);
+    expect(b.toSeconds).toBe(30);
+    expect(b.dropPct).toBeGreaterThan(50);
+  });
+
+  it('biggestDrop null, wenn keine Daten', () => {
+    expect(biggestDrop(aggregate([]), 40)).toBeNull();
+  });
+
+  it('confidenceFrom: Schwellen deterministisch', () => {
+    expect(confidenceFrom(aggregate([row({ impressions: 60000 }), row({ impressions: 1 }), row({ impressions: 1 }), row({ impressions: 1 }), row({ impressions: 1 }), row({ impressions: 1 }), row({ impressions: 1 })])).level).toBe('high');
+    expect(confidenceFrom(aggregate([row({ impressions: 12000 })])).level).toBe('medium');
+    expect(confidenceFrom(aggregate([row({ impressions: 500 })])).level).toBe('low');
   });
 });

@@ -13,8 +13,9 @@ import {
 } from '@/components/meta-ads/MetaUI';
 import { fmtEur, fmtInt, fmtPct, fmtRoas, fmtNum, fmtSeconds, fmtDate } from '@/components/meta-ads/format';
 import {
-  useMetaAd, useMetaAdMetrics, useUpsertMetric, useDeleteMetric, useDeleteAd,
-  FORMAT_LABELS, AWARENESS_LABELS, RANGE_LABELS, PeriodRange, DailyMetric, AggregatedMetrics,
+  useMetaAd, useMetaAdMetrics, useUpsertMetric, useDeleteMetric, useDeleteAd, useRetentionAnalysis,
+  FORMAT_LABELS, AWARENESS_LABELS, RANGE_LABELS, PeriodRange, DailyMetric,
+  RetentionAnalysis, RetentionBaseline,
 } from '@/hooks/meta-ads/useMetaAds';
 
 const RANGES: PeriodRange[] = ['last7', 'last14', 'last30', 'lifetime'];
@@ -100,7 +101,7 @@ export default function MetaAdDetailPage() {
         </p>
       </section>
 
-      {isVideo && agg && <><MetaDivider /><RetentionSection agg={agg} videoLength={ad.videoLengthSeconds} /></>}
+      {isVideo && <><MetaDivider /><RetentionAnalytics adId={ad.id} range={range} /></>}
 
       <MetaDivider />
       <DailyEntrySection adId={ad.id} isVideo={isVideo} />
@@ -122,42 +123,121 @@ function HeroMetric({ value, label, accent }: { value: string; label: string; ac
   );
 }
 
-function RetentionSection({ agg, videoLength }: { agg: AggregatedMetrics; videoLength: number | null }) {
-  const drops = [
-    { label: '25–50 %', v: agg.drop25to50, from: 25, to: 50 }, { label: '50–75 %', v: agg.drop50to75, from: 50, to: 75 },
-    { label: '75–95 %', v: agg.drop75to95, from: 75, to: 95 }, { label: '95–100 %', v: agg.drop95to100, from: 95, to: 100 },
-  ].filter((d) => d.v != null) as { label: string; v: number; from: number; to: number }[];
-  const biggest = drops.length ? drops.reduce((a, b) => (b.v > a.v ? b : a)) : null;
-  const timeAt = (p: number) => (videoLength ? Math.round((videoLength * p) / 100) : null);
-  const steps = [
-    { label: '25 %', v: agg.videoViews25 }, { label: '50 %', v: agg.videoViews50 }, { label: '75 %', v: agg.videoViews75 },
-    { label: '95 %', v: agg.videoViews95 }, { label: '100 %', v: agg.videoViews100 },
-  ];
-  const max = Math.max(...steps.map((s) => s.v || 0), 1);
-  const watchPct = agg.averageWatchTimeSeconds != null && videoLength ? (agg.averageWatchTimeSeconds / videoLength) * 100 : null;
+function confColor(level: string) {
+  return level === 'high' ? 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-500/15'
+    : level === 'medium' ? 'text-amber-700 bg-amber-100 dark:text-amber-400 dark:bg-amber-500/15'
+    : 'text-gray-500 bg-gray-100 dark:text-white/50 dark:bg-white/10';
+}
+const CONF_LABEL: Record<string, string> = { high: 'Hohe Aussagekraft', medium: 'Mittlere Aussagekraft', low: 'Geringe Aussagekraft' };
+
+function RetentionAnalytics({ adId, range }: { adId: string; range: PeriodRange }) {
+  const { data, isLoading } = useRetentionAnalysis(adId, { range });
+  if (isLoading) return <section className="flex flex-col gap-4"><MetaSectionLabel>Retention</MetaSectionLabel><div className={cn(META_FRAME, 'h-40 animate-pulse bg-gray-50 dark:bg-white/5')} /></section>;
+  if (!data) return null;
+  const { steps, biggestDrop, confidence, self, baselines, averageWatchTimeSeconds } = data;
+  const max = Math.max(...steps.map((s) => s.viewers || 0), 1);
 
   return (
     <section className="flex flex-col gap-4">
-      <MetaSectionLabel>Retention</MetaSectionLabel>
+      <MetaSectionLabel action={
+        <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px] font-medium', confColor(confidence.level))}
+          title={confidence.reasons.join(' · ')}>{CONF_LABEL[confidence.level] ?? confidence.level}</span>
+      }>Retention</MetaSectionLabel>
+
+      {/* Kopfzahlen */}
       <div className="flex flex-wrap gap-x-7 gap-y-3">
-        {[['Watch %', fmtPct(watchPct)], ['Ø Wiedergabe', fmtSeconds(agg.averageWatchTimeSeconds)], ['25 → 50', fmtPct(agg.retention25to50)], ['25 → 100', fmtPct(agg.completion25to100)]].map(([l, v]) => (
+        {[['Watch %', fmtPct(self?.watchPercentage)], ['Ø Wiedergabe', fmtSeconds(averageWatchTimeSeconds)], ['Hook', fmtPct(self?.hookRate)], ['Hold', fmtPct(self?.holdRate)], ['Completion 25→100', fmtPct(self?.completion25to100)]].map(([l, v]) => (
           <div key={l} className="flex flex-col"><span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">{v}</span><span className="mt-0.5 text-[11.5px] text-gray-400 dark:text-white/40">{l}</span></div>
         ))}
       </div>
-      <div className={cn(META_FRAME, 'flex items-end gap-2 bg-gray-50/40 p-5 dark:bg-white/[0.015]')} style={{ height: 160 }}>
+
+      {/* Kurve */}
+      <div className={cn(META_FRAME, 'flex items-end gap-2 bg-gray-50/40 p-5 dark:bg-white/[0.015]')} style={{ height: 170 }}>
         {steps.map((s) => {
-          const h = Math.max(6, Math.round(((s.v || 0) / max) * 100));
+          const h = Math.max(6, Math.round(((s.viewers || 0) / max) * 100));
           return (
-            <div key={s.label} className="flex flex-1 flex-col items-center justify-end gap-1.5" style={{ height: '100%' }}>
-              <div className="text-[10px] tabular-nums text-gray-400 dark:text-white/40">{fmtInt(s.v)}</div>
+            <div key={s.key} className="flex flex-1 flex-col items-center justify-end gap-1.5" style={{ height: '100%' }}>
+              <div className="text-[10px] tabular-nums text-gray-400 dark:text-white/40">{fmtInt(s.viewers)}</div>
               <div className="flex w-full items-end" style={{ height: '100%' }}><div className="w-full rounded-t-md bg-gradient-to-t from-accent-meta/55 to-accent-meta" style={{ height: `${h}%` }} /></div>
               <div className="text-[11px] font-medium text-gray-500 dark:text-white/50">{s.label}</div>
+              {s.timeSeconds != null && <div className="text-[10px] text-gray-400 dark:text-white/35">{s.timeSeconds}s</div>}
             </div>
           );
         })}
       </div>
-      {biggest && <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">Größter Retention-Verlust: <b>{biggest.label}</b> ({fmtNum(biggest.v, 1)} % Drop){videoLength ? <> — ca. Sekunde {timeAt(biggest.from)}–{timeAt(biggest.to)}.</> : null}</p>}
+
+      {/* Stufen-Tabelle */}
+      <div className={cn(META_FRAME, 'overflow-x-auto')}>
+        <table className="w-full border-collapse">
+          <thead className="border-b border-gray-200/70 bg-gray-50/40 dark:border-white/[0.07] dark:bg-white/[0.015]"><tr>
+            {['Stufe', 'Viewer', 'Retention', 'Drop', 'Completion', 'Zeit'].map((h, i) => <th key={h} className={cn('px-4 py-2.5 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-white/40 whitespace-nowrap', i === 0 ? 'text-left' : 'text-right')}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {steps.map((s) => (
+              <tr key={s.key} className="border-b border-gray-100 last:border-0 dark:border-white/[0.05]">
+                <td className="px-4 py-2.5 text-[13px] font-medium text-gray-900 dark:text-white">{s.label}</td>
+                <td className="px-4 py-2.5 text-right text-[13px] tabular-nums text-gray-700 dark:text-white/80">{fmtInt(s.viewers)}</td>
+                <td className="px-4 py-2.5 text-right text-[13px] tabular-nums text-gray-700 dark:text-white/80">{fmtPct(s.retentionFromPrev)}</td>
+                <td className={cn('px-4 py-2.5 text-right text-[13px] tabular-nums', (s.dropFromPrev ?? 0) >= 50 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-white/50')}>{s.dropFromPrev != null ? `−${fmtNum(s.dropFromPrev, 1)} %` : '—'}</td>
+                <td className="px-4 py-2.5 text-right text-[13px] tabular-nums text-gray-500 dark:text-white/50">{fmtPct(s.completionFrom25)}</td>
+                <td className="px-4 py-2.5 text-right text-[13px] tabular-nums text-gray-400 dark:text-white/40">{s.timeSeconds != null ? `${s.timeSeconds}s` : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {biggestDrop && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+          Größter Retention-Verlust: <b>{biggestDrop.segment}</b> (−{fmtNum(biggestDrop.dropPct, 1)} %){biggestDrop.fromSeconds != null ? <> — ca. Sekunde {biggestDrop.fromSeconds}–{biggestDrop.toSeconds}.</> : null}
+        </p>
+      )}
+
+      {/* Baseline-Vergleich */}
+      {(baselines.productGroup || baselines.format) && self && (
+        <div className="flex flex-col gap-2">
+          <span className="text-[11.5px] font-medium text-gray-400 dark:text-white/40">Vergleich zur Baseline</span>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {baselines.productGroup && <BaselineCard self={self} base={baselines.productGroup} />}
+            {baselines.format && <BaselineCard self={self} base={baselines.format} />}
+          </div>
+        </div>
+      )}
     </section>
+  );
+}
+
+function BaselineCard({ self, base }: { self: NonNullable<RetentionAnalysis['self']>; base: RetentionBaseline }) {
+  const rows: [string, number | null, number | null][] = [
+    ['Hook Rate', self.hookRate, base.hookRate],
+    ['Hold Rate', self.holdRate, base.holdRate],
+    ['Ausg. CTR', self.outboundCtr, base.outboundCtr],
+    ['25→50', self.retention25to50, base.retention25to50],
+    ['50→75', self.retention50to75, base.retention50to75],
+    ['Watch %', self.watchPercentage, base.watchPercentage],
+  ];
+  return (
+    <div className={cn(META_FRAME, 'p-4')}>
+      <div className="mb-2.5 flex items-center justify-between">
+        <span className="truncate text-[12.5px] font-semibold text-gray-900 dark:text-white">{base.label}</span>
+        <span className="shrink-0 text-[11px] text-gray-400 dark:text-white/40">{base.adCount} Ad{base.adCount === 1 ? '' : 's'}</span>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {rows.map(([label, a, b]) => {
+          const delta = a != null && b != null ? Math.round((a - b) * 10) / 10 : null;
+          return (
+            <div key={label} className="flex items-center justify-between text-[12.5px]">
+              <span className="text-gray-500 dark:text-white/50">{label}</span>
+              <span className="flex items-center gap-2 tabular-nums">
+                <span className="font-medium text-gray-900 dark:text-white">{fmtPct(a)}</span>
+                <span className="text-gray-300 dark:text-white/25">vs {fmtPct(b)}</span>
+                {delta != null && <span className={cn('w-14 text-right font-medium', delta > 0 ? 'text-green-600 dark:text-green-400' : delta < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400')}>{delta > 0 ? '+' : ''}{fmtNum(delta, 1)}</span>}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

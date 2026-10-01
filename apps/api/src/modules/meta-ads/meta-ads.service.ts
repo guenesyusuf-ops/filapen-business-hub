@@ -1,7 +1,10 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma, MaFormat, MaAwareness, MaAdStatus, MaProductGroupType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { aggregate, deriveRow, DailyMetricInput } from './meta-ads-calc';
+import {
+  aggregate, deriveRow, buildRetentionSteps, biggestDrop, confidenceFrom,
+  watchPercentage, round, DailyMetricInput, AggregatedMetrics,
+} from './meta-ads-calc';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -355,6 +358,63 @@ export class MetaAdsService {
       },
       period,
     };
+  }
+
+  // =========================================================================
+  // Retention-Analytics (Phase 3, deterministisch — keine KI)
+  // =========================================================================
+
+  async retentionAnalysis(orgId: string, adId: string, range?: PeriodRange, start?: string, end?: string) {
+    const ad = await this.prisma.maAd.findFirst({
+      where: { id: adId, orgId },
+      select: { id: true, name: true, format: true, videoLengthSeconds: true, productGroupId: true, productGroup: { select: { name: true } } },
+    });
+    if (!ad) throw new NotFoundException('Ad nicht gefunden');
+
+    const period = this.resolvePeriod(range, start, end);
+    const agg = await this.aggregateForAdIds(orgId, [adId], period);
+    const vl = ad.videoLengthSeconds;
+
+    // Baselines (ohne die Ad selbst)
+    const groupAds = ad.productGroupId
+      ? await this.prisma.maAd.findMany({ where: { orgId, productGroupId: ad.productGroupId, id: { not: adId } }, select: { id: true } })
+      : [];
+    const formatAds = await this.prisma.maAd.findMany({ where: { orgId, format: ad.format, id: { not: adId } }, select: { id: true } });
+
+    const groupBase = groupAds.length ? await this.aggregateForAdIds(orgId, groupAds.map((a) => a.id), period) : null;
+    const formatBase = formatAds.length ? await this.aggregateForAdIds(orgId, formatAds.map((a) => a.id), period) : null;
+
+    const profile = (a: AggregatedMetrics | null) => a == null ? null : {
+      hookRate: a.hookRate, holdRate: a.holdRate, ctrAll: a.ctrAll, outboundCtr: a.outboundCtr,
+      retention25to50: a.retention25to50, retention50to75: a.retention50to75,
+      retention75to95: a.retention75to95, retention95to100: a.retention95to100,
+      completion25to100: a.completion25to100,
+      watchPercentage: watchPercentage(a.averageWatchTimeSeconds, vl),
+    };
+
+    return {
+      adId: ad.id,
+      name: ad.name,
+      format: ad.format,
+      videoLengthSeconds: vl,
+      period,
+      self: profile(agg),
+      steps: buildRetentionSteps(agg, vl),
+      biggestDrop: biggestDrop(agg, vl),
+      confidence: confidenceFrom(agg),
+      averageWatchTimeSeconds: round(agg.averageWatchTimeSeconds, 2),
+      dataPoints: agg.dataPoints,
+      baselines: {
+        productGroup: groupBase ? { label: ad.productGroup?.name ?? 'Produktgruppe', adCount: groupAds.length, ...profile(groupBase) } : null,
+        format: formatBase ? { label: ad.format, adCount: formatAds.length, ...profile(formatBase) } : null,
+      },
+    };
+  }
+
+  private async aggregateForAdIds(orgId: string, adIds: string[], period: { from?: string; to?: string }): Promise<AggregatedMetrics> {
+    if (!adIds.length) return aggregate([]);
+    const rows = await this.prisma.maAdDailyMetric.findMany({ where: this.metricWhere(orgId, adIds, period) });
+    return aggregate(rows.map((r) => this.toCalcInput(r)));
   }
 
   // =========================================================================

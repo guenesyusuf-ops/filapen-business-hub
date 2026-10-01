@@ -263,6 +263,106 @@ function sum(rows: DailyMetricInput[], pick: (r: DailyMetricInput) => number | n
   return rows.reduce((acc, r) => acc + num(pick(r)), 0);
 }
 
+// ---------------------------------------------------------------------------
+// Retention-Analytics (deterministisch, keine KI)
+// ---------------------------------------------------------------------------
+
+export interface RetentionStep {
+  key: '25' | '50' | '75' | '95' | '100';
+  label: string;
+  /** Absolute Viewer auf dieser Stufe. */
+  viewers: number;
+  /** Retention gegenüber der vorherigen Stufe in % (null bei erster Stufe). */
+  retentionFromPrev: number | null;
+  /** Drop-Off gegenüber der vorherigen Stufe in % (null bei erster Stufe). */
+  dropFromPrev: number | null;
+  /** Anteil an den 25%-Viewern in % (Completion-Basis). */
+  completionFrom25: number | null;
+  /** Zeitpunkt dieser Stufe in Sekunden (nur bei bekannter Video-Länge). */
+  timeSeconds: number | null;
+}
+
+const STEP_DEFS: { key: RetentionStep['key']; pct: number; field: keyof AggregatedMetrics }[] = [
+  { key: '25', pct: 25, field: 'videoViews25' },
+  { key: '50', pct: 50, field: 'videoViews50' },
+  { key: '75', pct: 75, field: 'videoViews75' },
+  { key: '95', pct: 95, field: 'videoViews95' },
+  { key: '100', pct: 100, field: 'videoViews100' },
+];
+
+/** Baut die Retention-Stufen aus den aggregierten View-Zahlen. */
+export function buildRetentionSteps(agg: AggregatedMetrics, videoLengthSeconds: number | null): RetentionStep[] {
+  const v25 = agg.videoViews25;
+  let prev: number | null = null;
+  return STEP_DEFS.map((d) => {
+    const viewers = agg[d.field] as number;
+    const step: RetentionStep = {
+      key: d.key,
+      label: `${d.pct} %`,
+      viewers,
+      retentionFromPrev: prev == null ? null : retention(viewers, prev),
+      dropFromPrev: prev == null ? null : dropOff(viewers, prev),
+      completionFrom25: d.key === '25' ? 100 : retention(viewers, v25),
+      timeSeconds: timePositionSeconds(d.pct, videoLengthSeconds),
+    };
+    prev = viewers;
+    return step;
+  });
+}
+
+export interface BiggestDrop {
+  segment: string;
+  fromPct: number;
+  toPct: number;
+  dropPct: number;
+  fromSeconds: number | null;
+  toSeconds: number | null;
+}
+
+/** Ermittelt den Abschnitt mit dem größten relativen Drop-Off. */
+export function biggestDrop(agg: AggregatedMetrics, videoLengthSeconds: number | null): BiggestDrop | null {
+  const segs: { from: number; to: number; drop: number | null }[] = [
+    { from: 25, to: 50, drop: agg.drop25to50 },
+    { from: 50, to: 75, drop: agg.drop50to75 },
+    { from: 75, to: 95, drop: agg.drop75to95 },
+    { from: 95, to: 100, drop: agg.drop95to100 },
+  ];
+  const valid = segs.filter((s) => s.drop != null) as { from: number; to: number; drop: number }[];
+  if (!valid.length) return null;
+  const top = valid.reduce((a, b) => (b.drop > a.drop ? b : a));
+  return {
+    segment: `${top.from}–${top.to} %`,
+    fromPct: top.from,
+    toPct: top.to,
+    dropPct: round(top.drop, 1) as number,
+    fromSeconds: timePositionSeconds(top.from, videoLengthSeconds),
+    toSeconds: timePositionSeconds(top.to, videoLengthSeconds),
+  };
+}
+
+export type ConfidenceLevel = 'low' | 'medium' | 'high';
+export interface Confidence { level: ConfidenceLevel; reasons: string[] }
+
+/**
+ * Deterministische Aussagekraft anhand Datenvolumen — KEINE KI.
+ * high  = genug Reichweite UND Laufzeit; medium = eins von beiden solide; sonst low.
+ */
+export function confidenceFrom(agg: AggregatedMetrics): Confidence {
+  const impr = agg.impressions;
+  const days = agg.dataPoints;
+  const uniq = agg.uniqueSales;
+  const reasons: string[] = [];
+  reasons.push(`${impr.toLocaleString('de-DE')} Impressionen`);
+  reasons.push(`${days} Tag${days === 1 ? '' : 'e'} mit Daten`);
+  if (uniq > 0) reasons.push(`${uniq} Unique Sales`);
+
+  let level: ConfidenceLevel;
+  if (impr >= 50000 && days >= 7) level = 'high';
+  else if (impr >= 10000 || days >= 4) level = 'medium';
+  else level = 'low';
+  return { level, reasons };
+}
+
 function round2(v: number): number {
   return Math.round(v * 100) / 100;
 }
