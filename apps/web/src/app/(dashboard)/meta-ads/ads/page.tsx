@@ -125,10 +125,12 @@ export default function MetaAdsListPage() {
                     >
                       <td className="px-3 py-2.5">
                         <div className="font-medium text-gray-900 dark:text-white">{ad.name}</div>
-                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-400 dark:text-white/40">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-400 dark:text-white/40">
                           <span className="rounded bg-gray-100 dark:bg-white/10 px-1.5 py-0.5">{FORMAT_LABELS[ad.format]}</span>
-                          {ad.metaAdId && <span className="truncate">ID {ad.metaAdId}</span>}
+                          {ad.productName && <span className="font-medium text-gray-500 dark:text-white/60">{ad.productName}</span>}
+                          {ad.offerName && <span>· {ad.offerName}</span>}
                           {ad.angleName && <span>· {ad.angleName}</span>}
+                          {ad.metaAdId && <span>· ID {ad.metaAdId}</span>}
                         </div>
                       </td>
                       <td className="px-3 py-2.5"><StatusBadge status={ad.status} /></td>

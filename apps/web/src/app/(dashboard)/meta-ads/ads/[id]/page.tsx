@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Pencil, Plus, Trash2, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
@@ -11,7 +11,7 @@ import { StatusBadge } from '@/components/meta-ads/MetaControls';
 import { AdFormModal } from '@/components/meta-ads/AdFormModal';
 import { fmtEur, fmtInt, fmtPct, fmtRoas, fmtNum, fmtSeconds, fmtDate } from '@/components/meta-ads/format';
 import {
-  useMetaAd, useMetaAdMetrics, useUpsertMetric, useDeleteMetric,
+  useMetaAd, useMetaAdMetrics, useUpsertMetric, useDeleteMetric, useDeleteAd,
   FORMAT_LABELS, AWARENESS_LABELS, RANGE_LABELS, PeriodRange, DailyMetric, AggregatedMetrics,
 } from '@/hooks/meta-ads/useMetaAds';
 
@@ -21,12 +21,33 @@ const lbl = 'text-xs font-medium text-gray-500 dark:text-white/50';
 
 export default function MetaAdDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = (params?.id as string) ?? null;
   const [range, setRange] = useState<PeriodRange>('last30');
   const [editOpen, setEditOpen] = useState(false);
+  const { confirm } = useConfirm();
+  const toast = useToast();
+  const deleteAd = useDeleteAd();
 
   const { data: ad, isLoading: adLoading } = useMetaAd(id);
   const { data: metrics, isLoading: mLoading } = useMetaAdMetrics(id, { range });
+
+  const handleDeleteAd = async () => {
+    if (!ad) return;
+    const ok = await confirm({
+      title: 'Ad löschen?',
+      message: `"${ad.name}" und alle zugehörigen Tageswerte werden entfernt. Das kann nicht rückgängig gemacht werden.`,
+      confirmLabel: 'Ad löschen', variant: 'danger',
+    });
+    if (!ok) return;
+    try {
+      await deleteAd.mutateAsync(ad.id);
+      toast.success('Ad gelöscht');
+      router.push('/meta-ads/ads');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Löschen fehlgeschlagen');
+    }
+  };
 
   if (adLoading) return <div className="mx-auto max-w-6xl p-6"><div className={cn(CARD, 'h-32 animate-pulse bg-gray-50 dark:bg-white/5')} /></div>;
   if (!ad) return <div className="mx-auto max-w-6xl p-6 text-sm text-gray-500">Ad nicht gefunden. <Link href="/meta-ads/ads" className="text-accent-meta">Zurück</Link></div>;
@@ -40,9 +61,14 @@ export default function MetaAdDetailPage() {
         <Link href="/meta-ads/ads" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-white/50 dark:hover:text-white">
           <ArrowLeft className="h-4 w-4" /> Ads
         </Link>
-        <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:border-accent-meta/40 hover:text-accent-meta">
-          <Pencil className="h-3.5 w-3.5" /> Bearbeiten
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:border-accent-meta/40 hover:text-accent-meta">
+            <Pencil className="h-3.5 w-3.5" /> Bearbeiten
+          </button>
+          <button onClick={handleDeleteAd} disabled={deleteAd.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-red-600 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50">
+            <Trash2 className="h-3.5 w-3.5" /> Löschen
+          </button>
+        </div>
       </div>
 
       {/* Ad-Info */}
@@ -62,6 +88,7 @@ export default function MetaAdDetailPage() {
           )}
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+          <Info label="Produkt" value={ad.productName ?? '—'} />
           <Info label="Format" value={FORMAT_LABELS[ad.format]} />
           <Info label="Angle" value={ad.angleName ?? '—'} />
           <Info label="Offer" value={ad.offerName ?? '—'} />

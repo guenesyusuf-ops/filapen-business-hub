@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { Prisma, MaFormat, MaAwareness, MaAdStatus } from '@prisma/client';
+import { randomUUID } from 'crypto';
+import { Prisma, MaFormat, MaAwareness, MaAdStatus, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { aggregate, deriveRow, DailyMetricInput } from './meta-ads-calc';
 
@@ -69,6 +70,31 @@ export class MetaAdsService {
     return rows.map((p) => ({ id: p.id, title: p.title }));
   }
 
+  /**
+   * Manuelles Produkt anlegen. Reuse der echten products-Tabelle (zentrale
+   * Produktebene). Da products.shop_id NOT NULL + external_id unique sind,
+   * wird am ersten Shop der Org mit external_id "manual-<uuid>" angelegt.
+   */
+  async createProduct(orgId: string, title: string) {
+    const clean = (title ?? '').trim();
+    if (!clean) throw new BadRequestException('Produktname darf nicht leer sein');
+    const shop = await this.prisma.shop.findFirst({ where: { orgId }, select: { id: true } });
+    if (!shop) {
+      throw new BadRequestException('Kein Shop verbunden — ein manuelles Produkt benötigt einen Shop.');
+    }
+    const product = await this.prisma.product.create({
+      data: {
+        orgId,
+        shopId: shop.id,
+        externalId: `manual-${randomUUID()}`,
+        title: clean,
+        status: ProductStatus.active,
+      },
+      select: { id: true, title: true },
+    });
+    return { id: product.id, title: product.title };
+  }
+
   async listAngles(orgId: string) {
     const rows = await this.prisma.maAngle.findMany({ where: { orgId }, orderBy: { name: 'asc' } });
     return rows.map((a) => ({ id: a.id, name: a.name }));
@@ -131,10 +157,14 @@ export class MetaAdsService {
   async getAd(orgId: string, id: string) {
     const ad = await this.prisma.maAd.findFirst({
       where: { id, orgId },
-      include: { angle: true, offer: true },
+      include: { angle: true, offer: true, product: { select: { title: true } } },
     });
     if (!ad) throw new NotFoundException('Ad nicht gefunden');
-    return this.serializeAd(ad, { angleName: ad.angle?.name ?? null, offerName: ad.offer?.name ?? null });
+    return this.serializeAd(ad, {
+      angleName: ad.angle?.name ?? null,
+      offerName: ad.offer?.name ?? null,
+      productName: ad.product?.title ?? null,
+    });
   }
 
   /**
@@ -180,7 +210,7 @@ export class MetaAdsService {
       this.prisma.maAd.count({ where }),
       this.prisma.maAd.findMany({
         where,
-        include: { angle: true, offer: true },
+        include: { angle: true, offer: true, product: { select: { title: true } } },
         orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -193,7 +223,11 @@ export class MetaAdsService {
       const rows = metricsByAd.get(ad.id) ?? [];
       const agg = aggregate(rows);
       return {
-        ...this.serializeAd(ad, { angleName: ad.angle?.name ?? null, offerName: ad.offer?.name ?? null }),
+        ...this.serializeAd(ad, {
+          angleName: ad.angle?.name ?? null,
+          offerName: ad.offer?.name ?? null,
+          productName: ad.product?.title ?? null,
+        }),
         metrics: agg,
       };
     });
@@ -482,10 +516,11 @@ export class MetaAdsService {
     return MaAwareness[v as keyof typeof MaAwareness];
   }
 
-  private serializeAd(ad: any, extra?: { angleName?: string | null; offerName?: string | null }) {
+  private serializeAd(ad: any, extra?: { angleName?: string | null; offerName?: string | null; productName?: string | null }) {
     return {
       id: ad.id,
       productId: ad.productId,
+      productName: extra?.productName ?? null,
       name: ad.name,
       metaAdId: ad.metaAdId ?? null,
       startDate: ad.startDate ? ad.startDate.toISOString().slice(0, 10) : null,

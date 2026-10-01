@@ -6,7 +6,7 @@ import { useToast } from '@/components/shared/Toast';
 import { AddableSelect } from './AddableSelect';
 import {
   MetaAd, MaFormat, MaAwareness, MaAdStatus,
-  useMetaProducts, useMetaAngles, useMetaOffers, useCreateAngle, useCreateOffer,
+  useMetaProducts, useMetaAngles, useMetaOffers, useCreateAngle, useCreateOffer, useCreateProduct,
   useCreateAd, useUpdateAd, FORMAT_LABELS, AWARENESS_LABELS, STATUS_LABELS,
 } from '@/hooks/meta-ads/useMetaAds';
 
@@ -56,6 +56,7 @@ export function AdFormModal({ open, onClose, ad, onSaved }: Props) {
   const { data: offers } = useMetaOffers();
   const createAngle = useCreateAngle();
   const createOffer = useCreateOffer();
+  const createProduct = useCreateProduct();
   const createAd = useCreateAd();
   const updateAd = useUpdateAd(ad?.id ?? '');
   const isEdit = !!ad;
@@ -118,13 +119,14 @@ export function AdFormModal({ open, onClose, ad, onSaved }: Props) {
             <input className={field} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="z. B. AD-1223 Hook-Test Problem" />
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label className={lbl}>Produkt *</label>
-            <select className={field} value={form.productId} onChange={(e) => set('productId', e.target.value)}>
-              <option value="">— wählen —</option>
-              {products?.items.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-            </select>
-          </div>
+          <AddableSelect
+            label="Produkt *"
+            value={form.productId || undefined}
+            options={(products?.items ?? []).map((p) => ({ id: p.id, name: p.title }))}
+            onChange={(id) => set('productId', id ?? '')}
+            onCreate={async (name) => { const p = await createProduct.mutateAsync(name); return { id: p.id, name: p.title }; }}
+            placeholder="— Produkt wählen —"
+          />
 
           <div className="flex flex-col gap-1">
             <label className={lbl}>Meta Ad ID</label>

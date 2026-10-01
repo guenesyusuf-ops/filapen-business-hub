@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { MetaAdsController } from './meta-ads.controller';
 import { MetaAdsService } from './meta-ads.service';
+import { MetaAdsImportController } from './meta-ads-import.controller';
+import { MetaAdsImportService } from './meta-ads-import.service';
 
 /**
  * Meta Ads — Creative Intelligence & Production OS (Phase: Fundament).
@@ -10,7 +12,7 @@ import { MetaAdsService } from './meta-ads.service';
  */
 @Module({
   imports: [AuthModule],
-  controllers: [MetaAdsController],
-  providers: [MetaAdsService],
+  controllers: [MetaAdsController, MetaAdsImportController],
+  providers: [MetaAdsService, MetaAdsImportService],
 })
 export class MetaAdsModule {}

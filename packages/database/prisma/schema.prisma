@@ -393,6 +393,7 @@ model Organization {
   maAdDailyMetrics         MaAdDailyMetric[]
   maAngles                 MaAngle[]
   maOffers                 MaOffer[]
+  maDataImports            MaDataImport[]
 
   @@map("organizations")
 }
@@ -4803,4 +4804,44 @@ model MaAdDailyMetric {
   @@index([orgId, date], map: "idx_ma_adm_org_date")
   @@index([adId, date], map: "idx_ma_adm_ad_date")
   @@map("ma_ad_daily_metric")
+}
+
+// --- Meta Ads Import (Phase: Import) ---
+
+enum MaImportType {
+  meta
+  hyros
+
+  @@map("ma_import_type")
+}
+
+enum MaImportStatus {
+  completed
+  partial
+  failed
+
+  @@map("ma_import_status")
+}
+
+model MaDataImport {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String         @map("org_id") @db.Uuid
+  type          MaImportType
+  filename      String         @db.VarChar(400)
+  uploadedById  String?        @map("uploaded_by_id") @db.Uuid
+  rowCount      Int            @default(0) @map("row_count")
+  successCount  Int            @default(0) @map("success_count")
+  errorCount    Int            @default(0) @map("error_count")
+  skippedCount  Int            @default(0) @map("skipped_count")
+  updatedCount  Int            @default(0) @map("updated_count")
+  status        MaImportStatus
+  mappingConfig Json?          @map("mapping_config")
+  errorSummary  Json?          @map("error_summary")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt(sort: Desc)], map: "idx_ma_import_org_created")
+  @@map("ma_data_import")
 }

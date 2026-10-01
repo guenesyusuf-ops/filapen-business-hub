@@ -26,6 +26,13 @@ export class MetaAdsController {
     return { items: await this.svc.listProducts(orgId) };
   }
 
+  @Post('products')
+  async createProduct(@Headers('authorization') authHeader: string, @Body() body: { title: string }) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.svc.createProduct(orgId, body?.title);
+  }
+
   @Get('angles')
   async angles(@Headers('authorization') authHeader: string) {
     const { orgId } = extractAuthContext(authHeader, this.auth);

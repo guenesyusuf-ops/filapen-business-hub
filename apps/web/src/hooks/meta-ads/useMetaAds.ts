@@ -50,6 +50,7 @@ export type MaAdStatus = 'draft' | 'active' | 'paused' | 'ended' | 'archived';
 export interface MetaAd {
   id: string;
   productId: string;
+  productName: string | null;
   name: string;
   metaAdId: string | null;
   startDate: string | null;
@@ -307,6 +308,14 @@ export function useDeleteMetric(adId: string) {
       qc.invalidateQueries({ queryKey: ['meta-ads', 'ad-metrics', adId] });
       qc.invalidateQueries({ queryKey: ['meta-ads', 'ads'] });
     },
+  });
+}
+
+export function useCreateProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (title: string) => sendApi<ProductRef>('POST', '/products', { title }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meta-ads', 'products'] }),
   });
 }
 
