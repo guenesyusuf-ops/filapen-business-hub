@@ -21,6 +21,7 @@ import {
   Type,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MetaPageHeader } from '@/components/meta-ads/MetaUI';
 import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
 import { useQuery } from '@tanstack/react-query';
@@ -61,7 +62,7 @@ function AngleCard({ angle }: { angle: AngleSuggestion }) {
   return (
     <div className="rounded-xl border border-border bg-white p-4 shadow-card hover:shadow-card-hover transition-all">
       <div className="flex items-start gap-3">
-        <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-gradient-to-br from-orange-50 to-amber-100 text-orange-600 shrink-0">
+        <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-accent-meta/10 text-accent-meta shrink-0">
           <Icon className="h-4.5 w-4.5" />
         </div>
         <div className="min-w-0 flex-1">
@@ -120,7 +121,7 @@ function VariantCard({
       {/* Header with badges */}
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-accent-content-light text-accent-content text-xs font-bold shrink-0">
+          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-accent-meta/10 text-accent-meta text-xs font-bold shrink-0">
             {index + 1}
           </span>
           <span className="text-sm font-medium text-gray-900 truncate">{variant.title}</span>
@@ -191,7 +192,7 @@ function VariantCard({
           <button
             onClick={onSave}
             disabled={saving}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent-content px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-content-dark transition-colors disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent-meta px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-meta transition-colors disabled:opacity-50"
           >
             <Save className="h-3 w-3" />
             {saving ? 'Saving...' : 'Save'}
@@ -355,34 +356,28 @@ export default function GenerateContentPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="font-display-serif text-2xl sm:text-3xl font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">Generate Content</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Elite content generation powered by proven copywriting frameworks.
-          </p>
-        </div>
-        {generatedItems.length > 0 && meta && (
-          <div className="hidden md:flex items-center gap-3 text-xs text-gray-500">
-            <span className="px-2.5 py-1 rounded-lg bg-surface-secondary font-medium">
-              {meta.totalGenerated} generated
-            </span>
+      <MetaPageHeader
+        eyebrow="Meta Ads"
+        title="Generieren"
+        description="Hooks, Headlines, Primary Text, CTAs & Angles — gestützt auf bewährte Copywriting-Frameworks."
+        actions={generatedItems.length > 0 && meta ? (
+          <div className="hidden md:flex items-center gap-3 text-xs text-gray-500 dark:text-white/50">
+            <span className="px-2.5 py-1 rounded-lg bg-surface-secondary font-medium">{meta.totalGenerated} generiert</span>
             {meta.frameworks.map((fw) => (
               <span key={fw} className={cn('px-2 py-0.5 rounded-full text-xxs font-medium', FRAMEWORK_COLORS[fw] || 'bg-gray-100 text-gray-600')}>
                 {FRAMEWORK_LABELS[fw] || fw}
               </span>
             ))}
           </div>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Panel -- Configuration */}
         <div className="lg:col-span-4">
           <div className="rounded-xl bg-white p-6 shadow-card lg:sticky lg:top-6">
             <div className="flex items-center gap-2 mb-5">
-              <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-accent-content-light text-accent-content">
+              <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-accent-meta/10 text-accent-meta">
                 <Wand2 className="h-4 w-4" />
               </div>
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Configuration</h2>
@@ -398,7 +393,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.type}
                     onChange={(e) => setFormState((s) => ({ ...s, type: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     {CONTENT_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -414,7 +409,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.language}
                     onChange={(e) => setFormState((s) => ({ ...s, language: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     <option value="English">English</option>
                     <option value="Deutsch">Deutsch</option>
@@ -462,7 +457,7 @@ export default function GenerateContentPage() {
                       }
                     }
                   }}
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                 >
                   <option value="">Manuell eingeben...</option>
                   {products.map((p: any) => (
@@ -486,7 +481,7 @@ export default function GenerateContentPage() {
                   value={formState.product}
                   onChange={(e) => setFormState((s) => ({ ...s, product: e.target.value }))}
                   placeholder="e.g. GlowSerum, Vitamin C Serum"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                 />
               </div>
 
@@ -500,7 +495,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, productDescription: e.target.value }))}
                   rows={2}
                   placeholder="Describe what the product does..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -514,7 +509,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, keyBenefits: e.target.value }))}
                   rows={2}
                   placeholder="e.g. reduces wrinkles, hydrates skin, visible results in 7 days"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -529,7 +524,7 @@ export default function GenerateContentPage() {
                     value={formState.pricePoint}
                     onChange={(e) => setFormState((s) => ({ ...s, pricePoint: e.target.value }))}
                     placeholder="e.g. $49.99"
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   />
                 </div>
 
@@ -543,7 +538,7 @@ export default function GenerateContentPage() {
                     value={formState.usps}
                     onChange={(e) => setFormState((s) => ({ ...s, usps: e.target.value }))}
                     placeholder="Unique selling points"
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   />
                 </div>
               </div>
@@ -563,7 +558,7 @@ export default function GenerateContentPage() {
                   value={formState.audience}
                   onChange={(e) => setFormState((s) => ({ ...s, audience: e.target.value }))}
                   placeholder="e.g. Women 25-34, interested in skincare"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                 />
               </div>
 
@@ -577,7 +572,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, painPoints: e.target.value }))}
                   rows={2}
                   placeholder="e.g. dry skin, acne scars, uneven tone"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -591,7 +586,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, desiresGoals: e.target.value }))}
                   rows={2}
                   placeholder="e.g. glowing skin, youthful appearance, clear complexion"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -609,7 +604,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.awarenessLevel}
                     onChange={(e) => setFormState((s) => ({ ...s, awarenessLevel: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     <option value="Cold">Cold</option>
                     <option value="Problem Aware">Problem Aware</option>
@@ -627,7 +622,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.funnelStage}
                     onChange={(e) => setFormState((s) => ({ ...s, funnelStage: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     <option value="TOFU">TOFU (Top of Funnel)</option>
                     <option value="MOFU">MOFU (Middle of Funnel)</option>
@@ -646,7 +641,7 @@ export default function GenerateContentPage() {
                   value={formState.competitorNames}
                   onChange={(e) => setFormState((s) => ({ ...s, competitorNames: e.target.value }))}
                   placeholder="e.g. Brand A, Brand B"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                 />
               </div>
 
@@ -660,7 +655,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, keyDifferentiators: e.target.value }))}
                   rows={2}
                   placeholder="What sets you apart from competitors?"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -677,7 +672,7 @@ export default function GenerateContentPage() {
                 <select
                   value={formState.angle}
                   onChange={(e) => setFormState((s) => ({ ...s, angle: e.target.value }))}
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                 >
                   <option value="AIDA">AIDA (Attention-Interest-Desire-Action)</option>
                   <option value="PAS">PAS (Problem-Agitate-Solve)</option>
@@ -701,7 +696,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.emotionalTrigger}
                     onChange={(e) => setFormState((s) => ({ ...s, emotionalTrigger: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     <option value="Fear">Fear</option>
                     <option value="Desire">Desire</option>
@@ -720,7 +715,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.ctaType}
                     onChange={(e) => setFormState((s) => ({ ...s, ctaType: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     <option value="Buy Now">Buy Now</option>
                     <option value="Learn More">Learn More</option>
@@ -739,7 +734,7 @@ export default function GenerateContentPage() {
                 <select
                   value={formState.tone}
                   onChange={(e) => setFormState((s) => ({ ...s, tone: e.target.value }))}
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                 >
                   <option value="Professional">Professional</option>
                   <option value="Casual">Casual</option>
@@ -759,7 +754,7 @@ export default function GenerateContentPage() {
                 <select
                   value={formState.brandVoiceId}
                   onChange={(e) => setFormState((s) => ({ ...s, brandVoiceId: e.target.value }))}
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                 >
                   <option value="">No brand voice</option>
                   {brandVoices.map((v) => (
@@ -786,7 +781,7 @@ export default function GenerateContentPage() {
                   onClick={() => setFormState((s) => ({ ...s, useEmojis: !s.useEmojis }))}
                   className={cn(
                     'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                    formState.useEmojis ? 'bg-accent-content' : 'bg-gray-200',
+                    formState.useEmojis ? 'bg-accent-meta' : 'bg-gray-200',
                   )}
                 >
                   <span
@@ -808,7 +803,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, headlineRequirements: e.target.value }))}
                   rows={2}
                   placeholder="z.B. Max. 40 Zeichen, Frage als Hook, Zahl einbauen..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -822,7 +817,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, primaryTextRequirements: e.target.value }))}
                   rows={2}
                   placeholder="z.B. Max. 500 Zeichen, PAS-Struktur, mit Social Proof..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -836,7 +831,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, linkDescriptionRequirements: e.target.value }))}
                   rows={2}
                   placeholder="z.B. Neugierig machen, max. 30 Zeichen, Benefit betonen..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -850,7 +845,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, ctaRequirements: e.target.value }))}
                   rows={2}
                   placeholder="z.B. Zielgerichtet, NICHT 'Klick hier', Urgency einbauen..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -861,7 +856,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.headlineCount}
                     onChange={(e) => setFormState((s) => ({ ...s, headlineCount: parseInt(e.target.value) }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                       <option key={n} value={n}>{n}</option>
@@ -873,7 +868,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.primaryTextCount}
                     onChange={(e) => setFormState((s) => ({ ...s, primaryTextCount: parseInt(e.target.value) }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
                       <option key={n} value={n}>{n}</option>
@@ -885,7 +880,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.linkDescriptionCount}
                     onChange={(e) => setFormState((s) => ({ ...s, linkDescriptionCount: parseInt(e.target.value) }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
                       <option key={n} value={n}>{n}</option>
@@ -897,7 +892,7 @@ export default function GenerateContentPage() {
                   <select
                     value={formState.ctaCount}
                     onChange={(e) => setFormState((s) => ({ ...s, ctaCount: parseInt(e.target.value) }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                   >
                     {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                       <option key={n} value={n}>{n}</option>
@@ -921,7 +916,7 @@ export default function GenerateContentPage() {
                   value={formState.bestPerformingHook}
                   onChange={(e) => setFormState((s) => ({ ...s, bestPerformingHook: e.target.value }))}
                   placeholder="Reference from past campaigns"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
                 />
               </div>
 
@@ -935,7 +930,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, topCompetitorAdCopy: e.target.value }))}
                   rows={2}
                   placeholder="Paste competitor ad copy for context..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -949,7 +944,7 @@ export default function GenerateContentPage() {
                   onChange={(e) => setFormState((s) => ({ ...s, marketInsights: e.target.value }))}
                   rows={2}
                   placeholder="Any relevant market data or trends..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-content/30 focus:border-accent-content resize-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
                 />
               </div>
 
@@ -966,7 +961,7 @@ export default function GenerateContentPage() {
                       className={cn(
                         'flex-1 rounded-lg border px-2 py-2 text-sm font-medium transition-colors text-center',
                         formState.count === n
-                          ? 'bg-accent-content text-white border-accent-content'
+                          ? 'bg-accent-meta text-white border-accent-meta'
                           : 'border-border text-gray-600 hover:bg-surface-secondary',
                       )}
                     >
@@ -980,7 +975,7 @@ export default function GenerateContentPage() {
               <button
                 onClick={handleGenerate}
                 disabled={generateMutation.isPending}
-                className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-accent-content to-orange-500 px-4 py-3 text-sm font-semibold text-white hover:from-accent-content-dark hover:to-orange-600 transition-all disabled:opacity-60 shadow-lg shadow-accent-content/20"
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-accent-meta to-orange-500 px-4 py-3 text-sm font-semibold text-white hover:from-accent-meta hover:to-orange-600 transition-all disabled:opacity-60 shadow-lg shadow-accent-meta/20"
               >
                 {generateMutation.isPending ? (
                   <>
@@ -1002,8 +997,8 @@ export default function GenerateContentPage() {
         <div className="lg:col-span-8">
           {generatedItems.length === 0 && !generateMutation.isPending && (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-br from-accent-content-light to-orange-100 mb-6">
-                <Sparkles className="h-8 w-8 text-accent-content" />
+              <div className="flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-br from-accent-meta/10 to-orange-100 mb-6">
+                <Sparkles className="h-8 w-8 text-accent-meta" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 Ready to create
@@ -1018,8 +1013,8 @@ export default function GenerateContentPage() {
 
           {generateMutation.isPending && (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="flex items-center justify-center h-20 w-20 rounded-full bg-accent-content-light mb-6 animate-pulse">
-                <Wand2 className="h-8 w-8 text-accent-content" />
+              <div className="flex items-center justify-center h-20 w-20 rounded-full bg-accent-meta/10 mb-6 animate-pulse">
+                <Wand2 className="h-8 w-8 text-accent-meta" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
                 Generating with Claude AI...
