@@ -2,1117 +2,298 @@
 
 import { useState, useCallback } from 'react';
 import {
-  Wand2,
-  Star,
-  Copy,
-  Check,
-  Save,
-  Sparkles,
-  Loader2,
-  Target,
-  LayoutGrid,
-  List,
-  RefreshCw,
-  Lightbulb,
-  Zap,
-  TrendingUp,
-  MessageSquare,
-  Hash,
-  Type,
+  Copy, Check, Save, Sparkles, Loader2, Target, RefreshCw, Lightbulb, Zap,
+  TrendingUp, MessageSquare, LayoutGrid, List, Type, Hash,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MetaPageHeader } from '@/components/meta-ads/MetaUI';
+import {
+  MetaPageHeader, MetaSectionLabel, MetaDivider, MetaEmptyState, META_FRAME, btnPrimary, btnGhost,
+} from '@/components/meta-ads/MetaUI';
+import { ProductGroupSelect } from '@/components/meta-ads/ProductGroupSelect';
 import { API_URL } from '@/lib/api';
 import { getAuthHeaders } from '@/stores/auth';
 import { useQuery } from '@tanstack/react-query';
 import {
-  useGenerateContent,
-  useCreateContent,
-  CONTENT_TYPES,
-  CONTENT_TYPE_LABELS,
-  ANGLES,
-  FRAMEWORK_LABELS,
-  FRAMEWORK_COLORS,
-  PLATFORM_LABELS,
+  useGenerateContent, useCreateContent, CONTENT_TYPES, CONTENT_TYPE_LABELS,
+  FRAMEWORK_LABELS, FRAMEWORK_COLORS, PLATFORM_LABELS,
 } from '@/hooks/content/useContent';
 import type { GeneratedItem, AngleSuggestion } from '@/hooks/content/useContent';
 import { useBrandVoices } from '@/hooks/content/useBrandVoice';
+import { useMetaProductGroups } from '@/hooks/meta-ads/useMetaAds';
 
-// ---------------------------------------------------------------------------
-// Angle Suggestion Card
-// ---------------------------------------------------------------------------
+// Shared control styles (neue Meta-Ads-Sprache)
+const inp = 'h-[38px] w-full min-w-0 rounded-[9px] border border-gray-200 dark:border-white/[0.1] bg-white dark:bg-[var(--card-bg)] px-3 text-[13.5px] text-gray-900 dark:text-white outline-none transition focus:border-accent-meta focus:ring-2 focus:ring-accent-meta/25';
+const ta = 'w-full min-w-0 rounded-[9px] border border-gray-200 dark:border-white/[0.1] bg-white dark:bg-[var(--card-bg)] px-3 py-2 text-[13.5px] text-gray-900 dark:text-white outline-none transition focus:border-accent-meta focus:ring-2 focus:ring-accent-meta/25 resize-none';
+const sel = cn(inp, 'appearance-none pr-8 cursor-pointer');
+const lbl = 'block text-[12px] font-medium text-gray-500 dark:text-white/50 mb-1.5';
 
 const ANGLE_ICONS: Record<string, typeof Target> = {
-  'Problem-Solution': Target,
-  'Problem-Losung': Target,
-  'Transformation Story': TrendingUp,
-  'Transformations-Geschichte': TrendingUp,
-  'Social Proof Avalanche': MessageSquare,
-  'Social-Proof-Lawine': MessageSquare,
-  'Contrarian / Hot Take': Zap,
-  'Kontroverse / Hot Take': Zap,
-  'Us vs. Them': LayoutGrid,
-  'Wir vs. Die': LayoutGrid,
-  'Urgency / Scarcity': Lightbulb,
-  'Dringlichkeit / Knappheit': Lightbulb,
+  'Problem-Solution': Target, 'Problem-Losung': Target, 'Transformation Story': TrendingUp, 'Transformations-Geschichte': TrendingUp,
+  'Social Proof Avalanche': MessageSquare, 'Social-Proof-Lawine': MessageSquare, 'Contrarian / Hot Take': Zap, 'Kontroverse / Hot Take': Zap,
+  'Us vs. Them': LayoutGrid, 'Wir vs. Die': LayoutGrid, 'Urgency / Scarcity': Lightbulb, 'Dringlichkeit / Knappheit': Lightbulb,
 };
 
-function AngleCard({ angle }: { angle: AngleSuggestion }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div><label className={lbl}>{label}</label>{children}</div>;
+}
+
+// Leichte Result-Row (statt schwerer Card)
+function VariantRow({ variant, index, onSave, saving }: { variant: GeneratedItem; index: number; onSave: () => void; saving: boolean; }) {
+  const [copied, setCopied] = useState(false);
+  const copy = useCallback(() => { navigator.clipboard.writeText(variant.body); setCopied(true); setTimeout(() => setCopied(false), 1800); }, [variant.body]);
+  const fw = FRAMEWORK_LABELS[variant.framework] || variant.framework;
+  const fwColor = FRAMEWORK_COLORS[variant.framework] || 'bg-gray-100 text-gray-600';
+  return (
+    <div className="group rounded-[10px] border border-gray-200/70 bg-white px-4 py-3 transition hover:border-gray-300 hover:bg-gray-50/50 dark:border-white/[0.07] dark:bg-[var(--card-bg)] dark:hover:border-white/15 dark:hover:bg-white/[0.02]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-accent-meta/10 text-[11px] font-semibold tabular-nums text-accent-meta">{index + 1}</span>
+          <span className="truncate text-[13px] font-medium text-gray-900 dark:text-white">{variant.title}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
+          <button onClick={onSave} disabled={saving} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-accent-meta transition hover:bg-accent-meta/10 disabled:opacity-50"><Save className="h-3 w-3" />{saving ? 'Speichern…' : 'Speichern'}</button>
+          <button onClick={copy} className={cn('inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium transition', copied ? 'text-green-600 dark:text-green-400' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-white/50 dark:hover:bg-white/5 dark:hover:text-white')}>{copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}{copied ? 'Kopiert' : 'Kopieren'}</button>
+        </div>
+      </div>
+      <p className="mt-2 whitespace-pre-line text-[13.5px] leading-relaxed text-gray-700 dark:text-white/80">{variant.body}</p>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[10.5px] text-gray-400 dark:text-white/40">
+        <span className={cn('rounded-full px-1.5 py-0.5 font-medium', fwColor)}>{fw}</span>
+        {variant.platform && <span className="rounded-full bg-gray-100 px-1.5 py-0.5 dark:bg-white/10">{PLATFORM_LABELS[variant.platform] || variant.platform}</span>}
+        {variant.tone && <span>· {variant.tone}</span>}
+        <span className="ml-auto flex items-center gap-2.5"><span className="flex items-center gap-1"><Type className="h-2.5 w-2.5" />{variant.wordCount}</span><span className="flex items-center gap-1"><Hash className="h-2.5 w-2.5" />{variant.charCount}</span></span>
+      </div>
+    </div>
+  );
+}
+
+function AngleRow({ angle }: { angle: AngleSuggestion }) {
   const Icon = ANGLE_ICONS[angle.name] || Lightbulb;
   return (
-    <div className="rounded-xl border border-border bg-white p-4 shadow-card hover:shadow-card-hover transition-all">
-      <div className="flex items-start gap-3">
-        <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-accent-meta/10 text-accent-meta shrink-0">
-          <Icon className="h-4.5 w-4.5" />
+    <div className="flex gap-3 rounded-[10px] border border-gray-200/70 bg-white p-4 dark:border-white/[0.07] dark:bg-[var(--card-bg)]">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-meta/10 text-accent-meta"><Icon className="h-4 w-4" /></div>
+      <div className="min-w-0">
+        <h4 className="text-[13px] font-semibold text-gray-900 dark:text-white">{angle.name}</h4>
+        <p className="mt-0.5 text-[12px] leading-relaxed text-gray-500 dark:text-white/50">{angle.description}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[10.5px] font-medium">
+          <span className="rounded-full bg-accent-meta/10 px-2 py-0.5 text-accent-meta">{angle.emotion}</span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-500 dark:bg-white/10 dark:text-white/50">{angle.bestFor}</span>
         </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{angle.name}</h4>
-          <p className="text-xs text-gray-500 mt-1 leading-relaxed">{angle.description}</p>
-          <div className="flex flex-wrap items-center gap-2 mt-2.5">
-            <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-0.5 text-xxs font-medium text-orange-600">
-              {angle.emotion}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xxs font-medium text-blue-600">
-              {angle.bestFor}
-            </span>
-          </div>
-          <p className="text-xs text-gray-400 italic mt-2">"{angle.example}"</p>
-        </div>
+        <p className="mt-2 text-[12px] italic text-gray-400 dark:text-white/40">„{angle.example}"</p>
       </div>
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Generated Variant Card (Premium)
-// ---------------------------------------------------------------------------
-
-function VariantCard({
-  variant,
-  index,
-  onSave,
-  saving,
-  viewMode,
-}: {
-  variant: GeneratedItem;
-  index: number;
-  onSave: () => void;
-  saving: boolean;
-  viewMode: 'grid' | 'list';
-}) {
-  const [copied, setCopied] = useState(false);
-  const [rating, setRating] = useState(0);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(variant.body);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [variant.body]);
-
-  const frameworkLabel = FRAMEWORK_LABELS[variant.framework] || variant.framework;
-  const frameworkColor = FRAMEWORK_COLORS[variant.framework] || 'bg-gray-100 text-gray-600';
-  const platformLabel = PLATFORM_LABELS[variant.platform] || variant.platform;
-
-  return (
-    <div className={cn(
-      'rounded-xl bg-white border border-border shadow-card hover:shadow-card-hover transition-all',
-      viewMode === 'list' ? 'p-4' : 'p-5',
-    )}>
-      {/* Header with badges */}
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-accent-meta/10 text-accent-meta text-xs font-bold shrink-0">
-            {index + 1}
-          </span>
-          <span className="text-sm font-medium text-gray-900 truncate">{variant.title}</span>
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xxs font-medium', frameworkColor)}>
-            {frameworkLabel}
-          </span>
-          {variant.platform && (
-            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xxs font-medium text-gray-600">
-              {platformLabel}
-            </span>
-          )}
-          <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xxs font-medium text-blue-600">
-            {variant.tone}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xxs font-medium text-amber-600">
-            <Sparkles className="h-2.5 w-2.5" />
-            AI
-          </span>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="rounded-lg bg-surface-secondary p-4 mb-3">
-        <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed">
-          {variant.body}
-        </p>
-      </div>
-
-      {/* Stats + Rating + Actions */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        {/* Stats */}
-        <div className="flex items-center gap-3 text-xxs text-gray-400">
-          <span className="flex items-center gap-1">
-            <Type className="h-3 w-3" />
-            {variant.wordCount} words
-          </span>
-          <span className="flex items-center gap-1">
-            <Hash className="h-3 w-3" />
-            {variant.charCount} chars
-          </span>
-        </div>
-
-        {/* Rating */}
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-500 mr-0.5">Rate:</span>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setRating(i + 1)}
-              className="p-0.5"
-            >
-              <Star
-                className={cn(
-                  'h-3.5 w-3.5 transition-colors',
-                  i < rating
-                    ? 'text-amber-400 fill-amber-400'
-                    : 'text-gray-200 hover:text-amber-300',
-                )}
-              />
-            </button>
-          ))}
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent-meta px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-meta transition-colors disabled:opacity-50"
-          >
-            <Save className="h-3 w-3" />
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-          <button
-            onClick={handleCopy}
-            className={cn(
-              'inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors',
-              copied
-                ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                : 'text-gray-700 hover:bg-surface-secondary',
-            )}
-          >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main Page
-// ---------------------------------------------------------------------------
 
 export default function GenerateContentPage() {
   const generateMutation = useGenerateContent();
   const createMutation = useCreateContent();
-  const brandVoicesQuery = useBrandVoices();
-  const brandVoices = brandVoicesQuery.data?.items ?? [];
+  const brandVoices = useBrandVoices().data?.items ?? [];
+  const groups = useMetaProductGroups().data?.items ?? [];
 
-  // Fetch products from Finance Hub for auto-fill (Feature 3)
   const { data: productsData } = useQuery({
     queryKey: ['finance', 'products', 'catalog-for-generator'],
-    queryFn: () => {
-      return fetch(`${API_URL}/api/finance/products/catalog?pageSize=200`, { headers: getAuthHeaders() }).then((r) => r.json());
-    },
+    queryFn: () => fetch(`${API_URL}/api/finance/products/catalog?pageSize=200`, { headers: getAuthHeaders() }).then((r) => r.json()),
     staleTime: 5 * 60 * 1000,
   });
   const products = productsData?.items ?? [];
 
-  const [selectedProductId, setSelectedProductId] = useState('');
+  const [groupId, setGroupId] = useState<string | undefined>(undefined);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [formState, setFormState] = useState({
-    type: 'headline',
-    language: 'English',
-    product: '',
-    productDescription: '',
-    keyBenefits: '',
-    pricePoint: '',
-    usps: '',
-    audience: '',
-    targetPersona: '',
-    painPoints: '',
-    desiresGoals: '',
-    awarenessLevel: 'Problem Aware',
-    funnelStage: 'TOFU',
-    competitorNames: '',
-    keyDifferentiators: '',
-    angle: 'AIDA',
-    emotionalTrigger: 'Desire',
-    ctaType: 'Learn More',
-    tone: 'Professional',
-    bestPerformingHook: '',
-    topCompetitorAdCopy: '',
-    marketInsights: '',
-    brandVoiceId: '',
-    count: 5,
-    useEmojis: false,
+    type: 'headline', language: 'English', product: '', productDescription: '', keyBenefits: '', pricePoint: '', usps: '',
+    audience: '', targetPersona: '', painPoints: '', desiresGoals: '', awarenessLevel: 'Problem Aware', funnelStage: 'TOFU',
+    competitorNames: '', keyDifferentiators: '', angle: 'AIDA', emotionalTrigger: 'Desire', ctaType: 'Learn More', tone: 'Professional',
+    bestPerformingHook: '', topCompetitorAdCopy: '', marketInsights: '', brandVoiceId: '', count: 5, useEmojis: false,
     headlineRequirements: '1 Headline (max. 110 Zeichen, mit starker Hook, Hook-orientiert, Aufmerksamkeit im Feed erzeugen, emotional oder neugierig machend)',
     primaryTextRequirements: 'Max. 500 Zeichen, PAS oder AIDA Struktur, emotionale Verbindung aufbauen, Social Proof einbauen, klarer USP, starker CTA am Ende',
     linkDescriptionRequirements: 'Max. 30 Zeichen, neugierig machend, Benefit betonen, zum Klicken animieren',
     ctaRequirements: 'Zielgerichtet, KEINE generischen CTAs wie "Klick hier" oder "Mehr erfahren", Urgency oder konkreten Benefit einbauen',
-    headlineCount: 5,
-    primaryTextCount: 3,
-    linkDescriptionCount: 3,
-    ctaCount: 5,
+    headlineCount: 5, primaryTextCount: 3, linkDescriptionCount: 3, ctaCount: 5,
   });
-
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
+  const set = (patch: Partial<typeof formState>) => setFormState((s) => ({ ...s, ...patch }));
+
+  // ProductGroupSelect → Produktname (+ Auto-Fill bei linked-Gruppe via Finance-Katalog)
+  const onGroupChange = (id: string | undefined) => {
+    setGroupId(id);
+    const g = groups.find((x) => x.id === id);
+    if (!g) return;
+    const patch: Partial<typeof formState> = { product: g.name };
+    if (g.productId) {
+      const p = products.find((x: any) => x.id === g.productId);
+      if (p) {
+        const clean = (p.description || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+        patch.productDescription = clean || p.title;
+        if (p.minPrice != null) patch.pricePoint = p.minPrice === p.maxPrice ? `${p.minPrice.toFixed(2)} EUR` : `${p.minPrice.toFixed(2)} - ${p.maxPrice.toFixed(2)} EUR`;
+      }
+    }
+    set(patch);
+  };
 
   const handleGenerate = useCallback(async () => {
     await generateMutation.mutateAsync({
-      type: formState.type,
-      language: formState.language,
-      product: formState.product || undefined,
-      productDescription: formState.productDescription || undefined,
-      keyBenefits: formState.keyBenefits || undefined,
-      pricePoint: formState.pricePoint || undefined,
-      usps: formState.usps || undefined,
-      audience: formState.audience || undefined,
-      targetPersona: formState.targetPersona || undefined,
-      painPoints: formState.painPoints || undefined,
-      desiresGoals: formState.desiresGoals || undefined,
-      awarenessLevel: formState.awarenessLevel,
-      funnelStage: formState.funnelStage,
-      competitorNames: formState.competitorNames || undefined,
-      keyDifferentiators: formState.keyDifferentiators || undefined,
-      angle: formState.angle,
-      emotionalTrigger: formState.emotionalTrigger,
-      ctaType: formState.ctaType,
-      tone: formState.tone,
-      bestPerformingHook: formState.bestPerformingHook || undefined,
-      topCompetitorAdCopy: formState.topCompetitorAdCopy || undefined,
-      marketInsights: formState.marketInsights || undefined,
-      brandVoiceId: formState.brandVoiceId || undefined,
-      count: formState.count,
-      useEmojis: formState.useEmojis,
-      headlineRequirements: formState.headlineRequirements || undefined,
-      primaryTextRequirements: formState.primaryTextRequirements || undefined,
-      linkDescriptionRequirements: formState.linkDescriptionRequirements || undefined,
-      ctaRequirements: formState.ctaRequirements || undefined,
-      headlineCount: formState.headlineCount,
-      primaryTextCount: formState.primaryTextCount,
-      linkDescriptionCount: formState.linkDescriptionCount,
-      ctaCount: formState.ctaCount,
+      type: formState.type, language: formState.language, product: formState.product || undefined,
+      productDescription: formState.productDescription || undefined, keyBenefits: formState.keyBenefits || undefined,
+      pricePoint: formState.pricePoint || undefined, usps: formState.usps || undefined, audience: formState.audience || undefined,
+      targetPersona: formState.targetPersona || undefined, painPoints: formState.painPoints || undefined, desiresGoals: formState.desiresGoals || undefined,
+      awarenessLevel: formState.awarenessLevel, funnelStage: formState.funnelStage, competitorNames: formState.competitorNames || undefined,
+      keyDifferentiators: formState.keyDifferentiators || undefined, angle: formState.angle, emotionalTrigger: formState.emotionalTrigger,
+      ctaType: formState.ctaType, tone: formState.tone, bestPerformingHook: formState.bestPerformingHook || undefined,
+      topCompetitorAdCopy: formState.topCompetitorAdCopy || undefined, marketInsights: formState.marketInsights || undefined,
+      brandVoiceId: formState.brandVoiceId || undefined, count: formState.count, useEmojis: formState.useEmojis,
+      headlineRequirements: formState.headlineRequirements || undefined, primaryTextRequirements: formState.primaryTextRequirements || undefined,
+      linkDescriptionRequirements: formState.linkDescriptionRequirements || undefined, ctaRequirements: formState.ctaRequirements || undefined,
+      headlineCount: formState.headlineCount, primaryTextCount: formState.primaryTextCount, linkDescriptionCount: formState.linkDescriptionCount, ctaCount: formState.ctaCount,
     });
   }, [formState, generateMutation]);
 
-  const handleSave = useCallback(
-    async (variant: GeneratedItem, index: number) => {
-      setSavingIndex(index);
-      try {
-        await createMutation.mutateAsync({
-          type: variant.type,
-          title: variant.title,
-          body: variant.body,
-          aiGenerated: true,
-          aiModel: variant.aiModel || 'filapen-v2',
-          brandVoiceId: formState.brandVoiceId || undefined,
-          status: 'draft',
-        } as any);
-      } finally {
-        setSavingIndex(null);
-      }
-    },
-    [createMutation, formState.brandVoiceId],
-  );
+  const handleSave = useCallback(async (variant: GeneratedItem, index: number) => {
+    setSavingIndex(index);
+    try {
+      await createMutation.mutateAsync({ type: variant.type, title: variant.title, body: variant.body, aiGenerated: true, aiModel: variant.aiModel || 'filapen-v2', brandVoiceId: formState.brandVoiceId || undefined, status: 'draft' } as any);
+    } finally { setSavingIndex(null); }
+  }, [createMutation, formState.brandVoiceId]);
 
   const generatedItems: GeneratedItem[] = generateMutation.data?.items ?? [];
   const angles: AngleSuggestion[] = generateMutation.data?.angles ?? [];
   const meta = generateMutation.data?.meta;
-
-  // Group items by type for section headers
-  const groupedItems = generatedItems.reduce<Record<string, GeneratedItem[]>>((acc, item) => {
-    if (!acc[item.type]) acc[item.type] = [];
-    acc[item.type].push(item);
-    return acc;
-  }, {});
-
-  const typeLabels: Record<string, string> = {
-    headline: 'Headlines',
-    primary_text: 'Primary Texts',
-    ugc_script: 'UGC Scripts',
-    hook: 'Hooks',
-    cta: 'Call-to-Action Variants',
-    video_concept: 'Short-Form Video Scripts',
-    social_caption: 'Social Captions',
-  };
+  const grouped: Record<string, GeneratedItem[]> = {};
+  for (const it of generatedItems) { (grouped[it.type] = grouped[it.type] || []).push(it); }
+  const typeLabels: Record<string, string> = { headline: 'Headlines', primary_text: 'Primary Texts', ugc_script: 'UGC Scripts', hook: 'Hooks', cta: 'Call-to-Action Varianten', video_concept: 'Short-Form Video Scripts', social_caption: 'Social Captions' };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <MetaPageHeader
-        eyebrow="Meta Ads"
-        title="Generieren"
+    <div className="mx-auto max-w-[1500px] p-4 sm:p-7">
+      <MetaPageHeader eyebrow="Meta Ads" title="Generieren"
         description="Hooks, Headlines, Primary Text, CTAs & Angles — gestützt auf bewährte Copywriting-Frameworks."
-        actions={generatedItems.length > 0 && meta ? (
-          <div className="hidden md:flex items-center gap-3 text-xs text-gray-500 dark:text-white/50">
-            <span className="px-2.5 py-1 rounded-lg bg-surface-secondary font-medium">{meta.totalGenerated} generiert</span>
-            {meta.frameworks.map((fw) => (
-              <span key={fw} className={cn('px-2 py-0.5 rounded-full text-xxs font-medium', FRAMEWORK_COLORS[fw] || 'bg-gray-100 text-gray-600')}>
-                {FRAMEWORK_LABELS[fw] || fw}
-              </span>
-            ))}
-          </div>
-        ) : undefined}
+        actions={meta && generatedItems.length > 0 ? <span className="hidden rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500 dark:bg-white/5 dark:text-white/50 md:inline">{meta.totalGenerated} generiert</span> : undefined}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Panel -- Configuration */}
-        <div className="lg:col-span-4">
-          <div className="rounded-xl bg-white p-6 shadow-card lg:sticky lg:top-6">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-accent-meta/10 text-accent-meta">
-                <Wand2 className="h-4 w-4" />
+      <div className="mt-6 grid grid-cols-1 gap-x-10 gap-y-6 lg:grid-cols-12">
+        {/* Controls */}
+        <div className="lg:col-span-5">
+          <div className="flex flex-col gap-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-110px)] lg:overflow-y-auto lg:pr-2">
+            {/* Kontext */}
+            <section className="flex flex-col gap-4">
+              <MetaSectionLabel>Kontext</MetaSectionLabel>
+              <Field label="Produkt / Analysegruppe"><ProductGroupSelect value={groupId} onChange={onGroupChange} /></Field>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+                <Field label="Produktname"><input className={inp} value={formState.product} onChange={(e) => set({ product: e.target.value })} placeholder="z. B. GlowSerum" /></Field>
+                <Field label="Preis"><input className={inp} value={formState.pricePoint} onChange={(e) => set({ pricePoint: e.target.value })} placeholder="z. B. 49,99 €" /></Field>
               </div>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Configuration</h2>
-            </div>
-
-            <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
-              {/* Content Type & Language */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    Content Type
-                  </label>
-                  <select
-                    value={formState.type}
-                    onChange={(e) => setFormState((s) => ({ ...s, type: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    {CONTENT_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {CONTENT_TYPE_LABELS[t]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    Output Language
-                  </label>
-                  <select
-                    value={formState.language}
-                    onChange={(e) => setFormState((s) => ({ ...s, language: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    <option value="English">English</option>
-                    <option value="Deutsch">Deutsch</option>
-                  </select>
-                </div>
+              <Field label="Produktbeschreibung"><textarea className={ta} rows={2} value={formState.productDescription} onChange={(e) => set({ productDescription: e.target.value })} placeholder="Was macht das Produkt?" /></Field>
+              <Field label="Key Benefits (kommagetrennt)"><textarea className={ta} rows={2} value={formState.keyBenefits} onChange={(e) => set({ keyBenefits: e.target.value })} placeholder="z. B. reduziert Falten, spendet Feuchtigkeit" /></Field>
+              <Field label="USPs"><input className={inp} value={formState.usps} onChange={(e) => set({ usps: e.target.value })} placeholder="Alleinstellungsmerkmale" /></Field>
+              <Field label="Zielgruppe / Persona"><input className={inp} value={formState.audience} onChange={(e) => set({ audience: e.target.value })} placeholder="z. B. Frauen 25–34, Hautpflege" /></Field>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+                <Field label="Pain Points"><textarea className={ta} rows={2} value={formState.painPoints} onChange={(e) => set({ painPoints: e.target.value })} placeholder="z. B. trockene Haut" /></Field>
+                <Field label="Desires / Ziele"><textarea className={ta} rows={2} value={formState.desiresGoals} onChange={(e) => set({ desiresGoals: e.target.value })} placeholder="z. B. strahlende Haut" /></Field>
               </div>
-
-              {/* --- Product Information --- */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">Product Information</p>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+                <Field label="Wettbewerber"><input className={inp} value={formState.competitorNames} onChange={(e) => set({ competitorNames: e.target.value })} placeholder="Brand A, Brand B" /></Field>
+                <Field label="Differenzierung"><input className={inp} value={formState.keyDifferentiators} onChange={(e) => set({ keyDifferentiators: e.target.value })} placeholder="Was unterscheidet dich?" /></Field>
               </div>
+            </section>
 
-              {/* Product Dropdown - Auto-fill from Finance Hub */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Produkt aus System waehlen
-                </label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => {
-                    const pid = e.target.value;
-                    setSelectedProductId(pid);
-                    if (pid) {
-                      const product = products.find((p: any) => p.id === pid);
-                      if (product) {
-                        // Strip HTML from description
-                        const cleanDescription = (product.description || '')
-                          .replace(/<[^>]*>/g, ' ')
-                          .replace(/&nbsp;/g, ' ')
-                          .replace(/&amp;/g, '&')
-                          .replace(/&lt;/g, '<')
-                          .replace(/&gt;/g, '>')
-                          .replace(/\s+/g, ' ')
-                          .trim();
-                        // Format price range
-                        const priceText = product.minPrice === product.maxPrice
-                          ? `${product.minPrice.toFixed(2)} EUR`
-                          : `${product.minPrice.toFixed(2)} - ${product.maxPrice.toFixed(2)} EUR`;
-                        setFormState((s) => ({
-                          ...s,
-                          product: product.title,
-                          productDescription: cleanDescription || product.title,
-                          pricePoint: priceText,
-                        }));
-                      }
-                    }
-                  }}
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                >
-                  <option value="">Manuell eingeben...</option>
-                  {products.map((p: any) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xxs text-gray-400 mt-1">
-                  Waehle ein Produkt, um Name, Beschreibung und Preis automatisch auszufuellen.
-                </p>
-              </div>
+            <MetaDivider />
 
-              {/* Product Name */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Product Name
-                </label>
-                <input
-                  type="text"
-                  value={formState.product}
-                  onChange={(e) => setFormState((s) => ({ ...s, product: e.target.value }))}
-                  placeholder="e.g. GlowSerum, Vitamin C Serum"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                />
-              </div>
-
-              {/* Product Description */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Product Description
-                </label>
-                <textarea
-                  value={formState.productDescription}
-                  onChange={(e) => setFormState((s) => ({ ...s, productDescription: e.target.value }))}
-                  rows={2}
-                  placeholder="Describe what the product does..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* Key Benefits */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Key Benefits (comma-separated)
-                </label>
-                <textarea
-                  value={formState.keyBenefits}
-                  onChange={(e) => setFormState((s) => ({ ...s, keyBenefits: e.target.value }))}
-                  rows={2}
-                  placeholder="e.g. reduces wrinkles, hydrates skin, visible results in 7 days"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Price Point */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    Price Point
-                  </label>
-                  <input
-                    type="text"
-                    value={formState.pricePoint}
-                    onChange={(e) => setFormState((s) => ({ ...s, pricePoint: e.target.value }))}
-                    placeholder="e.g. $49.99"
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  />
-                </div>
-
-                {/* USPs */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    USPs
-                  </label>
-                  <input
-                    type="text"
-                    value={formState.usps}
-                    onChange={(e) => setFormState((s) => ({ ...s, usps: e.target.value }))}
-                    placeholder="Unique selling points"
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  />
+            {/* Generation */}
+            <section className="flex flex-col gap-4">
+              <MetaSectionLabel>Generation</MetaSectionLabel>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+                <Field label="Content Type"><select className={sel} value={formState.type} onChange={(e) => set({ type: e.target.value })}>{CONTENT_TYPES.map((t) => <option key={t} value={t}>{CONTENT_TYPE_LABELS[t]}</option>)}</select></Field>
+                <Field label="Sprache"><select className={sel} value={formState.language} onChange={(e) => set({ language: e.target.value })}><option value="English">English</option><option value="Deutsch">Deutsch</option></select></Field>
+                <Field label="Awareness Level"><select className={sel} value={formState.awarenessLevel} onChange={(e) => set({ awarenessLevel: e.target.value })}>{['Cold', 'Problem Aware', 'Solution Aware', 'Product Aware', 'Most Aware'].map((o) => <option key={o} value={o}>{o}</option>)}</select></Field>
+                <Field label="Funnel Stage"><select className={sel} value={formState.funnelStage} onChange={(e) => set({ funnelStage: e.target.value })}><option value="TOFU">TOFU</option><option value="MOFU">MOFU</option><option value="BOFU">BOFU</option></select></Field>
+                <Field label="Angle / Framework"><select className={sel} value={formState.angle} onChange={(e) => set({ angle: e.target.value })}>{['AIDA', 'PAS', 'BAB', 'Story', '4P', 'Before-After', 'Social Proof', 'Authority', 'Urgency', 'Curiosity'].map((o) => <option key={o} value={o}>{o}</option>)}</select></Field>
+                <Field label="Emotional Trigger"><select className={sel} value={formState.emotionalTrigger} onChange={(e) => set({ emotionalTrigger: e.target.value })}>{['Fear', 'Desire', 'Curiosity', 'Trust', 'Urgency', 'Social Proof'].map((o) => <option key={o} value={o}>{o}</option>)}</select></Field>
+                <Field label="CTA Type"><select className={sel} value={formState.ctaType} onChange={(e) => set({ ctaType: e.target.value })}>{['Buy Now', 'Learn More', 'Get Started', 'Try Free', 'Limited Offer'].map((o) => <option key={o} value={o}>{o}</option>)}</select></Field>
+                <Field label="Tone"><select className={sel} value={formState.tone} onChange={(e) => set({ tone: e.target.value })}>{['Professional', 'Casual', 'Excited', 'Empathetic', 'Authoritative', 'Playful', 'Luxury'].map((o) => <option key={o} value={o}>{o}</option>)}</select></Field>
+                <Field label="Brand Voice"><select className={sel} value={formState.brandVoiceId} onChange={(e) => set({ brandVoiceId: e.target.value })}><option value="">Keine</option>{brandVoices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.isDefault ? ' (Default)' : ''}</option>)}</select></Field>
+                <div className="flex items-end justify-between gap-3">
+                  <div><label className={lbl}>Emojis</label><p className="text-[11px] text-gray-400 dark:text-white/40">Passende Emojis im Text</p></div>
+                  <button type="button" onClick={() => set({ useEmojis: !formState.useEmojis })} className={cn('relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition', formState.useEmojis ? 'bg-accent-meta' : 'bg-gray-200 dark:bg-white/15')}>
+                    <span className={cn('inline-block h-4 w-4 rounded-full bg-white transition-transform', formState.useEmojis ? 'translate-x-6' : 'translate-x-1')} />
+                  </button>
                 </div>
               </div>
-
-              {/* --- Target Audience --- */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">Target Audience</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+                {([['Headlines', 'headlineCount', 10], ['Primärtexte', 'primaryTextCount', 5], ['Linkbeschr.', 'linkDescriptionCount', 5], ['CTAs', 'ctaCount', 10]] as const).map(([label, key, maxN]) => (
+                  <Field key={key} label={label}><select className={sel} value={formState[key] as number} onChange={(e) => set({ [key]: parseInt(e.target.value) } as any)}>{Array.from({ length: maxN }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select></Field>
+                ))}
               </div>
+            </section>
 
-              {/* Target Persona */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Target Persona
-                </label>
-                <input
-                  type="text"
-                  value={formState.audience}
-                  onChange={(e) => setFormState((s) => ({ ...s, audience: e.target.value }))}
-                  placeholder="e.g. Women 25-34, interested in skincare"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                />
-              </div>
+            <MetaDivider />
 
-              {/* Pain Points */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Pain Points (comma-separated)
-                </label>
-                <textarea
-                  value={formState.painPoints}
-                  onChange={(e) => setFormState((s) => ({ ...s, painPoints: e.target.value }))}
-                  rows={2}
-                  placeholder="e.g. dry skin, acne scars, uneven tone"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
+            {/* Zusatzanweisungen */}
+            <section className="flex flex-col gap-4">
+              <MetaSectionLabel>Zusatzanweisungen (Prompt)</MetaSectionLabel>
+              <Field label="Anforderungen — Headline"><textarea className={ta} rows={2} value={formState.headlineRequirements} onChange={(e) => set({ headlineRequirements: e.target.value })} /></Field>
+              <Field label="Anforderungen — Primärtext"><textarea className={ta} rows={2} value={formState.primaryTextRequirements} onChange={(e) => set({ primaryTextRequirements: e.target.value })} /></Field>
+              <Field label="Anforderungen — Linkbeschreibung"><textarea className={ta} rows={2} value={formState.linkDescriptionRequirements} onChange={(e) => set({ linkDescriptionRequirements: e.target.value })} /></Field>
+              <Field label="Anforderungen — CTA"><textarea className={ta} rows={2} value={formState.ctaRequirements} onChange={(e) => set({ ctaRequirements: e.target.value })} /></Field>
+              <Field label="Best Performing Hook (optional)"><input className={inp} value={formState.bestPerformingHook} onChange={(e) => set({ bestPerformingHook: e.target.value })} placeholder="Referenz aus früheren Kampagnen" /></Field>
+              <Field label="Top Competitor Ad Copy (optional)"><textarea className={ta} rows={2} value={formState.topCompetitorAdCopy} onChange={(e) => set({ topCompetitorAdCopy: e.target.value })} /></Field>
+              <Field label="Market Insights (optional)"><textarea className={ta} rows={2} value={formState.marketInsights} onChange={(e) => set({ marketInsights: e.target.value })} /></Field>
+            </section>
 
-              {/* Desires / Goals */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Desires / Goals (comma-separated)
-                </label>
-                <textarea
-                  value={formState.desiresGoals}
-                  onChange={(e) => setFormState((s) => ({ ...s, desiresGoals: e.target.value }))}
-                  rows={2}
-                  placeholder="e.g. glowing skin, youthful appearance, clear complexion"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* --- Marketing Context --- */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">Marketing Context</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Awareness Level */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    Awareness Level
-                  </label>
-                  <select
-                    value={formState.awarenessLevel}
-                    onChange={(e) => setFormState((s) => ({ ...s, awarenessLevel: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    <option value="Cold">Cold</option>
-                    <option value="Problem Aware">Problem Aware</option>
-                    <option value="Solution Aware">Solution Aware</option>
-                    <option value="Product Aware">Product Aware</option>
-                    <option value="Most Aware">Most Aware</option>
-                  </select>
-                </div>
-
-                {/* Funnel Stage */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    Funnel Stage
-                  </label>
-                  <select
-                    value={formState.funnelStage}
-                    onChange={(e) => setFormState((s) => ({ ...s, funnelStage: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    <option value="TOFU">TOFU (Top of Funnel)</option>
-                    <option value="MOFU">MOFU (Middle of Funnel)</option>
-                    <option value="BOFU">BOFU (Bottom of Funnel)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Competitor Names */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Competitor Names (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={formState.competitorNames}
-                  onChange={(e) => setFormState((s) => ({ ...s, competitorNames: e.target.value }))}
-                  placeholder="e.g. Brand A, Brand B"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                />
-              </div>
-
-              {/* Key Differentiators */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Key Differentiators vs Competitors
-                </label>
-                <textarea
-                  value={formState.keyDifferentiators}
-                  onChange={(e) => setFormState((s) => ({ ...s, keyDifferentiators: e.target.value }))}
-                  rows={2}
-                  placeholder="What sets you apart from competitors?"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* --- Creative Direction --- */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">Creative Direction</p>
-              </div>
-
-              {/* Angle */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Ad Angle / Framework
-                </label>
-                <select
-                  value={formState.angle}
-                  onChange={(e) => setFormState((s) => ({ ...s, angle: e.target.value }))}
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                >
-                  <option value="AIDA">AIDA (Attention-Interest-Desire-Action)</option>
-                  <option value="PAS">PAS (Problem-Agitate-Solve)</option>
-                  <option value="BAB">BAB (Before-After-Bridge)</option>
-                  <option value="Story">Story-Based (Hook-Tension-Resolution)</option>
-                  <option value="4P">4P (Promise-Picture-Proof-Push)</option>
-                  <option value="Before-After">Before-After</option>
-                  <option value="Social Proof">Social Proof</option>
-                  <option value="Authority">Authority</option>
-                  <option value="Urgency">Urgency</option>
-                  <option value="Curiosity">Curiosity</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {/* Emotional Trigger */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    Emotional Trigger
-                  </label>
-                  <select
-                    value={formState.emotionalTrigger}
-                    onChange={(e) => setFormState((s) => ({ ...s, emotionalTrigger: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    <option value="Fear">Fear</option>
-                    <option value="Desire">Desire</option>
-                    <option value="Curiosity">Curiosity</option>
-                    <option value="Trust">Trust</option>
-                    <option value="Urgency">Urgency</option>
-                    <option value="Social Proof">Social Proof</option>
-                  </select>
-                </div>
-
-                {/* CTA Type */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    CTA Type
-                  </label>
-                  <select
-                    value={formState.ctaType}
-                    onChange={(e) => setFormState((s) => ({ ...s, ctaType: e.target.value }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    <option value="Buy Now">Buy Now</option>
-                    <option value="Learn More">Learn More</option>
-                    <option value="Get Started">Get Started</option>
-                    <option value="Try Free">Try Free</option>
-                    <option value="Limited Offer">Limited Offer</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Tone */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Tone
-                </label>
-                <select
-                  value={formState.tone}
-                  onChange={(e) => setFormState((s) => ({ ...s, tone: e.target.value }))}
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                >
-                  <option value="Professional">Professional</option>
-                  <option value="Casual">Casual</option>
-                  <option value="Excited">Excited</option>
-                  <option value="Empathetic">Empathetic</option>
-                  <option value="Authoritative">Authoritative</option>
-                  <option value="Playful">Playful</option>
-                  <option value="Luxury">Luxury</option>
-                </select>
-              </div>
-
-              {/* Brand Voice */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Brand Voice
-                </label>
-                <select
-                  value={formState.brandVoiceId}
-                  onChange={(e) => setFormState((s) => ({ ...s, brandVoiceId: e.target.value }))}
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                >
-                  <option value="">No brand voice</option>
-                  {brandVoices.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} {v.isDefault ? '(Default)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* --- AI Requirements --- */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">AI Requirements</p>
-              </div>
-
-              {/* Emoji Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600">Emojis verwenden?</label>
-                  <p className="text-xxs text-gray-400 mt-0.5">KI verwendet passende Emojis im Text</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormState((s) => ({ ...s, useEmojis: !s.useEmojis }))}
-                  className={cn(
-                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                    formState.useEmojis ? 'bg-accent-meta' : 'bg-gray-200',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'inline-block h-4 w-4 rounded-full bg-white transition-transform',
-                      formState.useEmojis ? 'translate-x-6' : 'translate-x-1',
-                    )}
-                  />
-                </button>
-              </div>
-
-              {/* Headline Requirements */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Anforderungen - Headline
-                </label>
-                <textarea
-                  value={formState.headlineRequirements}
-                  onChange={(e) => setFormState((s) => ({ ...s, headlineRequirements: e.target.value }))}
-                  rows={2}
-                  placeholder="z.B. Max. 40 Zeichen, Frage als Hook, Zahl einbauen..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* Primary Text Requirements */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Anforderungen - Primartext
-                </label>
-                <textarea
-                  value={formState.primaryTextRequirements}
-                  onChange={(e) => setFormState((s) => ({ ...s, primaryTextRequirements: e.target.value }))}
-                  rows={2}
-                  placeholder="z.B. Max. 500 Zeichen, PAS-Struktur, mit Social Proof..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* Link Description Requirements */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Anforderungen - Linkbeschreibung
-                </label>
-                <textarea
-                  value={formState.linkDescriptionRequirements}
-                  onChange={(e) => setFormState((s) => ({ ...s, linkDescriptionRequirements: e.target.value }))}
-                  rows={2}
-                  placeholder="z.B. Neugierig machen, max. 30 Zeichen, Benefit betonen..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* CTA Requirements */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Anforderungen - CTA
-                </label>
-                <textarea
-                  value={formState.ctaRequirements}
-                  onChange={(e) => setFormState((s) => ({ ...s, ctaRequirements: e.target.value }))}
-                  rows={2}
-                  placeholder="z.B. Zielgerichtet, NICHT 'Klick hier', Urgency einbauen..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* Count Selectors */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Anzahl Headlines</label>
-                  <select
-                    value={formState.headlineCount}
-                    onChange={(e) => setFormState((s) => ({ ...s, headlineCount: parseInt(e.target.value) }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Anzahl Primartexte</label>
-                  <select
-                    value={formState.primaryTextCount}
-                    onChange={(e) => setFormState((s) => ({ ...s, primaryTextCount: parseInt(e.target.value) }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Anzahl Linkbeschreibungen</label>
-                  <select
-                    value={formState.linkDescriptionCount}
-                    onChange={(e) => setFormState((s) => ({ ...s, linkDescriptionCount: parseInt(e.target.value) }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Anzahl CTAs</label>
-                  <select
-                    value={formState.ctaCount}
-                    onChange={(e) => setFormState((s) => ({ ...s, ctaCount: parseInt(e.target.value) }))}
-                    className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                  >
-                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* --- Performance Data (optional) --- */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-xxs font-semibold text-gray-400 uppercase tracking-wider mb-3">Performance Data (optional)</p>
-              </div>
-
-              {/* Best Performing Hook */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Best Performing Hook
-                </label>
-                <input
-                  type="text"
-                  value={formState.bestPerformingHook}
-                  onChange={(e) => setFormState((s) => ({ ...s, bestPerformingHook: e.target.value }))}
-                  placeholder="Reference from past campaigns"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta"
-                />
-              </div>
-
-              {/* Top Competitor Ad Copy */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Top Competitor Ad Copy
-                </label>
-                <textarea
-                  value={formState.topCompetitorAdCopy}
-                  onChange={(e) => setFormState((s) => ({ ...s, topCompetitorAdCopy: e.target.value }))}
-                  rows={2}
-                  placeholder="Paste competitor ad copy for context..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* Market Insights */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Market Insights
-                </label>
-                <textarea
-                  value={formState.marketInsights}
-                  onChange={(e) => setFormState((s) => ({ ...s, marketInsights: e.target.value }))}
-                  rows={2}
-                  placeholder="Any relevant market data or trends..."
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-meta/30 focus:border-accent-meta resize-none"
-                />
-              </div>
-
-              {/* Count */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Number of Variants
-                </label>
-                <div className="flex items-center gap-1.5">
-                  {[1, 3, 5, 8, 10].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setFormState((s) => ({ ...s, count: n }))}
-                      className={cn(
-                        'flex-1 rounded-lg border px-2 py-2 text-sm font-medium transition-colors text-center',
-                        formState.count === n
-                          ? 'bg-accent-meta text-white border-accent-meta'
-                          : 'border-border text-gray-600 hover:bg-surface-secondary',
-                      )}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Generate Button */}
-              <button
-                onClick={handleGenerate}
-                disabled={generateMutation.isPending}
-                className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-accent-meta to-orange-500 px-4 py-3 text-sm font-semibold text-white hover:from-accent-meta hover:to-orange-600 transition-all disabled:opacity-60 shadow-lg shadow-accent-meta/20"
-              >
-                {generateMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Claude AI generiert...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Mit KI generieren
-                  </>
-                )}
-              </button>
-            </div>
+            <button onClick={handleGenerate} disabled={generateMutation.isPending} className={cn(btnPrimary, 'w-full justify-center py-3 text-sm')}>
+              {generateMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Claude AI generiert…</> : <><Sparkles className="h-4 w-4" /> Mit KI generieren</>}
+            </button>
           </div>
         </div>
 
-        {/* Right Panel -- Results */}
-        <div className="lg:col-span-8">
-          {generatedItems.length === 0 && !generateMutation.isPending && (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="flex items-center justify-center h-20 w-20 rounded-full bg-gradient-to-br from-accent-meta/10 to-orange-100 mb-6">
-                <Sparkles className="h-8 w-8 text-accent-meta" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Ready to create
-              </h3>
-              <p className="text-sm text-gray-500 max-w-md">
-                Configure your content parameters on the left and click
-                &ldquo;Generate Content&rdquo; to create AI-powered variants using
-                AIDA, PAS, BAB, Story, and 4P frameworks.
-              </p>
+        {/* Results */}
+        <div className="lg:col-span-7">
+          {generateMutation.isError ? (
+            <div className={cn(META_FRAME, 'flex flex-col items-center gap-3 border-red-200 bg-red-50/60 px-6 py-14 text-center dark:border-red-900/40 dark:bg-red-950/15')}>
+              <p className="text-sm font-medium text-red-700 dark:text-red-400">Generierung fehlgeschlagen.</p>
+              <button onClick={handleGenerate} className={btnGhost}><RefreshCw className="h-4 w-4" /> Erneut versuchen</button>
             </div>
-          )}
-
-          {generateMutation.isPending && (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="flex items-center justify-center h-20 w-20 rounded-full bg-accent-meta/10 mb-6 animate-pulse">
-                <Wand2 className="h-8 w-8 text-accent-meta" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Generating with Claude AI...
-              </h3>
-              <p className="text-sm text-gray-500">
-                Performance Copywriter erstellt {formState.headlineCount} Headlines, {formState.primaryTextCount} Primartexte, {formState.ctaCount} CTAs...
-              </p>
-            </div>
-          )}
-
-          {generatedItems.length > 0 && !generateMutation.isPending && (
-            <div className="space-y-6">
-              {/* Results header with view toggle */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                    Generated Content ({generatedItems.length} variants)
-                  </h3>
-                  <button
-                    onClick={handleGenerate}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-surface-secondary transition-colors"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    Regenerate
-                  </button>
-                </div>
-                <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={cn(
-                      'p-1.5 rounded-md transition-colors',
-                      viewMode === 'list' ? 'bg-surface-secondary text-gray-900' : 'text-gray-400 hover:text-gray-600',
-                    )}
-                  >
-                    <List className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={cn(
-                      'p-1.5 rounded-md transition-colors',
-                      viewMode === 'grid' ? 'bg-surface-secondary text-gray-900' : 'text-gray-400 hover:text-gray-600',
-                    )}
-                  >
-                    <LayoutGrid className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Content sections grouped by type */}
-              {Object.entries(groupedItems).map(([type, items]) => (
-                <div key={type}>
-                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                    {typeLabels[type] || type} ({items.length})
-                  </h4>
-                  <div className={cn(
-                    viewMode === 'grid'
-                      ? 'grid grid-cols-1 xl:grid-cols-2 gap-4'
-                      : 'space-y-3',
-                  )}>
-                    {items.map((variant, i) => {
-                      const globalIndex = generatedItems.indexOf(variant);
-                      return (
-                        <VariantCard
-                          key={globalIndex}
-                          variant={variant}
-                          index={globalIndex}
-                          onSave={() => handleSave(variant, globalIndex)}
-                          saving={savingIndex === globalIndex}
-                          viewMode={viewMode}
-                        />
-                      );
-                    })}
-                  </div>
+          ) : generateMutation.isPending ? (
+            <div className="flex flex-col gap-5">
+              <MetaSectionLabel>Generiere…</MetaSectionLabel>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-[10px] border border-gray-200/70 p-4 dark:border-white/[0.07]">
+                  <div className="h-3.5 w-1/3 animate-pulse rounded bg-gray-100 dark:bg-white/5" />
+                  <div className="mt-3 space-y-2"><div className="h-3 w-full animate-pulse rounded bg-gray-100 dark:bg-white/5" /><div className="h-3 w-5/6 animate-pulse rounded bg-gray-100 dark:bg-white/5" /></div>
                 </div>
               ))}
-
-              {/* Angle Suggestions */}
-              {angles.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Target className="h-4 w-4 text-orange-500" />
-                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                      Angle Suggestions ({angles.length})
-                    </h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {angles.map((angle, i) => (
-                      <AngleCard key={i} angle={angle} />
+            </div>
+          ) : generatedItems.length === 0 ? (
+            <div className={META_FRAME}>
+              <MetaEmptyState icon={Sparkles} title="Noch nichts generiert"
+                description={'Konfiguriere den Kontext links und klicke „Mit KI generieren", um Varianten auf Basis von AIDA, PAS, BAB & Co. zu erstellen.'} />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center justify-between gap-2">
+                <MetaSectionLabel>{generatedItems.length} Varianten</MetaSectionLabel>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleGenerate} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition hover:text-gray-900 dark:text-white/50 dark:hover:text-white"><RefreshCw className="h-3.5 w-3.5" /> Neu generieren</button>
+                  <div className="flex gap-0.5 rounded-lg border border-gray-200 p-0.5 dark:border-white/10">
+                    {([['list', List], ['grid', LayoutGrid]] as const).map(([m, Ico]) => (
+                      <button key={m} onClick={() => setViewMode(m)} className={cn('rounded-md p-1.5 transition', viewMode === m ? 'bg-accent-meta/10 text-accent-meta' : 'text-gray-400 hover:text-gray-600 dark:hover:text-white/70')}><Ico className="h-3.5 w-3.5" /></button>
                     ))}
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
 
-          {generateMutation.isError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 mt-4">
-              Failed to generate content. Please try again.
+              {Object.entries(grouped).map(([type, items]) => (
+                <section key={type} className="flex flex-col gap-3">
+                  <MetaSectionLabel>{typeLabels[type] || type} · {items.length}</MetaSectionLabel>
+                  <div className={cn(viewMode === 'grid' ? 'grid grid-cols-1 gap-3 xl:grid-cols-2' : 'flex flex-col gap-2.5')}>
+                    {items.map((v) => { const gi = generatedItems.indexOf(v); return <VariantRow key={gi} variant={v} index={gi} onSave={() => handleSave(v, gi)} saving={savingIndex === gi} />; })}
+                  </div>
+                </section>
+              ))}
+
+              {angles.length > 0 && (
+                <section className="flex flex-col gap-3">
+                  <MetaSectionLabel>Angle-Vorschläge · {angles.length}</MetaSectionLabel>
+                  <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">{angles.map((a, i) => <AngleRow key={i} angle={a} />)}</div>
+                </section>
+              )}
             </div>
           )}
         </div>
