@@ -147,6 +147,18 @@ export class MetaAdsCreativeService {
     };
   }
 
+  /** Nur die aggregierte Performance einer Component (über ihre Ads) — als Assoziation, nicht Kausalität. */
+  async getComponentPerformance(orgId: string, id: string, range?: PeriodRange, start?: string, end?: string) {
+    const c = await this.prisma.maCreativeComponent.findFirst({ where: { id, orgId }, select: { id: true, productGroupId: true } });
+    if (!c) throw new NotFoundException('Component nicht gefunden');
+    const period = this.ads.resolvePeriod(range, start, end);
+    const links = await this.prisma.maAdComponent.findMany({ where: { componentId: id }, select: { adId: true } });
+    const adIds = links.map((l) => l.adId);
+    const agg = await this.ads.aggregateForAdIds(orgId, adIds, period);
+    const baseline = c.productGroupId ? this.profileOf(await this.groupBaseline(orgId, c.productGroupId, period)) : null;
+    return { componentId: id, adCount: adIds.length, performance: this.perfSummary(agg), baseline, confidence: confidenceFrom(agg), period };
+  }
+
   // =========================================================================
   // Ad ↔ Components (für Ad-Detail inkl. Drop-Overlap)
   // =========================================================================

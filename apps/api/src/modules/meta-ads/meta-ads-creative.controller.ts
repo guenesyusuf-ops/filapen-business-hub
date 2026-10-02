@@ -60,6 +60,18 @@ export class MetaAdsCreativeController {
     return this.svc.getComponent(orgId, id, range, start, end);
   }
 
+  @Get('components/:id/performance')
+  async getComponentPerformance(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Query('range') range?: PeriodRange,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.svc.getComponentPerformance(orgId, id, range, start, end);
+  }
+
   @Put('components/:id')
   async updateComponent(@Headers('authorization') authHeader: string, @Param('id') id: string, @Body() body: Partial<ComponentInput>) {
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
