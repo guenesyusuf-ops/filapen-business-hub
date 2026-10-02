@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Plus, Check, ChevronDown, Layers, Package, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
@@ -40,6 +41,8 @@ export function ProductGroupSelect({
   const [newName, setNewName] = useState('');
   const [linkProductId, setLinkProductId] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const items = groups?.items ?? [];
   const current = items.find((g) => g.id === value);
@@ -63,11 +66,25 @@ export function ProductGroupSelect({
     return t ? unlinked.filter((p) => p.title.toLowerCase().includes(t)) : unlinked;
   }, [shopProducts, linkedProductIds, q]);
 
+  // Dropdown rendert als Portal an document.body (fixed) — so kann es KEIN
+  // Container mit overflow/stacking mehr abschneiden oder überdecken.
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) close(); };
+    const place = () => { const r = wrapRef.current?.getBoundingClientRect(); if (r) setRect({ top: r.bottom + 6, left: r.left, width: r.width }); };
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || dropRef.current?.contains(t)) return;
+      close();
+    };
+    place();
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
   }, [open]);
 
   const close = () => { setOpen(false); setCreating(false); setQ(''); setNewName(''); setLinkProductId(''); };
@@ -120,8 +137,9 @@ export function ProductGroupSelect({
         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-400" />
       </button>
 
-      {open && (
-        <div className="absolute z-30 mt-1.5 w-[320px] max-w-[88vw] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_14px_40px_-10px_rgba(20,20,30,.22)] dark:border-white/[0.12] dark:bg-[var(--card-bg)] dark:shadow-[0_18px_44px_-10px_rgba(0,0,0,.6)]">
+      {open && rect && createPortal(
+        <div ref={dropRef} style={{ position: 'fixed', top: rect.top, left: rect.left, minWidth: rect.width }}
+          className="z-[999] w-[320px] max-w-[88vw] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_14px_40px_-10px_rgba(20,20,30,.22)] dark:border-white/[0.12] dark:bg-[var(--card-bg)] dark:shadow-[0_18px_44px_-10px_rgba(0,0,0,.6)]">
           {!creating ? (
             <>
               <div className="flex items-center gap-2 border-b border-gray-100 px-3 py-2.5 text-gray-400 dark:border-white/[0.07]">
@@ -190,7 +208,8 @@ export function ProductGroupSelect({
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
