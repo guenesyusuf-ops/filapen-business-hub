@@ -174,7 +174,10 @@ export class MetaAdsLongTermService {
     const started = Date.now();
     try {
       const user = buildLtUserPrompt({ productGroupName: g?.name ?? null, health, controls: strat.historicalControls, segmentWinners: strat.segmentWinners, conversionWinners: strat.conversionWinners, salvage: strat.salvageOpportunities, candidates: strat.recombinationCandidates });
-      const r = await this.ai.runStructured(AI_LT_SYSTEM_PROMPT, user, CREATIVE_LT_SCHEMA as any);
+      // Long-Term: gpt-5.6-sol/high braucht auf vielen Ads deutlich länger als die
+      // 60-s-UI-Grenze der Tagesanalyse -> gezielt mehr Zeit, aber nur EIN Versuch
+      // (ein getimeoutter Reasoning-Call wird durch Retry nicht schneller).
+      const r = await this.ai.runStructured(AI_LT_SYSTEM_PROMPT, user, CREATIVE_LT_SCHEMA as any, { timeoutMs: 240_000, maxAttempts: 1 });
       usage = r.usage; retryCount = r.attempts - 1; model = r.cfg.model; provider = r.cfg.provider; effort = r.cfg.reasoningEffort;
       const narr = parseLtNarrative(r.text); assertValidLtNarrative(narr);
       result = this.mergeResult(strat, narr, health);

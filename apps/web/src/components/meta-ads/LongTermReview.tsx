@@ -71,6 +71,11 @@ export function LongTermReview() {
           </button>
         </div>
 
+        {runM.isPending && (
+          <p className="inline-flex items-center gap-1.5 text-[11.5px] text-gray-500 dark:text-white/55">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Langzeitanalyse läuft — die KI wertet alle Ads deines Produkts aus. Das kann 1–3 Minuten dauern; bitte den Tab offen lassen.
+          </p>
+        )}
         {preview && <PreviewPanel pv={preview} />}
       </div>
 

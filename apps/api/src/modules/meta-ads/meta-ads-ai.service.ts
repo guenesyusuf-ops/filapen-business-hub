@@ -42,6 +42,8 @@ function extractResponsesOutput(data: any): { text: string; refusal: string | nu
 }
 
 const MAX_LLM_ATTEMPTS = 3;
+/** Pro-Flow-Overrides für den LLM-Call (z. B. Long-Term braucht mehr Zeit, 1 Versuch). */
+export interface LlmCallOpts { timeoutMs?: number; maxAttempts?: number }
 /** Fehler, der NICHT wiederholt werden darf (Auth/Schema/ungültige Anfrage). */
 class NonRetryableLlmError extends Error {}
 
@@ -684,26 +686,27 @@ export class MetaAdsAiService {
 
   /** Responses-API-Call mit begrenztem Retry (nur transient: 429/5xx/Timeout). Gibt Text + Usage + Versuche zurück. */
   /** Öffentlicher Reuse-Einstieg (Long-Term Review nutzt dieselbe gpt-5.6-sol/Responses/strict-Pipeline). */
-  async runStructured(system: string, user: string, schema: { name: string; schema: any }): Promise<{ text: string; usage: LlmUsage; attempts: number; cfg: MetaAiConfig }> {
+  async runStructured(system: string, user: string, schema: { name: string; schema: any }, opts?: LlmCallOpts): Promise<{ text: string; usage: LlmUsage; attempts: number; cfg: MetaAiConfig }> {
     const cfg = this.resolveMetaConfig();
     if (cfg.error || !cfg.model) throw new Error(cfg.error || 'META_ADS_AI_MODEL nicht konfiguriert');
-    const run = await this.runCreativeAnalysis(cfg, system, user, schema);
+    const run = await this.runCreativeAnalysis(cfg, system, user, schema, opts);
     return { ...run, cfg };
   }
   metaConfig(): MetaAiConfig { return this.resolveMetaConfig(); }
 
-  private async runCreativeAnalysis(cfg: MetaAiConfig, system: string, user: string, schema: { name: string; schema: any } = CREATIVE_ANALYSIS_SCHEMA as any): Promise<{ text: string; usage: LlmUsage; attempts: number }> {
+  private async runCreativeAnalysis(cfg: MetaAiConfig, system: string, user: string, schema: { name: string; schema: any } = CREATIVE_ANALYSIS_SCHEMA as any, opts?: LlmCallOpts): Promise<{ text: string; usage: LlmUsage; attempts: number }> {
+    const maxAttempts = opts?.maxAttempts ?? MAX_LLM_ATTEMPTS;
     let lastErr: unknown = null;
-    for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const r = await this.callResponsesOnce(cfg, system, user, schema);
+        const r = await this.callResponsesOnce(cfg, system, user, schema, opts?.timeoutMs);
         return { ...r, attempts: attempt };
       } catch (e) {
         lastErr = e;
         if (e instanceof NonRetryableLlmError) throw e;
-        if (attempt < MAX_LLM_ATTEMPTS) {
+        if (attempt < maxAttempts) {
           await new Promise((r) => setTimeout(r, attempt * 700));
-          this.logger.warn(`Meta-AI transient error (attempt ${attempt}/${MAX_LLM_ATTEMPTS}): ${e instanceof Error ? e.message : e}`);
+          this.logger.warn(`Meta-AI transient error (attempt ${attempt}/${maxAttempts}): ${e instanceof Error ? e.message : e}`);
         }
       }
     }
@@ -711,7 +714,7 @@ export class MetaAdsAiService {
   }
 
   /** Ein OpenAI-Responses-API-Call mit strict Structured Outputs + reasoning.effort. Kein loses Fallback. */
-  private async callResponsesOnce(cfg: MetaAiConfig, system: string, user: string, schema: { name: string; schema: any }): Promise<{ text: string; usage: LlmUsage }> {
+  private async callResponsesOnce(cfg: MetaAiConfig, system: string, user: string, schema: { name: string; schema: any }, timeoutMs: number = AI_UI_TIMEOUT_MS): Promise<{ text: string; usage: LlmUsage }> {
     let res: Response;
     try {
       res = await fetch(OPENAI_RESPONSES_URL, {
@@ -724,7 +727,7 @@ export class MetaAdsAiService {
           text: { format: { type: 'json_schema', name: schema.name, strict: true, schema: schema.schema } },
           max_output_tokens: 12000,
         }),
-        signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (e) {
       if (isTimeoutError(e)) throw new Error(`openai Timeout (model=${cfg.model})`);
