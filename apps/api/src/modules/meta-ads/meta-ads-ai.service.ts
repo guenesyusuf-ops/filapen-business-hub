@@ -20,6 +20,24 @@ type Provider = 'openai' | 'anthropic';
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+
+/**
+ * Anzeige-/Aliasnamen auf echte OpenAI-Modell-IDs mappen (identisch zum
+ * Content-Generator). Verhindert produktive 400er, wenn OPENAI_MODEL als
+ * Anzeigename gesetzt ist (z. B. "GPT-5.4 mini").
+ */
+const OPENAI_MODEL_ALIAS: Record<string, string> = {
+  'gpt-5.4 mini': DEFAULT_OPENAI_MODEL,
+  'gpt-5.4-mini': DEFAULT_OPENAI_MODEL,
+  'gpt-5 mini': DEFAULT_OPENAI_MODEL,
+  'gpt5 mini': DEFAULT_OPENAI_MODEL,
+};
+export function remapOpenAiModel(raw?: string | null): string {
+  const v = (raw || '').trim();
+  if (!v) return DEFAULT_OPENAI_MODEL;
+  return OPENAI_MODEL_ALIAS[v.toLowerCase()] || v;
+}
 
 const RANGE_LABELS: Record<string, string> = { last7: 'Letzte 7 Tage', last14: 'Letzte 14 Tage', last30: 'Letzte 30 Tage', lifetime: 'Gesamt' };
 
@@ -50,7 +68,7 @@ export class MetaAdsAiService {
   ) {
     this.openaiKey = this.config.get<string>('OPENAI_API_KEY') || null;
     this.anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY') || null;
-    this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o-mini';
+    this.openaiModel = remapOpenAiModel(this.config.get<string>('OPENAI_MODEL'));
     this.forced = (this.config.get<string>('CONTENT_AI_PROVIDER') || '').toLowerCase();
     this.isProd = (this.config.get<string>('NODE_ENV') || process.env.NODE_ENV || '') === 'production';
   }
@@ -350,8 +368,10 @@ export class MetaAdsAiService {
       throw new Error(`${provider} Netzwerkfehler`);
     }
     if (!res.ok) {
-      const label = `${provider} ${res.status}`;
-      // Auth/ungültige Anfrage/Not-Found = nicht wiederholen; 429/5xx = transient
+      const detail = await this.readProviderError(res); // sichere Fehlerdetails (kein Secret)
+      const label = `${provider} ${res.status}${detail ? ` [${detail}]` : ''} (model=${model})`;
+      this.logger.warn(`LLM provider error: ${label}`);
+      // Auth/ungültige Anfrage/Not-Found/Schema = nicht wiederholen; 429/5xx = transient
       if (res.status === 401 || res.status === 403 || res.status === 400 || res.status === 404 || res.status === 422) {
         throw new NonRetryableLlmError(label);
       }
@@ -359,6 +379,18 @@ export class MetaAdsAiService {
     }
     const data: any = await res.json();
     return provider === 'openai' ? (data.choices?.[0]?.message?.content ?? '') : (data.content?.[0]?.text ?? '');
+  }
+
+  /** Liest die Fehlerdetails einer Provider-Antwort — nur type/code/message, keine Secrets, gekürzt. */
+  private async readProviderError(res: Response): Promise<string> {
+    try {
+      const body: any = await res.json();
+      const e = body?.error ?? body;
+      const parts = [e?.type, e?.code, e?.message].filter(Boolean).map((x) => String(x));
+      return parts.join(': ').slice(0, 300);
+    } catch {
+      return '';
+    }
   }
 
   private serialize(r: any) {
