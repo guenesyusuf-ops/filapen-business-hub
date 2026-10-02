@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Component, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Sparkles, Brain, AlertTriangle, Lightbulb, FlaskConical, ChevronRight, ChevronDown, Loader2, Blocks, Check, Wand2, Target, TrendingUp, Activity, ArrowRight } from 'lucide-react';
@@ -79,7 +79,7 @@ export default function AiInsightsPage() {
         <AttentionOverview productGroupId={controls.productGroupId} range={controls.range} start={controls.start} end={controls.end} />
       )}
 
-      {current ? <AnalysisView analysis={current} /> : (
+      {current ? <AnalysisErrorBoundary><AnalysisView analysis={current} /></AnalysisErrorBoundary> : (
         <div className={META_FRAME}>
           <MetaEmptyState icon={Brain} title="Noch keine Analyse" description="Wähle Scope & Zeitraum und starte eine KI-Analyse auf Basis der vorhandenen Messwerte." />
         </div>
@@ -106,6 +106,24 @@ export default function AiInsightsPage() {
       </section>
     </div>
   );
+}
+
+/** Fängt Render-Fehler ab (z. B. UI/API-Versionsversatz nach Deploy) statt die ganze App weiß werden zu lassen. */
+class AnalysisErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  constructor(props: { children: ReactNode }) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { /* bewusst still — Boundary zeigt Hinweis */ }
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="flex items-start gap-3 rounded-[11px] border border-amber-200 bg-amber-50 p-5 text-[13px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div><div className="font-semibold">Ansicht konnte nicht dargestellt werden</div><p className="mt-1">Vermutlich wurde gerade eine neue Version veröffentlicht. Bitte die Seite neu laden (Cmd/Strg + Shift + R). Die Analyse selbst ist gespeichert.</p></div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function AnalysisView({ analysis }: { analysis: Analysis }) {
@@ -174,10 +192,10 @@ function LegacyAnalysisView({ analysis }: { analysis: Analysis }) {
           <StatementBlock title="Hypothesen" items={result.hypotheses} muted />
 
           <section className="flex flex-col gap-3">
-            <MetaSectionLabel>Empfehlungen & Tests · {result.recommendations.length}</MetaSectionLabel>
-            {result.recommendations.length === 0 ? <p className="text-[12.5px] text-gray-400 dark:text-white/40">Keine Empfehlungen.</p> : (
+            <MetaSectionLabel>Empfehlungen & Tests · {(result.recommendations ?? []).length}</MetaSectionLabel>
+            {(result.recommendations ?? []).length === 0 ? <p className="text-[12.5px] text-gray-400 dark:text-white/40">Keine Empfehlungen.</p> : (
               <div className="flex flex-col gap-2.5">
-                {result.recommendations.map((r, i) => <RecommendationCard key={i} r={r} onAccept={() => acceptRec(i)} pending={accept.isPending} />)}
+                {(result.recommendations ?? []).map((r, i) => <RecommendationCard key={i} r={r} onAccept={() => acceptRec(i)} pending={accept.isPending} />)}
               </div>
             )}
           </section>
