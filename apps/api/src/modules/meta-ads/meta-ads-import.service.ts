@@ -207,7 +207,7 @@ export class MetaAdsImportService {
     const status = errors === 0 ? 'completed' : (success + updated > 0 ? 'partial' : 'failed');
     const record = await this.prisma.maDataImport.create({
       data: {
-        orgId, type, filename: filename?.slice(0, 400) || 'import',
+        orgId, type: type as any, filename: filename?.slice(0, 400) || 'import',
         uploadedById: userId,
         rowCount: rows.length,
         successCount: success,
@@ -285,6 +285,11 @@ export class MetaAdsImportService {
     const isXlsx = /\.xlsx$/i.test(filename) || this.looksLikeZip(buffer);
     if (isXlsx) return this.parseXlsx(buffer);
     return this.parseCsv(buffer);
+  }
+
+  /** Öffentlicher Reuse-Einstieg (Long-Term Review nutzt denselben CSV/XLSX-Parser, keine zweite Engine). */
+  async parseUpload(buffer: Buffer, filename: string): Promise<{ headers: string[]; rows: string[][] }> {
+    return this.parseFile(buffer, filename);
   }
 
   private looksLikeZip(buf: Buffer): boolean {

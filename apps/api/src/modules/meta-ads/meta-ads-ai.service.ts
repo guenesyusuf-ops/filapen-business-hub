@@ -683,6 +683,15 @@ export class MetaAdsAiService {
   // =========================================================================
 
   /** Responses-API-Call mit begrenztem Retry (nur transient: 429/5xx/Timeout). Gibt Text + Usage + Versuche zurück. */
+  /** Öffentlicher Reuse-Einstieg (Long-Term Review nutzt dieselbe gpt-5.6-sol/Responses/strict-Pipeline). */
+  async runStructured(system: string, user: string, schema: { name: string; schema: any }): Promise<{ text: string; usage: LlmUsage; attempts: number; cfg: MetaAiConfig }> {
+    const cfg = this.resolveMetaConfig();
+    if (cfg.error || !cfg.model) throw new Error(cfg.error || 'META_ADS_AI_MODEL nicht konfiguriert');
+    const run = await this.runCreativeAnalysis(cfg, system, user, schema);
+    return { ...run, cfg };
+  }
+  metaConfig(): MetaAiConfig { return this.resolveMetaConfig(); }
+
   private async runCreativeAnalysis(cfg: MetaAiConfig, system: string, user: string, schema: { name: string; schema: any } = CREATIVE_ANALYSIS_SCHEMA as any): Promise<{ text: string; usage: LlmUsage; attempts: number }> {
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {

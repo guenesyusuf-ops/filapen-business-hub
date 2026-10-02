@@ -402,6 +402,7 @@ model Organization {
   maIdeaComponents         MaIdeaComponent[]
   maTaskLinks              MaTaskLink[]
   maAiAnalyses             MaAiAnalysis[]
+  maLongTermReviews        MaLongTermReview[]
 
   @@map("organizations")
 }
@@ -4896,6 +4897,7 @@ model MaProductGroup {
   recipes      MaCreativeRecipe[]
   ideas        MaIdea[]
   aiAnalyses   MaAiAnalysis[]
+  longTermReviews MaLongTermReview[]
 
   @@unique([orgId, name], map: "uq_ma_product_group_org_name")
   @@index([orgId], map: "idx_ma_product_group_org")
@@ -5195,4 +5197,82 @@ model MaAiAnalysis {
   @@index([productGroupId], map: "idx_ma_ai_analysis_group")
   @@index([adId], map: "idx_ma_ai_analysis_ad")
   @@map("ma_ai_analysis")
+}
+
+// ===========================================================================
+// Meta Ads — Long-Term Creative Review (Increment: historische Langzeitbewertung)
+// Aggregierter Meta-Export (ein Row = eine Ad über den ganzen Zeitraum). STRIKT
+// getrennt von Tageswerten (ma_ad_daily_metric wird NICHT berührt/erzeugt).
+// ===========================================================================
+model MaLongTermReview {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String   @map("org_id") @db.Uuid
+  productGroupId String?  @map("product_group_id") @db.Uuid
+  periodStart    DateTime? @map("period_start") @db.Date
+  periodEnd      DateTime? @map("period_end") @db.Date
+  sourceFilename String?  @map("source_filename") @db.VarChar(300)
+  sourceType     String?  @map("source_type") @db.VarChar(20)
+  provider       String?  @db.VarChar(20)
+  model          String?  @db.VarChar(60)
+  status         String   @default("ok") @db.VarChar(20)
+  confidence     String?  @db.VarChar(10)
+  error          String?  @db.Text
+  facts          Json     @db.JsonB
+  result         Json?    @db.JsonB
+  reasoningEffort          String? @map("reasoning_effort") @db.VarChar(10)
+  promptVersion            String? @map("prompt_version") @db.VarChar(20)
+  strategyVersion          String? @map("strategy_version") @db.VarChar(20)
+  inputTokens              Int?    @map("input_tokens")
+  outputTokens             Int?    @map("output_tokens")
+  reasoningTokens          Int?    @map("reasoning_tokens")
+  latencyMs                Int?    @map("latency_ms")
+  retryCount               Int?    @map("retry_count")
+  adCount        Int?     @map("ad_count")
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  productGroup MaProductGroup? @relation(fields: [productGroupId], references: [id], onDelete: SetNull)
+  snapshots    MaLongTermAdSnapshot[]
+
+  @@index([orgId], map: "idx_ma_ltr_org")
+  @@index([orgId, productGroupId], map: "idx_ma_ltr_org_group")
+  @@map("ma_long_term_review")
+}
+
+model MaLongTermAdSnapshot {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewId         String   @map("review_id") @db.Uuid
+  orgId            String   @map("org_id") @db.Uuid
+  metaAdId         String?  @map("meta_ad_id") @db.VarChar(255)
+  adName           String   @map("ad_name") @db.VarChar(500)
+  matchedAdId      String?  @map("matched_ad_id") @db.Uuid
+  spend            Decimal? @db.Decimal(14, 2)
+  impressions      Int?
+  reach            Int?
+  hookRate         Decimal? @map("hook_rate") @db.Decimal(7, 3)
+  holdRate         Decimal? @map("hold_rate") @db.Decimal(7, 3)
+  purchases        Int?
+  websitePurchases Int?     @map("website_purchases")
+  metaRoas         Decimal? @map("meta_roas") @db.Decimal(10, 3)
+  outboundCtr      Decimal? @map("outbound_ctr") @db.Decimal(7, 3)
+  ctrAll           Decimal? @map("ctr_all") @db.Decimal(7, 3)
+  cpcAll           Decimal? @map("cpc_all") @db.Decimal(10, 3)
+  conversionValue  Decimal? @map("conversion_value") @db.Decimal(14, 2)
+  costPerPurchase  Decimal? @map("cost_per_purchase") @db.Decimal(10, 2)
+  avgWatchTime     Decimal? @map("avg_watch_time") @db.Decimal(10, 3)
+  thruplays        Int?
+  views3s          Int?     @map("views_3s")
+  views25          Int?     @map("views_25")
+  views50          Int?     @map("views_50")
+  views75          Int?     @map("views_75")
+  views95          Int?     @map("views_95")
+  views100         Int?     @map("views_100")
+  videoLengthSeconds Int?   @map("video_length_seconds")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  review MaLongTermReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId], map: "idx_ma_lts_review")
+  @@map("ma_long_term_ad_snapshot")
 }

@@ -573,3 +573,139 @@ export function buildStrategyUserPrompt(args: {
   L.push('Liefere jetzt das JSON-Narrativ nach Schema. Für JEDEN Kandidaten-`key` einen recommendations-Eintrag. Zahlen ausschließlich aus den obigen Daten.');
   return L.join('\n');
 }
+
+// ===========================================================================
+// Long-Term Creative Review — strukturiertes Schema (Narrativ; Zahlen = Server)
+// ===========================================================================
+import type {
+  HistoricalControl, SegmentWinner, ConversionWinner, SalvageOpportunity, WeakAd, MatrixRow,
+  RecombinationCandidate, Distribution, LtRecommendationType,
+} from './longterm-strategy';
+
+export const AI_LT_PROMPT_VERSION = 'lt-v1';
+
+export interface LtNextTest extends RecombinationCandidate {
+  title: string; hypothesis: string; expectedLearning: string; why: string; recommendationConfidence: ConfidenceLevel;
+  changeLabel: string;        // menschenlesbarer Abschnittsname (positional)
+  keepLabels: string[];
+}
+export interface LtHealth {
+  adsAnalyzed: number; spend: string; impressions: number; purchases: number;
+  periodStart: string | null; periodEnd: string | null; confidence: ConfidenceLevel;
+}
+export interface CreativeLongTermResult {
+  version: 'lt-v1';
+  executiveSummary: string;
+  historicalHealth: LtHealth;
+  historicalHealthNote: string;
+  historicalControls: HistoricalControl[];
+  segmentWinners: SegmentWinner[];
+  topOpenings: SegmentWinner[];
+  strongEarlySections: SegmentWinner[];
+  strongMidSections: SegmentWinner[];
+  strongLateSections: SegmentWinner[];
+  strongEndings: SegmentWinner[];
+  conversionWinners: ConversionWinner[];
+  salvageOpportunities: SalvageOpportunity[];
+  weakAds: WeakAd[];
+  segmentMatrix: MatrixRow[];
+  distribution: Distribution;
+  attentionFindings: StrategyFinding[];
+  recombinationCandidates: RecombinationCandidate[];
+  nextProductionBatch: LtNextTest[];
+  overallConfidence: ConfidenceLevel;
+}
+
+export const AI_LT_SYSTEM_PROMPT = [
+  'Du bist ein E-Commerce Creative Strategist für Meta Ads und wertest HISTORISCHE Performance-Daten EINES Produkts aus.',
+  'Ziel: aus den Daten konkrete, datenbasierte Recombination-TESTS ableiten (Control + genau eine Änderung).',
+  '',
+  'HARTE REGELN:',
+  '1. Du bekommst fertige, deterministische Kandidaten (id, Base, Source, changeSegment, keepSegments, facts, Sekunden). Du lieferst NUR das Narrativ je `id` (title, why, hypothesis, expectedLearning) und ändere NIEMALS Zahlen, Segmente, Base/Source. Erfinde keine neuen ids.',
+  '2. Erfinde KEINE Zahlen, IDs, Prozente, Käufe, ROAS. Alle Zahlen stehen in den Kandidaten/Facts.',
+  '3. KEINE Kausalität. Alles sind Test-Hypothesen, keine garantierten Winner. Formuliere als Assoziation ("zeigt stärkere Retention", nicht "verbessert die Ad").',
+  '4. KEINE semantischen Inhalte erfinden: ohne hinterlegte Component sprich vom "75–95 %-Abschnitt", nicht vom "Proof".',
+  '5. Meta ROAS ist Meta ROAS — niemals als Hyros ausgeben.',
+  '6. Keine generischen Empfehlungen ("Ads vergleichen", "Retention analysieren", "weiter beobachten") — das hat das System getan. Jede Empfehlung nennt Base, geändertes Segment, Source, was bleibt, warum.',
+  '7. Antworte NUR mit gültigem JSON nach Schema. Keine Code-Fences.',
+].join('\n');
+
+const LT_FINDING = FINDING_SCHEMA;
+const LT_REC_NARR = {
+  type: 'object', additionalProperties: false,
+  required: ['id', 'title', 'why', 'hypothesis', 'expectedLearning', 'recommendationConfidence'],
+  properties: {
+    id: { type: 'string' }, title: { type: 'string' }, why: { type: 'string' },
+    hypothesis: { type: 'string' }, expectedLearning: { type: 'string' },
+    recommendationConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+  },
+};
+export const CREATIVE_LT_SCHEMA = {
+  name: 'creative_long_term',
+  strict: true,
+  schema: {
+    type: 'object', additionalProperties: false,
+    required: ['executiveSummary', 'historicalHealthNote', 'attentionFindings', 'recommendations', 'overallConfidence'],
+    properties: {
+      executiveSummary: { type: 'string' },
+      historicalHealthNote: { type: 'string' },
+      attentionFindings: { type: 'array', items: LT_FINDING },
+      recommendations: { type: 'array', items: LT_REC_NARR },
+      overallConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+    },
+  },
+} as const;
+
+export interface LtNarrative {
+  executiveSummary: string; historicalHealthNote: string;
+  attentionFindings: StrategyFinding[];
+  recommendations: { id: string; title: string; why: string; hypothesis: string; expectedLearning: string; recommendationConfidence: ConfidenceLevel }[];
+  overallConfidence: ConfidenceLevel;
+}
+export function parseLtNarrative(text: string): LtNarrative {
+  const raw = JSON.parse(extractJson(text));
+  return {
+    executiveSummary: String(raw.executiveSummary ?? '').trim(),
+    historicalHealthNote: String(raw.historicalHealthNote ?? '').trim(),
+    attentionFindings: findings(raw.attentionFindings),
+    recommendations: Array.isArray(raw.recommendations)
+      ? raw.recommendations.map((r: any) => ({
+          id: String(r?.id ?? '').trim(), title: String(r?.title ?? '').trim(), why: String(r?.why ?? '').trim(),
+          hypothesis: String(r?.hypothesis ?? '').trim(), expectedLearning: String(r?.expectedLearning ?? '').trim(),
+          recommendationConfidence: clampConfidence(r?.recommendationConfidence),
+        })).filter((r: any) => r.id)
+      : [],
+    overallConfidence: clampConfidence(raw.overallConfidence),
+  };
+}
+export function assertValidLtNarrative(n: LtNarrative): void {
+  if (!n.executiveSummary) throw new Error('Unvollständige KI-Antwort — executiveSummary fehlt');
+  if (!(['low', 'medium', 'high'] as string[]).includes(n.overallConfidence)) throw new Error('Unvollständige KI-Antwort — Confidence fehlt');
+}
+
+const SEG_LABEL: Record<string, string> = { opening: 'Opening / Hook (0–3s)', early: 'Early (3s→25 %)', mid_a: 'Mid A (25→50 %)', mid_b: 'Mid B (50→75 %)', late: 'Late (75→95 %)', ending: 'Ending (95→100 %)' };
+const LT_TYPE_LABEL: Record<LtRecommendationType, string> = {
+  REPLACE_OPENING: 'Opening ersetzen', REPLACE_3_TO_25: 'Early-Abschnitt ersetzen', REPLACE_25_TO_50: 'Mid-A ersetzen',
+  REPLACE_50_TO_75: 'Mid-B ersetzen', REPLACE_75_TO_95: 'Late-Abschnitt ersetzen', REPLACE_ENDING: 'Ending ersetzen',
+  MULTI_SEGMENT_EXPLORATION: 'Multi-Segment-Exploration', RETEST_LOW_CONFIDENCE: 'Mit mehr Daten erneut testen',
+};
+export { SEG_LABEL as LT_SEG_LABEL, LT_TYPE_LABEL };
+
+/** Prompt: deterministische Facts + Kandidaten -> das LLM liefert nur Narrativ je id. */
+export function buildLtUserPrompt(args: { productGroupName: string | null; health: LtHealth; controls: HistoricalControl[]; segmentWinners: SegmentWinner[]; conversionWinners: ConversionWinner[]; salvage: SalvageOpportunity[]; candidates: RecombinationCandidate[] }): string {
+  const L: string[] = [];
+  L.push(`Produkt: ${args.productGroupName ?? '—'}`);
+  L.push(`Zeitraum: ${args.health.periodStart ?? '?'} – ${args.health.periodEnd ?? '?'} · ${args.health.adsAnalyzed} Ads · ${args.health.spend} · ${args.health.impressions.toLocaleString('de-DE')} Impressionen · ${args.health.purchases} Käufe · Confidence ${args.health.confidence}`);
+  if (args.controls.length) { L.push(''); L.push('HISTORICAL CONTROLS:'); L.push(args.controls.map((c) => `- ${c.name}: ${c.reasons.join(', ')}${c.weaknesses.length ? ` · Schwächen: ${c.weaknesses.join(', ')}` : ''} · Confidence ${c.confidence}`).join('\n')); }
+  if (args.segmentWinners.length) { L.push(''); L.push('SEGMENT-WINNER (relativ in der Gruppe):'); L.push(args.segmentWinners.map((w) => `- ${SEG_LABEL[w.segment]}: ${w.adName} ${w.retention}% (Δ${w.baselineDelta ?? '—'}pp, Confidence ${w.confidence})`).join('\n')); }
+  if (args.conversionWinners.length) { L.push(''); L.push('CONVERSION-WINNER:'); L.push(args.conversionWinners.slice(0, 6).map((c) => `- ${c.name}: ${c.purchases} Käufe, Meta ROAS ${c.metaRoas ?? '—'}×, Hook ${c.hookRate ?? '—'}% [${c.hookClass ?? '—'}]`).join('\n')); }
+  L.push('');
+  L.push('RECOMBINATION-KANDIDATEN (DETERMINISTISCH — liefere NUR Narrativ je id, ändere NICHTS):');
+  L.push(args.candidates.map((c) => {
+    const facts = c.facts.map((f) => `${f.adName}.${f.metric}=${f.value ?? '—'}`).join(', ');
+    return `- id=${c.id} · ${c.recommendationType} · Base ${c.baseAdName}${c.sourceAdName ? ` · Source ${c.sourceAdName}` : ''}${c.changeSegment ? ` · ändere ${SEG_LABEL[c.changeSegment]}` : ''} · facts{${facts}} · ${c.reason}`;
+  }).join('\n') || '- (keine belastbaren Kandidaten)');
+  L.push('');
+  L.push('Liefere jetzt das JSON-Narrativ. Für JEDEN Kandidaten-`id` einen recommendations-Eintrag (title, why, hypothesis, expectedLearning). Zahlen ausschließlich aus den Facts.');
+  return L.join('\n');
+}

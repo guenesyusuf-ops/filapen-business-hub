@@ -11,7 +11,7 @@
  * NIEMALS fälschlich als Ad-ID erkannt werden. Lieber offen als falsch.
  */
 
-export type ImportType = 'meta' | 'hyros';
+export type ImportType = 'meta' | 'hyros' | 'meta_longterm';
 
 /** Kanonische Feldtypen → steuern Parsing + Validierung. */
 export type FieldKind = 'id' | 'name' | 'date' | 'int' | 'decimal' | 'rate';
@@ -116,7 +116,25 @@ const HYROS_FIELDS: FieldDef[] = [
   { key: 'revenue', label: 'Umsatz', kind: 'decimal', aliases: ['revenue', 'umsatz', 'salesrevenue', 'totalrevenue', 'erloes'] },
 ];
 
+/**
+ * Long-Term Review: aggregierter Export (ein Row = eine Ad über Monate). Enthält
+ * ALLE Meta-Tagesfelder PLUS Conversion-/Scale-Felder, die der Tages-Import nicht
+ * braucht (Käufe, Website-Käufe, Meta ROAS, Reichweite, Conversion-Wert, CPA).
+ * Reiner additiver Satz — der Tages-'meta'-Satz bleibt unverändert.
+ */
+const META_LONGTERM_FIELDS: FieldDef[] = [
+  ...META_FIELDS,
+  { key: 'reach', label: 'Reichweite', kind: 'int', aliases: ['reichweite', 'reach'] },
+  { key: 'purchases', label: 'Käufe', kind: 'int', aliases: ['kaufe', 'kaeufe', 'purchases', 'kaufegesamt'] },
+  { key: 'websitePurchases', label: 'Website-Käufe', kind: 'int', aliases: ['websitekaufe', 'websitekaeufe', 'websitepurchases'] },
+  { key: 'metaRoas', label: 'Meta ROAS', kind: 'decimal', aliases: ['roasreturnonadspendfurkaufe', 'roasfurkaufe', 'kaufroas', 'purchaseroas', 'roasforpurchases', 'roas'] },
+  { key: 'conversionValue', label: 'Conversion-Wert (Käufe)', kind: 'decimal', aliases: ['conversionwertfurkaufe', 'conversionwert', 'kaufwert', 'conversionvalue', 'purchaseconversionvalue'] },
+  { key: 'costPerPurchase', label: 'Kosten pro Kauf', kind: 'decimal', aliases: ['kostenprokauf', 'costperpurchase', 'kostenprokaufeur'] },
+  { key: 'results', label: 'Ergebnisse', kind: 'int', aliases: ['ergebnisse', 'results'] },
+];
+
 export function fieldsFor(type: ImportType): FieldDef[] {
+  if (type === 'meta_longterm') return META_LONGTERM_FIELDS;
   return type === 'meta' ? META_FIELDS : HYROS_FIELDS;
 }
 
