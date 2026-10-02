@@ -49,8 +49,8 @@ export function LongTermReview() {
         Lade einen aggregierten Meta-Export über mehrere Monate hoch. Filapen vergleicht die historischen Ads deines Produkts, erkennt starke Creative-Abschnitte und schlägt datenbasierte Recombination-Tests vor. Tageswerte bleiben unberührt.
       </div>
 
-      {/* Upload-Zeile */}
-      <div className={cn(META_FRAME, 'flex flex-col gap-3 p-4')}>
+      {/* Upload-Zeile — bewusst OHNE overflow-hidden (META_FRAME), sonst klippt die Karte das Produkt-Dropdown. */}
+      <div className="flex flex-col gap-3 rounded-[11px] border border-gray-200/80 bg-white p-4 dark:border-white/[0.08] dark:bg-[var(--card-bg)]">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <span className="text-[11px] font-medium text-gray-400 dark:text-white/40">Produktgruppe</span>
@@ -66,11 +66,9 @@ export function LongTermReview() {
           <button onClick={doPreview} disabled={previewM.isPending || !groupId || !file} className={cn(btnGhost, 'h-[38px]')}>
             {previewM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Vorschau
           </button>
-          {preview && (
-            <button onClick={doRun} disabled={runM.isPending} className={cn(btnPrimary, 'h-[38px]')}>
-              {runM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />} Analyse starten
-            </button>
-          )}
+          <button onClick={doRun} disabled={runM.isPending || !groupId || !file} className={cn(btnPrimary, 'h-[38px]')}>
+            {runM.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />} Analyse starten
+          </button>
         </div>
 
         {preview && <PreviewPanel pv={preview} />}
