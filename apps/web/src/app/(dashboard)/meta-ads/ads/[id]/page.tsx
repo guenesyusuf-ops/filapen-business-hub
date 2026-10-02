@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Pencil, Plus, Trash2, ExternalLink, Boxes, Clock, Unlink } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Trash2, ExternalLink, Boxes, Clock, Unlink, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { AdFormModal } from '@/components/meta-ads/AdFormModal';
+import { AdQuickImportModal } from '@/components/meta-ads/AdQuickImportModal';
 import {
   MetaDivider, MetaSectionLabel, MetaPropertyGrid, MetaStatus, MetaEmptyState, META_FRAME, btnGhost,
 } from '@/components/meta-ads/MetaUI';
@@ -109,7 +110,7 @@ export default function MetaAdDetailPage() {
       <ComponentsSection adId={ad.id} productGroupId={ad.productGroupId} isVideo={isVideo} range={range} />
 
       <MetaDivider />
-      <DailyEntrySection adId={ad.id} isVideo={isVideo} />
+      <DailyEntrySection adId={ad.id} isVideo={isVideo} adName={ad.name} adMetaId={ad.metaAdId ?? null} />
 
       <MetaDivider />
       <HistorySection adId={ad.id} loading={mLoading} items={metrics?.items ?? []} videoLength={metrics?.videoLengthSeconds ?? null} />
@@ -263,11 +264,12 @@ const METRIC_GROUPS: { title: string; fields: { key: keyof DailyMetric; label: s
 const VIDEO_ONLY = new Set(['videoViews3s', 'videoViews25', 'videoViews50', 'videoViews75', 'videoViews95', 'videoViews100', 'thruplays', 'averageWatchTimeSeconds', 'hookRate', 'holdRate']);
 const inp = 'h-[36px] w-full min-w-0 rounded-lg border border-gray-200 dark:border-white/[0.1] bg-white dark:bg-[var(--card-bg)] px-2.5 text-[13px] tabular-nums text-gray-900 dark:text-white outline-none transition focus:border-accent-meta focus:ring-2 focus:ring-accent-meta/25';
 
-function DailyEntrySection({ adId, isVideo }: { adId: string; isVideo: boolean }) {
+function DailyEntrySection({ adId, isVideo, adName, adMetaId }: { adId: string; isVideo: boolean; adName: string; adMetaId: string | null }) {
   const toast = useToast();
   const upsert = useUpsertMetric(adId);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [vals, setVals] = useState<Record<string, string>>({});
+  const [importOpen, setImportOpen] = useState(false);
   const set = (k: string, v: string) => setVals((s) => ({ ...s, [k]: v }));
 
   const submit = async () => {
@@ -281,9 +283,13 @@ function DailyEntrySection({ adId, isVideo }: { adId: string; isVideo: boolean }
   return (
     <section className="flex flex-col gap-4">
       <MetaSectionLabel action={
-        <div className="flex items-center gap-2"><label className="text-[12px] text-gray-400 dark:text-white/40">Datum</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-[34px] rounded-lg border border-gray-200 bg-white px-2.5 text-[13px] dark:border-white/10 dark:bg-[var(--card-bg)] dark:text-white" /></div>
-      }>Tageswerte eintragen</MetaSectionLabel>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setImportOpen(true)} className={btnGhost}><Upload className="h-4 w-4" /> Meta-Datei hochladen</button>
+          <label className="text-[12px] text-gray-400 dark:text-white/40">Datum</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-[34px] rounded-lg border border-gray-200 bg-white px-2.5 text-[13px] dark:border-white/10 dark:bg-[var(--card-bg)] dark:text-white" />
+        </div>
+      }>Tageswerte · manuell eintragen oder importieren</MetaSectionLabel>
+      <AdQuickImportModal open={importOpen} onClose={() => setImportOpen(false)} adId={adId} adName={adName} adMetaId={adMetaId} />
       <div className="flex flex-col gap-6">
         {METRIC_GROUPS.map((g) => {
           const fields = g.fields.filter((f) => isVideo || !VIDEO_ONLY.has(f.key as string));
