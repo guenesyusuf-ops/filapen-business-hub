@@ -6,10 +6,12 @@ import { Play, Image as ImageIcon, Layers, Blocks, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MetaControls, MetaControlsValue } from '@/components/meta-ads/MetaControls';
 import { MetaPageHeader, MetaSectionLabel, MetaDivider, META_FRAME, btnPrimary } from '@/components/meta-ads/MetaUI';
+import { Sparkles, Check } from 'lucide-react';
+import { useToast } from '@/components/shared/Toast';
 import { SignalBadge, ConfidenceDot, BuildCombinationModal } from '@/components/meta-ads/CreativeBits';
 import { CreateIdeaModal, IdeaDefaults } from '@/components/meta-ads/IdeaBits';
 import { fmtPct, fmtRoas } from '@/components/meta-ads/format';
-import { useCreativeLab, LabCard, ComponentRow } from '@/hooks/meta-ads/useCreative';
+import { useCreativeLab, LabCard, ComponentRow, useRecommendedCombination, useCreateRecipe, CombinationResult } from '@/hooks/meta-ads/useCreative';
 
 export default function CreativeLabPage() {
   const router = useRouter();
@@ -42,6 +44,7 @@ export default function CreativeLabPage() {
         <div className={cn(META_FRAME, 'h-48 animate-pulse bg-gray-50 dark:bg-white/5')} />
       ) : !s ? null : (
         <>
+          <RecommendedCombination productGroupId={controls.productGroupId} range={controls.range} start={controls.start} end={controls.end} />
           <LabSection title="Winning Creatives" count={s.winningCreatives.length} cards={s.winningCreatives} router={router}
             empty="Noch keine klaren Winner im Zeitraum — braucht genug Daten (Confidence)." />
           <MetaDivider />
@@ -137,4 +140,51 @@ function CompSection({ title, rows, router, metricLabel }: { title: string; rows
 
 function Metric({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return <div className="flex flex-col"><span className={cn('font-semibold', accent ? 'text-accent-meta' : 'text-gray-900 dark:text-white')}>{value}</span><span className="text-[10.5px] text-gray-400 dark:text-white/40">{label}</span></div>;
+}
+
+function RecommendedCombination({ productGroupId, range, start, end }: { productGroupId?: string; range?: any; start?: string; end?: string }) {
+  const toast = useToast();
+  const { data, isLoading } = useRecommendedCombination({ productGroupId, range, start, end });
+  const createRecipe = useCreateRecipe();
+  const [created, setCreated] = useState(false);
+
+  const header = <MetaSectionLabel>Empfohlene Kombination (Cross-Ad)</MetaSectionLabel>;
+  if (!productGroupId) return <section className="flex flex-col gap-3">{header}<p className="text-[12.5px] text-gray-400 dark:text-white/40">Wähle oben eine Produktgruppe — die Engine kombiniert dann die stärksten validierten Bausteine dieses Produkts.</p></section>;
+  if (isLoading) return <section className="flex flex-col gap-3">{header}<div className={cn(META_FRAME, 'h-24 animate-pulse bg-gray-50 dark:bg-white/5')} /></section>;
+  const combo: CombinationResult | null | undefined = data?.combination;
+  if (!combo) return <section className="flex flex-col gap-3">{header}<p className="text-[12.5px] text-gray-400 dark:text-white/40">Noch keine belastbare Kombination — es braucht mindestens je einen starken Hook und Body mit ausreichender Datenlage.</p></section>;
+
+  const create = async () => {
+    try {
+      await createRecipe.mutateAsync({ name: `Empfehlung: ${combo.slots.map((sl) => sl.code).join(' + ')}`, productGroupId, componentIds: combo.componentIds });
+      setCreated(true); toast.success('Recipe erstellt');
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Recipe fehlgeschlagen'); }
+  };
+
+  return (
+    <section className="flex flex-col gap-3">
+      <MetaSectionLabel>Empfohlene Kombination (Cross-Ad){combo.label === 'promising' ? ' · Promising' : ''}</MetaSectionLabel>
+      <div className={cn(META_FRAME, 'flex flex-col gap-3 p-4')}>
+        <div className="flex flex-wrap gap-2">
+          {combo.slots.map((sl, i) => (
+            <div key={sl.componentId} className="flex items-center gap-2">
+              {i > 0 && <span className="text-gray-300 dark:text-white/30">+</span>}
+              <div className="rounded-lg border border-gray-200 px-3 py-2 dark:border-white/[0.1]">
+                <div className="font-mono text-[10.5px] uppercase tracking-wide text-gray-400 dark:text-white/40">{sl.code} · {sl.bucket}</div>
+                <div className="truncate text-[13px] font-medium text-gray-900 dark:text-white">{sl.name}</div>
+                <div className="text-[11px] text-gray-500 dark:text-white/50">{sl.sourceAdName ? `aus ${sl.sourceAdName}` : '—'}{sl.keyDelta != null ? ` · ${sl.keyDelta > 0 ? '+' : ''}${sl.keyDelta}pp` : ''}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[12.5px] leading-relaxed text-gray-600 dark:text-white/60">{combo.reason}</p>
+        <div className="flex items-center gap-2">
+          <button onClick={create} disabled={createRecipe.isPending || created} className={btnPrimary}>
+            {created ? <><Check className="h-4 w-4" /> Recipe erstellt</> : <><Blocks className="h-4 w-4" /> Recipe erstellen</>}
+          </button>
+          <span className="inline-flex items-center gap-1 text-[11.5px] text-gray-400 dark:text-white/40"><Sparkles className="h-3.5 w-3.5" /> {combo.label === 'recommended' ? 'ausreichende Confidence' : 'geringe Confidence — als Test behandeln'}</span>
+        </div>
+      </div>
+    </section>
+  );
 }

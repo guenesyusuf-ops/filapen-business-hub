@@ -5,6 +5,7 @@ import { MetaAdsService, PeriodRange } from './meta-ads.service';
 import { aggregate, confidenceFrom, biggestDrop, round, AggregatedMetrics, DailyMetricInput } from './meta-ads-calc';
 import { classifyAdSignals, dropComponentOverlap, SignalProfile } from './creative-signals';
 import { classifyComponentSignal, keyMetricForType } from './component-intelligence';
+import { recommendCombination, CombiComponent } from './combination-engine';
 
 const CODE_PREFIX: Record<string, string> = {
   hook: 'HK', body: 'BD', cta: 'CT', proof: 'PR', testimonial: 'TM', product_demo: 'PD',
@@ -146,6 +147,18 @@ export class MetaAdsCreativeService {
     const groups: Record<string, any[]> = { hook: [], body: [], proof: [], cta: [], other: [] };
     for (const r of rows) groups[bucket(r.type)].push(r);
     return { productGroupId: productGroupId ?? null, period, groups, items: rows };
+  }
+
+  /** Increment E: deterministisch die stärksten Bausteine der Produktgruppe zu einer Kombination zusammenführen. */
+  async recommendedCombination(orgId: string, productGroupId: string | undefined, range?: PeriodRange, start?: string, end?: string) {
+    if (!productGroupId) throw new BadRequestException('Produktgruppe erforderlich — keine produktübergreifenden Kombinationen.');
+    const intel = await this.componentIntelligence(orgId, productGroupId, range, start, end);
+    const comps: CombiComponent[] = intel.items.map((r: any) => ({
+      id: r.id, code: r.code, name: r.name, type: r.type,
+      keyMetric: r.keyMetric, keyDelta: r.keyDelta, signal: r.signal,
+      confidence: r.confidence.level, adCount: r.adCount, sourceAdName: r.sourceAdName,
+    }));
+    return { productGroupId, combination: recommendCombination(comps), componentCount: comps.length };
   }
 
   async getComponent(orgId: string, id: string, range?: PeriodRange, start?: string, end?: string) {

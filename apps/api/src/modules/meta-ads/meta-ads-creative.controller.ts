@@ -136,6 +136,18 @@ export class MetaAdsCreativeController {
     return this.svc.createRecipe(orgId, userId, body);
   }
 
+  @Get('recipes/recommendation')
+  async recommendedCombination(
+    @Headers('authorization') authHeader: string,
+    @Query('productGroupId') productGroupId?: string,
+    @Query('range') range?: PeriodRange,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.svc.recommendedCombination(orgId, productGroupId, range, start, end);
+  }
+
   @Get('recipes/:id')
   async getRecipe(@Headers('authorization') authHeader: string, @Param('id') id: string) {
     const { orgId } = extractAuthContext(authHeader, this.auth);

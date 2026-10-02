@@ -45,6 +45,10 @@ export const COMPONENT_SIGNAL_LABELS: Record<string, string> = {
   strong: 'Strong', iteration: 'Iteration', weak: 'Weak', promising: 'Promising', insufficient_data: 'Zu wenig Daten',
 };
 export interface ComponentIntelligence { productGroupId: string | null; groups: Record<string, ComponentRow[]>; items: ComponentRow[] }
+
+export interface CombiSlot { bucket: string; componentId: string; code: string; name: string; sourceAdName: string | null; keyMetric: number | null; keyDelta: number | null; signal: ComponentSignal; reason: string }
+export interface CombinationResult { componentIds: string[]; slots: CombiSlot[]; confidence: 'low' | 'medium' | 'high'; label: 'recommended' | 'promising'; reason: string }
+export interface RecommendedCombination { productGroupId: string; combination: CombinationResult | null; componentCount: number }
 export interface CreativeLabData {
   sections: { winningCreatives: LabCard[]; winningHooks: ComponentRow[]; winningBodies: ComponentRow[]; strongRetention: LabCard[]; needsIteration: LabCard[]; salvage: LabCard[]; recent: LabCard[] };
   counts: Record<string, number>;
@@ -69,6 +73,9 @@ export function useComponents(params: { type?: string; productGroupId?: string; 
 }
 export function useComponentIntelligence(params: { productGroupId?: string; range?: PeriodRange }) {
   return useQuery({ queryKey: ['meta-ads', 'component-intelligence', params], queryFn: () => getApi<ComponentIntelligence>('/components/intelligence', params as any), enabled: !!params.productGroupId });
+}
+export function useRecommendedCombination(params: { productGroupId?: string; range?: PeriodRange; start?: string; end?: string }) {
+  return useQuery({ queryKey: ['meta-ads', 'recommended-combination', params], queryFn: () => getApi<RecommendedCombination>('/recipes/recommendation', params as any), enabled: !!params.productGroupId });
 }
 export function useComponent(id: string | null, range?: PeriodRange) {
   return useQuery({ queryKey: ['meta-ads', 'component', id, range], queryFn: () => getApi<any>(`/components/${id}`, { range }), enabled: !!id });
