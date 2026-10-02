@@ -5173,6 +5173,16 @@ model MaAiAnalysis {
   facts          Json     @db.JsonB
   result         Json?    @db.JsonB
   error          String?  @db.Text
+  reasoningEffort          String? @map("reasoning_effort") @db.VarChar(10)
+  promptVersion            String? @map("prompt_version") @db.VarChar(20)
+  strategyVersion          String? @map("strategy_version") @db.VarChar(20)
+  inputTokens              Int?    @map("input_tokens")
+  outputTokens             Int?    @map("output_tokens")
+  reasoningTokens          Int?    @map("reasoning_tokens")
+  latencyMs                Int?    @map("latency_ms")
+  retryCount               Int?    @map("retry_count")
+  dataConfidence           String? @map("data_confidence") @db.VarChar(10)
+  recommendationConfidence String? @map("recommendation_confidence") @db.VarChar(10)
   createdById    String?  @map("created_by_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 

@@ -145,3 +145,54 @@ describe('assertValidResult', () => {
     expect(() => assertValidResult({ ...full, recommendations: [{ title: 't', action: 'a', suggestedTest: '', confidence: 'low' }] })).toThrow(/Suggested Test/);
   });
 });
+
+import { resolveMetaAiConfig, clampRecommendationConfidence, CREATIVE_ANALYSIS_SCHEMA, AI_PROMPT_VERSION } from '../ai-analysis';
+
+describe('resolveMetaAiConfig — explizit, kein stiller Fallback (Increment A)', () => {
+  const ok = { provider: 'openai', model: 'gpt-5.6-sol', reasoningEffort: 'high', hasOpenaiKey: true };
+  it('gültige Config', () => {
+    const r = resolveMetaAiConfig(ok);
+    expect(r.provider).toBe('openai'); expect(r.model).toBe('gpt-5.6-sol');
+    expect(r.reasoningEffort).toBe('high'); expect(r.error).toBeNull();
+  });
+  it('Modell-ID wird verbatim verwendet (kein Remap)', () => {
+    expect(resolveMetaAiConfig({ ...ok, model: 'gpt-5.6-sol' }).model).toBe('gpt-5.6-sol');
+  });
+  it('fehlendes Modell -> Fehler, KEIN Fallback', () => {
+    const r = resolveMetaAiConfig({ ...ok, model: '' });
+    expect(r.model).toBeNull(); expect(r.error).toMatch(/META_ADS_AI_MODEL/);
+  });
+  it('nicht-openai Provider -> Fehler', () => {
+    expect(resolveMetaAiConfig({ ...ok, provider: 'anthropic' }).error).toMatch(/openai/);
+    expect(resolveMetaAiConfig({ ...ok, provider: '' }).error).toMatch(/explizit/);
+  });
+  it('fehlender Key -> Fehler', () => {
+    expect(resolveMetaAiConfig({ ...ok, hasOpenaiKey: false }).error).toMatch(/OPENAI_API_KEY/);
+  });
+  it('reasoningEffort default high + clamp ungültig', () => {
+    expect(resolveMetaAiConfig({ ...ok, reasoningEffort: undefined as any }).reasoningEffort).toBe('high');
+    expect(resolveMetaAiConfig({ ...ok, reasoningEffort: 'ultra' }).reasoningEffort).toBe('high');
+    expect(resolveMetaAiConfig({ ...ok, reasoningEffort: 'low' }).reasoningEffort).toBe('low');
+  });
+});
+
+describe('clampRecommendationConfidence (#40)', () => {
+  it('AI darf dataConfidence nie übersteigen', () => {
+    expect(clampRecommendationConfidence('high', 'low')).toBe('low');
+    expect(clampRecommendationConfidence('high', 'medium')).toBe('medium');
+    expect(clampRecommendationConfidence('medium', 'high')).toBe('medium');
+    expect(clampRecommendationConfidence('high', 'high')).toBe('high');
+    expect(clampRecommendationConfidence('low', 'high')).toBe('low');
+  });
+});
+
+describe('CREATIVE_ANALYSIS_SCHEMA (strict Structured Outputs)', () => {
+  it('ist strict mit additionalProperties:false und allen Pflichtfeldern', () => {
+    expect(CREATIVE_ANALYSIS_SCHEMA.strict).toBe(true);
+    const s: any = CREATIVE_ANALYSIS_SCHEMA.schema;
+    expect(s.additionalProperties).toBe(false);
+    expect(s.required).toEqual(['summary', 'observations', 'interpretations', 'hypotheses', 'recommendations', 'overallConfidence']);
+    expect(s.properties.recommendations.items.required).toContain('suggestedTest');
+    expect(AI_PROMPT_VERSION).toBe('v1');
+  });
+});

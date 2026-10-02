@@ -7,10 +7,32 @@ import { MetaAdsIdeasService } from './meta-ads-ideas.service';
 import { AggregatedMetrics, round } from './meta-ads-calc';
 import { classifyAdSignals, SignalProfile } from './creative-signals';
 import {
-  AiAnalysisContext, AiFact, AiAnalysisResult, buildAnalysisMessages, parseAnalysisResult, assertValidResult, resolveProvider,
+  AiAnalysisContext, AiFact, AiAnalysisResult, ConfidenceLevel, buildAnalysisMessages, parseAnalysisResult, assertValidResult,
+  resolveMetaAiConfig, MetaAiConfig, CREATIVE_ANALYSIS_SCHEMA, AI_PROMPT_VERSION, clampRecommendationConfidence,
 } from './ai-analysis';
+import { CREATIVE_RULES_VERSION } from './creative-rules';
 import { OPPORTUNITY_LABELS } from './idea-bridge';
 import { AI_UI_TIMEOUT_MS, isTimeoutError } from '../../common/http/timeouts';
+
+const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
+interface LlmUsage { inputTokens: number | null; outputTokens: number | null; reasoningTokens: number | null }
+
+/** Robustes Extrahieren von Text/Refusal aus einer OpenAI-Responses-API-Antwort. */
+function extractResponsesOutput(data: any): { text: string; refusal: string | null } {
+  let text = '';
+  let refusal: string | null = null;
+  const out = Array.isArray(data?.output) ? data.output : [];
+  for (const item of out) {
+    if (item?.type === 'message' && Array.isArray(item.content)) {
+      for (const c of item.content) {
+        if (c?.type === 'output_text' && typeof c.text === 'string') text += c.text;
+        else if (c?.type === 'refusal' && typeof c.refusal === 'string') refusal = c.refusal;
+      }
+    }
+  }
+  if (!text && typeof data?.output_text === 'string') text = data.output_text; // SDK-Komfortfeld
+  return { text, refusal };
+}
 
 const MAX_LLM_ATTEMPTS = 3;
 /** Fehler, der NICHT wiederholt werden darf (Auth/Schema/ungültige Anfrage). */
@@ -54,10 +76,6 @@ export interface AnalyzeInput {
 export class MetaAdsAiService {
   private readonly logger = new Logger(MetaAdsAiService.name);
   private readonly openaiKey: string | null;
-  private readonly anthropicKey: string | null;
-  private readonly openaiModel: string;
-  private readonly forced: string;
-  private readonly isProd: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -67,21 +85,19 @@ export class MetaAdsAiService {
     private readonly config: ConfigService,
   ) {
     this.openaiKey = this.config.get<string>('OPENAI_API_KEY') || null;
-    this.anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY') || null;
-    this.openaiModel = remapOpenAiModel(this.config.get<string>('OPENAI_MODEL'));
-    this.forced = (this.config.get<string>('CONTENT_AI_PROVIDER') || '').toLowerCase();
-    this.isProd = (this.config.get<string>('NODE_ENV') || process.env.NODE_ENV || '') === 'production';
   }
 
   /**
-   * Explizite Providerwahl — KEIN stiller Fallback. Im Produktivbetrieb MUSS
-   * CONTENT_AI_PROVIDER explizit gesetzt sein; der zugehörige Key muss vorhanden sein.
+   * Meta-Ads Creative Intelligence Config — getrennt vom Content-Generator.
+   * META_ADS_AI_PROVIDER / META_ADS_AI_MODEL / META_ADS_AI_REASONING_EFFORT.
+   * KEIN stiller Fallback auf ein schwächeres Modell. Modell-ID verbatim.
    */
-  private resolveProvider(): { provider: Provider | null; model: string | null; error: string | null } {
-    return resolveProvider({
-      forced: this.forced, isProd: this.isProd,
-      hasOpenaiKey: !!this.openaiKey, hasAnthropicKey: !!this.anthropicKey,
-      openaiModel: this.openaiModel, anthropicModel: ANTHROPIC_MODEL,
+  private resolveMetaConfig(): MetaAiConfig {
+    return resolveMetaAiConfig({
+      provider: this.config.get<string>('META_ADS_AI_PROVIDER'),
+      model: this.config.get<string>('META_ADS_AI_MODEL'),
+      reasoningEffort: this.config.get<string>('META_ADS_AI_REASONING_EFFORT'),
+      hasOpenaiKey: !!this.openaiKey,
     });
   }
 
@@ -99,22 +115,33 @@ export class MetaAdsAiService {
     const { context, scope } = built;
 
     const { system, user } = buildAnalysisMessages(context);
-    const resolved = this.resolveProvider();
+    const cfg = this.resolveMetaConfig();
+    const dataConfidence: ConfidenceLevel = context.confidenceLevel;
 
     let result: AiAnalysisResult | null = null;
     let status: 'ok' | 'error' = 'ok';
-    let error: string | null = resolved.error;
+    let error: string | null = cfg.error;
+    let usage: LlmUsage = { inputTokens: null, outputTokens: null, reasoningTokens: null };
+    let latencyMs: number | null = null;
+    let retryCount = 0;
+    let recommendationConfidence: ConfidenceLevel | null = null;
 
-    if (!resolved.error && resolved.provider && resolved.model) {
+    if (!cfg.error && cfg.model) {
+      const started = Date.now();
       try {
-        const text = await this.callLlm(resolved.provider, resolved.model, system, user);
-        result = parseAnalysisResult(text);
-        assertValidResult(result); // fehlende Ebenen -> status=error, kein 500
+        const run = await this.runCreativeAnalysis(cfg, system, user);
+        usage = run.usage; retryCount = run.attempts - 1;
+        result = parseAnalysisResult(run.text);
+        assertValidResult(result); // fehlende Ebenen -> kontrollierter Error, kein loses Fallback
+        // #40: Empfehlungs-Confidence darf die Datenlage nicht übersteigen.
+        recommendationConfidence = clampRecommendationConfidence(result.overallConfidence, dataConfidence);
       } catch (e) {
         status = 'error';
         result = null;
         error = e instanceof Error ? e.message : 'LLM-Analyse fehlgeschlagen';
-        this.logger.warn(`AI analyze failed (provider=${resolved.provider}, model=${resolved.model}): ${error}`);
+        this.logger.warn(`AI analyze failed (model=${cfg.model}, effort=${cfg.reasoningEffort}): ${error}`);
+      } finally {
+        latencyMs = Date.now() - started;
       }
     } else {
       status = 'error';
@@ -126,9 +153,12 @@ export class MetaAdsAiService {
         productGroupId: scope.productGroupId, adId: scope.adId,
         periodFrom: scope.periodFrom ? new Date(scope.periodFrom) : null,
         periodTo: scope.periodTo ? new Date(scope.periodTo) : null,
-        rangeLabel: context.periodLabel, provider: resolved.provider, model: resolved.model,
-        status, confidence: result?.overallConfidence ?? context.confidenceLevel,
+        rangeLabel: context.periodLabel, provider: cfg.provider, model: cfg.model,
+        status, confidence: recommendationConfidence ?? dataConfidence,
         facts: context as any, result: (result as any) ?? undefined, error, createdById: userId,
+        reasoningEffort: cfg.reasoningEffort, promptVersion: AI_PROMPT_VERSION, strategyVersion: CREATIVE_RULES_VERSION,
+        inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, reasoningTokens: usage.reasoningTokens,
+        latencyMs, retryCount, dataConfidence, recommendationConfidence,
       },
     });
     return this.serialize(row);
@@ -326,59 +356,64 @@ export class MetaAdsAiService {
   // LLM-Call (gleiches Muster wie Content-Generator; weiche Fehler)
   // =========================================================================
 
-  /** LLM-Call mit begrenztem Retry: nur bei transienten Fehlern (429/5xx/Timeout), nie bei Auth/Schema. */
-  private async callLlm(provider: Provider, model: string, system: string, user: string): Promise<string> {
+  /** Responses-API-Call mit begrenztem Retry (nur transient: 429/5xx/Timeout). Gibt Text + Usage + Versuche zurück. */
+  private async runCreativeAnalysis(cfg: MetaAiConfig, system: string, user: string): Promise<{ text: string; usage: LlmUsage; attempts: number }> {
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
       try {
-        return await this.callOnce(provider, model, system, user);
+        const r = await this.callResponsesOnce(cfg, system, user);
+        return { ...r, attempts: attempt };
       } catch (e) {
         lastErr = e;
         if (e instanceof NonRetryableLlmError) throw e;
         if (attempt < MAX_LLM_ATTEMPTS) {
-          await new Promise((r) => setTimeout(r, attempt * 600)); // 600ms, 1200ms Backoff
-          this.logger.warn(`LLM transient error (attempt ${attempt}/${MAX_LLM_ATTEMPTS}, provider=${provider}): ${e instanceof Error ? e.message : e}`);
+          await new Promise((r) => setTimeout(r, attempt * 700));
+          this.logger.warn(`Meta-AI transient error (attempt ${attempt}/${MAX_LLM_ATTEMPTS}): ${e instanceof Error ? e.message : e}`);
         }
       }
     }
-    throw lastErr instanceof Error ? lastErr : new Error('LLM-Call fehlgeschlagen');
+    throw lastErr instanceof Error ? lastErr : new Error('Meta-AI-Call fehlgeschlagen');
   }
 
-  private async callOnce(provider: Provider, model: string, system: string, user: string): Promise<string> {
+  /** Ein OpenAI-Responses-API-Call mit strict Structured Outputs + reasoning.effort. Kein loses Fallback. */
+  private async callResponsesOnce(cfg: MetaAiConfig, system: string, user: string): Promise<{ text: string; usage: LlmUsage }> {
     let res: Response;
     try {
-      if (provider === 'openai') {
-        res = await fetch(OPENAI_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.openaiKey}` },
-          body: JSON.stringify({ model, max_tokens: 2000, temperature: 0.3, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
-          signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
-        });
-      } else {
-        res = await fetch(ANTHROPIC_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': this.anthropicKey!, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({ model, max_tokens: 2000, system, messages: [{ role: 'user', content: user }] }),
-          signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
-        });
-      }
+      res = await fetch(OPENAI_RESPONSES_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.openaiKey}` },
+        body: JSON.stringify({
+          model: cfg.model,
+          reasoning: { effort: cfg.reasoningEffort },
+          input: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          text: { format: { type: 'json_schema', name: CREATIVE_ANALYSIS_SCHEMA.name, strict: true, schema: CREATIVE_ANALYSIS_SCHEMA.schema } },
+          max_output_tokens: 8000,
+        }),
+        signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
+      });
     } catch (e) {
-      // Netzwerk-/Timeout-Fehler = transient (retrybar)
-      if (isTimeoutError(e)) throw new Error(`${provider} Timeout`);
-      throw new Error(`${provider} Netzwerkfehler`);
+      if (isTimeoutError(e)) throw new Error(`openai Timeout (model=${cfg.model})`);
+      throw new Error(`openai Netzwerkfehler (model=${cfg.model})`);
     }
     if (!res.ok) {
-      const detail = await this.readProviderError(res); // sichere Fehlerdetails (kein Secret)
-      const label = `${provider} ${res.status}${detail ? ` [${detail}]` : ''} (model=${model})`;
-      this.logger.warn(`LLM provider error: ${label}`);
-      // Auth/ungültige Anfrage/Not-Found/Schema = nicht wiederholen; 429/5xx = transient
-      if (res.status === 401 || res.status === 403 || res.status === 400 || res.status === 404 || res.status === 422) {
-        throw new NonRetryableLlmError(label);
-      }
+      const detail = await this.readProviderError(res);
+      const label = `openai ${res.status}${detail ? ` [${detail}]` : ''} (model=${cfg.model})`;
+      this.logger.warn(`Meta-AI provider error: ${label}`);
+      if ([400, 401, 403, 404, 422].includes(res.status)) throw new NonRetryableLlmError(label);
       throw new Error(label);
     }
     const data: any = await res.json();
-    return provider === 'openai' ? (data.choices?.[0]?.message?.content ?? '') : (data.content?.[0]?.text ?? '');
+    const usage: LlmUsage = {
+      inputTokens: data?.usage?.input_tokens ?? null,
+      outputTokens: data?.usage?.output_tokens ?? null,
+      reasoningTokens: data?.usage?.output_tokens_details?.reasoning_tokens ?? null,
+    };
+    const { text, refusal } = extractResponsesOutput(data);
+    // Kontrollierter Error statt stillem Zurückfallen auf unstrukturierten Text:
+    if (refusal) throw new NonRetryableLlmError(`openai refusal: ${refusal.slice(0, 200)} (model=${cfg.model})`);
+    if (data?.status === 'incomplete') throw new NonRetryableLlmError(`openai incomplete: ${data?.incomplete_details?.reason ?? '?'} (model=${cfg.model})`);
+    if (!text.trim()) throw new NonRetryableLlmError(`openai leere/strukturlose Antwort (model=${cfg.model})`);
+    return { text, usage };
   }
 
   /** Liest die Fehlerdetails einer Provider-Antwort — nur type/code/message, keine Secrets, gekürzt. */
@@ -399,6 +434,9 @@ export class MetaAdsAiService {
       productGroupName: r.productGroup?.name ?? null, adId: r.adId ?? null, adName: r.ad?.name ?? null,
       rangeLabel: r.rangeLabel ?? null, provider: r.provider ?? null, model: r.model ?? null,
       status: r.status, confidence: r.confidence ?? null, error: r.error ?? null,
+      reasoningEffort: r.reasoningEffort ?? null, promptVersion: r.promptVersion ?? null, strategyVersion: r.strategyVersion ?? null,
+      dataConfidence: r.dataConfidence ?? null, recommendationConfidence: r.recommendationConfidence ?? null,
+      usage: { inputTokens: r.inputTokens ?? null, outputTokens: r.outputTokens ?? null, reasoningTokens: r.reasoningTokens ?? null, latencyMs: r.latencyMs ?? null, retryCount: r.retryCount ?? null },
       facts: r.facts ?? null, result: r.result ?? null, createdAt: r.createdAt?.toISOString?.() ?? null,
     };
   }

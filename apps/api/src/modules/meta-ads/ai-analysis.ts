@@ -206,3 +206,80 @@ export function assertValidResult(r: AiAnalysisResult): void {
   if (!(['low', 'medium', 'high'] as string[]).includes(r.overallConfidence)) missing.push('gültige Confidence');
   if (missing.length) throw new Error(`Unvollständige KI-Antwort — fehlt: ${missing.join(', ')}`);
 }
+
+// ===========================================================================
+// Increment A: Meta-Ads Creative Intelligence — Config, Responses API, Schema
+// ===========================================================================
+
+export const AI_PROMPT_VERSION = 'v1';
+export type ReasoningEffort = 'low' | 'medium' | 'high';
+
+export interface MetaAiConfig {
+  provider: 'openai' | null;
+  model: string | null;
+  reasoningEffort: ReasoningEffort;
+  error: string | null;
+}
+
+/**
+ * Explizite Meta-Ads-AI-Konfiguration — getrennt vom Content-Generator,
+ * KEIN stiller Fallback auf ein schwächeres Modell. Modell-ID wird VERBATIM
+ * verwendet (kein Alias-Remap), damit im Audit eindeutig feststeht, was lief.
+ */
+export function resolveMetaAiConfig(opts: {
+  provider?: string; model?: string; reasoningEffort?: string; hasOpenaiKey: boolean;
+}): MetaAiConfig {
+  const provider = (opts.provider || '').toLowerCase();
+  const effortRaw = (opts.reasoningEffort || 'high').toLowerCase();
+  const reasoningEffort: ReasoningEffort = (['low', 'medium', 'high'] as string[]).includes(effortRaw) ? (effortRaw as ReasoningEffort) : 'high';
+  if (provider !== 'openai') {
+    return { provider: null, model: null, reasoningEffort, error: 'META_ADS_AI_PROVIDER muss explizit "openai" sein (keine implizite/alternative Providerwahl).' };
+  }
+  const model = (opts.model || '').trim();
+  if (!model) {
+    return { provider: 'openai', model: null, reasoningEffort, error: 'META_ADS_AI_MODEL ist nicht gesetzt — kein Fallback auf ein schwächeres Modell.' };
+  }
+  if (!opts.hasOpenaiKey) {
+    return { provider: 'openai', model, reasoningEffort, error: 'OPENAI_API_KEY ist nicht konfiguriert.' };
+  }
+  return { provider: 'openai', model, reasoningEffort, error: null };
+}
+
+const STATEMENT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['text', 'confidence'],
+  properties: { text: { type: 'string' }, confidence: { type: 'string', enum: ['low', 'medium', 'high'] } },
+};
+const RECOMMENDATION_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['title', 'action', 'suggestedTest', 'confidence', 'componentHint'],
+  properties: {
+    title: { type: 'string' }, action: { type: 'string' }, suggestedTest: { type: 'string' },
+    confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+    componentHint: { type: ['string', 'null'] },
+  },
+};
+
+/** Strict JSON Schema für Structured Outputs (Responses API). Increment H erweitert das Schema. */
+export const CREATIVE_ANALYSIS_SCHEMA = {
+  name: 'creative_analysis',
+  strict: true,
+  schema: {
+    type: 'object', additionalProperties: false,
+    required: ['summary', 'observations', 'interpretations', 'hypotheses', 'recommendations', 'overallConfidence'],
+    properties: {
+      summary: { type: 'string' },
+      observations: { type: 'array', items: STATEMENT_SCHEMA },
+      interpretations: { type: 'array', items: STATEMENT_SCHEMA },
+      hypotheses: { type: 'array', items: STATEMENT_SCHEMA },
+      recommendations: { type: 'array', items: RECOMMENDATION_SCHEMA },
+      overallConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+    },
+  },
+} as const;
+
+const CONF_RANK: Record<ConfidenceLevel, number> = { low: 0, medium: 1, high: 2 };
+/** #40: recommendationConfidence darf dataConfidence nie übersteigen. */
+export function clampRecommendationConfidence(ai: ConfidenceLevel, data: ConfidenceLevel): ConfidenceLevel {
+  return CONF_RANK[ai] <= CONF_RANK[data] ? ai : data;
+}
