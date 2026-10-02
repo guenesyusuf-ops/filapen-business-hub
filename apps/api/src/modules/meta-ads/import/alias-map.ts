@@ -4,6 +4,11 @@
  * Bekannte Spaltenüberschriften (EN + DE) werden auf kanonische Felder
  * abgebildet. Bewusst HIER zentral, nicht in UI-Komponenten verteilt.
  * Das automatische Mapping ist nur ein Vorschlag — es bleibt im UI editierbar.
+ *
+ * Sicherheit: Identitätsfelder (Meta Ad ID, Ad Name, Datum) matchen NUR über
+ * sichere Alias-Regeln — kein aggressives Fuzzy-Matching. Für die Ad-ID gibt es
+ * zusätzlich eine Denylist, damit übergeordnete IDs (Kampagne, Anzeigengruppe)
+ * NIEMALS fälschlich als Ad-ID erkannt werden. Lieber offen als falsch.
  */
 
 export type ImportType = 'meta' | 'hyros';
@@ -15,43 +20,100 @@ export interface FieldDef {
   key: string;
   label: string;
   kind: FieldKind;
-  aliases: string[]; // normalisiert (lowercase, nur a-z0-9)
+  aliases: string[]; // normalisiert (siehe normalizeHeader)
+  /** Normalisierte Teilstrings, die ein Mapping auf dieses Feld VERBIETEN. */
+  deny?: string[];
 }
 
-/** Header normalisieren: lowercase, nur a–z0–9. */
+/**
+ * Header robust normalisieren:
+ * - Unicode NFKD + Diakritika entfernen (ä→a, ü→u, ø→o …)
+ * - lowercase
+ * - nur a–z0–9 behalten (trim, Mehrfach-Leerzeichen, -_/ , Klammern, % fallen weg)
+ * So werden "Videowiedergaben bis 25 %" und "…25%" identisch, ebenso "CPC (alle)".
+ */
 export function normalizeHeader(h: string): string {
-  return (h ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return (h ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 }
+
+/** Für Metriken: angehängte Währungs-/Einheiten-Tokens am Ende ignorieren. */
+function stripCurrency(norm: string): string {
+  return norm.replace(/(eur|usd|gbp|chf)$/,'');
+}
+
+/** Übergeordnete IDs, die niemals eine Ad-ID sein dürfen. */
+const PARENT_ID_DENY = ['kampagn', 'campaign', 'anzeigengruppe', 'adset', 'adgroup', 'adsetid', 'accountid', 'kontonummer', 'werbekonto'];
 
 const META_FIELDS: FieldDef[] = [
-  { key: 'metaAdId', label: 'Meta Ad ID', kind: 'id', aliases: ['adid', 'metaadid', 'anzeigenid', 'adidmeta'] },
-  { key: 'adName', label: 'Ad Name', kind: 'name', aliases: ['adname', 'anzeigenname', 'nameofthead', 'anzeige'] },
-  { key: 'date', label: 'Datum', kind: 'date', aliases: ['day', 'date', 'tag', 'datum', 'reportingstarts', 'reportingstart', 'berichtsbeginn'] },
-  { key: 'spend', label: 'Spend', kind: 'decimal', aliases: ['amountspent', 'amountspenteur', 'amountspentusd', 'spend', 'betrag', 'ausgegebenerbetrag', 'ausgegebenerbetrageur', 'kosten', 'ausgaben'] },
-  { key: 'impressions', label: 'Impressionen', kind: 'int', aliases: ['impressions', 'impressionen'] },
-  { key: 'hookRate', label: 'Hook Rate', kind: 'rate', aliases: ['hookrate', 'hook'] },
-  { key: 'holdRate', label: 'Hold Rate', kind: 'rate', aliases: ['holdrate', 'hold'] },
-  { key: 'videoViews3s', label: '3s Views', kind: 'int', aliases: ['3secondvideoplays', 'videoplays3s', '3secondvideoviews', '3sekundenvideoaufrufe', 'videoaufrufe3sek', '3svideoplays'] },
-  { key: 'videoViews25', label: '25% Views', kind: 'int', aliases: ['videoplaysat25', 'videowatchesat25', 'videoaufrufebei25', '25videoplays', 'videoplays25'] },
-  { key: 'videoViews50', label: '50% Views', kind: 'int', aliases: ['videoplaysat50', 'videowatchesat50', 'videoaufrufebei50', '50videoplays', 'videoplays50'] },
-  { key: 'videoViews75', label: '75% Views', kind: 'int', aliases: ['videoplaysat75', 'videowatchesat75', 'videoaufrufebei75', '75videoplays', 'videoplays75'] },
-  { key: 'videoViews95', label: '95% Views', kind: 'int', aliases: ['videoplaysat95', 'videowatchesat95', 'videoaufrufebei95', '95videoplays', 'videoplays95'] },
-  { key: 'videoViews100', label: '100% Views', kind: 'int', aliases: ['videoplaysat100', 'videowatchesat100', 'videoaufrufebei100', '100videoplays', 'videoplays100'] },
+  {
+    key: 'metaAdId', label: 'Meta Ad ID', kind: 'id',
+    // nur echte Ad-/Anzeigen-IDs
+    aliases: ['anzeigenid', 'adid', 'advertisementid', 'metaadid'],
+    deny: PARENT_ID_DENY,
+  },
+  {
+    key: 'adName', label: 'Ad Name', kind: 'name',
+    aliases: ['namederanzeige', 'anzeigenname', 'adname', 'advertisementname', 'nameofthead'],
+    deny: ['kampagn', 'anzeigengruppe', 'adset', 'adgroup'],
+  },
+  {
+    key: 'date', label: 'Datum', kind: 'date',
+    // Berichtsstart bevorzugt; Berichtsende ist bewusst KEIN Alias.
+    aliases: ['berichtsstart', 'berichtsbeginn', 'berichtstag', 'datum', 'date', 'reportingstarts', 'reportingstart', 'day', 'tag'],
+  },
+  {
+    key: 'spend', label: 'Spend', kind: 'decimal',
+    aliases: ['ausgegebenerbetrag', 'betragausgegeben', 'spend', 'amountspent', 'betrag', 'ausgaben', 'kosten'],
+  },
+  { key: 'impressions', label: 'Impressionen', kind: 'int', aliases: ['impressionen', 'impressions'] },
+  { key: 'hookRate', label: 'Hook Rate', kind: 'rate', aliases: ['hookrate'] },
+  { key: 'holdRate', label: 'Hold Rate', kind: 'rate', aliases: ['holdrate'] },
+  {
+    key: 'videoViews3s', label: '3s Views', kind: 'int',
+    aliases: ['3sekundigevideowiedergaben', '3sekundenvideowiedergaben', '3secondvideoplays', '3secondvideoviews', '3svideoviews', '3svideoplays', '3sviews'],
+  },
+  {
+    key: 'videoViews25', label: '25% Views', kind: 'int',
+    aliases: ['videowiedergabenbis25', 'videoplaysat25', '25videoviews', 'videoplays25', '25views'],
+  },
+  {
+    key: 'videoViews50', label: '50% Views', kind: 'int',
+    aliases: ['videowiedergabenbis50', 'videoplaysat50', '50videoviews', 'videoplays50', '50views'],
+  },
+  {
+    key: 'videoViews75', label: '75% Views', kind: 'int',
+    aliases: ['videowiedergabenbis75', 'videoplaysat75', '75videoviews', 'videoplays75', '75views'],
+  },
+  {
+    key: 'videoViews95', label: '95% Views', kind: 'int',
+    aliases: ['videowiedergabenbis95', 'videoplaysat95', '95videoviews', 'videoplays95', '95views'],
+  },
+  {
+    key: 'videoViews100', label: '100% Views', kind: 'int',
+    aliases: ['videowiedergabenbis100', 'videoplaysat100', '100videoviews', 'videoplays100', '100views'],
+  },
   { key: 'thruplays', label: 'ThruPlays', kind: 'int', aliases: ['thruplays', 'thruplay'] },
-  { key: 'averageWatchTimeSeconds', label: 'Ø Wiedergabedauer (s)', kind: 'decimal', aliases: ['averagevideoplaytime', 'averagewatchtime', 'avgwatchtime', 'durchschnittlichewiedergabedauer', 'durchschnwiedergabedauer', 'averagevideoplaytimeseconds'] },
-  { key: 'cpcAll', label: 'CPC (Alle)', kind: 'decimal', aliases: ['cpcall', 'cpc', 'cpcalle', 'costperclickall', 'kostenproklick', 'kostenproklickalle'] },
-  { key: 'ctrAll', label: 'CTR (Alle)', kind: 'rate', aliases: ['ctrall', 'ctr', 'ctralle', 'clickthroughrateall', 'linkklickrate'] },
-  { key: 'outboundCtr', label: 'Ausgehende CTR', kind: 'rate', aliases: ['outboundctr', 'ausgehendectr', 'outboundctrall', 'outboundclickthroughrate'] },
+  {
+    key: 'averageWatchTimeSeconds', label: 'Ø Wiedergabe (s)', kind: 'decimal',
+    aliases: ['durchschnittlichevideowiedergabedauer', 'durchschnittlichewiedergabedauer', 'averagevideoplaytime', 'averagewatchtime', 'videoaveragewatchtime', 'averagevideoplaytimeseconds', 'durchschnwiedergabedauer'],
+  },
+  { key: 'cpcAll', label: 'CPC (Alle)', kind: 'decimal', aliases: ['cpcalle', 'cpcall', 'costperclickall', 'kostenproklickalle', 'kostenproklick'] },
+  { key: 'ctrAll', label: 'CTR (Alle)', kind: 'rate', aliases: ['ctralle', 'ctrall', 'clickthroughrateall', 'linkklickrate'] },
+  { key: 'outboundCtr', label: 'Ausgehende CTR', kind: 'rate', aliases: ['ausgehendectrklickrate', 'ausgehendectr', 'outboundctr', 'outboundctrclickthroughrate', 'outboundctrall'] },
 ];
 
 const HYROS_FIELDS: FieldDef[] = [
-  { key: 'metaAdId', label: 'Meta Ad ID', kind: 'id', aliases: ['adid', 'metaadid', 'adreference', 'adref', 'anzeigenid'] },
-  { key: 'adName', label: 'Ad Name', kind: 'name', aliases: ['adname', 'ad', 'anzeigenname', 'source', 'sourcename'] },
+  { key: 'metaAdId', label: 'Meta Ad ID', kind: 'id', aliases: ['anzeigenid', 'adid', 'metaadid', 'adreference', 'adref'], deny: PARENT_ID_DENY },
+  { key: 'adName', label: 'Ad Name', kind: 'name', aliases: ['adname', 'anzeigenname', 'sourcename', 'source'], deny: ['kampagn', 'anzeigengruppe', 'adset'] },
   { key: 'date', label: 'Datum', kind: 'date', aliases: ['date', 'day', 'tag', 'datum'] },
   { key: 'totalSales', label: 'Sales gesamt', kind: 'int', aliases: ['sales', 'totalsales', 'salesgesamt', 'ordersgesamt', 'orders', 'bestellungen'] },
   { key: 'uniqueSales', label: 'Unique Sales', kind: 'int', aliases: ['uniquesales', 'uniqueorders', 'eindeutigesales', 'uniquesalescount'] },
   { key: 'hyrosRoas', label: 'Hyros ROAS', kind: 'decimal', aliases: ['roas', 'hyrosroas', 'returnonadspend'] },
-  { key: 'revenue', label: 'Umsatz', kind: 'decimal', aliases: ['revenue', 'umsatz', 'sales$', 'salesrevenue', 'totalrevenue', 'erlös', 'erloes'] },
+  { key: 'revenue', label: 'Umsatz', kind: 'decimal', aliases: ['revenue', 'umsatz', 'salesrevenue', 'totalrevenue', 'erloes'] },
 ];
 
 export function fieldsFor(type: ImportType): FieldDef[] {
@@ -65,9 +127,23 @@ export interface DetectedMapping {
   unmapped: string[];
 }
 
+/** Trifft der Header dieses Feld? (exakter Normalform-Match, Währung tolerant). */
+function headerMatchesField(header: string, f: FieldDef): boolean {
+  const norm = normalizeHeader(header);
+  if (!norm) return false;
+  if (f.deny && f.deny.some((d) => norm.includes(d))) return false; // Schutz: nie falsch zuordnen
+  if (f.aliases.includes(norm)) return true;
+  // Metriken (nicht Identitätsfelder): Währungs-/Einheiten-Suffix ignorieren.
+  if (f.kind !== 'id' && f.kind !== 'name' && f.kind !== 'date') {
+    const stripped = stripCurrency(norm);
+    if (stripped !== norm && f.aliases.includes(stripped)) return true;
+  }
+  return false;
+}
+
 /**
  * Automatisches Mapping vorschlagen. Jeder Header wird normalisiert und gegen
- * die Alias-Listen geprüft (exakter Normalform-Match). Erste Zuordnung gewinnt.
+ * die Alias-Listen geprüft. Erste eindeutige Zuordnung gewinnt. Kein Fuzzy.
  */
 export function detectMapping(headers: string[], type: ImportType): DetectedMapping {
   const fields = fieldsFor(type);
@@ -78,7 +154,7 @@ export function detectMapping(headers: string[], type: ImportType): DetectedMapp
   for (const f of fields) {
     for (const h of headers) {
       if (used.has(h)) continue;
-      if (f.aliases.includes(normalizeHeader(h))) {
+      if (headerMatchesField(h, f)) {
         mapping[f.key] = h;
         used.add(h);
         break;

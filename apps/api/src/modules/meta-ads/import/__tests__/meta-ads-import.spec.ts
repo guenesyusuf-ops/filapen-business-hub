@@ -111,3 +111,69 @@ describe('isBlank', () => {
   it('erkennt leer', () => { expect(isBlank('')).toBe(true); expect(isBlank(null)).toBe(true); expect(isBlank(' ')).toBe(true); });
   it('0 ist nicht blank', () => expect(isBlank('0')).toBe(false));
 });
+
+describe('detectMapping — echter deutscher Meta-Export (robust + sicher)', () => {
+  const headers = [
+    'Kampagnen-ID', 'Name der Anzeige', 'Berichtsstart', 'Ausgegebener Betrag (EUR)', 'Impressionen',
+    'Hook Rate', 'Hold Rate', '3-sekündige Videowiedergaben',
+    'Videowiedergaben bis 25 %', 'Videowiedergaben bis 50 %', 'Videowiedergaben bis 75 %',
+    'Videowiedergaben bis 95 %', 'Videowiedergaben bis 100 %', 'ThruPlays',
+    'Durchschnittliche Videowiedergabedauer', 'CPC (alle) (EUR)', 'CTR (alle)', 'Ausgehende CTR (Klickrate)',
+  ];
+  const { mapping, unmapped } = detectMapping(headers, 'meta');
+
+  it('WICHTIG: Kampagnen-ID wird NICHT als Meta Ad ID erkannt', () => {
+    expect(mapping.metaAdId).toBeNull();
+    expect(unmapped).toContain('Kampagnen-ID');
+  });
+  it('Identitätsfelder korrekt', () => {
+    expect(mapping.adName).toBe('Name der Anzeige');
+    expect(mapping.date).toBe('Berichtsstart');
+  });
+  it('alle bekannten Metriken automatisch erkannt', () => {
+    expect(mapping.spend).toBe('Ausgegebener Betrag (EUR)');
+    expect(mapping.impressions).toBe('Impressionen');
+    expect(mapping.hookRate).toBe('Hook Rate');
+    expect(mapping.holdRate).toBe('Hold Rate');
+    expect(mapping.videoViews3s).toBe('3-sekündige Videowiedergaben');
+    expect(mapping.videoViews25).toBe('Videowiedergaben bis 25 %');
+    expect(mapping.videoViews50).toBe('Videowiedergaben bis 50 %');
+    expect(mapping.videoViews75).toBe('Videowiedergaben bis 75 %');
+    expect(mapping.videoViews95).toBe('Videowiedergaben bis 95 %');
+    expect(mapping.videoViews100).toBe('Videowiedergaben bis 100 %');
+    expect(mapping.thruplays).toBe('ThruPlays');
+    expect(mapping.averageWatchTimeSeconds).toBe('Durchschnittliche Videowiedergabedauer');
+    expect(mapping.cpcAll).toBe('CPC (alle) (EUR)');
+    expect(mapping.ctrAll).toBe('CTR (alle)');
+    expect(mapping.outboundCtr).toBe('Ausgehende CTR (Klickrate)');
+  });
+});
+
+describe('detectMapping — Negativtests Identität', () => {
+  it('Kampagnen-ID ist nie Ad ID', () => {
+    expect(detectMapping(['Kampagnen-ID'], 'meta').mapping.metaAdId).toBeNull();
+    expect(detectMapping(['Campaign ID'], 'meta').mapping.metaAdId).toBeNull();
+  });
+  it('Anzeigengruppen-ID ist nie Ad ID', () => {
+    expect(detectMapping(['Anzeigengruppen-ID'], 'meta').mapping.metaAdId).toBeNull();
+    expect(detectMapping(['Ad Set ID'], 'meta').mapping.metaAdId).toBeNull();
+  });
+  it('echte Anzeigen-ID wird erkannt', () => {
+    expect(detectMapping(['Anzeigen-ID'], 'meta').mapping.metaAdId).toBe('Anzeigen-ID');
+    expect(detectMapping(['Meta Ad ID'], 'meta').mapping.metaAdId).toBe('Meta Ad ID');
+    expect(detectMapping(['Advertisement ID'], 'meta').mapping.metaAdId).toBe('Advertisement ID');
+  });
+});
+
+describe('normalizeHeader — Toleranz %, Währung, Schreibvarianten', () => {
+  it('% mit/ohne Leerzeichen identisch', () => {
+    expect(normalizeHeader('Videowiedergaben bis 25 %')).toBe(normalizeHeader('Videowiedergaben bis 25%'));
+  });
+  it('CPC (alle) (EUR) und CPC (Alle) mappen beide auf cpcAll', () => {
+    expect(detectMapping(['CPC (alle) (EUR)'], 'meta').mapping.cpcAll).toBe('CPC (alle) (EUR)');
+    expect(detectMapping(['CPC (Alle)'], 'meta').mapping.cpcAll).toBe('CPC (Alle)');
+  });
+  it('Diakritika/Case toleriert (3-sekündige)', () => {
+    expect(detectMapping(['3-SEKÜNDIGE VIDEOWIEDERGABEN'], 'meta').mapping.videoViews3s).toBe('3-SEKÜNDIGE VIDEOWIEDERGABEN');
+  });
+});
