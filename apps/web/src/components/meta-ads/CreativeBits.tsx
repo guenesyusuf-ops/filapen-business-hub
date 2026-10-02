@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Plus, Check } from 'lucide-react';
+import { X, Plus, Check, ListChecks } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { btnPrimary, btnGhost } from './MetaUI';
 import {
   useComponents, useCreateRecipe, useCreateComponent, COMPONENT_TYPE_LABELS, OPPORTUNITY_LABELS, Confidence, ComponentType,
 } from '@/hooks/meta-ads/useCreative';
+import { useCreateTaskFromRecipe } from '@/hooks/meta-ads/useIdeas';
 
 /** Opportunity-Badge mit deterministischer Farbe. */
 export function SignalBadge({ type }: { type: string | null }) {
@@ -33,30 +34,62 @@ export function BuildCombinationModal({ open, onClose, productGroupId }: { open:
   const toast = useToast();
   const { data } = useComponents({ productGroupId, range: 'last30' });
   const createRecipe = useCreateRecipe();
+  const createTask = useCreateTaskFromRecipe();
   const [name, setName] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
+  const [saved, setSaved] = useState<{ id: string; name: string } | null>(null);
   const comps = data?.items ?? [];
 
   if (!open) return null;
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const byType = (t: ComponentType) => comps.filter((c) => c.type === t);
 
+  const reset = () => { setName(''); setPicked([]); setSaved(null); };
+  const close = () => { reset(); onClose(); };
+
   const save = async () => {
     if (!name.trim()) { toast.error('Name erforderlich'); return; }
     if (!picked.length) { toast.error('Mindestens eine Component wählen'); return; }
     try {
-      await createRecipe.mutateAsync({ name: name.trim(), productGroupId: productGroupId ?? null, componentIds: picked });
+      const recipe = await createRecipe.mutateAsync({ name: name.trim(), productGroupId: productGroupId ?? null, componentIds: picked });
       toast.success('Recipe gespeichert');
-      setName(''); setPicked([]); onClose();
+      setSaved({ id: (recipe as any).id, name: name.trim() });
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Speichern fehlgeschlagen'); }
   };
 
+  const makeTask = async () => {
+    if (!saved) return;
+    try {
+      const res = await createTask.mutateAsync(saved.id);
+      toast.success(res.alreadyLinked ? 'Aufgabe existiert bereits' : 'Aufgabe erstellt');
+      close();
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Fehlgeschlagen'); }
+  };
+
+  if (saved) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/45 p-4 sm:p-8" onClick={close}>
+        <div onClick={(e) => e.stopPropagation()} className="my-2 w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_24px_60px_-12px_rgba(20,20,30,.3)] dark:border-white/[0.12] dark:bg-[var(--card-bg)]">
+          <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5 dark:border-white/[0.07]">
+            <div><h2 className="text-[17px] font-semibold text-gray-900 dark:text-white">Recipe gespeichert</h2><p className="mt-0.5 text-[13px] text-gray-500 dark:text-white/50">„{saved.name}" ist angelegt.</p></div>
+            <button onClick={close} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="px-6 py-5 text-[13px] text-gray-600 dark:text-white/60">Direkt in die Produktion übergeben? Es wird eine Aufgabe im Board „Meta Ads — Creative Production" angelegt.</div>
+          <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-6 py-4 dark:border-white/[0.07]">
+            <button onClick={close} className={btnGhost}>Nur speichern</button>
+            <button onClick={makeTask} disabled={createTask.isPending} className={btnPrimary}><ListChecks className="h-4 w-4" /> Aufgabe erstellen</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/45 p-4 sm:p-8" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/45 p-4 sm:p-8" onClick={close}>
       <div onClick={(e) => e.stopPropagation()} className="my-2 w-full max-w-2xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_24px_60px_-12px_rgba(20,20,30,.3)] dark:border-white/[0.12] dark:bg-[var(--card-bg)]">
         <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5 dark:border-white/[0.07]">
           <div><h2 className="text-[17px] font-semibold text-gray-900 dark:text-white">Build Combination</h2><p className="mt-0.5 text-[13px] text-gray-500 dark:text-white/50">Components zu einem Creative Recipe kombinieren.</p></div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"><X className="h-4 w-4" /></button>
+          <button onClick={close} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"><X className="h-4 w-4" /></button>
         </div>
         <div className="max-h-[60vh] overflow-auto px-6 py-5">
           <label className="mb-1.5 block text-[12px] font-medium text-gray-500 dark:text-white/50">Recipe-Name</label>
@@ -88,7 +121,7 @@ export function BuildCombinationModal({ open, onClose, productGroupId }: { open:
         </div>
         <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-white/[0.07]">
           <span className="text-[12px] text-gray-400 dark:text-white/40">{picked.length} Component{picked.length === 1 ? '' : 's'} gewählt</span>
-          <div className="flex gap-2"><button onClick={onClose} className={btnGhost}>Abbrechen</button><button onClick={save} disabled={createRecipe.isPending} className={btnPrimary}><Plus className="h-4 w-4" /> Recipe speichern</button></div>
+          <div className="flex gap-2"><button onClick={close} className={btnGhost}>Abbrechen</button><button onClick={save} disabled={createRecipe.isPending} className={btnPrimary}><Plus className="h-4 w-4" /> Recipe speichern</button></div>
         </div>
       </div>
     </div>

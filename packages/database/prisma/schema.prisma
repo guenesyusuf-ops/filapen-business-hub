@@ -398,6 +398,9 @@ model Organization {
   maCreativeComponents     MaCreativeComponent[]
   maAdComponents           MaAdComponent[]
   maCreativeRecipes        MaCreativeRecipe[]
+  maIdeas                  MaIdea[]
+  maIdeaComponents         MaIdeaComponent[]
+  maTaskLinks              MaTaskLink[]
 
   @@map("organizations")
 }
@@ -1711,6 +1714,7 @@ model WmTask {
   taskLabels    WmTaskLabel[]
   activities    WmActivity[]
   approvalSteps WmApprovalStep[]
+  maTaskLinks   MaTaskLink[]
 
   @@index([projectId])
   @@index([columnId])
@@ -4707,6 +4711,7 @@ model MaAngle {
   ads          MaAd[]
   components   MaCreativeComponent[]
   recipes      MaCreativeRecipe[]
+  ideas        MaIdea[]
 
   @@unique([orgId, name], map: "uq_ma_angle_org_name")
   @@index([orgId], map: "idx_ma_angle_org")
@@ -4722,6 +4727,7 @@ model MaOffer {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   ads          MaAd[]
   recipes      MaCreativeRecipe[]
+  ideas        MaIdea[]
 
   @@unique([orgId, name], map: "uq_ma_offer_org_name")
   @@index([orgId], map: "idx_ma_offer_org")
@@ -4761,6 +4767,7 @@ model MaAd {
   dailyMetrics MaAdDailyMetric[]
   adComponents     MaAdComponent[]
   sourceComponents MaCreativeComponent[] @relation("MaComponentSource")
+  ideaIterations   MaIdea[]              @relation("MaIdeaBasedOnAd")
 
   @@unique([orgId, metaAdId], map: "uq_ma_ad_org_meta_id")
   @@index([orgId], map: "idx_ma_ad_org")
@@ -4885,6 +4892,7 @@ model MaProductGroup {
   ads          MaAd[]
   components   MaCreativeComponent[]
   recipes      MaCreativeRecipe[]
+  ideas        MaIdea[]
 
   @@unique([orgId, name], map: "uq_ma_product_group_org_name")
   @@index([orgId], map: "idx_ma_product_group_org")
@@ -4951,6 +4959,7 @@ model MaCreativeComponent {
   angle        MaAngle?            @relation(fields: [angleId], references: [id], onDelete: SetNull)
   adComponents    MaAdComponent[]
   recipeComponents MaRecipeComponent[]
+  ideaComponents   MaIdeaComponent[]
 
   @@unique([orgId, code], map: "uq_ma_component_org_code")
   @@index([orgId], map: "idx_ma_component_org")
@@ -4999,6 +5008,8 @@ model MaCreativeRecipe {
   angle        MaAngle?            @relation(fields: [angleId], references: [id], onDelete: SetNull)
   offer        MaOffer?            @relation(fields: [offerId], references: [id], onDelete: SetNull)
   components   MaRecipeComponent[]
+  ideas        MaIdea[]
+  taskLinks    MaTaskLink[]
 
   @@index([orgId], map: "idx_ma_recipe_org")
   @@index([orgId, productGroupId], map: "idx_ma_recipe_org_group")
@@ -5020,4 +5031,117 @@ model MaRecipeComponent {
   @@index([recipeId], map: "idx_ma_recipe_component_recipe")
   @@index([componentId], map: "idx_ma_recipe_component_component")
   @@map("ma_recipe_component")
+}
+
+// ===========================================================================
+// META ADS — Ideas & Iterations + Task Bridge (Phase 5)
+// Manuelle UND KI-vorbereitete Ideen im selben System; Iterationen basierend auf
+// deterministischen Creative-Lab-Signalen. Recipe/Idee -> bestehende Wm-Aufgaben.
+// KEIN automatischer LLM-Call ohne Freigabe (aiModel/aiPrompt/aiMeta nur Felder).
+// ===========================================================================
+
+enum MaIdeaSource {
+  manual
+  ai
+
+  @@map("ma_idea_source")
+}
+
+enum MaIdeaType {
+  new
+  iteration
+
+  @@map("ma_idea_type")
+}
+
+enum MaIdeaStatus {
+  draft
+  approved
+  in_production
+  shipped
+  archived
+
+  @@map("ma_idea_status")
+}
+
+model MaIdea {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String        @map("org_id") @db.Uuid
+  productGroupId  String?       @map("product_group_id") @db.Uuid
+  title           String        @db.VarChar(300)
+  body            String?       @db.Text
+  ideaType        MaIdeaType    @default(new) @map("idea_type")
+  source          MaIdeaSource  @default(manual)
+  status          MaIdeaStatus  @default(draft)
+  angleId         String?       @map("angle_id") @db.Uuid
+  awareness       MaAwareness?
+  offerId         String?       @map("offer_id") @db.Uuid
+  basedOnAdId     String?       @map("based_on_ad_id") @db.Uuid
+  recipeId        String?       @map("recipe_id") @db.Uuid
+  opportunityType String?       @map("opportunity_type") @db.VarChar(40)
+  rationale       String?       @db.Text
+  aiModel         String?       @map("ai_model") @db.VarChar(60)
+  aiPrompt        String?       @map("ai_prompt") @db.Text
+  aiMeta          Json?         @map("ai_meta") @db.JsonB
+  createdById     String?       @map("created_by_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  productGroup MaProductGroup?   @relation(fields: [productGroupId], references: [id], onDelete: SetNull)
+  angle        MaAngle?          @relation(fields: [angleId], references: [id], onDelete: SetNull)
+  offer        MaOffer?          @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  basedOnAd    MaAd?             @relation("MaIdeaBasedOnAd", fields: [basedOnAdId], references: [id], onDelete: SetNull)
+  recipe       MaCreativeRecipe? @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  components   MaIdeaComponent[]
+  taskLinks    MaTaskLink[]
+
+  @@index([orgId], map: "idx_ma_idea_org")
+  @@index([orgId, status], map: "idx_ma_idea_org_status")
+  @@index([orgId, productGroupId], map: "idx_ma_idea_org_group")
+  @@index([basedOnAdId], map: "idx_ma_idea_based_on_ad")
+  @@index([recipeId], map: "idx_ma_idea_recipe")
+  @@map("ma_idea")
+}
+
+model MaIdeaComponent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  ideaId      String   @map("idea_id") @db.Uuid
+  componentId String   @map("component_id") @db.Uuid
+  role        String?  @db.VarChar(40)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  idea         MaIdea              @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  component    MaCreativeComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, componentId], map: "uq_ma_idea_component")
+  @@index([orgId], map: "idx_ma_idea_component_org")
+  @@index([ideaId], map: "idx_ma_idea_component_idea")
+  @@index([componentId], map: "idx_ma_idea_component_component")
+  @@map("ma_idea_component")
+}
+
+model MaTaskLink {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  ideaId      String?  @map("idea_id") @db.Uuid
+  recipeId    String?  @map("recipe_id") @db.Uuid
+  wmTaskId    String   @map("wm_task_id") @db.Uuid
+  title       String?  @db.VarChar(500)
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  idea         MaIdea?           @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  recipe       MaCreativeRecipe? @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  wmTask       WmTask            @relation(fields: [wmTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([wmTaskId], map: "uq_ma_task_link_wm_task")
+  @@index([orgId], map: "idx_ma_task_link_org")
+  @@index([ideaId], map: "idx_ma_task_link_idea")
+  @@index([recipeId], map: "idx_ma_task_link_recipe")
+  @@map("ma_task_link")
 }

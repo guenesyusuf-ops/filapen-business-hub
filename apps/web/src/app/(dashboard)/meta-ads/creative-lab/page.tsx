@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, Image as ImageIcon, Layers, Blocks } from 'lucide-react';
+import { Play, Image as ImageIcon, Layers, Blocks, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MetaControls, MetaControlsValue } from '@/components/meta-ads/MetaControls';
 import { MetaPageHeader, MetaSectionLabel, MetaDivider, META_FRAME, btnPrimary } from '@/components/meta-ads/MetaUI';
 import { SignalBadge, ConfidenceDot, BuildCombinationModal } from '@/components/meta-ads/CreativeBits';
+import { CreateIdeaModal, IdeaDefaults } from '@/components/meta-ads/IdeaBits';
 import { fmtPct, fmtRoas } from '@/components/meta-ads/format';
 import { useCreativeLab, LabCard, ComponentRow } from '@/hooks/meta-ads/useCreative';
 
@@ -14,8 +15,18 @@ export default function CreativeLabPage() {
   const router = useRouter();
   const [controls, setControls] = useState<MetaControlsValue>({ range: 'last7' });
   const [buildOpen, setBuildOpen] = useState(false);
+  const [ideaOpen, setIdeaOpen] = useState(false);
+  const [ideaDefaults, setIdeaDefaults] = useState<IdeaDefaults | undefined>(undefined);
   const { data, isLoading, isError } = useCreativeLab({ productGroupId: controls.productGroupId, range: controls.range, start: controls.start, end: controls.end });
   const s = data?.sections;
+
+  const iterate = (c: LabCard) => {
+    setIdeaDefaults({
+      title: `Iteration: ${c.name}`, ideaType: 'iteration', basedOnAdId: c.id, basedOnAdName: c.name,
+      opportunityType: c.primary ?? undefined, productGroupId: controls.productGroupId,
+    });
+    setIdeaOpen(true);
+  };
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-7">
@@ -40,19 +51,20 @@ export default function CreativeLabPage() {
           <MetaDivider />
           <LabSection title="Strong Retention" count={s.strongRetention.length} cards={s.strongRetention} router={router} empty="Keine Ads mit auffällig starker Retention." />
           <MetaDivider />
-          <LabSection title="Needs Iteration" count={s.needsIteration.length} cards={s.needsIteration} router={router} empty="Keine klaren Schwachstellen erkannt." />
+          <LabSection title="Needs Iteration" count={s.needsIteration.length} cards={s.needsIteration} router={router} onIterate={iterate} empty="Keine klaren Schwachstellen erkannt." />
           <MetaDivider />
-          <LabSection title="Salvage Opportunities" count={s.salvage.length} cards={s.salvage} router={router}
+          <LabSection title="Salvage Opportunities" count={s.salvage.length} cards={s.salvage} router={router} onIterate={iterate}
             empty="Keine Salvage-Kandidaten — nichts, wo ein Teil stark und ein anderer schwach ist." />
         </>
       )}
 
       <BuildCombinationModal open={buildOpen} onClose={() => setBuildOpen(false)} productGroupId={controls.productGroupId} />
+      <CreateIdeaModal open={ideaOpen} onClose={() => setIdeaOpen(false)} defaults={ideaDefaults} />
     </div>
   );
 }
 
-function LabSection({ title, count, cards, router, empty }: { title: string; count: number; cards: LabCard[]; router: any; empty: string }) {
+function LabSection({ title, count, cards, router, empty, onIterate }: { title: string; count: number; cards: LabCard[]; router: any; empty: string; onIterate?: (c: LabCard) => void }) {
   return (
     <section className="flex flex-col gap-3">
       <MetaSectionLabel>{title}{count ? ` · ${count}` : ''}</MetaSectionLabel>
@@ -60,14 +72,14 @@ function LabSection({ title, count, cards, router, empty }: { title: string; cou
         <p className="text-[12.5px] text-gray-400 dark:text-white/40">{empty}</p>
       ) : (
         <div className={cn(META_FRAME, 'divide-y divide-gray-100 dark:divide-white/[0.05]')}>
-          {cards.map((c) => <LabRow key={c.id} c={c} router={router} />)}
+          {cards.map((c) => <LabRow key={c.id} c={c} router={router} onIterate={onIterate} />)}
         </div>
       )}
     </section>
   );
 }
 
-function LabRow({ c, router }: { c: LabCard; router: any }) {
+function LabRow({ c, router, onIterate }: { c: LabCard; router: any; onIterate?: (c: LabCard) => void }) {
   const Fmt = c.format === 'video' ? Play : ImageIcon;
   return (
     <div onClick={() => router.push(`/meta-ads/ads/${c.id}`)} className="flex cursor-pointer items-center gap-3 px-4 py-3 transition hover:bg-accent-meta/[0.04] dark:hover:bg-white/[0.03]">
@@ -86,6 +98,12 @@ function LabRow({ c, router }: { c: LabCard; router: any }) {
         <Metric label="50→75" value={fmtPct(c.metrics.retention50to75)} />
         <Metric label="ROAS" value={fmtRoas(c.metrics.calculatedRoas)} accent />
       </div>
+      {onIterate && (
+        <button onClick={(e) => { e.stopPropagation(); onIterate(c); }}
+          className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-[12px] font-medium text-accent-meta transition hover:border-accent-meta/40 hover:bg-accent-meta/[0.06] dark:border-white/[0.1]">
+          <Wand2 className="h-3.5 w-3.5" /> Iterieren
+        </button>
+      )}
     </div>
   );
 }
