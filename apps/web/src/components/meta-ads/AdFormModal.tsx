@@ -60,7 +60,7 @@ export function AdFormModal({ open, onClose, ad, onSaved }: Props) {
 
   const submit = async () => {
     if (!form.name.trim()) { toast.error('Ad-Name ist erforderlich'); return; }
-    if (!form.productGroupId) { toast.error('Produkt / Analysegruppe ist erforderlich'); return; }
+    if (!form.productGroupId) { toast.error('Produkt / Bundle ist erforderlich'); return; }
     if (form.format === 'video' && form.videoLengthSeconds && !(Number(form.videoLengthSeconds) > 0)) { toast.error('Video-Länge muss > 0 sein'); return; }
     const payload: any = {
       name: form.name.trim(), productGroupId: form.productGroupId, metaAdId: form.metaAdId.trim() || null,
@@ -97,7 +97,7 @@ export function AdFormModal({ open, onClose, ad, onSaved }: Props) {
             <div className="flex flex-col gap-4">
               <Field label="Ad-Name *"><input className={inp} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="z. B. AD-1223 · Problem Hook" /></Field>
               <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
-                <Field label="Produkt / Analysegruppe *">
+                <Field label="Produkt / Bundle *">
                   <ProductGroupSelect value={form.productGroupId || undefined} onChange={(id) => set('productGroupId', id ?? '')} />
                 </Field>
                 <Field label="Format">

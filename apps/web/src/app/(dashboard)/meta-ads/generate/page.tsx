@@ -114,9 +114,9 @@ export default function GenerateContentPage() {
   const set = (patch: Partial<typeof formState>) => setFormState((s) => ({ ...s, ...patch }));
 
   // ProductGroupSelect → Produktname (+ Auto-Fill bei linked-Gruppe via Finance-Katalog)
-  const onGroupChange = (id: string | undefined) => {
+  const onGroupChange = (id: string | undefined, group?: { id: string; name: string; productId: string | null }) => {
     setGroupId(id);
-    const g = groups.find((x) => x.id === id);
+    const g = group ?? groups.find((x) => x.id === id);
     if (!g) return;
     const patch: Partial<typeof formState> = { product: g.name };
     if (g.productId) {
@@ -175,7 +175,7 @@ export default function GenerateContentPage() {
             {/* Kontext */}
             <section className="flex flex-col gap-4">
               <MetaSectionLabel>Kontext</MetaSectionLabel>
-              <Field label="Produkt / Analysegruppe"><ProductGroupSelect value={groupId} onChange={onGroupChange} /></Field>
+              <Field label="Produkt / Bundle"><ProductGroupSelect value={groupId} onChange={onGroupChange} /></Field>
               <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                 <Field label="Produktname"><input className={inp} value={formState.product} onChange={(e) => set({ product: e.target.value })} placeholder="z. B. GlowSerum" /></Field>
                 <Field label="Preis"><input className={inp} value={formState.pricePoint} onChange={(e) => set({ pricePoint: e.target.value })} placeholder="z. B. 49,99 €" /></Field>

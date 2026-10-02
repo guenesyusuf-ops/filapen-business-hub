@@ -10,8 +10,13 @@ import {
 
 const TYPE_LABEL: Record<MaProductGroupType, string> = { linked: 'verknüpft', manual: 'manuell', bundle: 'bundle' };
 
+export interface SelectedGroup { id: string; name: string; type: MaProductGroupType; productId: string | null }
+
 /**
- * Command-Style Auswahl von Produkt-/Analysegruppen.
+ * Gemeinsamer Produkt-Selector für das gesamte Meta-Ads-Modul.
+ * Zeigt: echte Shop-Produkte (direkt verknüpfbar), linked/manual/bundle Gruppen.
+ * onChange liefert die Gruppen-ID UND (sofern bekannt) die Gruppen-Metadaten mit,
+ * damit Konsumenten (z. B. Generate-Auto-Fill) nicht auf einen Cache-Refetch warten müssen.
  * mode="field"  → Pflichtauswahl im Formular (mit Anlage)
  * mode="filter" → Switcher mit "Alle Produkte"
  */
@@ -19,7 +24,7 @@ export function ProductGroupSelect({
   value, onChange, mode = 'field', className,
 }: {
   value: string | undefined;
-  onChange: (id: string | undefined) => void;
+  onChange: (id: string | undefined, group?: SelectedGroup) => void;
   mode?: 'field' | 'filter';
   className?: string;
 }) {
@@ -72,12 +77,12 @@ export function ProductGroupSelect({
       if (newType === 'linked') {
         if (!linkProductId) { toast.error('Bitte ein Shop-Produkt wählen'); return; }
         const g = await createGroup.mutateAsync({ type: 'linked', productId: linkProductId });
-        onChange(g.id); close();
+        onChange(g.id, g); close();
       } else {
         const name = newName.trim();
         if (!name) { toast.error('Name erforderlich'); return; }
         const g = await createGroup.mutateAsync({ type: newType, name });
-        onChange(g.id); close();
+        onChange(g.id, g); close();
       }
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Anlage fehlgeschlagen'); }
   };
@@ -85,15 +90,15 @@ export function ProductGroupSelect({
   // Shop-Produkt direkt wählen: vorhandene verknüpfte Gruppe nutzen oder neu verknüpfen.
   const pickShopProduct = async (p: { id: string; title: string }) => {
     const existing = items.find((g) => g.type === 'linked' && g.productId === p.id);
-    if (existing) { onChange(existing.id); close(); return; }
+    if (existing) { onChange(existing.id, existing); close(); return; }
     try {
       const g = await createGroup.mutateAsync({ type: 'linked', productId: p.id });
-      onChange(g.id); close();
+      onChange(g.id, g); close();
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Verknüpfen fehlgeschlagen'); }
   };
 
-  const itemRow = (g: { id: string; name: string; type: MaProductGroupType }) => (
-    <button key={g.id} type="button" onClick={() => { onChange(g.id); close(); }}
+  const itemRow = (g: SelectedGroup) => (
+    <button key={g.id} type="button" onClick={() => { onChange(g.id, g); close(); }}
       className={cn('flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition',
         g.id === value ? 'bg-accent-meta/10 text-accent-meta' : 'text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/[0.06]')}>
       {g.type === 'linked' ? <Package className="h-3.5 w-3.5 shrink-0 opacity-60" /> : <Layers className="h-3.5 w-3.5 shrink-0 opacity-60" />}
@@ -149,7 +154,7 @@ export function ProductGroupSelect({
               </div>
               <button type="button" onClick={() => { setCreating(true); setNewName(q); }}
                 className="flex w-full items-center gap-2 border-t border-gray-100 px-3 py-2.5 text-[13px] font-medium text-accent-meta transition hover:bg-accent-meta/[0.06] dark:border-white/[0.07]">
-                <Plus className="h-4 w-4" /> Neue Gruppe anlegen{q.trim() ? ` „${q.trim()}"` : ''}
+                <Plus className="h-4 w-4" /> Produkt / Bundle manuell anlegen{q.trim() ? ` „${q.trim()}"` : ''}
               </button>
             </>
           ) : (
