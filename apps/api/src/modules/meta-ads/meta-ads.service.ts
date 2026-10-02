@@ -3,8 +3,9 @@ import { Prisma, MaFormat, MaAwareness, MaAdStatus, MaProductGroupType } from '@
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   aggregate, deriveRow, buildRetentionSteps, biggestDrop, confidenceFrom,
-  watchPercentage, round, DailyMetricInput, AggregatedMetrics,
+  watchPercentage, round, timePositionSeconds, DailyMetricInput, AggregatedMetrics,
 } from './meta-ads-calc';
+import { buildAttentionSegments, AttentionPoint } from './attention-map';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -408,6 +409,7 @@ export class MetaAdsService {
       self: profile(agg),
       steps: buildRetentionSteps(agg, vl),
       biggestDrop: biggestDrop(agg, vl),
+      attention: this.buildAttention(agg, vl),
       confidence: confidenceFrom(agg),
       averageWatchTimeSeconds: round(agg.averageWatchTimeSeconds, 2),
       dataPoints: agg.dataPoints,
@@ -422,6 +424,45 @@ export class MetaAdsService {
     if (!adIds.length) return aggregate([]);
     const rows = await this.prisma.maAdDailyMetric.findMany({ where: this.metricWhere(orgId, adIds, period) });
     return aggregate(rows.map((r) => this.toCalcInput(r)));
+  }
+
+  /** Interpolierte Attention-Punkte/-Segmente (keine echte Sekunden-Retention). */
+  private buildAttention(agg: AggregatedMetrics, vl: number | null) {
+    const t = (pct: number) => timePositionSeconds(pct, vl);
+    const points: AttentionPoint[] = [
+      { label: '0s', seconds: 0, viewers: agg.impressions },
+      { label: '3s', seconds: 3, viewers: agg.videoViews3s },
+      { label: '25%', seconds: t(25), viewers: agg.videoViews25 },
+      { label: '50%', seconds: t(50), viewers: agg.videoViews50 },
+      { label: '75%', seconds: t(75), viewers: agg.videoViews75 },
+      { label: '95%', seconds: t(95), viewers: agg.videoViews95 },
+      { label: '100%', seconds: t(100), viewers: agg.videoViews100 },
+    ].filter((p) => p.viewers > 0);
+    const { segments, maxViewers } = buildAttentionSegments(points);
+    return { approximate: true, videoLengthSeconds: vl, points, segments, maxViewers };
+  }
+
+  /** Produkt-Level Attention-Vergleich: alle Video-Ads einer Gruppe, gleiche relative Timeline. */
+  async productAttention(orgId: string, productGroupId: string | undefined, range?: PeriodRange, start?: string, end?: string) {
+    if (!productGroupId) throw new BadRequestException('Produktgruppe erforderlich.');
+    const period = this.resolvePeriod(range, start, end);
+    const ads = await this.prisma.maAd.findMany({
+      where: { orgId, productGroupId, format: 'video' },
+      select: { id: true, name: true, videoLengthSeconds: true }, orderBy: { createdAt: 'asc' },
+    });
+    const out = [];
+    for (const ad of ads) {
+      const agg = await this.aggregateForAdIds(orgId, [ad.id], period);
+      const att = this.buildAttention(agg, ad.videoLengthSeconds);
+      out.push({
+        adId: ad.id, name: ad.name, videoLengthSeconds: ad.videoLengthSeconds,
+        hookRate: agg.hookRate, retention50to75: agg.retention50to75,
+        biggestDrop: biggestDrop(agg, ad.videoLengthSeconds), confidence: confidenceFrom(agg),
+        segments: att.segments, maxViewers: att.maxViewers,
+      });
+    }
+    out.sort((a, b) => (b.hookRate ?? -1) - (a.hookRate ?? -1));
+    return { productGroupId, approximate: true, ads: out };
   }
 
   // =========================================================================

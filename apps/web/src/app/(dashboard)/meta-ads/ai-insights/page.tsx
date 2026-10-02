@@ -6,7 +6,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { MetaControls, MetaControlsValue } from '@/components/meta-ads/MetaControls';
 import { MetaPageHeader, MetaSectionLabel, MetaDivider, MetaEmptyState, META_FRAME, btnPrimary, btnGhost } from '@/components/meta-ads/MetaUI';
-import { useMetaAdsList } from '@/hooks/meta-ads/useMetaAds';
+import { useMetaAdsList, useProductAttention } from '@/hooks/meta-ads/useMetaAds';
+import { AttentionBar } from '@/components/meta-ads/AttentionMap';
 import {
   useAnalyze, useAnalyses, useAcceptRecommendation, Analysis, AiStatement, AiRecommendation, Confidence, CONF_LABELS,
 } from '@/hooks/meta-ads/useAiInsights';
@@ -69,6 +70,10 @@ export default function AiInsightsPage() {
       <div className="rounded-[10px] border border-blue-200 bg-blue-50 px-4 py-2.5 text-[12.5px] text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
         Empfehlungen werden als <b>Entwurf-Ideen</b> gespeichert (niemals automatisch als Aufgabe oder Produktion). Zahlen stammen ausschließlich aus den deterministischen Facts.
       </div>
+
+      {scope === 'product_group' && controls.productGroupId && (
+        <AttentionOverview productGroupId={controls.productGroupId} range={controls.range} start={controls.start} end={controls.end} />
+      )}
 
       {current ? <AnalysisView analysis={current} /> : (
         <div className={META_FRAME}>
@@ -213,5 +218,32 @@ function RecommendationCard({ r, onAccept, pending }: { r: AiRecommendation; onA
         <button onClick={onAccept} disabled={pending} className={btnGhost}><Lightbulb className="h-4 w-4" /> Als Idee übernehmen (Entwurf)</button>
       </div>
     </div>
+  );
+}
+
+function AttentionOverview({ productGroupId, range, start, end }: { productGroupId?: string; range?: any; start?: string; end?: string }) {
+  const { data, isLoading } = useProductAttention({ productGroupId, range, start, end });
+  if (isLoading) return <div className={cn(META_FRAME, 'h-28 animate-pulse bg-gray-50 dark:bg-white/5')} />;
+  const ads = data?.ads ?? [];
+  if (!ads.length) return null;
+  return (
+    <section className="flex flex-col gap-3">
+      <MetaSectionLabel>Attention-Übersicht (interpoliert)</MetaSectionLabel>
+      <p className="text-[11px] text-gray-400 dark:text-white/40">Aufmerksamkeitsverläufe der Video-Ads dieses Produkts — interpoliert aus Meta-Checkpoints (3s/25/50/75/95/100 %), ungefähre Zeiten. Kontext für die Analyse, kein Ersatz für die Facts.</p>
+      <div className={cn(META_FRAME, 'flex flex-col divide-y divide-gray-100 dark:divide-white/[0.05]')}>
+        {ads.map((a) => (
+          <div key={a.adId} className="flex flex-col gap-1.5 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="truncate text-[13px] font-medium text-gray-900 dark:text-white">{a.name}</span>
+              <span className="shrink-0 text-[11.5px] tabular-nums text-gray-400 dark:text-white/40">Hook {a.hookRate != null ? `${Math.round(a.hookRate)}%` : '—'}</span>
+            </div>
+            <AttentionBar segments={a.segments} vl={a.videoLengthSeconds} />
+            {a.biggestDrop && (
+              <span className="text-[11px] text-amber-700 dark:text-amber-400">Größter Drop: {a.biggestDrop.segment} · −{Math.round(a.biggestDrop.dropPct)} %{a.biggestDrop.fromSeconds != null ? ` · ca. ${a.biggestDrop.fromSeconds}–${a.biggestDrop.toSeconds}s` : ''}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

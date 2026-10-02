@@ -137,6 +137,18 @@ export class MetaAdsController {
 
   // --- Daily Metrics (manuelle Eingabe) ---
 
+  @Get('attention')
+  async productAttention(
+    @Headers('authorization') authHeader: string,
+    @Query('productGroupId') productGroupId?: string,
+    @Query('range') range?: PeriodRange,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.svc.productAttention(orgId, productGroupId, range, start, end);
+  }
+
   @Get('ads/:id/retention')
   async retention(
     @Headers('authorization') authHeader: string,

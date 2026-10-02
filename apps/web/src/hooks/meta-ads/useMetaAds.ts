@@ -263,6 +263,27 @@ export interface RetentionProfile {
   completion25to100: number | null; watchPercentage: number | null;
 }
 export interface RetentionBaseline extends RetentionProfile { label: string; adCount: number; }
+
+export type AttentionSignal = 'strong' | 'stable' | 'weak' | 'severe_drop';
+export interface AttentionSegment {
+  label: string; startSecond: number | null; endSecond: number | null;
+  startViewers: number; endViewers: number; retention: number | null; drop: number | null;
+  normalizedAttention: number; signal: AttentionSignal;
+}
+export interface AttentionData {
+  approximate: boolean; videoLengthSeconds: number | null; maxViewers: number;
+  points: { label: string; seconds: number | null; viewers: number }[];
+  segments: AttentionSegment[];
+}
+export const ATTENTION_SIGNAL_LABELS: Record<string, string> = { strong: 'Strong', stable: 'Stable', weak: 'Weak', severe_drop: 'Severe Drop' };
+
+export interface ProductAttentionAd {
+  adId: string; name: string; videoLengthSeconds: number | null;
+  hookRate: number | null; retention50to75: number | null;
+  biggestDrop: { segment: string; dropPct: number; fromSeconds: number | null; toSeconds: number | null } | null;
+  confidence: { level: 'low' | 'medium' | 'high'; reasons: string[] };
+  segments: AttentionSegment[]; maxViewers: number;
+}
 export interface RetentionAnalysis {
   adId: string; name: string; format: MaFormat; videoLengthSeconds: number | null;
   self: RetentionProfile | null;
@@ -272,6 +293,15 @@ export interface RetentionAnalysis {
   averageWatchTimeSeconds: number | null;
   dataPoints: number;
   baselines: { productGroup: RetentionBaseline | null; format: RetentionBaseline | null };
+  attention?: AttentionData;
+}
+
+export function useProductAttention(params: { productGroupId?: string; range?: PeriodRange; start?: string; end?: string }) {
+  return useQuery({
+    queryKey: ['meta-ads', 'attention', params],
+    queryFn: () => getApi<{ productGroupId: string; approximate: boolean; ads: ProductAttentionAd[] }>('/attention', { productGroupId: params.productGroupId, range: params.range, start: params.start, end: params.end }),
+    enabled: !!params.productGroupId,
+  });
 }
 
 export function useRetentionAnalysis(id: string | null, params: { range?: PeriodRange; start?: string; end?: string }) {

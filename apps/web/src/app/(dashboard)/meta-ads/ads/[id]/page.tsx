@@ -20,6 +20,7 @@ import {
 } from '@/hooks/meta-ads/useMetaAds';
 import { useAdComponents, useUnlinkComponent, COMPONENT_TYPE_LABELS } from '@/hooks/meta-ads/useCreative';
 import { CreateComponentModal, ConfidenceDot } from '@/components/meta-ads/CreativeBits';
+import { AttentionMap } from '@/components/meta-ads/AttentionMap';
 
 const RANGES: PeriodRange[] = ['last7', 'last14', 'last30', 'lifetime'];
 
@@ -138,9 +139,10 @@ const CONF_LABEL: Record<string, string> = { high: 'Hohe Aussagekraft', medium: 
 
 function RetentionAnalytics({ adId, range }: { adId: string; range: PeriodRange }) {
   const { data, isLoading } = useRetentionAnalysis(adId, { range });
+  const { data: compData } = useAdComponents(adId, range);
   if (isLoading) return <section className="flex flex-col gap-4"><MetaSectionLabel>Retention</MetaSectionLabel><div className={cn(META_FRAME, 'h-40 animate-pulse bg-gray-50 dark:bg-white/5')} /></section>;
   if (!data) return null;
-  const { steps, biggestDrop, confidence, self, baselines, averageWatchTimeSeconds } = data;
+  const { steps, biggestDrop, confidence, self, baselines, averageWatchTimeSeconds, attention } = data;
   const max = Math.max(...steps.map((s) => s.viewers || 0), 1);
 
   return (
@@ -171,6 +173,18 @@ function RetentionAnalytics({ adId, range }: { adId: string; range: PeriodRange 
           );
         })}
       </div>
+
+      {/* Attention Map (interpoliert) */}
+      {attention && attention.segments.length > 0 && (
+        <div className={cn(META_FRAME, 'bg-gray-50/40 p-5 dark:bg-white/[0.015]')}>
+          <AttentionMap
+            segments={attention.segments}
+            components={(compData?.items ?? []).map((c) => ({ code: c.code, type: c.type, name: c.name, startTimeSeconds: c.startTimeSeconds, endTimeSeconds: c.endTimeSeconds }))}
+            biggestDrop={biggestDrop}
+            videoLengthSeconds={attention.videoLengthSeconds}
+          />
+        </div>
+      )}
 
       {/* Stufen-Tabelle */}
       <div className={cn(META_FRAME, 'overflow-x-auto')}>
