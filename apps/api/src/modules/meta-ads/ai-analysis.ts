@@ -166,3 +166,43 @@ export function parseAnalysisResult(text: string): AiAnalysisResult {
     overallConfidence: clampConfidence(raw.overallConfidence),
   };
 }
+
+/**
+ * Validiert eine geparste Analyse serverseitig. Eine Antwort gilt NUR als
+ * erfolgreich, wenn alle Ebenen vorhanden sind und jede Empfehlung einen
+ * Suggested Test hat. Wirft bei Verstoß (-> Aufrufer setzt status=error).
+ */
+export interface ProviderResolution { provider: 'openai' | 'anthropic' | null; model: string | null; error: string | null }
+
+/**
+ * Explizite Providerwahl — rein & testbar. Kein stiller Fallback: im Produktivbetrieb
+ * muss der Provider explizit gesetzt sein; der zugehörige Key muss vorhanden sein.
+ */
+export function resolveProvider(opts: {
+  forced?: string; isProd: boolean; hasOpenaiKey: boolean; hasAnthropicKey: boolean; openaiModel: string; anthropicModel: string;
+}): ProviderResolution {
+  const forced = (opts.forced || '').toLowerCase();
+  let provider: 'openai' | 'anthropic';
+  if (forced === 'openai' || forced === 'anthropic') {
+    provider = forced;
+  } else if (opts.isProd) {
+    return { provider: null, model: null, error: 'CONTENT_AI_PROVIDER muss im Produktivbetrieb explizit auf "anthropic" oder "openai" gesetzt sein (keine implizite Providerwahl).' };
+  } else {
+    provider = opts.hasOpenaiKey ? 'openai' : 'anthropic';
+  }
+  const model = provider === 'openai' ? opts.openaiModel : opts.anthropicModel;
+  const hasKey = provider === 'openai' ? opts.hasOpenaiKey : opts.hasAnthropicKey;
+  if (!hasKey) return { provider, model, error: `Kein API-Key für Provider "${provider}" konfiguriert.` };
+  return { provider, model, error: null };
+}
+
+export function assertValidResult(r: AiAnalysisResult): void {
+  const missing: string[] = [];
+  if (!r.observations.length) missing.push('Observation');
+  if (!r.interpretations.length) missing.push('Interpretation');
+  if (!r.hypotheses.length) missing.push('Hypothesis');
+  if (!r.recommendations.length) missing.push('Recommendation');
+  if (r.recommendations.length && r.recommendations.some((rec) => !rec.suggestedTest)) missing.push('Suggested Test (je Empfehlung)');
+  if (!(['low', 'medium', 'high'] as string[]).includes(r.overallConfidence)) missing.push('gültige Confidence');
+  if (missing.length) throw new Error(`Unvollständige KI-Antwort — fehlt: ${missing.join(', ')}`);
+}

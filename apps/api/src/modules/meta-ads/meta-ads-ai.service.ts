@@ -7,10 +7,14 @@ import { MetaAdsIdeasService } from './meta-ads-ideas.service';
 import { AggregatedMetrics, round } from './meta-ads-calc';
 import { classifyAdSignals, SignalProfile } from './creative-signals';
 import {
-  AiAnalysisContext, AiFact, AiAnalysisResult, buildAnalysisMessages, parseAnalysisResult,
+  AiAnalysisContext, AiFact, AiAnalysisResult, buildAnalysisMessages, parseAnalysisResult, assertValidResult, resolveProvider,
 } from './ai-analysis';
 import { OPPORTUNITY_LABELS } from './idea-bridge';
-import { AI_UI_TIMEOUT_MS } from '../../common/http/timeouts';
+import { AI_UI_TIMEOUT_MS, isTimeoutError } from '../../common/http/timeouts';
+
+const MAX_LLM_ATTEMPTS = 3;
+/** Fehler, der NICHT wiederholt werden darf (Auth/Schema/ungültige Anfrage). */
+class NonRetryableLlmError extends Error {}
 
 type Provider = 'openai' | 'anthropic';
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
@@ -34,7 +38,8 @@ export class MetaAdsAiService {
   private readonly openaiKey: string | null;
   private readonly anthropicKey: string | null;
   private readonly openaiModel: string;
-  private readonly provider: Provider;
+  private readonly forced: string;
+  private readonly isProd: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,10 +51,20 @@ export class MetaAdsAiService {
     this.openaiKey = this.config.get<string>('OPENAI_API_KEY') || null;
     this.anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY') || null;
     this.openaiModel = this.config.get<string>('OPENAI_MODEL') || 'gpt-4o-mini';
-    const forced = (this.config.get<string>('CONTENT_AI_PROVIDER') || '').toLowerCase();
-    if (forced === 'openai' || forced === 'anthropic') this.provider = forced as Provider;
-    else if (this.openaiKey) this.provider = 'openai';
-    else this.provider = 'anthropic';
+    this.forced = (this.config.get<string>('CONTENT_AI_PROVIDER') || '').toLowerCase();
+    this.isProd = (this.config.get<string>('NODE_ENV') || process.env.NODE_ENV || '') === 'production';
+  }
+
+  /**
+   * Explizite Providerwahl — KEIN stiller Fallback. Im Produktivbetrieb MUSS
+   * CONTENT_AI_PROVIDER explizit gesetzt sein; der zugehörige Key muss vorhanden sein.
+   */
+  private resolveProvider(): { provider: Provider | null; model: string | null; error: string | null } {
+    return resolveProvider({
+      forced: this.forced, isProd: this.isProd,
+      hasOpenaiKey: !!this.openaiKey, hasAnthropicKey: !!this.anthropicKey,
+      openaiModel: this.openaiModel, anthropicModel: ANTHROPIC_MODEL,
+    });
   }
 
   // =========================================================================
@@ -66,25 +81,25 @@ export class MetaAdsAiService {
     const { context, scope } = built;
 
     const { system, user } = buildAnalysisMessages(context);
-    const providerKeyMissing = (this.provider === 'openai' && !this.openaiKey) || (this.provider === 'anthropic' && !this.anthropicKey);
+    const resolved = this.resolveProvider();
 
     let result: AiAnalysisResult | null = null;
     let status: 'ok' | 'error' = 'ok';
-    let error: string | null = null;
-    let model = this.provider === 'openai' ? this.openaiModel : ANTHROPIC_MODEL;
+    let error: string | null = resolved.error;
 
-    if (providerKeyMissing) {
-      status = 'error';
-      error = 'Kein LLM-API-Key konfiguriert (ANTHROPIC_API_KEY/OPENAI_API_KEY).';
-    } else {
+    if (!resolved.error && resolved.provider && resolved.model) {
       try {
-        const text = await this.callLlm(system, user);
+        const text = await this.callLlm(resolved.provider, resolved.model, system, user);
         result = parseAnalysisResult(text);
+        assertValidResult(result); // fehlende Ebenen -> status=error, kein 500
       } catch (e) {
         status = 'error';
+        result = null;
         error = e instanceof Error ? e.message : 'LLM-Analyse fehlgeschlagen';
-        this.logger.warn(`AI analyze failed: ${error}`);
+        this.logger.warn(`AI analyze failed (provider=${resolved.provider}, model=${resolved.model}): ${error}`);
       }
+    } else {
+      status = 'error';
     }
 
     const row = await this.prisma.maAiAnalysis.create({
@@ -93,7 +108,7 @@ export class MetaAdsAiService {
         productGroupId: scope.productGroupId, adId: scope.adId,
         periodFrom: scope.periodFrom ? new Date(scope.periodFrom) : null,
         periodTo: scope.periodTo ? new Date(scope.periodTo) : null,
-        rangeLabel: context.periodLabel, provider: this.provider, model,
+        rangeLabel: context.periodLabel, provider: resolved.provider, model: resolved.model,
         status, confidence: result?.overallConfidence ?? context.confidenceLevel,
         facts: context as any, result: (result as any) ?? undefined, error, createdById: userId,
       },
@@ -293,27 +308,57 @@ export class MetaAdsAiService {
   // LLM-Call (gleiches Muster wie Content-Generator; weiche Fehler)
   // =========================================================================
 
-  private async callLlm(system: string, user: string): Promise<string> {
-    if (this.provider === 'openai') {
-      const res = await fetch(OPENAI_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.openaiKey}` },
-        body: JSON.stringify({ model: this.openaiModel, max_tokens: 2000, temperature: 0.3, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
-        signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`OpenAI ${res.status}`);
-      const data: any = await res.json();
-      return data.choices?.[0]?.message?.content ?? '';
+  /** LLM-Call mit begrenztem Retry: nur bei transienten Fehlern (429/5xx/Timeout), nie bei Auth/Schema. */
+  private async callLlm(provider: Provider, model: string, system: string, user: string): Promise<string> {
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= MAX_LLM_ATTEMPTS; attempt++) {
+      try {
+        return await this.callOnce(provider, model, system, user);
+      } catch (e) {
+        lastErr = e;
+        if (e instanceof NonRetryableLlmError) throw e;
+        if (attempt < MAX_LLM_ATTEMPTS) {
+          await new Promise((r) => setTimeout(r, attempt * 600)); // 600ms, 1200ms Backoff
+          this.logger.warn(`LLM transient error (attempt ${attempt}/${MAX_LLM_ATTEMPTS}, provider=${provider}): ${e instanceof Error ? e.message : e}`);
+        }
+      }
     }
-    const res = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': this.anthropicKey!, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 2000, system, messages: [{ role: 'user', content: user }] }),
-      signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`Anthropic ${res.status}`);
+    throw lastErr instanceof Error ? lastErr : new Error('LLM-Call fehlgeschlagen');
+  }
+
+  private async callOnce(provider: Provider, model: string, system: string, user: string): Promise<string> {
+    let res: Response;
+    try {
+      if (provider === 'openai') {
+        res = await fetch(OPENAI_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.openaiKey}` },
+          body: JSON.stringify({ model, max_tokens: 2000, temperature: 0.3, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+          signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
+        });
+      } else {
+        res = await fetch(ANTHROPIC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': this.anthropicKey!, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model, max_tokens: 2000, system, messages: [{ role: 'user', content: user }] }),
+          signal: AbortSignal.timeout(AI_UI_TIMEOUT_MS),
+        });
+      }
+    } catch (e) {
+      // Netzwerk-/Timeout-Fehler = transient (retrybar)
+      if (isTimeoutError(e)) throw new Error(`${provider} Timeout`);
+      throw new Error(`${provider} Netzwerkfehler`);
+    }
+    if (!res.ok) {
+      const label = `${provider} ${res.status}`;
+      // Auth/ungültige Anfrage/Not-Found = nicht wiederholen; 429/5xx = transient
+      if (res.status === 401 || res.status === 403 || res.status === 400 || res.status === 404 || res.status === 422) {
+        throw new NonRetryableLlmError(label);
+      }
+      throw new Error(label);
+    }
     const data: any = await res.json();
-    return data.content?.[0]?.text ?? '';
+    return provider === 'openai' ? (data.choices?.[0]?.message?.content ?? '') : (data.content?.[0]?.text ?? '');
   }
 
   private serialize(r: any) {

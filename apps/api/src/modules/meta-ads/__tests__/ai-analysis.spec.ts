@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AI_SYSTEM_PROMPT, buildAnalysisUserPrompt, buildAnalysisMessages, extractJson, parseAnalysisResult, AiAnalysisContext,
+  AI_SYSTEM_PROMPT, buildAnalysisUserPrompt, buildAnalysisMessages, extractJson, parseAnalysisResult, assertValidResult, resolveProvider, AiAnalysisContext, AiAnalysisResult,
 } from '../ai-analysis';
 
 const ctx: AiAnalysisContext = {
@@ -97,5 +97,51 @@ describe('parseAnalysisResult', () => {
 
   it('throws on unparseable model output', () => {
     expect(() => parseAnalysisResult('the model refused')).toThrow();
+  });
+});
+
+describe('resolveProvider (explizit, kein stiller Fallback)', () => {
+  const base = { hasOpenaiKey: true, hasAnthropicKey: true, openaiModel: 'gpt-4o-mini', anthropicModel: 'claude-sonnet-4-20250514' };
+  it('prod OHNE explizite Wahl -> Fehler (keine Implizite)', () => {
+    const r = resolveProvider({ ...base, isProd: true });
+    expect(r.provider).toBeNull();
+    expect(r.error).toMatch(/explizit/);
+  });
+  it('prod MIT anthropic -> anthropic + Modell', () => {
+    const r = resolveProvider({ ...base, isProd: true, forced: 'anthropic' });
+    expect(r.provider).toBe('anthropic');
+    expect(r.model).toBe('claude-sonnet-4-20250514');
+    expect(r.error).toBeNull();
+  });
+  it('prod MIT openai -> openai + explizites Modell', () => {
+    const r = resolveProvider({ ...base, isProd: true, forced: 'openai' });
+    expect(r.provider).toBe('openai');
+    expect(r.model).toBe('gpt-4o-mini');
+  });
+  it('explizit gewählter Provider ohne Key -> Fehler (kein Wechsel auf anderen)', () => {
+    const r = resolveProvider({ ...base, isProd: true, forced: 'anthropic', hasAnthropicKey: false });
+    expect(r.provider).toBe('anthropic');
+    expect(r.error).toMatch(/Kein API-Key/);
+  });
+  it('dev ohne forced -> inferiert nach Key-Präsenz', () => {
+    expect(resolveProvider({ ...base, isProd: false, hasOpenaiKey: true }).provider).toBe('openai');
+    expect(resolveProvider({ ...base, isProd: false, hasOpenaiKey: false }).provider).toBe('anthropic');
+  });
+});
+
+describe('assertValidResult', () => {
+  const full: AiAnalysisResult = {
+    summary: 's',
+    observations: [{ text: 'o', confidence: 'low' }],
+    interpretations: [{ text: 'i', confidence: 'low' }],
+    hypotheses: [{ text: 'h', confidence: 'low' }],
+    recommendations: [{ title: 't', action: 'a', suggestedTest: 'test', confidence: 'medium' }],
+    overallConfidence: 'low',
+  };
+  it('akzeptiert vollständige Antwort', () => { expect(() => assertValidResult(full)).not.toThrow(); });
+  it('wirft bei fehlender Observation', () => { expect(() => assertValidResult({ ...full, observations: [] })).toThrow(/Observation/); });
+  it('wirft bei fehlender Recommendation', () => { expect(() => assertValidResult({ ...full, recommendations: [] })).toThrow(/Recommendation/); });
+  it('wirft bei Empfehlung ohne Suggested Test', () => {
+    expect(() => assertValidResult({ ...full, recommendations: [{ title: 't', action: 'a', suggestedTest: '', confidence: 'low' }] })).toThrow(/Suggested Test/);
   });
 });
