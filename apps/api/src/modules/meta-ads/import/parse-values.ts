@@ -36,6 +36,13 @@ export function parseImportNumber(input: string | null | undefined): number | nu
     .trim();
   if (!s) return null;
 
+  // Zeitdauer HH:MM:SS oder MM:SS -> Sekunden (manche Meta-Spalten, z. B.
+  // "Durchschnittliche Videowiedergabedauer", liefern eine Uhrzeit statt Sekunden).
+  const hms = s.match(/^(\d{1,3}):([0-5]?\d):([0-5]?\d)$/);
+  if (hms) return Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3]);
+  const mmss = s.match(/^(\d{1,3}):([0-5]?\d)$/);
+  if (mmss) return Number(mmss[1]) * 60 + Number(mmss[2]);
+
   const hatKomma = s.includes(',');
   const hatPunkt = s.includes('.');
   let norm: string;
@@ -47,13 +54,15 @@ export function parseImportNumber(input: string | null | undefined): number | nu
   } else if (hatKomma) {
     norm = s.replace(',', '.');
   } else if (hatPunkt) {
-    // Nur Punkte: saubere Tausendergruppen (1.234 / 12.500) = deutsch; sonst Dezimalpunkt.
-    norm = /^-?\d{1,3}(\.\d{3})+$/.test(s) ? s.replace(/\./g, '') : s;
+    // Nur Punkte: Tausendergruppen (12.500 = 12500) NUR bei nicht-führender Null;
+    // "0.184" ist ein Dezimalwert (0.184), kein 184. Sonst Dezimalpunkt belassen.
+    norm = /^-?[1-9]\d{0,2}(\.\d{3})+$/.test(s) ? s.replace(/\./g, '') : s;
   } else {
     norm = s;
   }
 
-  if (!/^-?\d+(\.\d+)?$/.test(norm)) return null;
+  // Wissenschaftliche Notation (z. B. "3.26E-5") zusätzlich zulassen.
+  if (!/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(norm)) return null;
   const n = Number(norm);
   return Number.isFinite(n) ? n : null;
 }

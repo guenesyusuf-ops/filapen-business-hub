@@ -14,6 +14,13 @@ describe('parseImportNumber — Locale', () => {
   it('leer → null', () => { expect(parseImportNumber('')).toBeNull(); expect(parseImportNumber('  ')).toBeNull(); });
   it('unlesbar → null (kein stilles Verwerfen)', () => expect(parseImportNumber('abc')).toBeNull());
   it('echte 0 → 0 (nicht null)', () => expect(parseImportNumber('0')).toBe(0));
+  // Long-Term-Export-Edgecases (additiv, dürfen bestehende Fälle nicht ändern)
+  it('führende Null 0.184 → 0.184 (NICHT 184)', () => expect(parseImportNumber('0.184')).toBe(0.184));
+  it('Tausendergruppe 12.500 bleibt 12500', () => expect(parseImportNumber('12.500')).toBe(12500));
+  it('wissenschaftlich 3.26E-5 → 0.0000326', () => expect(parseImportNumber('3.26E-5')).toBeCloseTo(0.0000326, 10));
+  it('HH:MM:SS 00:00:00 → 0', () => expect(parseImportNumber('00:00:00')).toBe(0));
+  it('HH:MM:SS 00:01:30 → 90 Sekunden', () => expect(parseImportNumber('00:01:30')).toBe(90));
+  it('HH:MM:SS 01:02:03 → 3723 Sekunden', () => expect(parseImportNumber('01:02:03')).toBe(3723));
 });
 
 describe('parseDate — Formate + Ambiguität', () => {

@@ -113,8 +113,8 @@ function PreviewPanel({ pv }: { pv: LtPreview }) {
         <span className="text-gray-500 dark:text-white/50">{pv.periodStart} – {pv.periodEnd}{pv.spanDays != null ? ` · ${pv.spanDays} Tage` : ''} · {pv.uniqueAds} Ads</span>
       </div>
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-gray-600 dark:text-white/60">
-        <span>{s.total} Zeilen</span><span className="text-green-700 dark:text-green-400">{s.ready} auswertbar</span>
-        <span>{s.matchedExisting} in Filapen gematcht</span><span>{s.unmatched} neu</span>
+        <span>{s.total} Zeilen</span><span className="font-medium text-green-700 dark:text-green-400">{s.ready + s.unmatched} auswertbar</span>
+        <span>{s.matchedExisting} in Filapen gematcht</span><span>{s.unmatched} neu (nicht in Filapen)</span>
         {s.otherProduct > 0 && <span className="text-amber-700 dark:text-amber-400">{s.otherProduct} anderes Produkt (ausgeschlossen)</span>}
         {s.invalid > 0 && <span className="text-red-600 dark:text-red-400">{s.invalid} ungültig</span>}
         <span>· {s.withSpend} Spend · {s.withPurchases} Käufe · {s.withCheckpoints} Checkpoints · {s.withHookHold} Hook/Hold</span>
