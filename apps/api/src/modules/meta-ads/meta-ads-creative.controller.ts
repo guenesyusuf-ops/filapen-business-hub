@@ -48,6 +48,18 @@ export class MetaAdsCreativeController {
     return this.svc.createComponent(orgId, userId, body);
   }
 
+  @Get('components/intelligence')
+  async componentIntelligence(
+    @Headers('authorization') authHeader: string,
+    @Query('productGroupId') productGroupId?: string,
+    @Query('range') range?: PeriodRange,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.svc.componentIntelligence(orgId, productGroupId, range, start, end);
+  }
+
   @Get('components/:id')
   async getComponent(
     @Headers('authorization') authHeader: string,

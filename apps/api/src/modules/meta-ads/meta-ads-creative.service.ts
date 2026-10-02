@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MetaAdsService, PeriodRange } from './meta-ads.service';
 import { aggregate, confidenceFrom, biggestDrop, round, AggregatedMetrics, DailyMetricInput } from './meta-ads-calc';
 import { classifyAdSignals, dropComponentOverlap, SignalProfile } from './creative-signals';
+import { classifyComponentSignal, keyMetricForType } from './component-intelligence';
 
 const CODE_PREFIX: Record<string, string> = {
   hook: 'HK', body: 'BD', cta: 'CT', proof: 'PR', testimonial: 'TM', product_demo: 'PD',
@@ -121,6 +122,30 @@ export class MetaAdsCreativeService {
       items.push(this.serializeComponentRow(c, p.agg, p.adCount, baseline));
     }
     return { items };
+  }
+
+  /** Increment D: Component Intelligence je Produktgruppe — Matrix nach Typ mit Signal. */
+  async componentIntelligence(orgId: string, productGroupId: string | undefined, range?: PeriodRange, start?: string, end?: string) {
+    const period = this.ads.resolvePeriod(range, start, end);
+    const where: Prisma.MaCreativeComponentWhereInput = { orgId };
+    if (productGroupId) where.productGroupId = productGroupId;
+    const comps = await this.prisma.maCreativeComponent.findMany({
+      where, include: { productGroup: { select: { name: true } }, sourceAd: { select: { name: true } } },
+      orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
+    });
+    const perf = await this.performanceForComponents(orgId, comps.map((c) => c.id), period);
+    const baseline = productGroupId ? this.profileOf(await this.groupBaseline(orgId, productGroupId, period)) : null;
+    const rows = comps.map((c) => {
+      const p = perf.get(c.id) ?? { agg: aggregate([]), adCount: 0 };
+      return this.serializeComponentRow(c, p.agg, p.adCount, baseline);
+    });
+    const bucket = (t: string) => t === 'hook' || t === 'visual_opening' ? 'hook'
+      : t === 'cta' || t === 'offer_section' ? 'cta'
+      : t === 'proof' || t === 'testimonial' ? 'proof'
+      : ['body', 'problem_section', 'solution_section', 'product_demo'].includes(t) ? 'body' : 'other';
+    const groups: Record<string, any[]> = { hook: [], body: [], proof: [], cta: [], other: [] };
+    for (const r of rows) groups[bucket(r.type)].push(r);
+    return { productGroupId: productGroupId ?? null, period, groups, items: rows };
   }
 
   async getComponent(orgId: string, id: string, range?: PeriodRange, start?: string, end?: string) {
@@ -405,16 +430,18 @@ export class MetaAdsCreativeService {
   }
 
   private serializeComponentRow(c: any, agg: AggregatedMetrics, adCount: number, baseline: SignalProfile | null) {
-    const keyMetric = c.type === 'hook' ? agg.hookRate : c.type === 'body' ? agg.retention50to75 : c.type === 'cta' ? agg.outboundCtr : agg.hookRate;
-    const baseKey = baseline == null ? null : (c.type === 'hook' ? baseline.hookRate : c.type === 'body' ? baseline.retention50to75 : c.type === 'cta' ? baseline.outboundCtr : baseline.hookRate);
+    const keyMetric = keyMetricForType(c.type, agg);
+    const baseKey = baseline == null ? null : keyMetricForType(c.type, baseline as any);
     const keyDelta = keyMetric != null && baseKey != null ? round(keyMetric - baseKey, 1) : null;
+    const conf = confidenceFrom(agg);
+    const signal = classifyComponentSignal({ type: c.type, keyMetricPct: keyMetric, baselinePct: baseKey, confidence: conf.level, adCount, impressions: agg.impressions });
     return {
       ...this.serializeComponent(c),
       productGroupName: c.productGroup?.name ?? null,
       sourceAdName: c.sourceAd?.name ?? null,
       adCount, keyMetric, keyBaseline: baseKey, keyDelta,
-      confidence: confidenceFrom(agg),
-      metrics: { spend: agg.spend, hookRate: agg.hookRate, holdRate: agg.holdRate, retention50to75: agg.retention50to75, outboundCtr: agg.outboundCtr, calculatedRoas: agg.calculatedRoas },
+      confidence: conf, signal,
+      metrics: { spend: agg.spend, impressions: agg.impressions, hookRate: agg.hookRate, holdRate: agg.holdRate, retention50to75: agg.retention50to75, retention75to95: agg.retention75to95, outboundCtr: agg.outboundCtr, uniqueSales: agg.uniqueSales, calculatedRoas: agg.calculatedRoas },
     };
   }
 

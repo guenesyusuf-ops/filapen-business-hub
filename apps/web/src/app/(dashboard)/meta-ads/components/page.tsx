@@ -8,7 +8,18 @@ import { ProductGroupSelect } from '@/components/meta-ads/ProductGroupSelect';
 import { MetaPageHeader, MetaSectionLabel, MetaEmptyState, META_FRAME } from '@/components/meta-ads/MetaUI';
 import { ConfidenceDot } from '@/components/meta-ads/CreativeBits';
 import { fmtPct, fmtInt, fmtEur } from '@/components/meta-ads/format';
-import { useComponents, useComponent, ComponentRow, COMPONENT_TYPE_LABELS } from '@/hooks/meta-ads/useCreative';
+import { useComponents, useComponent, ComponentRow, COMPONENT_TYPE_LABELS, COMPONENT_SIGNAL_LABELS } from '@/hooks/meta-ads/useCreative';
+import { cn as _cn } from '@/lib/utils';
+
+function ComponentSignalBadge({ signal }: { signal?: string }) {
+  if (!signal) return null;
+  const tone = signal === 'strong' ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400'
+    : signal === 'promising' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400'
+    : signal === 'iteration' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
+    : signal === 'weak' ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400'
+    : 'bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-white/50';
+  return <span className={_cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-medium', tone)}>{COMPONENT_SIGNAL_LABELS[signal] ?? signal}</span>;
+}
 
 const TABS: { key: string; label: string; type?: string }[] = [
   { key: 'all', label: 'Alle' }, { key: 'hook', label: 'Hooks', type: 'hook' },
@@ -53,7 +64,7 @@ export default function ComponentsPage() {
               <button key={c.id} onClick={() => setFocus(c.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-accent-meta/[0.04] dark:hover:bg-white/[0.03]">
                 <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:bg-white/10 dark:text-white/50">{c.code}</span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium text-gray-900 dark:text-white">{c.name}</div>
+                  <div className="flex items-center gap-2"><span className="truncate font-medium text-gray-900 dark:text-white">{c.name}</span><ComponentSignalBadge signal={c.signal} /></div>
                   <div className="mt-0.5 truncate text-[11.5px] text-gray-400 dark:text-white/40">
                     {COMPONENT_TYPE_LABELS[c.type]}{c.productGroupName ? ` · ${c.productGroupName}` : ''}{c.sourceAdName ? ` · aus ${c.sourceAdName}` : ''} · In {c.adCount} Ad{c.adCount === 1 ? '' : 's'}
                   </div>

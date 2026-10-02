@@ -37,8 +37,14 @@ export interface ComponentRow {
   productGroupName: string | null; sourceAdName: string | null; sourceAdId: string | null;
   startTimeSeconds: number | null; endTimeSeconds: number | null;
   adCount: number; keyMetric: number | null; keyBaseline: number | null; keyDelta: number | null;
-  confidence: Confidence; metrics: Record<string, number | null>;
+  confidence: Confidence; signal?: ComponentSignal; metrics: Record<string, number | null>;
 }
+
+export type ComponentSignal = 'strong' | 'iteration' | 'weak' | 'promising' | 'insufficient_data';
+export const COMPONENT_SIGNAL_LABELS: Record<string, string> = {
+  strong: 'Strong', iteration: 'Iteration', weak: 'Weak', promising: 'Promising', insufficient_data: 'Zu wenig Daten',
+};
+export interface ComponentIntelligence { productGroupId: string | null; groups: Record<string, ComponentRow[]>; items: ComponentRow[] }
 export interface CreativeLabData {
   sections: { winningCreatives: LabCard[]; winningHooks: ComponentRow[]; winningBodies: ComponentRow[]; strongRetention: LabCard[]; needsIteration: LabCard[]; salvage: LabCard[]; recent: LabCard[] };
   counts: Record<string, number>;
@@ -60,6 +66,9 @@ export function useCreativeLab(params: { productGroupId?: string; format?: strin
 
 export function useComponents(params: { type?: string; productGroupId?: string; search?: string; range?: PeriodRange }) {
   return useQuery({ queryKey: ['meta-ads', 'components', params], queryFn: () => getApi<{ items: ComponentRow[] }>('/components', params as any) });
+}
+export function useComponentIntelligence(params: { productGroupId?: string; range?: PeriodRange }) {
+  return useQuery({ queryKey: ['meta-ads', 'component-intelligence', params], queryFn: () => getApi<ComponentIntelligence>('/components/intelligence', params as any), enabled: !!params.productGroupId });
 }
 export function useComponent(id: string | null, range?: PeriodRange) {
   return useQuery({ queryKey: ['meta-ads', 'component', id, range], queryFn: () => getApi<any>(`/components/${id}`, { range }), enabled: !!id });
