@@ -11,6 +11,7 @@ import { MetaPageHeader, MetaSectionLabel, MetaDivider, MetaEmptyState, META_FRA
 import { useMetaAdsList, useProductAttention } from '@/hooks/meta-ads/useMetaAds';
 import { AttentionBar } from '@/components/meta-ads/AttentionMap';
 import { CreativeLabTabs } from '@/components/meta-ads/CreativeLabTabs';
+import { LongTermReview } from '@/components/meta-ads/LongTermReview';
 import {
   useAnalyze, useAnalyses, useAcceptRecommendation, useCreateRecipeFromAnalysis, Analysis, AiStatement, AiRecommendation, AiAnalysisResult,
   Confidence, CONF_LABELS, isStrategy, CreativeStrategyResult, ProductionRecommendation, AdComparison, AttentionProblem, CombinationBlock,
@@ -26,6 +27,7 @@ function ConfTag({ c }: { c: Confidence }) {
 
 export default function AiInsightsPage() {
   const toast = useToast();
+  const [mode, setMode] = useState<'current' | 'historical'>('current');
   const [scope, setScope] = useState<'product_group' | 'ad'>('product_group');
   const [controls, setControls] = useState<MetaControlsValue>({ range: 'last30' });
   const [adId, setAdId] = useState<string>('');
@@ -55,58 +57,71 @@ export default function AiInsightsPage() {
         description="Was funktioniert, was nicht — und was produzieren wir als Nächstes? Zahlen & Entscheidungen deterministisch aus den Facts, das Modell liefert nur die Erklärung. Keine Kausalität. Hyros ROAS bleibt autoritativ.">
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex gap-1 rounded-[9px] border border-gray-200 bg-white p-0.5 dark:border-white/[0.1] dark:bg-[var(--card-bg)]">
-            {(['product_group', 'ad'] as const).map((s) => (
-              <button key={s} onClick={() => setScope(s)} className={cn('rounded-[7px] px-3 py-1 text-[12.5px] font-medium transition', scope === s ? 'bg-accent-meta/10 text-accent-meta' : 'text-gray-500 hover:text-gray-900 dark:text-white/50 dark:hover:text-white')}>{s === 'product_group' ? 'Produktgruppe' : 'Einzelne Ad'}</button>
+            {([['current', 'Aktuelle Produktanalyse'], ['historical', 'Langzeitbewertung']] as const).map(([m, l]) => (
+              <button key={m} onClick={() => setMode(m)} className={cn('rounded-[7px] px-3 py-1 text-[12.5px] font-medium transition', mode === m ? 'bg-accent-meta/10 text-accent-meta' : 'text-gray-500 hover:text-gray-900 dark:text-white/50 dark:hover:text-white')}>{l}</button>
             ))}
           </div>
-          <MetaControls value={controls} onChange={setControls} />
-          {scope === 'ad' && (
-            <select value={adId} onChange={(e) => setAdId(e.target.value)} className="h-[34px] min-w-0 max-w-[220px] rounded-[9px] border border-gray-200 bg-white px-2.5 text-[13px] text-gray-900 outline-none focus:border-accent-meta dark:border-white/[0.1] dark:bg-[var(--card-bg)] dark:text-white">
-              <option value="">Ad wählen…</option>
-              {(adList.data?.items ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+          {mode === 'current' && (
+            <>
+              <div className="flex gap-1 rounded-[9px] border border-gray-200 bg-white p-0.5 dark:border-white/[0.1] dark:bg-[var(--card-bg)]">
+                {(['product_group', 'ad'] as const).map((s) => (
+                  <button key={s} onClick={() => setScope(s)} className={cn('rounded-[7px] px-3 py-1 text-[12.5px] font-medium transition', scope === s ? 'bg-accent-meta/10 text-accent-meta' : 'text-gray-500 hover:text-gray-900 dark:text-white/50 dark:hover:text-white')}>{s === 'product_group' ? 'Produktgruppe' : 'Einzelne Ad'}</button>
+                ))}
+              </div>
+              <MetaControls value={controls} onChange={setControls} />
+              {scope === 'ad' && (
+                <select value={adId} onChange={(e) => setAdId(e.target.value)} className="h-[34px] min-w-0 max-w-[220px] rounded-[9px] border border-gray-200 bg-white px-2.5 text-[13px] text-gray-900 outline-none focus:border-accent-meta dark:border-white/[0.1] dark:bg-[var(--card-bg)] dark:text-white">
+                  <option value="">Ad wählen…</option>
+                  {(adList.data?.items ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              )}
+              <button onClick={run} disabled={analyze.isPending} className={btnPrimary}>
+                {analyze.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Analyse starten
+              </button>
+            </>
           )}
-          <button onClick={run} disabled={analyze.isPending} className={btnPrimary}>
-            {analyze.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Analyse starten
-          </button>
         </div>
       </MetaPageHeader>
 
       <CreativeLabTabs />
 
-      <div className="rounded-[10px] border border-blue-200 bg-blue-50 px-4 py-2.5 text-[12.5px] text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
-        Empfehlungen werden als <b>Entwurf-Ideen</b> gespeichert (niemals automatisch als Aufgabe oder Produktion). Zahlen stammen ausschließlich aus den deterministischen Facts.
-      </div>
-
-      {scope === 'product_group' && controls.productGroupId && (
-        <AttentionOverview productGroupId={controls.productGroupId} range={controls.range} start={controls.start} end={controls.end} />
-      )}
-
-      {current ? <AnalysisErrorBoundary><AnalysisView analysis={current} /></AnalysisErrorBoundary> : (
-        <div className={META_FRAME}>
-          <MetaEmptyState icon={Brain} title="Noch keine Analyse" description="Wähle Scope & Zeitraum und starte eine KI-Analyse auf Basis der vorhandenen Messwerte." />
-        </div>
-      )}
-
-      <MetaDivider />
-      <section className="flex flex-col gap-3">
-        <MetaSectionLabel>Frühere Analysen</MetaSectionLabel>
-        {history.data?.items?.length ? (
-          <div className={cn(META_FRAME, 'divide-y divide-gray-100 dark:divide-white/[0.05]')}>
-            {history.data.items.map((a) => (
-              <button key={a.id} onClick={() => setCurrent(a)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-accent-meta/[0.04] dark:hover:bg-white/[0.03]">
-                <Brain className="h-4 w-4 shrink-0 text-gray-400" />
-                <span className="min-w-0 flex-1 truncate text-[13px] text-gray-800 dark:text-white/85">
-                  {a.scopeType === 'ad' ? (a.adName ?? 'Ad') : (a.productGroupName ?? 'Alle Produktgruppen')} · {a.rangeLabel}
-                </span>
-                {a.status === 'error' ? <span className="text-[11px] text-red-500">Fehler</span> : a.confidence && <ConfTag c={a.confidence} />}
-                <span className="text-[11px] text-gray-400 dark:text-white/40">{a.createdAt?.slice(0, 10)}</span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
-              </button>
-            ))}
+      {mode === 'historical' ? <LongTermReview /> : (
+        <>
+          <div className="rounded-[10px] border border-blue-200 bg-blue-50 px-4 py-2.5 text-[12.5px] text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
+            Empfehlungen werden als <b>Entwurf-Ideen</b> gespeichert (niemals automatisch als Aufgabe oder Produktion). Zahlen stammen ausschließlich aus den deterministischen Facts.
           </div>
-        ) : <p className="text-[12.5px] text-gray-400 dark:text-white/40">Noch keine Analysen.</p>}
-      </section>
+
+          {scope === 'product_group' && controls.productGroupId && (
+            <AttentionOverview productGroupId={controls.productGroupId} range={controls.range} start={controls.start} end={controls.end} />
+          )}
+
+          {current ? <AnalysisErrorBoundary><AnalysisView analysis={current} /></AnalysisErrorBoundary> : (
+            <div className={META_FRAME}>
+              <MetaEmptyState icon={Brain} title="Noch keine Analyse" description="Wähle Scope & Zeitraum und starte eine KI-Analyse auf Basis der vorhandenen Messwerte." />
+            </div>
+          )}
+
+          <MetaDivider />
+          <section className="flex flex-col gap-3">
+            <MetaSectionLabel>Frühere Analysen</MetaSectionLabel>
+            {history.data?.items?.length ? (
+              <div className={cn(META_FRAME, 'divide-y divide-gray-100 dark:divide-white/[0.05]')}>
+                {history.data.items.map((a) => (
+                  <button key={a.id} onClick={() => setCurrent(a)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-accent-meta/[0.04] dark:hover:bg-white/[0.03]">
+                    <Brain className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-gray-800 dark:text-white/85">
+                      {a.scopeType === 'ad' ? (a.adName ?? 'Ad') : (a.productGroupName ?? 'Alle Produktgruppen')} · {a.rangeLabel}
+                    </span>
+                    {a.status === 'error' ? <span className="text-[11px] text-red-500">Fehler</span> : a.confidence && <ConfTag c={a.confidence} />}
+                    <span className="text-[11px] text-gray-400 dark:text-white/40">{a.createdAt?.slice(0, 10)}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
+                  </button>
+                ))}
+              </div>
+            ) : <p className="text-[12.5px] text-gray-400 dark:text-white/40">Noch keine Analysen.</p>}
+          </section>
+        </>
+      )}
     </div>
   );
 }
