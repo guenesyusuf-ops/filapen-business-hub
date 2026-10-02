@@ -38,12 +38,70 @@ export interface AiAnalysisResult {
   summary: string; observations: AiStatement[]; interpretations: AiStatement[]; hypotheses: AiStatement[];
   recommendations: AiRecommendation[]; overallConfidence: Confidence;
 }
+
+// ---- Increment H/I: Creative Strategy (v2) ----
+export type StrategyActionType =
+  | 'NEW_HOOK_VARIANTS' | 'REPLACE_HOOK' | 'KEEP_HOOK_REPLACE_BODY' | 'REPLACE_BODY' | 'REPLACE_PROOF' | 'REPLACE_CTA'
+  | 'BUILD_COMPONENT_COMBINATION' | 'ITERATE_WINNING_HOOK' | 'ITERATE_WINNING_BODY' | 'TEST_AWARENESS_STAGE'
+  | 'RETEST_LOW_CONFIDENCE' | 'INSUFFICIENT_DATA';
+export interface StratFact {
+  entityType: 'ad' | 'component' | 'product_group'; entityId: string | null; entityLabel: string;
+  metric: string; value: number | null; baseline: number | null; deltaPp: number | null;
+  unit: 'pct' | 'pp' | 'x' | 'eur' | 'count';
+}
+export interface StrategyFinding { title: string; detail: string; confidence: Confidence }
+export interface WinningPattern { pattern: string; detail: string; confidence: Confidence }
+export interface NextTest { title: string; variable: string; detail: string }
+export interface ProductionRecommendation {
+  id: string; actionType: StrategyActionType; actionLabel: string; priority: 'high' | 'medium' | 'low'; title: string;
+  affectedAds: { id: string; name: string }[]; affectedComponents: { code: string; type: string; name: string }[];
+  keepComponents: string[]; changeComponents: string[]; suggestedComponents: string[];
+  testVariable: string | null; variantCount: number | null; facts: StratFact[];
+  dataConfidence: Confidence; recommendationConfidence: Confidence;
+  observation: string; interpretation: string; hypothesis: string; why: string; expectedLearning: string; suggestedTest: string;
+}
+export interface AdComparison {
+  adId: string; name: string; hookRatePct: number | null; hookClass: 'strong' | 'iteration' | 'weak' | null; hookDeltaPp: number | null;
+  retention50to75: number | null; bodyDeltaPp: number | null; bodySignal: 'strong' | 'weak' | 'neutral';
+  biggestDrop: { segment: string; dropPct: number; fromSeconds: number | null; toSeconds: number | null } | null; confidence: Confidence;
+}
+export interface CombinationBlock {
+  componentIds: string[]; label: 'recommended' | 'promising'; confidence: Confidence; reason: string;
+  slots: { bucket: string; code: string; name: string; sourceAdName: string | null; keyMetric: number | null; keyDelta: number | null }[];
+}
+export interface AttentionProblem {
+  adId: string; adName: string; segment: string; dropPct: number; fromSeconds: number | null; toSeconds: number | null;
+  overlapComponent: { code: string; type: string; name: string } | null; recommendation: string;
+}
+export interface CreativeHealth {
+  adsAnalyzed: number; spend: string; uniqueSales: number; confidence: Confidence;
+  baselineHookRatePct: number | null; baselineRetention50to75Pct: number | null;
+}
+export interface CreativeStrategyResult {
+  version: 'v2'; executiveSummary: string; creativeHealth: CreativeHealth; creativeHealthNote: string;
+  adsCompared: AdComparison[]; winningPatterns: WinningPattern[];
+  hookFindings: StrategyFinding[]; bodyFindings: StrategyFinding[]; retentionFindings: StrategyFinding[];
+  attentionFindings: StrategyFinding[]; dropFindings: StrategyFinding[]; componentFindings: StrategyFinding[];
+  salvageOpportunities: StrategyFinding[]; awarenessFindings: StrategyFinding[]; nextTests: NextTest[];
+  productionRecommendations: ProductionRecommendation[]; componentCombination: CombinationBlock | null;
+  attentionProblems: AttentionProblem[]; overallConfidence: Confidence;
+}
+
 export interface Analysis {
   id: string; scopeType: 'ad' | 'product_group'; productGroupId: string | null; productGroupName: string | null;
   adId: string | null; adName: string | null; rangeLabel: string | null; provider: string | null; model: string | null;
   status: 'ok' | 'error'; confidence: Confidence | null; error: string | null;
-  facts: AiAnalysisContext | null; result: AiAnalysisResult | null; createdAt: string | null;
+  facts: AiAnalysisContext | null; result: (AiAnalysisResult & CreativeStrategyResult) | AiAnalysisResult | CreativeStrategyResult | null; createdAt: string | null;
 }
+export function isStrategy(r: Analysis['result']): r is CreativeStrategyResult {
+  return !!r && (r as CreativeStrategyResult).version === 'v2';
+}
+export const ACTION_TYPE_LABELS: Record<StrategyActionType, string> = {
+  NEW_HOOK_VARIANTS: 'Neue Hooks', REPLACE_HOOK: 'Hook ersetzen', KEEP_HOOK_REPLACE_BODY: 'Hook behalten · Body ersetzen',
+  REPLACE_BODY: 'Body ersetzen', REPLACE_PROOF: 'Proof neu testen', REPLACE_CTA: 'CTA ersetzen',
+  BUILD_COMPONENT_COMBINATION: 'Kombination bauen', ITERATE_WINNING_HOOK: 'Winner iterieren', ITERATE_WINNING_BODY: 'Body iterieren',
+  TEST_AWARENESS_STAGE: 'Awareness vertiefen', RETEST_LOW_CONFIDENCE: 'Erneut testen', INSUFFICIENT_DATA: 'Zu wenig Daten',
+};
 
 export function useAnalyses(params: { scopeType?: string; productGroupId?: string; adId?: string }) {
   return useQuery({ queryKey: ['meta-ads', 'ai-analyses', params], queryFn: () => getApi<{ items: Analysis[] }>('/analyses', params as any) });
@@ -58,8 +116,16 @@ export function useAnalyze() {
 export function useAcceptRecommendation(analysisId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (index: number) => sendApi<{ ideaId: string; status: string }>('POST', `/analyses/${analysisId}/accept`, { index }),
+    mutationFn: (ref: number | { recommendationId?: string; index?: number }) =>
+      sendApi<{ ideaId: string; status: string; alreadyExisted?: boolean }>('POST', `/analyses/${analysisId}/accept`, typeof ref === 'number' ? { index: ref } : ref),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['meta-ads', 'ideas'] }),
+  });
+}
+export function useCreateRecipeFromAnalysis(analysisId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => sendApi<{ recipeId: string; alreadyExisted?: boolean }>('POST', `/analyses/${analysisId}/recipe`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meta-ads', 'recipes'] }),
   });
 }
 

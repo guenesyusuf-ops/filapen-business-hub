@@ -37,9 +37,20 @@ export class MetaAdsAiController {
 
   // Empfehlung als Idee (source=ai, status=draft) übernehmen — nie automatisch als Task.
   @Post('analyses/:id/accept')
-  async accept(@Headers('authorization') authHeader: string, @Param('id') id: string, @Body() body: { index?: number }) {
+  async accept(@Headers('authorization') authHeader: string, @Param('id') id: string, @Body() body: { index?: number; recommendationId?: string }) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
     assertCanWrite(role);
-    return this.svc.acceptRecommendation(orgId, userId, id, Number(body?.index ?? 0));
+    return this.svc.acceptRecommendation(orgId, userId, id, {
+      index: body?.index != null ? Number(body.index) : undefined,
+      recommendationId: body?.recommendationId,
+    });
+  }
+
+  // Empfohlene Kombination (Increment E) als Recipe speichern — bestehendes ma_creative_recipe, dedupe.
+  @Post('analyses/:id/recipe')
+  async recipe(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.svc.createRecipeFromAnalysis(orgId, userId, id);
   }
 }

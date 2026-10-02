@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Lightbulb, Plus, X, Sparkles, Wand2, ListChecks, Trash2, ArrowRight, ExternalLink, Search } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,8 @@ export default function IdeasPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [defaults, setDefaults] = useState<IdeaDefaults | undefined>(undefined);
   const [focus, setFocus] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  useEffect(() => { const f = searchParams.get('focus'); if (f) setFocus(f); }, [searchParams]);
 
   const { data, isLoading } = useIdeas({ productGroupId: groupId, status: status || undefined, search: search.trim() || undefined });
   const suggestions = useIdeaSuggestions({ productGroupId: groupId, range: 'last30' });

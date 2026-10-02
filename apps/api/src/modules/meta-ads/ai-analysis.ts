@@ -327,3 +327,249 @@ const CONF_RANK: Record<ConfidenceLevel, number> = { low: 0, medium: 1, high: 2 
 export function clampRecommendationConfidence(ai: ConfidenceLevel, data: ConfidenceLevel): ConfidenceLevel {
   return CONF_RANK[ai] <= CONF_RANK[data] ? ai : data;
 }
+
+// ===========================================================================
+// Increment H/I: Creative Strategy — neues handlungsorientiertes Result-Schema
+// ===========================================================================
+//
+// Architektur: Server leitet DETERMINISTISCH ab (Zahlen, actionType, KEEP/CHANGE,
+// Fact-Refs, Kombination, Attention-Probleme). Das LLM liefert NUR das Narrativ
+// (executiveSummary, Findings-Text, why/observation/…) und wird je Kandidat über
+// den `key` gejoint. LLM-Zahlen werden ignoriert. Prompt-Version steigt auf v2.
+
+import type {
+  StratFact, StrategyActionType, ProductionCandidate, ConfLevel,
+} from './creative-strategy';
+
+export const AI_STRATEGY_PROMPT_VERSION = 'v2';
+
+export interface StrategyFinding { title: string; detail: string; confidence: ConfidenceLevel }
+export interface WinningPattern { pattern: string; detail: string; confidence: ConfidenceLevel }
+export interface NextTest { title: string; variable: string; detail: string }
+export interface StrategyRecNarrative {
+  key: string; title: string;
+  observation: string; interpretation: string; hypothesis: string; why: string;
+  expectedLearning: string; suggestedTest: string;
+  recommendationConfidence: ConfidenceLevel;
+}
+export interface StrategyNarrative {
+  executiveSummary: string;
+  creativeHealthNote: string;
+  winningPatterns: WinningPattern[];
+  hookFindings: StrategyFinding[];
+  bodyFindings: StrategyFinding[];
+  retentionFindings: StrategyFinding[];
+  attentionFindings: StrategyFinding[];
+  dropFindings: StrategyFinding[];
+  componentFindings: StrategyFinding[];
+  salvageOpportunities: StrategyFinding[];
+  awarenessFindings: StrategyFinding[];
+  nextTests: NextTest[];
+  recommendations: StrategyRecNarrative[];
+  overallConfidence: ConfidenceLevel;
+}
+
+/** Finale, gespeicherte & im UI gerenderte Production Recommendation (Kandidat + Narrativ). */
+export interface ProductionRecommendation extends Omit<ProductionCandidate, 'facts' | 'key'> {
+  id: string;
+  actionLabel: string;
+  facts: StratFact[];
+  observation: string; interpretation: string; hypothesis: string; why: string;
+  expectedLearning: string; suggestedTest: string;
+  recommendationConfidence: ConfidenceLevel;
+}
+export interface AdComparison {
+  adId: string; name: string;
+  hookRatePct: number | null; hookClass: 'strong' | 'iteration' | 'weak' | null; hookDeltaPp: number | null;
+  retention50to75: number | null; bodyDeltaPp: number | null; bodySignal: 'strong' | 'weak' | 'neutral';
+  biggestDrop: { segment: string; dropPct: number; fromSeconds: number | null; toSeconds: number | null } | null;
+  confidence: ConfidenceLevel;
+}
+export interface CombinationBlock {
+  componentIds: string[]; label: 'recommended' | 'promising'; confidence: ConfidenceLevel;
+  slots: { bucket: string; code: string; name: string; sourceAdName: string | null; keyMetric: number | null; keyDelta: number | null }[];
+  reason: string;
+}
+export interface AttentionProblem {
+  adId: string; adName: string; segment: string; dropPct: number; fromSeconds: number | null; toSeconds: number | null;
+  overlapComponent: { code: string; type: string; name: string } | null; recommendation: string;
+}
+export interface CreativeHealth {
+  adsAnalyzed: number; spend: string; uniqueSales: number; confidence: ConfidenceLevel;
+  baselineHookRatePct: number | null; baselineRetention50to75Pct: number | null;
+}
+export interface CreativeStrategyResult {
+  version: 'v2';
+  executiveSummary: string;
+  creativeHealth: CreativeHealth;
+  creativeHealthNote: string;
+  adsCompared: AdComparison[];
+  winningPatterns: WinningPattern[];
+  hookFindings: StrategyFinding[];
+  bodyFindings: StrategyFinding[];
+  retentionFindings: StrategyFinding[];
+  attentionFindings: StrategyFinding[];
+  dropFindings: StrategyFinding[];
+  componentFindings: StrategyFinding[];
+  salvageOpportunities: StrategyFinding[];
+  awarenessFindings: StrategyFinding[];
+  nextTests: NextTest[];
+  productionRecommendations: ProductionRecommendation[];
+  componentCombination: CombinationBlock | null;
+  attentionProblems: AttentionProblem[];
+  overallConfidence: ConfidenceLevel;
+}
+
+export const AI_STRATEGY_SYSTEM_PROMPT = [
+  'Du bist ein erfahrener E-Commerce Creative Strategist für Meta Ads (Direct Response).',
+  'Dein Output steuert, WAS als Nächstes produziert wird — nicht eine lange Textanalyse.',
+  '',
+  'HARTE REGELN (nicht verhandelbar):',
+  '1. Die deterministischen Daten sind die EINZIGE Wahrheitsquelle. Erfinde KEINE Zahlen, Prozente, ROAS, Umsätze, Deltas oder IDs. Alle Zahlen stehen bereits in den Daten.',
+  '2. Du bekommst fertige PRODUKTIONS-KANDIDATEN mit festem `key`, actionType, KEEP/CHANGE und Facts. Du darfst NUR das Narrativ liefern (observation, interpretation, hypothesis, why, expectedLearning, suggestedTest) und je Kandidat über denselben `key` antworten. Ändere NIEMALS actionType, Zahlen oder KEEP/CHANGE. Erfinde KEINE neuen keys.',
+  '3. Empfehle NIEMALS etwas, das das System selbst tut: nicht "Ads getrennt auswerten", "Hook Rates vergleichen", "Retention prüfen". Jede Aussage ist eine CREATIVE-Aktion (Hook ersetzen, Body behalten, Proof testen, Kombination bauen, Varianten produzieren, Stage vertiefen).',
+  '4. KEINE Kausalität aus Korrelation. Formuliere als Assoziation ("Ads mit X zeigen Y", nicht "X verursacht Y").',
+  '5. Wende die Hook-Regeln an: Strong >= 30 %, Iteration 20–30 %, darunter Weak — IMMER kombiniert mit dem Abstand zur Produkt-Baseline (z. B. "+8pp über Baseline, aber unter dem 30 %-Ziel").',
+  '6. Ist die Datenlage gering, formuliere vorsichtig und setze niedrige Confidence. Erfinde bei dünner Datenlage KEINE aggressive Empfehlung.',
+  '7. Winning Patterns NUR, wenn mehrere Ads ein belastbares Muster zeigen — sonst leer lassen.',
+  '8. Antworte NUR mit gültigem JSON nach Schema. Kein Text davor/danach, keine Code-Fences.',
+].join('\n');
+
+const FINDING_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['title', 'detail', 'confidence'],
+  properties: { title: { type: 'string' }, detail: { type: 'string' }, confidence: { type: 'string', enum: ['low', 'medium', 'high'] } },
+};
+const PATTERN_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['pattern', 'detail', 'confidence'],
+  properties: { pattern: { type: 'string' }, detail: { type: 'string' }, confidence: { type: 'string', enum: ['low', 'medium', 'high'] } },
+};
+const NEXT_TEST_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['title', 'variable', 'detail'],
+  properties: { title: { type: 'string' }, variable: { type: 'string' }, detail: { type: 'string' } },
+};
+const REC_NARRATIVE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['key', 'title', 'observation', 'interpretation', 'hypothesis', 'why', 'expectedLearning', 'suggestedTest', 'recommendationConfidence'],
+  properties: {
+    key: { type: 'string' }, title: { type: 'string' },
+    observation: { type: 'string' }, interpretation: { type: 'string' }, hypothesis: { type: 'string' },
+    why: { type: 'string' }, expectedLearning: { type: 'string' }, suggestedTest: { type: 'string' },
+    recommendationConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+  },
+};
+
+/** Strict JSON Schema (Responses API) für das Strategie-Narrativ. Nur Text-Ebenen — Zahlen liefert der Server. */
+export const CREATIVE_STRATEGY_SCHEMA = {
+  name: 'creative_strategy',
+  strict: true,
+  schema: {
+    type: 'object', additionalProperties: false,
+    required: [
+      'executiveSummary', 'creativeHealthNote', 'winningPatterns',
+      'hookFindings', 'bodyFindings', 'retentionFindings', 'attentionFindings', 'dropFindings',
+      'componentFindings', 'salvageOpportunities', 'awarenessFindings', 'nextTests', 'recommendations', 'overallConfidence',
+    ],
+    properties: {
+      executiveSummary: { type: 'string' },
+      creativeHealthNote: { type: 'string' },
+      winningPatterns: { type: 'array', items: PATTERN_SCHEMA },
+      hookFindings: { type: 'array', items: FINDING_SCHEMA },
+      bodyFindings: { type: 'array', items: FINDING_SCHEMA },
+      retentionFindings: { type: 'array', items: FINDING_SCHEMA },
+      attentionFindings: { type: 'array', items: FINDING_SCHEMA },
+      dropFindings: { type: 'array', items: FINDING_SCHEMA },
+      componentFindings: { type: 'array', items: FINDING_SCHEMA },
+      salvageOpportunities: { type: 'array', items: FINDING_SCHEMA },
+      awarenessFindings: { type: 'array', items: FINDING_SCHEMA },
+      nextTests: { type: 'array', items: NEXT_TEST_SCHEMA },
+      recommendations: { type: 'array', items: REC_NARRATIVE_SCHEMA },
+      overallConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+    },
+  },
+} as const;
+
+function findings(arr: any): StrategyFinding[] {
+  if (!Array.isArray(arr)) return [];
+  return arr.map((f) => ({ title: String(f?.title ?? '').trim(), detail: String(f?.detail ?? '').trim(), confidence: clampConfidence(f?.confidence) }))
+    .filter((f) => f.title || f.detail);
+}
+
+export function parseStrategyNarrative(text: string): StrategyNarrative {
+  const raw = JSON.parse(extractJson(text));
+  return {
+    executiveSummary: String(raw.executiveSummary ?? '').trim(),
+    creativeHealthNote: String(raw.creativeHealthNote ?? '').trim(),
+    winningPatterns: Array.isArray(raw.winningPatterns)
+      ? raw.winningPatterns.map((p: any) => ({ pattern: String(p?.pattern ?? '').trim(), detail: String(p?.detail ?? '').trim(), confidence: clampConfidence(p?.confidence) })).filter((p: WinningPattern) => p.pattern)
+      : [],
+    hookFindings: findings(raw.hookFindings),
+    bodyFindings: findings(raw.bodyFindings),
+    retentionFindings: findings(raw.retentionFindings),
+    attentionFindings: findings(raw.attentionFindings),
+    dropFindings: findings(raw.dropFindings),
+    componentFindings: findings(raw.componentFindings),
+    salvageOpportunities: findings(raw.salvageOpportunities),
+    awarenessFindings: findings(raw.awarenessFindings),
+    nextTests: Array.isArray(raw.nextTests)
+      ? raw.nextTests.map((t: any) => ({ title: String(t?.title ?? '').trim(), variable: String(t?.variable ?? '').trim(), detail: String(t?.detail ?? '').trim() })).filter((t: NextTest) => t.title)
+      : [],
+    recommendations: Array.isArray(raw.recommendations)
+      ? raw.recommendations.map((r: any) => ({
+          key: String(r?.key ?? '').trim(), title: String(r?.title ?? '').trim(),
+          observation: String(r?.observation ?? '').trim(), interpretation: String(r?.interpretation ?? '').trim(),
+          hypothesis: String(r?.hypothesis ?? '').trim(), why: String(r?.why ?? '').trim(),
+          expectedLearning: String(r?.expectedLearning ?? '').trim(), suggestedTest: String(r?.suggestedTest ?? '').trim(),
+          recommendationConfidence: clampConfidence(r?.recommendationConfidence),
+        })).filter((r: StrategyRecNarrative) => r.key)
+      : [],
+    overallConfidence: clampConfidence(raw.overallConfidence),
+  };
+}
+
+export function assertValidNarrative(n: StrategyNarrative): void {
+  if (!n.executiveSummary) throw new Error('Unvollständige KI-Antwort — executiveSummary fehlt');
+  if (!(['low', 'medium', 'high'] as string[]).includes(n.overallConfidence)) throw new Error('Unvollständige KI-Antwort — gültige Confidence fehlt');
+}
+
+/** Baut den Strategen-User-Prompt aus dem deterministischen Kontext + den fertigen Kandidaten. */
+export function buildStrategyUserPrompt(args: {
+  productGroupName: string | null; periodLabel: string; confidence: ConfidenceLevel; confidenceReasons: string[]; dataVolumeLow: boolean;
+  health: CreativeHealth; adsCompared: AdComparison[];
+  strongHooks: { code: string; name: string; metricPct: number | null; deltaPp: number | null; sourceAdName: string | null }[];
+  strongBodies: { code: string; name: string; metricPct: number | null; deltaPp: number | null; sourceAdName: string | null }[];
+  combination: CombinationBlock | null;
+  attentionProblems: AttentionProblem[];
+  candidates: ProductionCandidate[];
+  hookTargets: { strongPct: number; iterationPct: number };
+}): string {
+  const L: string[] = [];
+  L.push(`Produktgruppe: ${args.productGroupName ?? '—'}`);
+  L.push(`Zeitraum: ${args.periodLabel}`);
+  L.push(`Confidence (deterministisch): ${args.confidence} — ${args.confidenceReasons.join('; ') || '—'}`);
+  if (args.dataVolumeLow) L.push('ACHTUNG: geringe Datenmenge — vorsichtig formulieren, niedrige Confidence, keine aggressive Produktion.');
+  L.push('');
+  L.push(`CREATIVE HEALTH: ${args.health.adsAnalyzed} Ads · Spend ${args.health.spend} · ${args.health.uniqueSales} Unique Sales · Baseline Hook ${args.health.baselineHookRatePct ?? '—'} % · Baseline 50→75 ${args.health.baselineRetention50to75Pct ?? '—'} %`);
+  L.push(`HOOK-REGELN: Strong >= ${args.hookTargets.strongPct} %, Iteration ${args.hookTargets.iterationPct}–${args.hookTargets.strongPct} %, darunter Weak. Immer zusätzlich Abstand zur Produkt-Baseline nennen.`);
+  L.push('');
+  L.push('ADS IM VERGLEICH (deterministisch, alle derselben Produktgruppe):');
+  L.push(args.adsCompared.map((a) => `- ${a.name}: Hook ${a.hookRatePct ?? '—'}%${a.hookClass ? ` [${a.hookClass}]` : ''}${a.hookDeltaPp != null ? ` (${a.hookDeltaPp > 0 ? '+' : ''}${a.hookDeltaPp}pp vs Baseline)` : ''} · 50→75 ${a.retention50to75 ?? '—'}%${a.bodyDeltaPp != null ? ` (${a.bodyDeltaPp > 0 ? '+' : ''}${a.bodyDeltaPp}pp) [${a.bodySignal}]` : ''}${a.biggestDrop ? ` · größter Drop ${a.biggestDrop.segment} -${a.biggestDrop.dropPct}%${a.biggestDrop.fromSeconds != null ? ` (ca. ${a.biggestDrop.fromSeconds}-${a.biggestDrop.toSeconds}s)` : ''}` : ''} · Confidence ${a.confidence}`).join('\n') || '- (keine)');
+  if (args.strongHooks.length) { L.push(''); L.push('STARKE HOOKS (Bausteine):'); L.push(args.strongHooks.map((c) => `- ${c.code} ${c.name}${c.metricPct != null ? ` · ${c.metricPct}%` : ''}${c.deltaPp != null ? ` (${c.deltaPp > 0 ? '+' : ''}${c.deltaPp}pp)` : ''}${c.sourceAdName ? ` · aus ${c.sourceAdName}` : ''}`).join('\n')); }
+  if (args.strongBodies.length) { L.push(''); L.push('STARKE BODIES (Bausteine):'); L.push(args.strongBodies.map((c) => `- ${c.code} ${c.name}${c.metricPct != null ? ` · ${c.metricPct}%` : ''}${c.deltaPp != null ? ` (${c.deltaPp > 0 ? '+' : ''}${c.deltaPp}pp)` : ''}${c.sourceAdName ? ` · aus ${c.sourceAdName}` : ''}`).join('\n')); }
+  if (args.combination) { L.push(''); L.push(`EMPFOHLENE KOMBINATION (${args.combination.label}): ${args.combination.slots.map((s) => `${s.bucket}=${s.code}${s.sourceAdName ? `(${s.sourceAdName})` : ''}`).join(' + ')}`); }
+  if (args.attentionProblems.length) { L.push(''); L.push('ATTENTION-PROBLEME (interpoliert aus Checkpoints):'); L.push(args.attentionProblems.map((p) => `- ${p.adName}: Drop ${p.segment} -${p.dropPct}%${p.fromSeconds != null ? ` (ca. ${p.fromSeconds}-${p.toSeconds}s)` : ''}${p.overlapComponent ? ` · Overlap ${p.overlapComponent.code} (${p.overlapComponent.type})` : ''}`).join('\n')); }
+  L.push('');
+  L.push('PRODUKTIONS-KANDIDATEN (DETERMINISTISCH — du lieferst NUR Narrativ je `key`, ändere NICHTS an Zahlen/actionType/KEEP/CHANGE):');
+  L.push(args.candidates.map((c) => {
+    const keep = c.keepComponents.length ? ` KEEP[${c.keepComponents.join(', ')}]` : '';
+    const change = c.changeComponents.length ? ` CHANGE[${c.changeComponents.join(', ')}]` : '';
+    const sug = c.suggestedComponents.length ? ` USE[${c.suggestedComponents.join(', ')}]` : '';
+    const facts = c.facts.map((f) => `${f.metric}=${f.value ?? '—'}${f.baseline != null ? `/base ${f.baseline}` : ''}${f.deltaPp != null ? `/Δ${f.deltaPp}pp` : ''}`).join(', ');
+    return `- key=${c.key} · ${c.actionType} · ${c.title}${keep}${change}${sug}${c.variantCount != null ? ` · ${c.variantCount} Varianten` : ''} · facts{${facts}} · dataConfidence ${c.dataConfidence}`;
+  }).join('\n') || '- (keine belastbaren Kandidaten — gib keine Produktions-Empfehlung aus)');
+  L.push('');
+  L.push('Liefere jetzt das JSON-Narrativ nach Schema. Für JEDEN Kandidaten-`key` einen recommendations-Eintrag. Zahlen ausschließlich aus den obigen Daten.');
+  return L.join('\n');
+}
