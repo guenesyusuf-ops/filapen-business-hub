@@ -208,12 +208,14 @@ export class MetaAdsCreativeService {
     const agg = await this.ads.aggregateForAdIds(orgId, [adId], period);
     const drop = biggestDrop(agg, ad.videoLengthSeconds);
     const links = await this.prisma.maAdComponent.findMany({ where: { adId, orgId }, include: { component: true }, orderBy: { position: 'asc' } });
+    const perf = await this.performanceForComponents(orgId, links.map((l) => l.componentId), period);
     return {
       biggestDrop: drop,
       items: links.map((l) => {
         const c = l.component;
+        const p = perf.get(c.id) ?? { agg: aggregate([]), adCount: 0 };
         const overlap = drop ? dropComponentOverlap(drop.fromSeconds, drop.toSeconds, c.startTimeSeconds, c.endTimeSeconds) : null;
-        return { ...this.serializeComponent(c), role: l.role, overlap };
+        return { ...this.serializeComponent(c), role: l.role, overlap, confidence: confidenceFrom(p.agg), adCount: p.adCount };
       }),
     };
   }

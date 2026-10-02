@@ -23,10 +23,11 @@ export function SignalBadge({ type }: { type: string | null }) {
   return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium', tone)}>{OPPORTUNITY_LABELS[type] ?? type}</span>;
 }
 
-export function ConfidenceDot({ c }: { c: Confidence }) {
+export function ConfidenceDot({ c }: { c?: Confidence | null }) {
+  if (!c || !c.level) return null; // defensiv: nie an fehlender Confidence crashen
   const tone = c.level === 'high' ? 'text-green-600 dark:text-green-400' : c.level === 'medium' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400 dark:text-white/40';
   const label = c.level === 'high' ? 'Hohe' : c.level === 'medium' ? 'Mittlere' : 'Geringe';
-  return <span className={cn('inline-flex items-center gap-1 text-[11px] font-medium', tone)} title={c.reasons.join(' · ')}>● {label} Aussagekraft</span>;
+  return <span className={cn('inline-flex items-center gap-1 text-[11px] font-medium', tone)} title={(c.reasons ?? []).join(' · ')}>● {label} Aussagekraft</span>;
 }
 
 /** Build Combination — Component-Picker → Recipe speichern. */
