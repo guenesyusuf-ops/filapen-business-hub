@@ -401,6 +401,7 @@ model Organization {
   maIdeas                  MaIdea[]
   maIdeaComponents         MaIdeaComponent[]
   maTaskLinks              MaTaskLink[]
+  maAiAnalyses             MaAiAnalysis[]
 
   @@map("organizations")
 }
@@ -4768,6 +4769,7 @@ model MaAd {
   adComponents     MaAdComponent[]
   sourceComponents MaCreativeComponent[] @relation("MaComponentSource")
   ideaIterations   MaIdea[]              @relation("MaIdeaBasedOnAd")
+  aiAnalyses       MaAiAnalysis[]
 
   @@unique([orgId, metaAdId], map: "uq_ma_ad_org_meta_id")
   @@index([orgId], map: "idx_ma_ad_org")
@@ -4893,6 +4895,7 @@ model MaProductGroup {
   components   MaCreativeComponent[]
   recipes      MaCreativeRecipe[]
   ideas        MaIdea[]
+  aiAnalyses   MaAiAnalysis[]
 
   @@unique([orgId, name], map: "uq_ma_product_group_org_name")
   @@index([orgId], map: "idx_ma_product_group_org")
@@ -5144,4 +5147,42 @@ model MaTaskLink {
   @@index([ideaId], map: "idx_ma_task_link_idea")
   @@index([recipeId], map: "idx_ma_task_link_recipe")
   @@map("ma_task_link")
+}
+
+// ===========================================================================
+// META ADS — AI Creative Intelligence & Recommendations (Phase 6)
+// LLM analysiert NUR den deterministischen Facts-Snapshot (keine erfundenen
+// Messwerte). Persistiert Facts + Ergebnis als Audit-Trail. Empfehlungen werden
+// bei Annahme als ma_idea (source=ai, status=draft) geschrieben — nie automatisch
+// als Task/Produktion. Hyros ROAS bleibt autoritativ.
+// ===========================================================================
+
+model MaAiAnalysis {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String   @map("org_id") @db.Uuid
+  scopeType      String   @map("scope_type") @db.VarChar(20)
+  productGroupId String?  @map("product_group_id") @db.Uuid
+  adId           String?  @map("ad_id") @db.Uuid
+  periodFrom     DateTime? @map("period_from") @db.Date
+  periodTo       DateTime? @map("period_to") @db.Date
+  rangeLabel     String?  @map("range_label") @db.VarChar(40)
+  provider       String?  @db.VarChar(20)
+  model          String?  @db.VarChar(60)
+  status         String   @default("ok") @db.VarChar(20)
+  confidence     String?  @db.VarChar(10)
+  facts          Json     @db.JsonB
+  result         Json?    @db.JsonB
+  error          String?  @db.Text
+  createdById    String?  @map("created_by_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  productGroup MaProductGroup? @relation(fields: [productGroupId], references: [id], onDelete: SetNull)
+  ad           MaAd?           @relation(fields: [adId], references: [id], onDelete: SetNull)
+
+  @@index([orgId], map: "idx_ma_ai_analysis_org")
+  @@index([orgId, scopeType], map: "idx_ma_ai_analysis_org_scope")
+  @@index([productGroupId], map: "idx_ma_ai_analysis_group")
+  @@index([adId], map: "idx_ma_ai_analysis_ad")
+  @@map("ma_ai_analysis")
 }
