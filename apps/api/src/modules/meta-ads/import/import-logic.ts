@@ -48,8 +48,10 @@ export function parseRow(type: ImportType, raw: Record<string, string | undefine
     }
     // numerische Felder (int/decimal/rate)
     if (isBlank(cell)) continue; // leer = nicht geliefert → bestehende Daten nicht anfassen
-    const n = parseImportNumber(cell);
+    let n = parseImportNumber(cell);
     if (n === null) { out.errors.push(`${f.label} nicht lesbar: "${cell}"`); continue; }
+    // Hook/Hold Rate: manche Exporte liefern einen Bruch (0.21 statt 21). Immer auf Prozent normalisieren.
+    if ((f.key === 'hookRate' || f.key === 'holdRate') && n > 0 && n <= 1) n = Math.round(n * 10000) / 100;
     const rangeErr = checkRange(f, n);
     if (rangeErr) { out.errors.push(rangeErr); continue; }
     out.values[f.key] = f.kind === 'int' ? Math.round(n) : n;

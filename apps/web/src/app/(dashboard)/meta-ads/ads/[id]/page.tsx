@@ -195,7 +195,7 @@ function RetentionAnalytics({ adId, range }: { adId: string; range: PeriodRange 
 
       {biggestDrop && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-          Größter Retention-Verlust: <b>{biggestDrop.segment}</b> (−{fmtNum(biggestDrop.dropPct, 1)} %){biggestDrop.fromSeconds != null ? <> — ca. Sekunde {biggestDrop.fromSeconds}–{biggestDrop.toSeconds}.</> : null}
+          Größter Retention-Verlust: <b>{biggestDrop.segment}</b> (−{fmtNum(biggestDrop.dropPct, 0)} %){biggestDrop.fromSeconds != null ? <> — ca. Sekunde {biggestDrop.fromSeconds}–{biggestDrop.toSeconds}.</> : null}
         </p>
       )}
 

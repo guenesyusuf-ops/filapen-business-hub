@@ -177,3 +177,21 @@ describe('normalizeHeader — Toleranz %, Währung, Schreibvarianten', () => {
     expect(detectMapping(['3-SEKÜNDIGE VIDEOWIEDERGABEN'], 'meta').mapping.videoViews3s).toBe('3-SEKÜNDIGE VIDEOWIEDERGABEN');
   });
 });
+
+describe('parseRow — Hook/Hold als Prozent (Bruch-Normalisierung)', () => {
+  it('Hook/Hold als Bruch (0.21) werden auf Prozent normalisiert', () => {
+    const r = parseRow('meta', { date: '2026-09-30', hookRate: '0.2117', holdRate: '0.2' });
+    expect(r.values.hookRate).toBe(21.17);
+    expect(r.values.holdRate).toBe(20);
+  });
+  it('Hook/Hold bereits als Prozent (21) bleiben unverändert', () => {
+    const r = parseRow('meta', { date: '2026-09-30', hookRate: '21', holdRate: '19.6' });
+    expect(r.values.hookRate).toBe(21);
+    expect(r.values.holdRate).toBe(19.6);
+  });
+  it('CTR/Ausgehende CTR werden NICHT normalisiert (echte kleine Prozente < 1)', () => {
+    const r = parseRow('meta', { date: '2026-09-30', ctrAll: '1.67', outboundCtr: '0.8' });
+    expect(r.values.ctrAll).toBe(1.67);
+    expect(r.values.outboundCtr).toBe(0.8); // bleibt 0,8 % — nicht 80 %
+  });
+});

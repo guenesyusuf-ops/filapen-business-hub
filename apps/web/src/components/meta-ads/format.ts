@@ -12,7 +12,7 @@ export function fmtEur(n: number | null | undefined): string {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
-export function fmtPct(n: number | null | undefined, decimals = 1): string {
+export function fmtPct(n: number | null | undefined, decimals = 0): string {
   if (n == null || !Number.isFinite(n)) return DASH;
   return `${new Intl.NumberFormat('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: decimals }).format(n)} %`;
 }

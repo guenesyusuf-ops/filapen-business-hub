@@ -8,6 +8,12 @@ import {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Hook/Hold Rate immer als Prozent speichern: Bruch-Eingaben (0 < x <= 1) auf Prozent skalieren. */
+function rateToPercent(v: number | null | undefined): number | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return v > 0 && v <= 1 ? Math.round(v * 10000) / 100 : v;
+}
+
 export type PeriodRange =
   | 'today' | 'yesterday' | 'last3' | 'last7' | 'last14' | 'last30' | 'lifetime' | 'custom';
 
@@ -272,8 +278,9 @@ export class MetaAdsService {
       date,
       spend: dto.spend ?? null,
       impressions: dto.impressions ?? null,
-      hookRate: dto.hookRate ?? null,
-      holdRate: dto.holdRate ?? null,
+      // Hook/Hold als Prozent speichern; Bruch-Eingaben (0.21) auf 21 normalisieren.
+      hookRate: rateToPercent(dto.hookRate),
+      holdRate: rateToPercent(dto.holdRate),
       videoViews3s: dto.videoViews3s ?? null,
       videoViews25: dto.videoViews25 ?? null,
       videoViews50: dto.videoViews50 ?? null,

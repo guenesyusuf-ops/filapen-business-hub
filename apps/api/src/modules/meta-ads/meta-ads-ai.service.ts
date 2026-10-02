@@ -484,7 +484,7 @@ export class MetaAdsAiService {
 
 interface Scope { productGroupId: string | null; adId: string | null; periodFrom: string | null; periodTo: string | null }
 
-function pct(v: number | null | undefined): string { return v == null ? '—' : `${round(v, 1)}%`; }
+function pct(v: number | null | undefined): string { return v == null ? '—' : `${Math.round(v)}%`; }
 function eur(v: number): string { return `${(v ?? 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`; }
 function int(v: number): string { return (v ?? 0).toLocaleString('de-DE'); }
 function confidenceOf(a: AggregatedMetrics): { level: 'low' | 'medium' | 'high'; reasons: string[] } {
