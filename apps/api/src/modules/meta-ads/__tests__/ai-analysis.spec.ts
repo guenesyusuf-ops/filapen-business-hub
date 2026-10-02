@@ -196,3 +196,28 @@ describe('CREATIVE_ANALYSIS_SCHEMA (strict Structured Outputs)', () => {
     expect(AI_PROMPT_VERSION).toBe('v1');
   });
 });
+
+describe('Increment B — Product-Level Fact Model im Prompt', () => {
+  const ctxB: AiAnalysisContext = {
+    scopeType: 'product_group', productGroupName: 'Produkt A', adName: null, periodLabel: 'Letzte 30 Tage',
+    confidenceLevel: 'high', confidenceReasons: ['12 Ads'],
+    facts: [{ label: 'Produkt-Baseline Hook Rate', value: '23.8%' }], baselines: [], signals: [], components: [],
+    hookTargets: { strongPct: 30, iterationPct: 20 },
+    ads: [
+      { name: 'AD-04', hookRatePct: 34.8, hookClass: 'strong', hookDeltaPp: 11, holdRatePct: 12, retention50to75: 55, outboundCtr: 1.8, spend: 480, uniqueSales: 24, calculatedRoas: 3.2, biggestDrop: '50→75% (-20%), Sek 10-16', confidence: 'high' },
+      { name: 'AD-07', hookRatePct: 21.4, hookClass: 'iteration', hookDeltaPp: -2.4, holdRatePct: 10, retention50to75: 62, outboundCtr: 1.5, spend: 300, uniqueSales: 11, calculatedRoas: 2.1, biggestDrop: null, confidence: 'medium' },
+    ],
+    dataVolumeLow: false,
+  };
+  const user = buildAnalysisUserPrompt(ctxB);
+  it('rendert interne Hook-Regeln', () => {
+    expect(user).toMatch(/Strong Hook >= 30 %/);
+    expect(user).toMatch(/Iteration Zone 20–30 %/);
+  });
+  it('rendert Ads einzeln mit Klasse + Delta vs Produkt-Baseline', () => {
+    expect(user).toContain('ADS IM PRODUKT');
+    expect(user).toContain('AD-04: Hook 34.8% [strong] (+11pp vs Produkt-Baseline)');
+    expect(user).toContain('AD-07: Hook 21.4% [iteration] (-2.4pp vs Produkt-Baseline)');
+    expect(user).toContain('größter Drop 50→75% (-20%), Sek 10-16');
+  });
+});

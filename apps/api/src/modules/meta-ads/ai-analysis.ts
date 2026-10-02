@@ -15,6 +15,22 @@ export interface AiContextComponent { code: string; type: string; name: string; 
 export interface AiRetentionStep { segment: string; retentionPct: number; dropPct: number }
 export interface AiSignal { opportunityType: string; label: string; detail: string }
 
+/** Eine Ad im Produkt-Level-Vergleich (deterministisch, alle Ads derselben Product Group). */
+export interface AiAdRow {
+  name: string;
+  hookRatePct: number | null;
+  hookClass: 'strong' | 'iteration' | 'weak' | null;
+  hookDeltaPp: number | null; // vs. Produkt-Baseline (Gruppen-Hook)
+  holdRatePct: number | null;
+  retention50to75: number | null;
+  outboundCtr: number | null;
+  spend: number | null;
+  uniqueSales: number | null;
+  calculatedRoas: number | null;
+  biggestDrop: string | null;
+  confidence: ConfidenceLevel;
+}
+
 export interface AiAnalysisContext {
   scopeType: 'ad' | 'product_group';
   productGroupName?: string | null;
@@ -28,6 +44,10 @@ export interface AiAnalysisContext {
   biggestDrop?: { segment: string; fromSeconds?: number | null; toSeconds?: number | null; dropPct: number } | null;
   signals: AiSignal[];
   components: AiContextComponent[];
+  /** Produkt-Level: alle Ads der Gruppe einzeln zum Vergleich (Hauptmodus). */
+  ads?: AiAdRow[];
+  /** Interne Hook-Schwellen (Prozent) für absolute Regeln im Prompt. */
+  hookTargets?: { strongPct: number; iterationPct: number };
   dataVolumeLow: boolean;
 }
 
@@ -64,7 +84,9 @@ export const AI_SYSTEM_PROMPT = [
   '4. Hyros ROAS ist der autoritative ROAS. Der berechnete ROAS ist nur ein Vergleichswert und nie gleichwertig zu nennen.',
   '5. Ist die Datenmenge gering oder die Confidence niedrig, formuliere ausdrücklich vorsichtig und setze confidence auf "low".',
   '6. Beziehe dich nur auf die gegebenen Ads, Components und Signale. Erfinde keine weiteren.',
-  '7. Antworte NUR mit gültigem JSON nach dem vorgegebenen Schema. Kein Text davor oder danach, keine Markdown-Code-Fences.',
+  '7. Du analysierst eine EINZELNE Produktgruppe. Vergleiche — wenn mehrere Ads vorliegen — die Ads UNTEREINANDER (nie produktübergreifend): Welche Ad hat den stärksten Hook, welche die beste Mid-Retention, welche hält bis zum Ende? Leite daraus produktspezifische Learnings ab.',
+  '8. Wende die internen Hook-Regeln an: Strong Hook >= 30 %, Iteration Zone 20–30 %, darunter Weak Hook — IMMER kombiniert mit dem Abstand zur Produkt-Baseline (z. B. "+7pp über Baseline, aber noch unter dem 30 %-Strong-Ziel"). Verhalte dich wie ein E-Commerce Creative Strategist, nicht wie ein Zahlen-Nacherzähler.',
+  '9. Antworte NUR mit gültigem JSON nach dem vorgegebenen Schema. Kein Text davor oder danach, keine Markdown-Code-Fences.',
   '',
   'JSON-Schema:',
   '{',
@@ -114,6 +136,28 @@ export function buildAnalysisUserPrompt(ctx: AiAnalysisContext): string {
     lines.push('');
     lines.push('VERFÜGBARE COMPONENTS (Bausteine, Performance ist Assoziation über verwendende Ads):');
     lines.push(ctx.components.map((c) => `- [${c.type}] ${c.code} ${c.name}${c.keyMetric ? ` · ${c.keyMetric}${c.keyDelta ? ` (${c.keyDelta})` : ''}` : ''}`).join('\n'));
+  }
+  if (ctx.hookTargets) {
+    lines.push('');
+    lines.push(`INTERNE HOOK-REGELN (absolut, Prozent): Strong Hook >= ${ctx.hookTargets.strongPct} %, Iteration Zone ${ctx.hookTargets.iterationPct}–${ctx.hookTargets.strongPct} %, darunter Weak Hook. Bewerte IMMER beides: absolute Regel UND Abstand zur Produkt-Baseline (z. B. "über Baseline, aber unter 30 %-Ziel").`);
+  }
+  if (ctx.ads && ctx.ads.length) {
+    lines.push('');
+    lines.push('ADS IM PRODUKT (einzeln, zum direkten Vergleich — alle derselben Produktgruppe):');
+    lines.push(ctx.ads.map((a) => {
+      const parts = [
+        `Hook ${a.hookRatePct != null ? a.hookRatePct + '%' : '—'}${a.hookClass ? ` [${a.hookClass}]` : ''}${a.hookDeltaPp != null ? ` (${a.hookDeltaPp > 0 ? '+' : ''}${a.hookDeltaPp}pp vs Produkt-Baseline)` : ''}`,
+        `Hold ${a.holdRatePct != null ? a.holdRatePct + '%' : '—'}`,
+        `50→75 ${a.retention50to75 != null ? a.retention50to75 + '%' : '—'}`,
+        `Ausg.CTR ${a.outboundCtr != null ? a.outboundCtr + '%' : '—'}`,
+        `Spend ${a.spend != null ? a.spend.toFixed(2) + '€' : '—'}`,
+        `Unique ${a.uniqueSales ?? '—'}`,
+        `ber.ROAS ${a.calculatedRoas != null ? a.calculatedRoas + '×' : '—'}`,
+        `Confidence ${a.confidence}`,
+      ];
+      if (a.biggestDrop) parts.push(`größter Drop ${a.biggestDrop}`);
+      return `- ${a.name}: ${parts.join(' · ')}`;
+    }).join('\n'));
   }
   lines.push('');
   lines.push('Liefere jetzt die strukturierte Analyse als JSON nach Schema. Nutze ausschließlich die obigen Facts für alle Zahlen.');

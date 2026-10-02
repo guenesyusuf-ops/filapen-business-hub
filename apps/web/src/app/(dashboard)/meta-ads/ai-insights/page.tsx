@@ -31,6 +31,7 @@ export default function AiInsightsPage() {
 
   const run = async () => {
     if (scope === 'ad' && !adId) { toast.error('Bitte eine Ad wählen'); return; }
+    if (scope === 'product_group' && !controls.productGroupId) { toast.error('Bitte eine Produktgruppe wählen — die Analyse läuft pro Produkt, nicht produktübergreifend.'); return; }
     try {
       const res = await analyze.mutateAsync({
         scopeType: scope, productGroupId: controls.productGroupId, adId: scope === 'ad' ? adId : undefined,

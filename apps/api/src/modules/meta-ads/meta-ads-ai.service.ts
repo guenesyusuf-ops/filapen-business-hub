@@ -4,13 +4,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MetaAdsService, PeriodRange } from './meta-ads.service';
 import { MetaAdsCreativeService } from './meta-ads-creative.service';
 import { MetaAdsIdeasService } from './meta-ads-ideas.service';
-import { AggregatedMetrics, round } from './meta-ads-calc';
+import { AggregatedMetrics, round, biggestDrop } from './meta-ads-calc';
 import { classifyAdSignals, SignalProfile } from './creative-signals';
 import {
   AiAnalysisContext, AiFact, AiAnalysisResult, ConfidenceLevel, buildAnalysisMessages, parseAnalysisResult, assertValidResult,
   resolveMetaAiConfig, MetaAiConfig, CREATIVE_ANALYSIS_SCHEMA, AI_PROMPT_VERSION, clampRecommendationConfidence,
 } from './ai-analysis';
-import { CREATIVE_RULES_VERSION } from './creative-rules';
+import { CREATIVE_RULES_VERSION, HOOK_RULES, classifyHook } from './creative-rules';
+import { AiAdRow } from './ai-analysis';
 import { OPPORTUNITY_LABELS } from './idea-bridge';
 import { AI_UI_TIMEOUT_MS, isTimeoutError } from '../../common/http/timeouts';
 
@@ -108,6 +109,8 @@ export class MetaAdsAiService {
   async analyze(orgId: string, userId: string | null, input: AnalyzeInput) {
     if (input.scopeType !== 'ad' && input.scopeType !== 'product_group') throw new BadRequestException('Ungültiger Scope');
     if (input.scopeType === 'ad' && !input.adId) throw new BadRequestException('adId erforderlich');
+    // Produkt-Level ist der Hauptmodus: genau EINE Produktgruppe, keine produktübergreifende Vermischung.
+    if (input.scopeType === 'product_group' && !input.productGroupId) throw new BadRequestException('Bitte eine Produktgruppe wählen — die Creative-Analyse läuft pro Produkt, nicht produktübergreifend.');
 
     const built = input.scopeType === 'ad'
       ? await this.buildAdContext(orgId, input)
@@ -294,6 +297,9 @@ export class MetaAdsAiService {
     }));
     const winComps = [...lab.sections.winningHooks, ...lab.sections.winningBodies] as any[];
 
+    // Produkt-Level Fact Model: jede Ad der Gruppe einzeln (Vergleich innerhalb EINES Produkts).
+    const ads = await this.buildAdBreakdown(orgId, input.productGroupId!, period, kpis.hookRate);
+
     const context: AiAnalysisContext = {
       scopeType: 'product_group',
       productGroupName,
@@ -305,6 +311,8 @@ export class MetaAdsAiService {
         ...this.perfFacts(kpis),
         { label: 'Hyros ROAS', value: 'pro Tag/Ad — über Zeiträume/Gruppen nicht gemittelt (autoritativ nur je Tageswert)' },
         { label: 'Ads gesamt', value: String(ov.counts.totalAds) },
+        { label: 'Produkt-Baseline Hook Rate', value: pct(kpis.hookRate) },
+        { label: 'Produkt-Baseline 50→75 Retention', value: pct(kpis.retention50to75) },
         { label: 'Winning Creatives', value: String(lab.sections.winningCreatives.length) },
         { label: 'Salvage-Kandidaten', value: String(lab.sections.salvage.length) },
         { label: 'Needs Iteration', value: String(lab.sections.needsIteration.length) },
@@ -312,9 +320,41 @@ export class MetaAdsAiService {
       baselines: [],
       signals,
       components: winComps.slice(0, 12).map((c) => ({ code: c.code, type: c.type, name: c.name, keyMetric: c.keyMetric != null ? `${c.keyMetric}%` : null, keyDelta: c.keyDelta != null ? `${c.keyDelta > 0 ? '+' : ''}${c.keyDelta}pp` : null })),
+      ads,
+      hookTargets: { strongPct: HOOK_RULES.strongPct, iterationPct: HOOK_RULES.iterationPct },
       dataVolumeLow: conf.level === 'low',
     };
     return { context, scope: { productGroupId: input.productGroupId ?? null, adId: null, periodFrom: period.from ?? null, periodTo: period.to ?? null } };
+  }
+
+  /** Product-Level: jede Ad der Gruppe einzeln (deterministisch) — Vergleich innerhalb EINES Produkts. */
+  private async buildAdBreakdown(orgId: string, productGroupId: string, period: { from?: string; to?: string }, groupHook: number | null): Promise<AiAdRow[]> {
+    const ads = await this.prisma.maAd.findMany({
+      where: { orgId, productGroupId },
+      select: { id: true, name: true, videoLengthSeconds: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const rows: AiAdRow[] = [];
+    for (const ad of ads) {
+      const agg = await this.ads.aggregateForAdIds(orgId, [ad.id], period);
+      const conf = confidenceOf(agg);
+      const drop = biggestDrop(agg, ad.videoLengthSeconds);
+      rows.push({
+        name: ad.name,
+        hookRatePct: agg.hookRate != null ? round(agg.hookRate, 1) : null,
+        hookClass: classifyHook(agg.hookRate),
+        hookDeltaPp: agg.hookRate != null && groupHook != null ? round(agg.hookRate - groupHook, 1) : null,
+        holdRatePct: agg.holdRate != null ? round(agg.holdRate, 1) : null,
+        retention50to75: agg.retention50to75 != null ? round(agg.retention50to75, 1) : null,
+        outboundCtr: agg.outboundCtr != null ? round(agg.outboundCtr, 1) : null,
+        spend: agg.spend ?? null,
+        uniqueSales: agg.uniqueSales ?? null,
+        calculatedRoas: agg.calculatedRoas != null ? round(agg.calculatedRoas, 2) : null,
+        biggestDrop: drop ? `${drop.segment} (-${round(drop.dropPct, 1)}%)${drop.fromSeconds != null ? `, Sek ${drop.fromSeconds}-${drop.toSeconds ?? '?'}` : ''}` : null,
+        confidence: conf.level,
+      });
+    }
+    return rows;
   }
 
   private perfFacts(a: AggregatedMetrics): AiFact[] {
