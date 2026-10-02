@@ -411,7 +411,7 @@ export class MetaAdsService {
     };
   }
 
-  private async aggregateForAdIds(orgId: string, adIds: string[], period: { from?: string; to?: string }): Promise<AggregatedMetrics> {
+  async aggregateForAdIds(orgId: string, adIds: string[], period: { from?: string; to?: string }): Promise<AggregatedMetrics> {
     if (!adIds.length) return aggregate([]);
     const rows = await this.prisma.maAdDailyMetric.findMany({ where: this.metricWhere(orgId, adIds, period) });
     return aggregate(rows.map((r) => this.toCalcInput(r)));
@@ -557,7 +557,7 @@ export class MetaAdsService {
     return where;
   }
 
-  private resolvePeriod(range?: PeriodRange, start?: string, end?: string): { from?: string; to?: string; range: PeriodRange } {
+  resolvePeriod(range?: PeriodRange, start?: string, end?: string): { from?: string; to?: string; range: PeriodRange } {
     const r = range ?? 'last7';
     if (r === 'custom') {
       if (!start || !end || !DATE_RE.test(start) || !DATE_RE.test(end)) {

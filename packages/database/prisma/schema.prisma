@@ -395,6 +395,9 @@ model Organization {
   maOffers                 MaOffer[]
   maDataImports            MaDataImport[]
   maProductGroups          MaProductGroup[]
+  maCreativeComponents     MaCreativeComponent[]
+  maAdComponents           MaAdComponent[]
+  maCreativeRecipes        MaCreativeRecipe[]
 
   @@map("organizations")
 }
@@ -4702,6 +4705,8 @@ model MaAngle {
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   ads          MaAd[]
+  components   MaCreativeComponent[]
+  recipes      MaCreativeRecipe[]
 
   @@unique([orgId, name], map: "uq_ma_angle_org_name")
   @@index([orgId], map: "idx_ma_angle_org")
@@ -4716,6 +4721,7 @@ model MaOffer {
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   ads          MaAd[]
+  recipes      MaCreativeRecipe[]
 
   @@unique([orgId, name], map: "uq_ma_offer_org_name")
   @@index([orgId], map: "idx_ma_offer_org")
@@ -4753,6 +4759,8 @@ model MaAd {
   parentAd     MaAd?             @relation("MaAdLineage", fields: [parentAdId], references: [id], onDelete: SetNull)
   childAds     MaAd[]            @relation("MaAdLineage")
   dailyMetrics MaAdDailyMetric[]
+  adComponents     MaAdComponent[]
+  sourceComponents MaCreativeComponent[] @relation("MaComponentSource")
 
   @@unique([orgId, metaAdId], map: "uq_ma_ad_org_meta_id")
   @@index([orgId], map: "idx_ma_ad_org")
@@ -4875,8 +4883,141 @@ model MaProductGroup {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   product      Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
   ads          MaAd[]
+  components   MaCreativeComponent[]
+  recipes      MaCreativeRecipe[]
 
   @@unique([orgId, name], map: "uq_ma_product_group_org_name")
   @@index([orgId], map: "idx_ma_product_group_org")
   @@map("ma_product_group")
+}
+
+// ===========================================================================
+// META ADS — Creative Components & Recipes (Phase 4)
+// Deterministische Bausteine (Hook/Body/CTA …) mit Zeitbereichen, Ad↔Component-
+// Relation und Recipes (Kombinationen). Keine KI.
+// ===========================================================================
+
+enum MaComponentType {
+  hook
+  body
+  cta
+  proof
+  testimonial
+  product_demo
+  offer_section
+  problem_section
+  solution_section
+  transition
+  visual_opening
+  voiceover
+  b_roll
+
+  @@map("ma_component_type")
+}
+
+enum MaRecipeStatus {
+  draft
+  ready
+  in_production
+  archived
+
+  @@map("ma_recipe_status")
+}
+
+model MaCreativeComponent {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String          @map("org_id") @db.Uuid
+  productGroupId    String?         @map("product_group_id") @db.Uuid
+  type              MaComponentType
+  code              String          @db.VarChar(20)
+  name              String          @db.VarChar(300)
+  text              String?         @db.Text
+  sourceAdId        String?         @map("source_ad_id") @db.Uuid
+  startTimeSeconds  Int?            @map("start_time_seconds")
+  endTimeSeconds    Int?            @map("end_time_seconds")
+  angleId           String?         @map("angle_id") @db.Uuid
+  awareness         MaAwareness?
+  notes             String?         @db.Text
+  transcript        String?         @db.Text
+  tags              String[]        @default([])
+  active            Boolean         @default(true)
+  createdById       String?         @map("created_by_id") @db.Uuid
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  productGroup MaProductGroup?     @relation(fields: [productGroupId], references: [id], onDelete: SetNull)
+  sourceAd     MaAd?               @relation("MaComponentSource", fields: [sourceAdId], references: [id], onDelete: SetNull)
+  angle        MaAngle?            @relation(fields: [angleId], references: [id], onDelete: SetNull)
+  adComponents    MaAdComponent[]
+  recipeComponents MaRecipeComponent[]
+
+  @@unique([orgId, code], map: "uq_ma_component_org_code")
+  @@index([orgId], map: "idx_ma_component_org")
+  @@index([orgId, type], map: "idx_ma_component_org_type")
+  @@index([orgId, productGroupId], map: "idx_ma_component_org_group")
+  @@index([sourceAdId], map: "idx_ma_component_source")
+  @@map("ma_creative_component")
+}
+
+model MaAdComponent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  adId        String   @map("ad_id") @db.Uuid
+  componentId String   @map("component_id") @db.Uuid
+  role        String?  @db.VarChar(40)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ad           MaAd                @relation(fields: [adId], references: [id], onDelete: Cascade)
+  component    MaCreativeComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@unique([adId, componentId], map: "uq_ma_ad_component")
+  @@index([orgId], map: "idx_ma_ad_component_org")
+  @@index([adId], map: "idx_ma_ad_component_ad")
+  @@index([componentId], map: "idx_ma_ad_component_component")
+  @@map("ma_ad_component")
+}
+
+model MaCreativeRecipe {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String         @map("org_id") @db.Uuid
+  productGroupId String?        @map("product_group_id") @db.Uuid
+  name           String         @db.VarChar(300)
+  angleId        String?        @map("angle_id") @db.Uuid
+  awareness      MaAwareness?
+  offerId        String?        @map("offer_id") @db.Uuid
+  notes          String?        @db.Text
+  status         MaRecipeStatus @default(draft)
+  createdById    String?        @map("created_by_id") @db.Uuid
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  productGroup MaProductGroup?     @relation(fields: [productGroupId], references: [id], onDelete: SetNull)
+  angle        MaAngle?            @relation(fields: [angleId], references: [id], onDelete: SetNull)
+  offer        MaOffer?            @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  components   MaRecipeComponent[]
+
+  @@index([orgId], map: "idx_ma_recipe_org")
+  @@index([orgId, productGroupId], map: "idx_ma_recipe_org_group")
+  @@map("ma_creative_recipe")
+}
+
+model MaRecipeComponent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipeId    String   @map("recipe_id") @db.Uuid
+  componentId String   @map("component_id") @db.Uuid
+  role        String?  @db.VarChar(40)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  recipe    MaCreativeRecipe    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  component MaCreativeComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, componentId], map: "uq_ma_recipe_component")
+  @@index([recipeId], map: "idx_ma_recipe_component_recipe")
+  @@index([componentId], map: "idx_ma_recipe_component_component")
+  @@map("ma_recipe_component")
 }

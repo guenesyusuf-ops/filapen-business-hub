@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Pencil, Plus, Trash2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Trash2, ExternalLink, Boxes, Clock, Unlink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/shared/Toast';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
@@ -17,6 +17,8 @@ import {
   FORMAT_LABELS, AWARENESS_LABELS, RANGE_LABELS, PeriodRange, DailyMetric,
   RetentionAnalysis, RetentionBaseline,
 } from '@/hooks/meta-ads/useMetaAds';
+import { useAdComponents, useUnlinkComponent, COMPONENT_TYPE_LABELS } from '@/hooks/meta-ads/useCreative';
+import { CreateComponentModal, ConfidenceDot } from '@/components/meta-ads/CreativeBits';
 
 const RANGES: PeriodRange[] = ['last7', 'last14', 'last30', 'lifetime'];
 
@@ -102,6 +104,9 @@ export default function MetaAdDetailPage() {
       </section>
 
       {isVideo && <><MetaDivider /><RetentionAnalytics adId={ad.id} range={range} /></>}
+
+      <MetaDivider />
+      <ComponentsSection adId={ad.id} productGroupId={ad.productGroupId} isVideo={isVideo} range={range} />
 
       <MetaDivider />
       <DailyEntrySection adId={ad.id} isVideo={isVideo} />
@@ -351,6 +356,77 @@ function HistorySection({ adId, loading, items, videoLength }: { adId: string; l
         )}
       </div>
       {videoLength && items.length ? <p className="text-[12px] text-gray-400 dark:text-white/40">Hyros ROAS ist der führende ROAS; „ROAS ber." = Umsatz ÷ Spend. Video {videoLength}s.</p> : null}
+    </section>
+  );
+}
+
+function ComponentsSection({ adId, productGroupId, isVideo, range }: { adId: string; productGroupId: string | null; isVideo: boolean; range: PeriodRange }) {
+  const { data, isLoading } = useAdComponents(adId, range);
+  const unlink = useUnlinkComponent(adId);
+  const toast = useToast();
+  const { confirm } = useConfirm();
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const drop = data?.biggestDrop ?? null;
+  const items = data?.items ?? [];
+  const createDefaults = drop && drop.fromSeconds != null
+    ? { type: 'body' as const, startTimeSeconds: drop.fromSeconds, endTimeSeconds: drop.toSeconds ?? undefined }
+    : undefined;
+
+  const handleUnlink = async (componentId: string, name: string) => {
+    const ok = await confirm({ title: 'Verknüpfung lösen?', message: `„${name}" wird von dieser Ad entfernt (die Component selbst bleibt bestehen).`, confirmLabel: 'Entfernen', variant: 'danger' });
+    if (!ok) return;
+    try { await unlink.mutateAsync(componentId); toast.success('Verknüpfung gelöst'); }
+    catch (e) { toast.error(e instanceof Error ? e.message : 'Fehlgeschlagen'); }
+  };
+
+  return (
+    <section className="flex flex-col gap-3.5">
+      <div className="flex items-center justify-between">
+        <MetaSectionLabel>Creative Components{items.length ? ` · ${items.length}` : ''}</MetaSectionLabel>
+        <button onClick={() => setCreateOpen(true)} className={btnGhost}><Plus className="h-4 w-4" /> Component anlegen</button>
+      </div>
+
+      {isVideo && drop && drop.fromSeconds != null && (
+        <div className="flex items-start gap-2 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+          <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>Größter Retention-Verlust bei <b>Sekunde {drop.fromSeconds}–{drop.toSeconds}</b> (−{Math.round(drop.dropPct)} %). Lege hier eine Component an, um diesen Abschnitt zu dokumentieren und später zu iterieren.</span>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className={cn(META_FRAME, 'h-20 animate-pulse bg-gray-50 dark:bg-white/5')} />
+      ) : !items.length ? (
+        <div className={META_FRAME}>
+          <MetaEmptyState icon={Boxes} title="Noch keine Components" description="Zerlege diese Ad in Hook / Body / CTA — als wiederverwendbare Bausteine fürs Creative Lab." />
+        </div>
+      ) : (
+        <div className={cn(META_FRAME, 'divide-y divide-gray-100 dark:divide-white/[0.05]')}>
+          {items.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 px-4 py-3">
+              <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:bg-white/10 dark:text-white/50">{c.code}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate font-medium text-gray-900 dark:text-white">{c.name}</span>
+                  <span className="rounded-full bg-accent-meta/10 px-2 py-0.5 text-[11px] font-medium text-accent-meta">{COMPONENT_TYPE_LABELS[c.type] ?? c.type}</span>
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-gray-400 dark:text-white/40">
+                  {c.startTimeSeconds != null && <span>{c.startTimeSeconds}–{c.endTimeSeconds ?? '?'}s</span>}
+                  {c.overlap?.overlap && (
+                    <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-400" title="Überschneidung mit dem größten Retention-Verlust">
+                      ⚠ Drop-Overlap {c.overlap.overlapSeconds}s · {Math.round(c.overlap.shareOfDrop * 100)}% des Drops
+                    </span>
+                  )}
+                  <ConfidenceDot c={c.confidence} />
+                </div>
+              </div>
+              <button onClick={() => handleUnlink(c.id, c.name)} className="shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-red-500 dark:hover:bg-white/5" title="Verknüpfung lösen"><Unlink className="h-4 w-4" /></button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <CreateComponentModal open={createOpen} onClose={() => setCreateOpen(false)} adId={adId} productGroupId={productGroupId} defaults={createDefaults} />
     </section>
   );
 }

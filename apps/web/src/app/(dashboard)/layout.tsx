@@ -84,6 +84,7 @@ import {
   KeyRound,
   MonitorDown,
   Upload,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -206,6 +207,8 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { labelKey: 'nav.overview', href: '/meta-ads', icon: BarChart3 },
       { labelKey: 'nav.ads', href: '/meta-ads/ads', icon: ListIcon },
+      { labelKey: 'nav.creativeLab', href: '/meta-ads/creative-lab', icon: FlaskConical },
+      { labelKey: 'nav.components', href: '/meta-ads/components', icon: Boxes },
       { labelKey: 'nav.generate', href: '/meta-ads/generate', icon: Wand2 },
       { labelKey: 'nav.metaImport', href: '/meta-ads/import', icon: Upload },
     ],

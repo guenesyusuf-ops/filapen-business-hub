@@ -30,7 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_ma_ad_product_group ON ma_ad (product_group_id);
 
 -- Backfill 1: pro bestehendem (org, product) eine linked-Gruppe (Name = Produkttitel).
 INSERT INTO ma_product_group (org_id, name, type, product_id)
-SELECT DISTINCT a.org_id, p.title, 'linked', a.product_id
+SELECT DISTINCT a.org_id, p.title, 'linked'::ma_product_group_type, a.product_id
 FROM ma_ad a
 JOIN products p ON p.id = a.product_id
 WHERE a.product_group_id IS NULL AND a.product_id IS NOT NULL
@@ -43,7 +43,7 @@ WHERE a.product_group_id IS NULL AND g.org_id = a.org_id AND g.product_id = a.pr
 
 -- Backfill 2 (Safety): Titel-Kollisionen -> eindeutiger Name mit Produkt-ID-Präfix.
 INSERT INTO ma_product_group (org_id, name, type, product_id)
-SELECT DISTINCT a.org_id, COALESCE(p.title, 'Produkt') || ' · ' || left(a.product_id::text, 8), 'linked', a.product_id
+SELECT DISTINCT a.org_id, COALESCE(p.title, 'Produkt') || ' · ' || left(a.product_id::text, 8), 'linked'::ma_product_group_type, a.product_id
 FROM ma_ad a
 LEFT JOIN products p ON p.id = a.product_id
 WHERE a.product_group_id IS NULL AND a.product_id IS NOT NULL

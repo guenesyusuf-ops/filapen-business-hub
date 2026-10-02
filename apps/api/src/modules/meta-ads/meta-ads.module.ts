@@ -4,6 +4,8 @@ import { MetaAdsController } from './meta-ads.controller';
 import { MetaAdsService } from './meta-ads.service';
 import { MetaAdsImportController } from './meta-ads-import.controller';
 import { MetaAdsImportService } from './meta-ads-import.service';
+import { MetaAdsCreativeController } from './meta-ads-creative.controller';
+import { MetaAdsCreativeService } from './meta-ads-creative.service';
 
 /**
  * Meta Ads — Creative Intelligence & Production OS (Phase: Fundament).
@@ -12,7 +14,7 @@ import { MetaAdsImportService } from './meta-ads-import.service';
  */
 @Module({
   imports: [AuthModule],
-  controllers: [MetaAdsController, MetaAdsImportController],
-  providers: [MetaAdsService, MetaAdsImportService],
+  controllers: [MetaAdsController, MetaAdsImportController, MetaAdsCreativeController],
+  providers: [MetaAdsService, MetaAdsImportService, MetaAdsCreativeService],
 })
 export class MetaAdsModule {}
