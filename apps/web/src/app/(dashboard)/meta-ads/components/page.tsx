@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { ProductGroupSelect } from '@/components/meta-ads/ProductGroupSelect';
 import { MetaPageHeader, MetaSectionLabel, MetaEmptyState, META_FRAME } from '@/components/meta-ads/MetaUI';
 import { ConfidenceDot } from '@/components/meta-ads/CreativeBits';
+import { CreativeLabTabs } from '@/components/meta-ads/CreativeLabTabs';
 import { fmtPct, fmtInt, fmtEur } from '@/components/meta-ads/format';
 import { useComponents, useComponent, ComponentRow, COMPONENT_TYPE_LABELS, COMPONENT_SIGNAL_LABELS } from '@/hooks/meta-ads/useCreative';
 import { cn as _cn } from '@/lib/utils';
@@ -36,8 +37,8 @@ export default function ComponentsPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 p-4 sm:p-7">
-      <MetaPageHeader eyebrow="Meta Ads" title="Components"
-        description="Hooks, Bodies, CTAs & weitere Bausteine — mit Performance der Ads, in denen sie verwendet werden (Assoziation, keine Kausalität).">
+      <MetaPageHeader eyebrow="Meta Ads · Creative Lab" title="Components"
+        description="Wiederverwendbare Creative-Bausteine: Hooks, Bodies, CTAs & mehr — mit Performance der Ads, in denen sie verwendet werden (Assoziation, keine Kausalität).">
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="w-[220px] max-w-full"><ProductGroupSelect mode="filter" value={groupId} onChange={setGroupId} /></div>
           <div className="flex gap-1 rounded-[9px] border border-gray-200 bg-white p-0.5 dark:border-white/[0.1] dark:bg-[var(--card-bg)]">
@@ -47,6 +48,8 @@ export default function ComponentsPage() {
           </div>
         </div>
       </MetaPageHeader>
+
+      <CreativeLabTabs />
 
       <div className="flex items-center gap-2 rounded-[10px] border border-gray-200 bg-white p-1.5 dark:border-white/[0.1] dark:bg-[var(--card-bg)]">
         <Search className="ml-1.5 h-4 w-4 shrink-0 text-gray-400" />

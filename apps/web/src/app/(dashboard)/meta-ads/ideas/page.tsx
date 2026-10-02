@@ -37,8 +37,8 @@ export default function IdeasPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-7">
-      <MetaPageHeader eyebrow="Meta Ads" title="Ideen & Iterationen"
-        description="Was bauen wir als Nächstes — und warum? Manuelle und KI-Ideen im selben System, Iterationen aus den deterministischen Signalen, direkt in Aufgaben übersetzbar."
+      <MetaPageHeader eyebrow="Meta Ads" title="Ideen / Produktion"
+        description="Produktions-Backlog: geplante Tests, Iterationen und neue Creatives. Manuelle und KI-Ideen im selben System, direkt in Produktions-Aufgaben übersetzbar."
         actions={<button onClick={() => openCreate(undefined)} className={btnPrimary}><Plus className="h-4 w-4" /> Idee anlegen</button>}>
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="w-[220px] max-w-full"><ProductGroupSelect mode="filter" value={groupId} onChange={setGroupId} /></div>

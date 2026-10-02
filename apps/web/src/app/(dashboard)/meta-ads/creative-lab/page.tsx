@@ -12,8 +12,7 @@ import { SignalBadge, ConfidenceDot, BuildCombinationModal } from '@/components/
 import { CreateIdeaModal, IdeaDefaults } from '@/components/meta-ads/IdeaBits';
 import { fmtPct, fmtRoas } from '@/components/meta-ads/format';
 import { useCreativeLab, LabCard, ComponentRow, useRecommendedCombination, useCreateRecipe, CombinationResult } from '@/hooks/meta-ads/useCreative';
-import { useProductAttention } from '@/hooks/meta-ads/useMetaAds';
-import { AttentionBar } from '@/components/meta-ads/AttentionMap';
+import { CreativeLabTabs } from '@/components/meta-ads/CreativeLabTabs';
 
 export default function CreativeLabPage() {
   const router = useRouter();
@@ -35,10 +34,12 @@ export default function CreativeLabPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-7">
       <MetaPageHeader eyebrow="Meta Ads" title="Creative Lab"
-        description="Was funktioniert gerade — und was sollten Cutter & Creative Maker als Nächstes bauen? Deterministisch, relativ zur Produkt-Baseline."
+        description="Der Arbeitsplatz für Creative Strategy: Was funktioniert, welche Hooks/Bodies stark sind, wo Attention verloren geht, welche Kombinationen sich lohnen — und was als Nächstes produziert werden soll."
         actions={<button onClick={() => setBuildOpen(true)} className={btnPrimary}><Blocks className="h-4 w-4" /> Build Combination</button>}>
         <MetaControls value={controls} onChange={setControls} />
       </MetaPageHeader>
+
+      <CreativeLabTabs />
 
       {isError ? (
         <div className="rounded-[11px] border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">Daten konnten nicht geladen werden.</div>
@@ -47,8 +48,6 @@ export default function CreativeLabPage() {
       ) : !s ? null : (
         <>
           <RecommendedCombination productGroupId={controls.productGroupId} range={controls.range} start={controls.start} end={controls.end} />
-          <MetaDivider />
-          <AttentionComparison productGroupId={controls.productGroupId} range={controls.range} start={controls.start} end={controls.end} router={router} />
           <MetaDivider />
           <LabSection title="Winning Creatives" count={s.winningCreatives.length} cards={s.winningCreatives} router={router}
             empty="Noch keine klaren Winner im Zeitraum — braucht genug Daten (Confidence)." />
@@ -194,33 +193,3 @@ function RecommendedCombination({ productGroupId, range, start, end }: { product
   );
 }
 
-function AttentionComparison({ productGroupId, range, start, end, router }: { productGroupId?: string; range?: any; start?: string; end?: string; router: ReturnType<typeof useRouter> }) {
-  const { data, isLoading } = useProductAttention({ productGroupId, range, start, end });
-  const header = <MetaSectionLabel>Attention-Vergleich (interpoliert)</MetaSectionLabel>;
-  if (!productGroupId) return <section className="flex flex-col gap-3">{header}<p className="text-[12.5px] text-gray-400 dark:text-white/40">Wähle oben eine Produktgruppe, um die Aufmerksamkeitsverläufe der Video-Ads nebeneinander zu sehen.</p></section>;
-  if (isLoading) return <section className="flex flex-col gap-3">{header}<div className={cn(META_FRAME, 'h-32 animate-pulse bg-gray-50 dark:bg-white/5')} /></section>;
-  const ads = data?.ads ?? [];
-  if (!ads.length) return <section className="flex flex-col gap-3">{header}<p className="text-[12.5px] text-gray-400 dark:text-white/40">Keine Video-Ads mit genügend Retention-Checkpoints in diesem Zeitraum.</p></section>;
-
-  return (
-    <section className="flex flex-col gap-3">
-      {header}
-      <p className="text-[11px] text-gray-400 dark:text-white/40">Interpolierte Aufmerksamkeit aus Meta-Checkpoints (3s/25/50/75/95/100 %) — ungefähre Zeiten, keine echte Sekunden-Retention. Sortiert nach Hook Rate.</p>
-      <div className={cn(META_FRAME, 'flex flex-col divide-y divide-gray-100 dark:divide-white/[0.05]')}>
-        {ads.map((a) => (
-          <button key={a.adId} onClick={() => router.push(`/meta-ads/ads/${a.adId}`)}
-            className="flex flex-col gap-1.5 px-4 py-3 text-left transition hover:bg-gray-50/70 dark:hover:bg-white/[0.02]">
-            <div className="flex items-center justify-between gap-3">
-              <span className="truncate text-[13px] font-medium text-gray-900 dark:text-white">{a.name}</span>
-              <span className="shrink-0 text-[11.5px] tabular-nums text-gray-400 dark:text-white/40">Hook {a.hookRate != null ? `${Math.round(a.hookRate)}%` : '—'}</span>
-            </div>
-            <AttentionBar segments={a.segments} vl={a.videoLengthSeconds} />
-            {a.biggestDrop && (
-              <span className="text-[11px] text-amber-700 dark:text-amber-400">Größter Drop: {a.biggestDrop.segment} · −{Math.round(a.biggestDrop.dropPct)} %{a.biggestDrop.fromSeconds != null ? ` · ca. ${a.biggestDrop.fromSeconds}–${a.biggestDrop.toSeconds}s` : ''}</span>
-            )}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}

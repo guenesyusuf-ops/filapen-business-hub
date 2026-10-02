@@ -10,6 +10,7 @@ import { MetaControls, MetaControlsValue } from '@/components/meta-ads/MetaContr
 import { MetaPageHeader, MetaSectionLabel, MetaDivider, MetaEmptyState, META_FRAME, btnPrimary, btnGhost } from '@/components/meta-ads/MetaUI';
 import { useMetaAdsList, useProductAttention } from '@/hooks/meta-ads/useMetaAds';
 import { AttentionBar } from '@/components/meta-ads/AttentionMap';
+import { CreativeLabTabs } from '@/components/meta-ads/CreativeLabTabs';
 import {
   useAnalyze, useAnalyses, useAcceptRecommendation, useCreateRecipeFromAnalysis, Analysis, AiStatement, AiRecommendation, AiAnalysisResult,
   Confidence, CONF_LABELS, isStrategy, CreativeStrategyResult, ProductionRecommendation, AdComparison, AttentionProblem, CombinationBlock,
@@ -50,7 +51,7 @@ export default function AiInsightsPage() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-7">
-      <MetaPageHeader eyebrow="Meta Ads" title="Product Creative Intelligence"
+      <MetaPageHeader eyebrow="Meta Ads · Creative Lab" title="AI Recommendations"
         description="Was funktioniert, was nicht — und was produzieren wir als Nächstes? Zahlen & Entscheidungen deterministisch aus den Facts, das Modell liefert nur die Erklärung. Keine Kausalität. Hyros ROAS bleibt autoritativ.">
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex gap-1 rounded-[9px] border border-gray-200 bg-white p-0.5 dark:border-white/[0.1] dark:bg-[var(--card-bg)]">
@@ -70,6 +71,8 @@ export default function AiInsightsPage() {
           </button>
         </div>
       </MetaPageHeader>
+
+      <CreativeLabTabs />
 
       <div className="rounded-[10px] border border-blue-200 bg-blue-50 px-4 py-2.5 text-[12.5px] text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
         Empfehlungen werden als <b>Entwurf-Ideen</b> gespeichert (niemals automatisch als Aufgabe oder Produktion). Zahlen stammen ausschließlich aus den deterministischen Facts.

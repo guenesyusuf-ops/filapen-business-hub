@@ -210,9 +210,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.overview', href: '/meta-ads', icon: BarChart3 },
       { labelKey: 'nav.ads', href: '/meta-ads/ads', icon: ListIcon },
       { labelKey: 'nav.creativeLab', href: '/meta-ads/creative-lab', icon: FlaskConical },
-      { labelKey: 'nav.components', href: '/meta-ads/components', icon: Boxes },
-      { labelKey: 'nav.ideas', href: '/meta-ads/ideas', icon: Lightbulb },
-      { labelKey: 'nav.aiInsights', href: '/meta-ads/ai-insights', icon: Sparkles },
+      { labelKey: 'nav.ideasProduction', href: '/meta-ads/ideas', icon: Lightbulb },
       { labelKey: 'nav.generate', href: '/meta-ads/generate', icon: Wand2 },
       { labelKey: 'nav.metaImport', href: '/meta-ads/import', icon: Upload },
     ],
@@ -481,6 +479,10 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
   function isActive(href: string): boolean {
     if (href === '/finance') return pathname === '/finance';
     if (href === '/work-management') return pathname === '/work-management';
+    // Creative Lab ist der Arbeitsplatz; Components & AI-Recommendations sind seine Tabs.
+    if (href === '/meta-ads/creative-lab') {
+      return pathname.startsWith('/meta-ads/creative-lab') || pathname.startsWith('/meta-ads/components') || pathname.startsWith('/meta-ads/ai-insights');
+    }
     return pathname === href || (href !== '/' && pathname.startsWith(href + '/'));
   }
 
