@@ -47,12 +47,19 @@ export interface SegmentWinner { segment: SegmentKey; segmentLabel: string; adId
 export interface ConversionWinner { adId: string; name: string; purchases: number | null; metaRoas: number | null; spend: number | null; hookRate: number | null; hookClass: string | null; confidence: Confidence }
 export interface SalvageOpportunity { adId: string; name: string; hookRate: number | null; purchases: number | null; metaRoas: number | null; reason: string }
 export interface MatrixRow { adId: string; name: string; hookRate: number | null; segmentRetention: Partial<Record<SegmentKey, number | null>>; outboundCtr: number | null; purchases: number | null; spend: number | null; metaRoas: number | null; confidence: Confidence }
+export interface StoryboardTile {
+  order: number; segment: SegmentKey; segmentLabel: string; position: string;
+  sourceAdId: string | null; sourceAdName: string;
+  startPercent: number; endPercent: number; durationPercent: number;
+  role: 'base' | 'source' | 'winner'; isChange: boolean;
+}
 export interface LtNextTest {
   id: string; recommendationType: string; priority: 'high' | 'medium' | 'low'; confidence: Confidence;
   baseAdId: string; baseAdName: string; sourceAdId: string | null; sourceAdName: string | null;
   changeSegment: SegmentKey | null; changeLabel: string; keepSegments: SegmentKey[]; keepLabels: string[];
   sourceStartPercent: number | null; sourceEndPercent: number | null; approximateStartSecond: number | null; approximateEndSecond: number | null;
   facts: LtFact[]; reason: string; title: string; why: string; hypothesis: string; expectedLearning: string; recommendationConfidence: Confidence;
+  storyboard?: StoryboardTile[];
 }
 export interface LtResult {
   version: 'lt-v1'; executiveSummary: string;

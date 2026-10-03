@@ -9,7 +9,7 @@ import { ProductGroupSelect } from '@/components/meta-ads/ProductGroupSelect';
 import { MetaSectionLabel, MetaEmptyState, META_FRAME, btnPrimary, btnGhost } from '@/components/meta-ads/MetaUI';
 import {
   useLtPreview, useLtRun, useLtReviews, useLtReview, useLtAccept,
-  LtPreview, LtResult, LtReview, LtNextTest, HistoricalControl, SegmentWinner, MatrixRow,
+  LtPreview, LtResult, LtReview, LtNextTest, HistoricalControl, SegmentWinner, MatrixRow, StoryboardTile,
   SEGMENT_LABELS, SEGMENT_ORDER, SegmentKey,
 } from '@/hooks/meta-ads/useLongTerm';
 
@@ -250,10 +250,43 @@ function TestCard({ n, rec, saved, onSave, pending }: { n: number; rec: LtNextTe
         </div>
       )}
       {rec.expectedLearning && <p className="text-[11.5px] text-gray-400 dark:text-white/40">Learning: {rec.expectedLearning}</p>}
+      {rec.storyboard && rec.storyboard.length > 0 && <Storyboard tiles={rec.storyboard} />}
       <div className="flex flex-wrap items-center gap-2">
         {saved ? <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-green-700 dark:text-green-400"><Check className="h-4 w-4" /> Als Entwurf gespeichert</span>
           : <button onClick={onSave} disabled={pending} className={btnGhost}><Lightbulb className="h-4 w-4" /> Als Idee speichern</button>}
         {saved && <Link href={`/meta-ads/ideas?focus=${saved}`} className="inline-flex items-center gap-1 text-[12.5px] text-accent-meta hover:underline">Entwurf öffnen <ArrowRight className="h-3.5 w-3.5" /></Link>}
+      </div>
+    </div>
+  );
+}
+
+// Visueller Bauplan der Idee — Kachel-/Timeline-Ansicht wie im Schnittprogramm.
+function Storyboard({ tiles }: { tiles: StoryboardTile[] }) {
+  const tone = (t: StoryboardTile) =>
+    t.role === 'source' ? 'border-accent-meta/50 bg-accent-meta/[0.08] text-accent-meta'
+      : t.role === 'winner' ? 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-900/50 dark:bg-sky-950/25 dark:text-sky-300'
+        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-white/[0.1] dark:bg-white/[0.03] dark:text-white/75';
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-[10.5px] font-semibold uppercase tracking-wide text-gray-400 dark:text-white/40">Bauplan · Reihenfolge der Segmente</div>
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-stretch sm:gap-1 sm:overflow-x-auto">
+        {tiles.map((t) => (
+          <div key={t.order} title={`${t.segmentLabel} · ${t.position} · ${t.sourceAdName}`}
+            className={cn('flex min-w-0 shrink-0 flex-col gap-0.5 rounded-[9px] border px-2.5 py-2 sm:min-w-[120px]', tone(t))}
+            style={{ flexGrow: t.durationPercent, flexBasis: 0 }}>
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[11px] font-bold">{t.order}. {t.segmentLabel}</span>
+              {t.isChange && <span className="rounded bg-accent-meta px-1 text-[8.5px] font-bold uppercase text-white">neu</span>}
+            </div>
+            <span className="truncate text-[11.5px] font-medium">{t.sourceAdName}</span>
+            <span className="text-[10px] opacity-70">{t.position} · ~{t.durationPercent}%</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-gray-400 dark:text-white/40">
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm border border-gray-300 bg-gray-50 dark:bg-white/10" /> aus Control (behalten)</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-accent-meta/60" /> ausgetauscht</span>
+        <span>· Zeitanteile positional/ungefähr, keine echten Sekunden</span>
       </div>
     </div>
   );

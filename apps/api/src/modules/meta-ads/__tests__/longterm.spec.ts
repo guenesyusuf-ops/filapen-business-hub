@@ -134,6 +134,30 @@ describe('#55 Recombination', () => {
 });
 
 // --------------------------------------------------------------------------- #56 Evals
+describe('Storyboard (visueller Bauplan, additiv)', () => {
+  it('REPLACE_OPENING: 6 geordnete Kacheln, Opening = Source/CHANGE, Rest = Base', () => {
+    const B = mkAd({ adId: 'B', name: 'AD-B', spend: 12000, impressions: 78000, purchases: 320, metaRoas: 4.1, hookRatePct: 16, m: funnel({ impr: 78000, v3: 12000 }) });
+    const A = mkAd({ adId: 'A', name: 'AD-A', spend: 3000, impressions: 60000, purchases: 80, metaRoas: 2, hookRatePct: 35, m: funnel({ impr: 60000, v3: 30000 }) });
+    const rec = analyzeLongTerm([B, A]).recombinationCandidates.find((r) => r.recommendationType === 'REPLACE_OPENING' && r.baseAdId === 'B')!;
+    const sb = rec.storyboard!;
+    expect(sb).toHaveLength(6);
+    expect(sb.map((t) => t.order)).toEqual([1, 2, 3, 4, 5, 6]);
+    const opening = sb.find((t) => t.segment === 'opening')!;
+    expect(opening.isChange).toBe(true);
+    expect(opening.role).toBe('source');
+    expect(opening.sourceAdName).toBe('AD-A');
+    expect(sb.filter((t) => t.segment !== 'opening').every((t) => t.sourceAdName === 'AD-B' && t.role === 'base')).toBe(true);
+    // Zeitanteile zusammenhängend 0..100
+    expect(sb[0].startPercent).toBe(0);
+    expect(sb[sb.length - 1].endPercent).toBe(100);
+  });
+  it('RETEST hat kein Storyboard', () => {
+    const z = mkAd({ adId: 'z', name: 'Z', spend: 200, impressions: 1200, purchases: 2, hookRatePct: 25, m: funnel({ impr: 1200, v25: 200, v50: 150 }) });
+    const r = analyzeLongTerm([z]).recombinationCandidates.find((x) => x.recommendationType === 'RETEST_LOW_CONFIDENCE')!;
+    expect(r.storyboard).toEqual([]);
+  });
+});
+
 describe('#56 Long-Term Evals', () => {
   it('Low data => RETEST, keine aggressive Empfehlung', () => {
     const s = analyzeLongTerm([mkAd({ adId: 'z', name: 'Z', spend: 200, impressions: 1200, purchases: 2, hookRatePct: 25, m: funnel({ impr: 1200, v25: 200, v50: 150 }) })]);

@@ -138,6 +138,55 @@ export interface RecombinationCandidate {
   approximateStartSecond: number | null; approximateEndSecond: number | null;
   facts: LtFact[];
   reason: string;
+  /** Visueller „Bauplan" der Idee: welches Segment aus welcher Ad, in Reihenfolge (deterministisch). */
+  storyboard?: StoryboardTile[];
+}
+
+/** Eine Kachel im Storyboard/der Timeline einer Recombination-Idee. */
+export interface StoryboardTile {
+  order: number;
+  segment: SegmentKey;
+  segmentLabel: string;    // positional, z. B. „Hook", „Mid A", „Ende"
+  position: string;        // Zeit-/Abschnittslabel, z. B. „0–3s", „25→50 %"
+  sourceAdId: string | null;
+  sourceAdName: string;
+  startPercent: number;    // Anteil am finalen Video (ungefähr, positional)
+  endPercent: number;
+  durationPercent: number;
+  role: 'base' | 'source' | 'winner'; // base=aus Control, source=ausgetauscht, winner=Best-of (Exploration)
+  isChange: boolean;
+}
+
+const STORYBOARD_LAYOUT: { key: SegmentKey; label: string; position: string; from: number; to: number }[] = [
+  { key: 'opening', label: 'Hook', position: '0–3s', from: 0, to: 10 },
+  { key: 'early', label: 'Early', position: '3s→25 %', from: 10, to: 25 },
+  { key: 'mid_a', label: 'Mid A', position: '25→50 %', from: 25, to: 50 },
+  { key: 'mid_b', label: 'Mid B', position: '50→75 %', from: 50, to: 75 },
+  { key: 'late', label: 'Late', position: '75→95 %', from: 75, to: 95 },
+  { key: 'ending', label: 'Ende', position: '95→100 %', from: 95, to: 100 },
+];
+
+/** Baut den deterministischen Storyboard-Bauplan aus einem Recombination-Kandidaten. */
+function buildStoryboard(c: RecombinationCandidate, rankings: Partial<Record<SegmentKey, SegmentWinner[]>>): StoryboardTile[] {
+  if (c.recommendationType === 'RETEST_LOW_CONFIDENCE') return [];
+  const tiles: StoryboardTile[] = [];
+  for (const seg of STORYBOARD_LAYOUT) {
+    let sourceAdId: string | null; let sourceAdName: string; let role: 'base' | 'source' | 'winner'; let isChange = false;
+    if (c.recommendationType === 'MULTI_SEGMENT_EXPLORATION') {
+      const w = rankings[seg.key]?.[0];
+      if (!w) continue; // nur Segmente mit validem Winner
+      sourceAdId = w.adId; sourceAdName = w.adName; role = 'winner';
+    } else if (seg.key === c.changeSegment) {
+      sourceAdId = c.sourceAdId; sourceAdName = c.sourceAdName ?? 'Source'; role = 'source'; isChange = true;
+    } else {
+      sourceAdId = c.baseAdId; sourceAdName = c.baseAdName; role = 'base';
+    }
+    tiles.push({
+      order: tiles.length + 1, segment: seg.key, segmentLabel: seg.label, position: seg.position,
+      sourceAdId, sourceAdName, startPercent: seg.from, endPercent: seg.to, durationPercent: seg.to - seg.from, role, isChange,
+    });
+  }
+  return tiles;
 }
 export interface Distribution {
   hookRate: { median: number | null; p90: number | null };
@@ -313,6 +362,9 @@ export function analyzeLongTerm(ads: LtAd[]): LtStrategy {
       });
     }
   }
+
+  // Visuellen Bauplan je Idee ergänzen (deterministisch, ändert die Textlogik nicht).
+  for (const c of deduped) c.storyboard = buildStoryboard(c, segmentRankings);
 
   return { historicalControls: controls, segmentWinners, segmentRankings, conversionWinners, salvageOpportunities, weakAds, matrix, distribution, recombinationCandidates: deduped };
 }
