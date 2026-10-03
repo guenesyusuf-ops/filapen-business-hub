@@ -10,7 +10,7 @@ import { computeSegments } from './longterm-segments';
 import { analyzeLongTerm, LtAd, impressionEvidence, conversionEvidence } from './longterm-strategy';
 import { CREATIVE_RULES_VERSION } from './creative-rules';
 import {
-  AI_LT_SYSTEM_PROMPT, AI_LT_PROMPT_VERSION, CREATIVE_LT_SCHEMA, buildLtUserPrompt, parseLtNarrative, assertValidLtNarrative,
+  AI_LT_SYSTEM_PROMPT, AI_LT_PROMPT_VERSION, CREATIVE_LT_SCHEMA, buildLtUserPrompt, parseLtNarrative,
   CreativeLongTermResult, LtHealth, LtNextTest, LT_SEG_LABEL, LT_TYPE_LABEL, ConfidenceLevel,
 } from './ai-analysis';
 
@@ -179,7 +179,10 @@ export class MetaAdsLongTermService {
       // (ein getimeoutter Reasoning-Call wird durch Retry nicht schneller).
       const r = await this.ai.runStructured(AI_LT_SYSTEM_PROMPT, user, CREATIVE_LT_SCHEMA as any, { timeoutMs: 240_000, maxAttempts: 1 });
       usage = r.usage; retryCount = r.attempts - 1; model = r.cfg.model; provider = r.cfg.provider; effort = r.cfg.reasoningEffort;
-      const narr = parseLtNarrative(r.text); assertValidLtNarrative(narr);
+      // Narrativ ist best-effort: die deterministischen Fakten sind das Produkt.
+      // Ein leeres/knappes LLM-Narrativ darf NICHT die ganze Analyse verwerfen —
+      // fehlende Texte werden in mergeResult deterministisch aufgefüllt.
+      const narr = parseLtNarrative(r.text);
       result = this.mergeResult(strat, narr, health);
     } catch (e) {
       status = 'error'; error = e instanceof Error ? e.message : 'LLM-Langzeitbewertung fehlgeschlagen';
@@ -217,7 +220,7 @@ export class MetaAdsLongTermService {
     const bySeg = (keys: string[]) => strat.segmentWinners.filter((w) => keys.includes(w.segment));
     return {
       version: 'lt-v1',
-      executiveSummary: narr.executiveSummary,
+      executiveSummary: narr.executiveSummary || this.fallbackSummary(strat, health),
       historicalHealth: health, historicalHealthNote: narr.historicalHealthNote,
       historicalControls: strat.historicalControls,
       segmentWinners: strat.segmentWinners,
@@ -234,8 +237,15 @@ export class MetaAdsLongTermService {
       attentionFindings: narr.attentionFindings,
       recombinationCandidates: strat.recombinationCandidates,
       nextProductionBatch,
-      overallConfidence: narr.overallConfidence,
+      overallConfidence: narr.overallConfidence || health.confidence,
     };
+  }
+  /** Deterministischer Fallback-Einleitungssatz, falls das LLM keinen liefert. */
+  private fallbackSummary(strat: ReturnType<typeof analyzeLongTerm>, health: LtHealth): string {
+    const tests = strat.recombinationCandidates.filter((c) => c.recommendationType.startsWith('REPLACE_')).length;
+    return `${health.adsAnalyzed} historische Ads (${health.periodStart ?? '?'}–${health.periodEnd ?? '?'}), ${health.purchases} Käufe. `
+      + `${strat.historicalControls.length} Historical Control(s), ${strat.conversionWinners.length} Conversion-Winner, ${tests} Recombination-Test(s) abgeleitet. `
+      + `Alle Werte sind deterministisch aus der Datei; Empfehlungen sind Test-Hypothesen.`;
   }
   private fallbackTitle(c: any): string {
     if (c.recommendationType === 'RETEST_LOW_CONFIDENCE') return `${c.baseAdName} — mit mehr Daten erneut testen`;
