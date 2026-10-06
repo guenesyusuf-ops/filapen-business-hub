@@ -623,9 +623,9 @@ function DayEditor({
                 tooltip={{
                   description: tab === 'shopify'
                     ? 'Shopify Payments Fee — auf den Netto-Umsatz.'
-                    : tab === 'amazon' ? 'Amazon Plattform-Gebühr — auf den Netto-Umsatz.'
-                    : 'TikTok Shop-Gebühr — auf den Netto-Umsatz.',
-                  formula: 'Netto × Prozentsatz',
+                    : tab === 'amazon' ? 'Amazon Plattform-Gebühr — auf den Brutto-Umsatz.'
+                    : 'TikTok Shop-Gebühr — auf den Brutto-Umsatz.',
+                  formula: tab === 'shopify' ? 'Netto × Prozentsatz' : 'Brutto × Prozentsatz',
                 }}
               />
               <ResultCell

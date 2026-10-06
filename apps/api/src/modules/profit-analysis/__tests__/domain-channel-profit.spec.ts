@@ -70,8 +70,8 @@ describe('webshopProfit (§27)', () => {
 describe('amazonProfit (§30)', () => {
   it('rechnet Amazon-Profit korrekt', () => {
     // 1000 Netto (1190 brutto), 200 Produkte, 100 Fulfillment,
-    // 15% Amazon-Gebuehr auf Netto = 150, 80 PPC
-    // Profit = 1000 - 200 - 100 - 150 - 80 = 470
+    // 15% Amazon-Gebuehr auf BRUTTO (1190) = 178.5, 80 PPC
+    // Profit = 1000 - 200 - 100 - 178.5 - 80 = 441.5
     const r = amazonProfit({
       netSales: 1000, grossSales: 1190,
       productCosts: 200,
@@ -79,12 +79,12 @@ describe('amazonProfit (§30)', () => {
       feeRatePercent: 15,
       amazonPpc: 80,
     });
-    expect(round2(r.platformFees).toString()).toBe('150');
-    expect(round2(r.totalCostsWithoutAds).toString()).toBe('450'); // 200+100+150
-    expect(round2(r.profit).toString()).toBe('470');
+    expect(round2(r.platformFees).toString()).toBe('178.5');
+    expect(round2(r.totalCostsWithoutAds).toString()).toBe('478.5'); // 200+100+178.5
+    expect(round2(r.profit).toString()).toBe('441.5');
     expect(round2(r.roasNet!).toString()).toBe('12.5');   // 1000/80
     expect(round2(r.roasGross!).toString()).toBe('14.88'); // 1190/80
-    expect(r.margin!.toString()).toBe('47');
+    expect(r.margin!.toString()).toBe('44.15'); // 441.5/1000
   });
 
   it('Fulfillment=0 wird korrekt behandelt', () => {
@@ -93,7 +93,7 @@ describe('amazonProfit (§30)', () => {
       productCosts: 200, fulfillmentCosts: 0,
       feeRatePercent: 15, amazonPpc: 80,
     });
-    expect(round2(r.profit).toString()).toBe('570');  // 1000 - 200 - 0 - 150 - 80
+    expect(round2(r.profit).toString()).toBe('541.5');  // 1000 - 200 - 0 - 178.5 - 80
   });
 });
 
@@ -110,9 +110,9 @@ describe('tiktokProfit (§33)', () => {
       feeRatePercent: 10,
       tiktokAds: 50,
     });
-    expect(round2(r.platformFees).toString()).toBe('50');       // 500 × 10 %
-    expect(round2(r.totalCostsWithoutAds).toString()).toBe('175'); // 100+25+50
-    expect(round2(r.profit).toString()).toBe('275');            // 500-175-50
+    expect(round2(r.platformFees).toString()).toBe('59.5');     // 595 Brutto × 10 %
+    expect(round2(r.totalCostsWithoutAds).toString()).toBe('184.5'); // 100+25+59.5
+    expect(round2(r.profit).toString()).toBe('265.5');          // 500-184.5-50
     expect(round2(r.roasNet!).toString()).toBe('10');           // 500/50
   });
 });

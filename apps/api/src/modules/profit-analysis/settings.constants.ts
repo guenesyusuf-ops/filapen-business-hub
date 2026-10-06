@@ -28,8 +28,8 @@ export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
  */
 export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   [SETTING_KEYS.PAYMENT_FEE_SHOPIFY]: '3.0',      // 3.0 % auf Netto
-  [SETTING_KEYS.FEE_AMAZON]: '15.0',              // 15.0 % auf Netto
-  [SETTING_KEYS.FEE_TIKTOK]: '10.0',              // 10.0 % auf Netto
+  [SETTING_KEYS.FEE_AMAZON]: '15.0',              // 15.0 % auf Brutto
+  [SETTING_KEYS.FEE_TIKTOK]: '10.0',              // 10.0 % auf Brutto
   [SETTING_KEYS.DHL_PRICE_PER_PACKAGE]: '5.49',   // EUR pro Paket
   [SETTING_KEYS.VAT_STANDARD]: '19.0',            // 19 %
   [SETTING_KEYS.VAT_REDUCED]: '7.0',              // 7 %
@@ -64,7 +64,7 @@ export const SETTING_META: SettingMeta[] = [
     unit: 'percent',
     category: 'fees',
     description: 'Verkaufsgebuehr die Amazon pro Verkauf einbehaelt.',
-    formula: 'Amazon Gebuehr = Amazon Nettoumsatz × Prozentsatz',
+    formula: 'Amazon Gebuehr = Amazon Bruttoumsatz × Prozentsatz',
   },
   {
     key: SETTING_KEYS.FEE_TIKTOK,
@@ -72,7 +72,7 @@ export const SETTING_META: SettingMeta[] = [
     unit: 'percent',
     category: 'fees',
     description: 'Verkaufsgebuehr die TikTok Shop pro Verkauf einbehaelt.',
-    formula: 'TikTok Gebuehr = TikTok Nettoumsatz × Prozentsatz',
+    formula: 'TikTok Gebuehr = TikTok Bruttoumsatz × Prozentsatz',
   },
   {
     key: SETTING_KEYS.DHL_PRICE_PER_PACKAGE,

@@ -93,7 +93,7 @@ export interface AmazonProfitInput {
  *   Amazon Netto
  *   − Produktkosten
  *   − Fulfillment (Stueckzahl × Amazon-Fulfillment-Pauschale)
- *   − Amazon-Gebuehr (auf Netto gerechnet)
+ *   − Amazon-Gebuehr (auf BRUTTO gerechnet — Amazon behaelt die Provision vom Bruttoumsatz ein)
  *   − Amazon PPC
  */
 export function amazonProfit(input: AmazonProfitInput): ChannelProfitResult {
@@ -104,7 +104,8 @@ export function amazonProfit(input: AmazonProfitInput): ChannelProfitResult {
   const feeRate = toD(input.feeRatePercent);
   const ppc = toD(input.amazonPpc);
 
-  const platformFees = net.times(feeRate).div(HUNDRED);
+  // Amazon zieht die Verkaufsgebuehr vom BRUTTO-Umsatz (inkl. USt.) ab, nicht vom Netto.
+  const platformFees = gross.times(feeRate).div(HUNDRED);
   const totalCostsWithoutAds = productCosts.plus(fulfillment).plus(platformFees);
   const profit = net.minus(totalCostsWithoutAds).minus(ppc);
 
@@ -143,7 +144,8 @@ export function tiktokProfit(input: TiktokProfitInput): ChannelProfitResult {
   const feeRate = toD(input.feeRatePercent);
   const ads = toD(input.tiktokAds);
 
-  const platformFees = net.times(feeRate).div(HUNDRED);
+  // TikTok zieht die Verkaufsgebuehr vom BRUTTO-Umsatz (inkl. USt.) ab, nicht vom Netto.
+  const platformFees = gross.times(feeRate).div(HUNDRED);
   const totalCostsWithoutAds = productCosts.plus(shipping).plus(platformFees);
   const profit = net.minus(totalCostsWithoutAds).minus(ads);
 

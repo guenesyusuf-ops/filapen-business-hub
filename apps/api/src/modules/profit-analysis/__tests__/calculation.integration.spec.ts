@@ -121,25 +121,25 @@ describe('CalculationService.computeDay — End-to-End', () => {
     expect(result.shopify.profit.roasNet?.toString()).toBe('5.56');   // 1000/180
 
     // Amazon: 595 brutto -> 500 netto. 5 Stueck × 4€ = 20 Produkte, 5 × 3.5 = 17.5 Fulfillment.
-    // 15 % auf Netto = 75 Fee. 40 PPC.
-    // Profit = 500 - 20 - 17.5 - 75 - 40 = 347.5
+    // 15 % auf BRUTTO (595) = 89.25 Fee. 40 PPC.
+    // Profit = 500 - 20 - 17.5 - 89.25 - 40 = 333.25
     expect(result.amazon.profit.netSales.toString()).toBe('500');
     expect(result.amazon.profit.productCosts.toString()).toBe('20');
     expect(result.amazon.profit.shippingCosts.toString()).toBe('17.5');
-    expect(result.amazon.profit.platformFees.toString()).toBe('75');
-    expect(result.amazon.profit.profit.toString()).toBe('347.5');
+    expect(result.amazon.profit.platformFees.toString()).toBe('89.25');
+    expect(result.amazon.profit.profit.toString()).toBe('333.25');
 
     // TikTok: 357 brutto -> 300 netto (357 / 1.19 = 300). 3 Stueck × 4€ = 12. 3 × 5.49 = 16.47.
-    // 10 % auf Netto = 30. 30 Ads.
-    // Profit = 300 - 12 - 16.47 - 30 - 30 = 211.53
+    // 10 % auf BRUTTO (357) = 35.7. 30 Ads.
+    // Profit = 300 - 12 - 16.47 - 35.7 - 30 = 205.83
     expect(result.tiktok.profit.netSales.toString()).toBe('300');
     expect(result.tiktok.profit.productCosts.toString()).toBe('12');
     expect(result.tiktok.profit.shippingCosts.toString()).toBe('16.47');
-    expect(result.tiktok.profit.platformFees.toString()).toBe('30');
-    expect(result.tiktok.profit.profit.toString()).toBe('211.53');
+    expect(result.tiktok.profit.platformFees.toString()).toBe('35.7');
+    expect(result.tiktok.profit.profit.toString()).toBe('205.83');
 
-    // Tages-Gesamt = 645.10 + 347.50 + 211.53 = 1204.13
-    expect((result.aggregate.totalProfit as any).toString()).toBe('1204.13');
+    // Tages-Gesamt = 645.10 + 333.25 + 205.83 = 1184.18 (Amazon/TikTok-Gebuehr jetzt auf Brutto)
+    expect((result.aggregate.totalProfit as any).toString()).toBe('1184.18');
     // Netto-Gesamt = 1000 + 500 + 300 = 1800
     expect((result.aggregate.totalNetSales as any).toString()).toBe('1800');
   });
