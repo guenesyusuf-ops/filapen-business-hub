@@ -49,6 +49,25 @@ async function resizeImage(file: File, maxSize = 400): Promise<string> {
 export default function ProfileSettingsPage() {
   const { user, token, setAuth } = useAuthStore();
 
+  // Selbstheilung: fehlt der user (z. B. geleerter/alter Persist-Stand bei
+  // gueltigem Token), laedt die Seite ihn aktiv per /me nach — statt endlos
+  // zu drehen. Bei Fehler erscheint eine klare Meldung mit Wiederholen.
+  const [, setBootstrapping] = useState(false);
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (user || !token) return;
+    let abort = false;
+    setBootstrapping(true);
+    setBootError(null);
+    fetch(`${API_URL}/api/auth/me`, { headers: getAuthHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((me) => { if (abort) return; if (me && me.id) setAuth(token, me); else throw new Error('Keine Nutzerdaten erhalten'); })
+      .catch((e) => { if (!abort) setBootError(e?.message || 'Profil konnte nicht geladen werden'); })
+      .finally(() => { if (!abort) setBootstrapping(false); });
+    return () => { abort = true; };
+  }, [user, token, setAuth, retry]);
+
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
   const [lastName, setLastName] = useState(user?.lastName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
@@ -130,6 +149,30 @@ export default function ProfileSettingsPage() {
   };
 
   if (!user) {
+    // Kein Token -> gar nicht eingeloggt: klare Ansage statt Dauer-Spinner.
+    if (!token) {
+      return (
+        <div className="max-w-md py-16 text-center text-sm text-gray-600 dark:text-gray-300">
+          Nicht angemeldet. Bitte neu einloggen.
+        </div>
+      );
+    }
+    // /me ist fehlgeschlagen -> Fehler + Wiederholen (nie endlos drehen).
+    if (bootError) {
+      return (
+        <div className="mx-auto max-w-md py-16 text-center">
+          <p className="text-sm text-gray-700 dark:text-gray-200">Profil konnte nicht geladen werden.</p>
+          <p className="mt-1 text-xs text-gray-400">{bootError}</p>
+          <button
+            onClick={() => setRetry((n) => n + 1)}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10"
+          >
+            Erneut versuchen
+          </button>
+        </div>
+      );
+    }
+    // Nur während des tatsächlichen Nachladens drehen.
     return (
       <div className="flex items-center justify-center py-20">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" />
