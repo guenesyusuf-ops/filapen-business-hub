@@ -348,7 +348,7 @@ export class AuthService {
     // Theme-Preset-Validierung: nur erlaubte Werte, sonst ignorieren (nicht
     // crashen), damit veraltete Clients nicht die ganze Profil-Speicherung
     // brechen.
-    const ALLOWED_THEMES = ['standard', 'mystic', 'sunset', 'grey', 'petal'];
+    const ALLOWED_THEMES = ['standard', 'mystic', 'sunset', 'grey', 'petal', 'lime', 'vibrant', 'candy', 'neon'];
     if (data.themePreset !== undefined && !ALLOWED_THEMES.includes(data.themePreset)) {
       delete data.themePreset;
     }

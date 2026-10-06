@@ -177,6 +177,34 @@ html {
     --accent-4: 201 96 168;    /* #C960A8 — Magenta */
   }
 
+  [data-theme="lime"] {
+    --accent-1: 128 239 128;   /* #80EF80 — frisches Grün */
+    --accent-2: 227 240 163;   /* #E3F0A3 — Hellgrün-Gelb */
+    --accent-3: 186 219 162;   /* #BADBA2 — Salbei */
+    --accent-4: 66 214 116;    /* #42D674 — kräftiges Grün */
+  }
+
+  [data-theme="vibrant"] {
+    --accent-1: 255 179 67;    /* #FFB343 — Amber */
+    --accent-2: 66 234 255;    /* #42EAFF — Cyan */
+    --accent-3: 66 114 255;    /* #4272FF — Blau */
+    --accent-4: 255 126 66;    /* #FF7E42 — Orange */
+  }
+
+  [data-theme="candy"] {
+    --accent-1: 253 61 181;    /* #FD3DB5 — Pink */
+    --accent-2: 255 184 220;   /* #FFB8DC — Rosa */
+    --accent-3: 251 106 44;    /* #FB6A2C — Orange */
+    --accent-4: 140 25 70;     /* #8C1946 — Weinrot */
+  }
+
+  [data-theme="neon"] {
+    --accent-1: 0 240 255;     /* #00F0FF — Cyan */
+    --accent-2: 255 70 162;    /* #FF46A2 — Pink */
+    --accent-3: 255 255 0;     /* #FFFF00 — Gelb */
+    --accent-4: 238 75 43;     /* #EE4B2B — Rot */
+  }
+
   /* Dark Mode (orthogonal zum Theme-Preset) */
   .dark {
     /* Dark Mode: Traflo-inspired Deep Indigo-Violet */

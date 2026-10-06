@@ -15,6 +15,14 @@ export const THEME_PRESETS = [
     swatches: ['#B3B3B3', '#999999', '#7F7F7F', '#4D4D4D'] },
   { id: 'petal', label: 'Petal', description: 'Verspielt & feminin',
     swatches: ['#8A93DB', '#9D82C4', '#D74F87', '#C960A8'] },
+  { id: 'lime', label: 'Lime', description: 'Frisch & grün',
+    swatches: ['#80EF80', '#E3F0A3', '#BADBA2', '#42D674'] },
+  { id: 'vibrant', label: 'Vibrant', description: 'Kräftig & bunt',
+    swatches: ['#FFB343', '#42EAFF', '#4272FF', '#FF7E42'] },
+  { id: 'candy', label: 'Candy', description: 'Pink & warm',
+    swatches: ['#FD3DB5', '#FFB8DC', '#FB6A2C', '#8C1946'] },
+  { id: 'neon', label: 'Neon', description: 'Grell & kontrastreich',
+    swatches: ['#00F0FF', '#FF46A2', '#FFFF00', '#EE4B2B'] },
 ] as const;
 
 export type ThemePresetId = (typeof THEME_PRESETS)[number]['id'];
