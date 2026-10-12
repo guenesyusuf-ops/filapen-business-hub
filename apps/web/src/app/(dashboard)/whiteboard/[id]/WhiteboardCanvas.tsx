@@ -875,6 +875,16 @@ export function WhiteboardCanvas({ board }: Props) {
  * unterscheiden genau das: steigt unmounts, war es React.
  * Modul-Ebene, weil StableTldraw ausserhalb von SingleUserCanvas lebt.
  */
+/**
+ * tldraw v4 ist kommerziell lizenziert. Ohne gueltigen licenseKey laeuft es im
+ * Evaluation-Modus — und der LAEUFT AB: danach entfernt tldraw die Zeichenflaeche
+ * selbst (tl-canvas verschwindet, data-testid="tl-license-expired") → weisse
+ * Flaeche. Der Schluessel kommt aus NEXT_PUBLIC_TLDRAW_LICENSE_KEY (Vercel-Env,
+ * zur Build-Zeit eingebettet). Fehlt er, wird das Prop weggelassen (kein Key)
+ * und tldraw verhaelt sich wie bisher.
+ */
+const TLDRAW_LICENSE_KEY = process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY || undefined;
+
 const tldrawMountsRef = { current: 0 };
 const tldrawUnmountsRef = { current: 0 };
 const stableTldrawRenders = { current: 0 };
@@ -895,7 +905,7 @@ const StableTldraw = memo(function StableTldraw({
       wbTrace('TLDRAW_UNMOUNT', { nr: tldrawUnmountsRef.current, hinweis: 'React-hat-entfernt' });
     };
   }, []);
-  return <Tldraw onMount={onMount} components={TLDRAW_COMPONENTS} />;
+  return <Tldraw onMount={onMount} components={TLDRAW_COMPONENTS} licenseKey={TLDRAW_LICENSE_KEY} />;
 });
 
 // ---------------------------------------------------------------------------
