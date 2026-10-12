@@ -17,8 +17,13 @@ const KIND_OPTIONS: Array<{ value: PeriodKind; label: string }> = [
 
 export default function VergleichePage() {
   const now = new Date();
+  // Default-Vergleich = aktueller Monat vs. VORMONAT (desselben Jahres, mit
+  // Jahreswechsel-Rollover). Vorher stand B aufs VORJAHR (gleicher Monat) —
+  // dann zeigte z. B. "Oktober vs. September" versehentlich September des
+  // Vorjahres (= leer), obwohl der aktuelle September gemeint war.
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const [a, setA] = useState<PeriodInput>({ kind: 'month', year: now.getFullYear(), month: now.getMonth() + 1 });
-  const [b, setB] = useState<PeriodInput>({ kind: 'month', year: now.getFullYear() - 1, month: now.getMonth() + 1 });
+  const [b, setB] = useState<PeriodInput>({ kind: 'month', year: prevMonth.getFullYear(), month: prevMonth.getMonth() + 1 });
   const [aData, setAData] = useState<PeriodTotal | null>(null);
   const [bData, setBData] = useState<PeriodTotal | null>(null);
   const [loading, setLoading] = useState(false);
