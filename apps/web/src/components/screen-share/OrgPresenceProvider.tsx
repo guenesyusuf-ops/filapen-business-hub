@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LiveblocksProvider, RoomProvider, useBroadcastEvent, useEventListener } from '@liveblocks/react';
 import { Monitor, Mic, X, CheckCircle, Volume2, Send, Download } from 'lucide-react';
@@ -22,31 +22,39 @@ import { cn } from '@/lib/utils';
  * Komponente rendert dann nur die children, kein Broadcast/Listener.
  */
 export function OrgPresenceProvider({ children }: { children: React.ReactNode }) {
-  const user = useAuthStore((s) => s.user);
-  // Solange kein User da ist (z.B. Login-Phase) → nur children rendern
-  if (!user?.orgId) return <>{children}</>;
+  // NUR auf orgId hoeren (nicht aufs ganze user-Objekt). Sonst loest jeder
+  // /api/auth/me-Refresh im Layout (setAuth -> neue user-Referenz) ein
+  // Re-Render hier aus — und mit einem neuen authEndpoint wird der Liveblocks-
+  // Client neu erzeugt, was ALLE Rooms (inkl. Whiteboard) remountet.
+  const orgId = useAuthStore((s) => s.user?.orgId ?? null);
+
+  // Stabile Identitaet: der authEndpoint darf sich NIE pro Render aendern,
+  // sonst baut Liveblocks v3 den Client neu auf (-> Whiteboard wird weiss).
+  // Er nutzt nur Modul-APIs (Token kommt dort live aus dem Auth-Store), daher
+  // keine Dependencies noetig.
+  const authEndpoint = useCallback(async (room?: string) => {
+    if (!room) throw new Error('Liveblocks: kein Room angegeben');
+    // Whiteboard-Rooms: "wb-{boardId}"
+    if (room.startsWith('wb-')) {
+      const boardId = room.slice(3);
+      const r = await whiteboardApi.liveblocksAuth(boardId);
+      if (!r.token) throw new Error(r.reason || 'Liveblocks: Whiteboard-Auth fehlgeschlagen');
+      return { token: r.token };
+    }
+    // Default: Org-Presence Room (Screen-Share Invites)
+    const r = await screenShareApi.liveblocksAuth();
+    if (!r.token) throw new Error(r.reason || 'Liveblocks: Org-Presence-Auth fehlgeschlagen');
+    return { token: r.token };
+  }, []);
+
+  // Solange kein Org-Kontext da ist (z.B. Login-Phase) → nur children rendern
+  if (!orgId) return <>{children}</>;
   return (
-    <LiveblocksProvider
-      // Dispatch nach Room-Name. Dieser EINE LiveblocksProvider hostet
-      // alle RoomProvider im Dashboard-Tree (Screen-Share Org-Presence,
-      // Whiteboard wb-{boardId}, ggf. weitere). Liveblocks v3 erlaubt
-      // nur einen Provider pro Tree → wir routen die Auth zentral hier.
-      authEndpoint={async (room?: string) => {
-        if (!room) throw new Error('Liveblocks: kein Room angegeben');
-        // Whiteboard-Rooms: "wb-{boardId}"
-        if (room.startsWith('wb-')) {
-          const boardId = room.slice(3);
-          const r = await whiteboardApi.liveblocksAuth(boardId);
-          if (!r.token) throw new Error(r.reason || 'Liveblocks: Whiteboard-Auth fehlgeschlagen');
-          return { token: r.token };
-        }
-        // Default: Org-Presence Room (Screen-Share Invites)
-        const r = await screenShareApi.liveblocksAuth();
-        if (!r.token) throw new Error(r.reason || 'Liveblocks: Org-Presence-Auth fehlgeschlagen');
-        return { token: r.token };
-      }}
-    >
-      <RoomProvider id={`org-presence-${user.orgId}`} initialPresence={{}}>
+    // Dispatch nach Room-Name. Dieser EINE LiveblocksProvider hostet alle
+    // RoomProvider im Dashboard-Tree (Screen-Share Org-Presence, Whiteboard
+    // wb-{boardId}, …). Liveblocks v3 erlaubt nur einen Provider pro Tree.
+    <LiveblocksProvider authEndpoint={authEndpoint}>
+      <RoomProvider id={`org-presence-${orgId}`} initialPresence={{}}>
         <BroadcasterBridge />
         <InvitePopupListener />
         <FilapenSendPopupListener />
