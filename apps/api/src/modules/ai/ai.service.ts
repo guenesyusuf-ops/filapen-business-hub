@@ -7,6 +7,9 @@ import { OrderShipmentService } from '../shipping/order-shipment.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { InvoiceService } from '../invoice/invoice.service';
 import { InvoiceStatsService } from '../invoice/invoice-stats.service';
+import { PeriodService, PeriodInput } from '../profit-analysis/period.service';
+import { SettingsService } from '../profit-analysis/settings.service';
+import { SETTING_KEYS } from '../profit-analysis/settings.constants';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -733,6 +736,39 @@ const TOOLS: Anthropic.Tool[] = [
       required: ['invoiceNumber', 'category'],
     },
   },
+  // --- Gewinnanalyse (Profit-Analyse) — READ/Analyse ---
+  {
+    name: 'profit_month',
+    description:
+      'Gewinnanalyse eines EINZELNEN Monats: Brutto/Netto-Umsatz, Werbekosten, Produkt-/Versandkosten, Plattformgebühren, Großhandelsgewinn, Gemeinkosten, operativer Gewinn + Marge. Nutze für "Gewinn im September", "wie lief Oktober", "Marge im Monat X".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        year: { type: 'number', description: 'Jahr, z. B. 2026' },
+        month: { type: 'number', description: 'Monat 1–12' },
+      },
+      required: ['year', 'month'],
+    },
+  },
+  {
+    name: 'profit_compare',
+    description:
+      'Vergleicht zwei Monate der Gewinnanalyse (A vs. B) mit allen Kennzahlen + Deltas. Nutze für "vergleiche Oktober mit September", "Monatsvergleich". Beide Jahre explizit angeben.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        aYear: { type: 'number' }, aMonth: { type: 'number', description: 'Monat 1–12 für Zeitraum A' },
+        bYear: { type: 'number' }, bMonth: { type: 'number', description: 'Monat 1–12 für Zeitraum B' },
+      },
+      required: ['aYear', 'aMonth', 'bYear', 'bMonth'],
+    },
+  },
+  {
+    name: 'profit_settings',
+    description:
+      'Aktuelle Gewinnanalyse-Einstellungen: Plattformgebühren (Amazon/TikTok auf Brutto, Shopify Payment auf Netto) und USt-Sätze. Nutze für "welche Gebühren sind hinterlegt", "wie hoch ist die Amazon-Gebühr".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
   {
     name: 'delete_invoice',
     description:
@@ -804,6 +840,8 @@ export class AiService {
     private readonly storage: StorageService,
     private readonly invoices: InvoiceService,
     private readonly invoiceStats: InvoiceStatsService,
+    private readonly paPeriods: PeriodService,
+    private readonly paSettings: SettingsService,
   ) {
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
     this.client = apiKey
@@ -940,6 +978,10 @@ export class AiService {
 
     // Keyword-Gruppen → Tool-Namen. Eine Nachricht kann mehrere Gruppen aktivieren.
     const groups: Array<{ patterns: string[]; tools: string[] }> = [
+      {
+        patterns: ['gewinn', 'profit', 'marge', 'gewinnanalyse', 'deckungsbeitrag', 'operativ', 'gemeinkost', 'plattformgebühr', 'plattformgebuehr', 'monatsabschluss', 'vergleich', 'vergleiche', 'monatsvergleich', 'großhandel', 'grosshandel'],
+        tools: ['profit_month', 'profit_compare', 'profit_settings'],
+      },
       {
         patterns: ['versand', 'versendet', 'versenden', 'versandt', 'liefer', 'paket', 'pakete', 'sendung', 'sendungen', 'tracking', 'dhl', 'ups', 'dpd', 'hermes', 'gls', 'label', 'labels'],
         tools: ['list_unshipped_orders', 'list_shipments', 'list_labels', 'shipping_dashboard', 'list_carrier_accounts', 'download_shipping_labels'],
@@ -1180,6 +1222,13 @@ export class AiService {
           return this.action_categorizeInvoice(input, userId);
         case 'delete_invoice':
           return this.action_deleteInvoice(input);
+        // Gewinnanalyse (Profit) — READ
+        case 'profit_month':
+          return this.tool_profitMonth(input, userId);
+        case 'profit_compare':
+          return this.tool_profitCompare(input, userId);
+        case 'profit_settings':
+          return this.tool_profitSettings(userId);
         default:
           return { error: `Unknown tool: ${name}` };
       }
@@ -1187,6 +1236,56 @@ export class AiService {
       this.logger.error(`Tool ${name} failed:`, err);
       return { error: err?.message || 'Tool execution failed' };
     }
+  }
+
+  /**
+   * Echte Org (+ Rolle) des anfragenden Users auflösen — für neue Tools, die
+   * sauber org-scoped arbeiten (statt DEV_ORG_ID anzunehmen). Fällt auf
+   * DEV_ORG_ID zurück, falls der User nicht gefunden wird (Single-Org-Setup).
+   */
+  private async resolveOrg(userId: string): Promise<{ orgId: string; role: string }> {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { orgId: true, role: true } });
+    return { orgId: u?.orgId ?? DEV_ORG_ID, role: (u?.role as string) ?? 'member' };
+  }
+
+  // --- Gewinnanalyse (Profit) — READ ---
+  private async tool_profitMonth(input: any, userId: string): Promise<unknown> {
+    const year = Number(input?.year); const month = Number(input?.month);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+      return { error: 'Bitte year (z. B. 2026) und month (1–12) angeben.' };
+    }
+    const { orgId } = await this.resolveOrg(userId);
+    return this.paPeriods.compute(orgId, { kind: 'month', year, month } as PeriodInput);
+  }
+
+  private async tool_profitCompare(input: any, userId: string): Promise<unknown> {
+    const a = { kind: 'month', year: Number(input?.aYear), month: Number(input?.aMonth) } as PeriodInput;
+    const b = { kind: 'month', year: Number(input?.bYear), month: Number(input?.bMonth) } as PeriodInput;
+    for (const p of [a, b]) {
+      if (!Number.isInteger(p.year) || !Number.isInteger(p.month!) || p.month! < 1 || p.month! > 12) {
+        return { error: 'Bitte für A und B jeweils Jahr + Monat (1–12) angeben.' };
+      }
+    }
+    const { orgId } = await this.resolveOrg(userId);
+    const [ra, rb] = await Promise.all([this.paPeriods.compute(orgId, a), this.paPeriods.compute(orgId, b)]);
+    return { a: ra, b: rb };
+  }
+
+  private async tool_profitSettings(userId: string): Promise<unknown> {
+    const { orgId } = await this.resolveOrg(userId);
+    const now = new Date();
+    const keys = [
+      ['Amazon-Gebühr % (auf Brutto)', SETTING_KEYS.FEE_AMAZON],
+      ['TikTok-Gebühr % (auf Brutto)', SETTING_KEYS.FEE_TIKTOK],
+      ['Shopify Payment-Fee % (auf Netto)', SETTING_KEYS.PAYMENT_FEE_SHOPIFY],
+      ['USt Standard %', SETTING_KEYS.VAT_STANDARD],
+      ['USt ermäßigt %', SETTING_KEYS.VAT_REDUCED],
+    ] as const;
+    const out: Record<string, string> = {};
+    for (const [label, key] of keys) {
+      out[label] = await this.paSettings.getValueAt(orgId, key, now);
+    }
+    return out;
   }
 
   private async tool_listTasks(input: any, userId: string): Promise<unknown> {
