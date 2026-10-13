@@ -10,6 +10,9 @@ import { InvoiceStatsService } from '../invoice/invoice-stats.service';
 import { PeriodService, PeriodInput } from '../profit-analysis/period.service';
 import { SettingsService } from '../profit-analysis/settings.service';
 import { SETTING_KEYS } from '../profit-analysis/settings.constants';
+import { MetaAdsService } from '../meta-ads/meta-ads.service';
+import { MetaAdsIdeasService } from '../meta-ads/meta-ads-ideas.service';
+import { MetaAdsLongTermService } from '../meta-ads/meta-ads-longterm.service';
 
 const DEV_ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -736,6 +739,58 @@ const TOOLS: Anthropic.Tool[] = [
       required: ['invoiceNumber', 'category'],
     },
   },
+  // --- Meta Ads — READ/Analyse ---
+  {
+    name: 'meta_ads_overview',
+    description:
+      'Meta-Ads-Überblick (KPIs) für einen Zeitraum: Spend, Impressionen, Hook/Hold Rate, Retention, Unique Sales, berechneter ROAS. Optional auf eine Produktgruppe gefiltert. Nutze für "wie laufen die Ads", "Meta Ads Kennzahlen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        productGroupId: { type: 'string', description: 'Optional: nur diese Produktgruppe' },
+        range: { type: 'string', enum: ['last7', 'last14', 'last30', 'lifetime'], description: 'Zeitraum (Default last30)' },
+      },
+    },
+  },
+  {
+    name: 'meta_ads_list_ads',
+    description:
+      'Listet Meta-Ads mit Kennzahlen (Hook/Hold, Retention, Spend, ROAS, Status). Optional nach Produktgruppe/Status/Suchbegriff. Nutze für "zeig die Ads von Produkt X", "welche Ads laufen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        productGroupId: { type: 'string' },
+        status: { type: 'string', description: 'z. B. active/paused' },
+        search: { type: 'string' },
+        range: { type: 'string', enum: ['last7', 'last14', 'last30', 'lifetime'] },
+        limit: { type: 'number', description: 'Max Ads (Default 20)' },
+      },
+    },
+  },
+  {
+    name: 'meta_ads_product_groups',
+    description: 'Listet die Meta-Ads-Produktgruppen (Produkte/Bundles) der Organisation. Nutze als Nachschlagewerk für productGroupId.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'meta_ads_list_ideas',
+    description: 'Listet Creative-Ideen/Iterationen (Backlog) aus Meta Ads, optional nach Status/Produktgruppe. Nutze für "welche Creative-Ideen gibt es", "offene Produktionen".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', description: 'draft/approved/in_production/shipped/archived' },
+        productGroupId: { type: 'string' },
+      },
+    },
+  },
+  {
+    name: 'meta_ads_long_term_reviews',
+    description: 'Listet gespeicherte Langzeitbewertungen (historische Creative-Reviews) aus Meta Ads, optional nach Produktgruppe. Nutze für "welche Langzeitanalysen gibt es".',
+    input_schema: {
+      type: 'object' as const,
+      properties: { productGroupId: { type: 'string' } },
+    },
+  },
   // --- Gewinnanalyse (Profit-Analyse) — READ/Analyse ---
   {
     name: 'profit_month',
@@ -842,6 +897,9 @@ export class AiService {
     private readonly invoiceStats: InvoiceStatsService,
     private readonly paPeriods: PeriodService,
     private readonly paSettings: SettingsService,
+    private readonly metaAds: MetaAdsService,
+    private readonly metaAdsIdeas: MetaAdsIdeasService,
+    private readonly metaAdsLongTerm: MetaAdsLongTermService,
   ) {
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
     this.client = apiKey
@@ -981,6 +1039,10 @@ export class AiService {
       {
         patterns: ['gewinn', 'profit', 'marge', 'gewinnanalyse', 'deckungsbeitrag', 'operativ', 'gemeinkost', 'plattformgebühr', 'plattformgebuehr', 'monatsabschluss', 'vergleich', 'vergleiche', 'monatsvergleich', 'großhandel', 'grosshandel'],
         tools: ['profit_month', 'profit_compare', 'profit_settings'],
+      },
+      {
+        patterns: ['meta ads', 'meta-ads', 'metaads', 'anzeige', 'anzeigen', 'creative', 'creatives', 'hook', 'hold rate', 'retention', 'werbeanzeige', 'ad ', 'ads ', 'kampagne', 'produktgruppe', 'langzeitbewertung', 'creative lab', 'idee', 'ideen'],
+        tools: ['meta_ads_overview', 'meta_ads_list_ads', 'meta_ads_product_groups', 'meta_ads_list_ideas', 'meta_ads_long_term_reviews'],
       },
       {
         patterns: ['versand', 'versendet', 'versenden', 'versandt', 'liefer', 'paket', 'pakete', 'sendung', 'sendungen', 'tracking', 'dhl', 'ups', 'dpd', 'hermes', 'gls', 'label', 'labels'],
@@ -1222,6 +1284,17 @@ export class AiService {
           return this.action_categorizeInvoice(input, userId);
         case 'delete_invoice':
           return this.action_deleteInvoice(input);
+        // Meta Ads — READ
+        case 'meta_ads_overview':
+          return this.tool_metaAdsOverview(input, userId);
+        case 'meta_ads_list_ads':
+          return this.tool_metaAdsListAds(input, userId);
+        case 'meta_ads_product_groups':
+          return this.tool_metaAdsProductGroups(userId);
+        case 'meta_ads_list_ideas':
+          return this.tool_metaAdsListIdeas(input, userId);
+        case 'meta_ads_long_term_reviews':
+          return this.tool_metaAdsLongTermReviews(input, userId);
         // Gewinnanalyse (Profit) — READ
         case 'profit_month':
           return this.tool_profitMonth(input, userId);
@@ -1246,6 +1319,31 @@ export class AiService {
   private async resolveOrg(userId: string): Promise<{ orgId: string; role: string }> {
     const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { orgId: true, role: true } });
     return { orgId: u?.orgId ?? DEV_ORG_ID, role: (u?.role as string) ?? 'member' };
+  }
+
+  // --- Meta Ads — READ ---
+  private async tool_metaAdsOverview(input: any, userId: string): Promise<unknown> {
+    const { orgId } = await this.resolveOrg(userId);
+    return this.metaAds.overview(orgId, { productGroupId: input?.productGroupId, range: input?.range ?? 'last30' });
+  }
+  private async tool_metaAdsListAds(input: any, userId: string): Promise<unknown> {
+    const { orgId } = await this.resolveOrg(userId);
+    return this.metaAds.listAds(orgId, {
+      productGroupId: input?.productGroupId, status: input?.status, search: input?.search,
+      range: input?.range ?? 'last30', pageSize: Math.min(Number(input?.limit) || 20, 50),
+    });
+  }
+  private async tool_metaAdsProductGroups(userId: string): Promise<unknown> {
+    const { orgId } = await this.resolveOrg(userId);
+    return this.metaAds.listProductGroups(orgId);
+  }
+  private async tool_metaAdsListIdeas(input: any, userId: string): Promise<unknown> {
+    const { orgId } = await this.resolveOrg(userId);
+    return this.metaAdsIdeas.listIdeas(orgId, { status: input?.status, productGroupId: input?.productGroupId });
+  }
+  private async tool_metaAdsLongTermReviews(input: any, userId: string): Promise<unknown> {
+    const { orgId } = await this.resolveOrg(userId);
+    return this.metaAdsLongTerm.list(orgId, input?.productGroupId);
   }
 
   // --- Gewinnanalyse (Profit) — READ ---

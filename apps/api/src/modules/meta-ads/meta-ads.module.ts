@@ -22,5 +22,6 @@ import { MetaAdsLongTermService } from './meta-ads-longterm.service';
   imports: [AuthModule],
   controllers: [MetaAdsController, MetaAdsImportController, MetaAdsCreativeController, MetaAdsIdeasController, MetaAdsAiController, MetaAdsLongTermController],
   providers: [MetaAdsService, MetaAdsImportService, MetaAdsCreativeService, MetaAdsIdeasService, MetaAdsAiService, MetaAdsLongTermService],
+  exports: [MetaAdsService, MetaAdsIdeasService, MetaAdsLongTermService],
 })
 export class MetaAdsModule {}
