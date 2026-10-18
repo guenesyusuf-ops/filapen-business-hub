@@ -72,9 +72,11 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // Sans: Inter bleibt, aber wir nutzen Display-Variante für Headlines
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['InterDisplay', 'Inter', 'system-ui', 'sans-serif'],
+        // Design-System 2.0 (freigegeben): Typografie pro User umschaltbar via
+        // CSS-Variablen (siehe globals.css). Standard = Apple-System-Stack,
+        // data-font="classic" = Inter. Inter bleibt via next/font als Fallback.
+        sans: ['var(--font-ui)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'var(--font-ui)', 'system-ui', 'sans-serif'],
         // Serif für WOW-Akzente — Fraunces hat mehr Charakter als generische Serif
         serif: ['Fraunces', 'Georgia', 'serif'],
       },

@@ -6,6 +6,7 @@ import { API_URL } from '@/lib/api';
 import { Camera, Save, CheckCircle2, X, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { THEME_PRESETS } from '@/hooks/useThemePreset';
+import { useThemeStore } from '@/stores/theme';
 
 const MAX_AVATAR_BYTES = 300 * 1024; // 300KB
 
@@ -339,7 +340,77 @@ export default function ProfileSettingsPage() {
         </div>
       </form>
 
+      <DesignVersionPicker />
       <ThemePresetPicker />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Design-Version-Picker (Design-System 2.0) — Master-Schalter: Neues vs. Altes
+// Design. Setzt html[data-design]; das neue Design ist komplett darunter
+// gescoped. 'classic' zeigt die Software exakt wie bisher. Reine UI-Präferenz
+// pro User (filapen-theme), sofort in der ganzen App, jederzeit umkehrbar.
+// ---------------------------------------------------------------------------
+function DesignVersionPicker() {
+  const designVersion = useThemeStore((s) => s.designVersion);
+  const setDesignVersion = useThemeStore((s) => s.setDesignVersion);
+
+  const OPTIONS: { id: 'v2' | 'classic'; label: string; desc: string; sample: string }[] = [
+    { id: 'v2', label: 'Neues Design', desc: 'Modernisierte Oberfläche mit Apple-System-Typografie und veredelten Komponenten.', sample: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' },
+    { id: 'classic', label: 'Altes Design', desc: 'Die bisherige Oberfläche — unverändert, jederzeit als Rückfall verfügbar.', sample: 'InterDisplay, Inter, sans-serif' },
+  ];
+
+  return (
+    <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card p-6">
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white" style={{ fontFamily: 'var(--font-display)' }}>
+          Design
+        </h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Wähle zwischen dem neuen und dem alten Design. Greift sofort in der ganzen App — nur für dich, jederzeit umschaltbar.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {OPTIONS.map((o) => {
+          const selected = designVersion === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => setDesignVersion(o.id)}
+              aria-pressed={selected}
+              className={cn(
+                'group relative overflow-hidden rounded-2xl border text-left transition-all px-4 py-4',
+                selected
+                  ? 'border-primary-500 ring-2 ring-primary-500/30 shadow-card-primary'
+                  : 'border-gray-200/70 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-card',
+              )}
+            >
+              <div
+                className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3 leading-none"
+                style={{ fontFamily: o.sample }}
+              >
+                Ag 123 €
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">{o.label}</div>
+                  <div className="text-[11px] text-gray-500 dark:text-gray-400">{o.desc}</div>
+                </div>
+                {selected && (
+                  <div className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-600 flex items-center justify-center">
+                    <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

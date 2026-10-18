@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { useThemeStore } from '@/stores/theme';
 
 export function Badge({ color, children }: { color?: string; children: ReactNode }) {
   return (
@@ -43,6 +44,39 @@ export function KpiCard({
     gray:   { tint: 'from-gray-400/10 to-gray-400/[0.02]', ring: 'ring-gray-400/20', text: 'text-gray-500' },
   };
   const styles = tintMap[accent || 'gray'];
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const v2 = useThemeStore((s) => s.designVersion === 'v2');
+
+  if (v2) {
+    // Neues Design: neutrale Fläche, Apple-Zahl (tabular), Akzent nur im Icon.
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'group relative overflow-hidden rounded-[12px] bg-[var(--card-bg)]',
+          'border border-[var(--border-color)] shadow-card',
+          'text-left transition-all duration-200 px-4 py-4 sm:px-5 sm:py-5',
+          onClick && 'hover:-translate-y-0.5 hover:border-[var(--border-strong,#D7D2C5)] cursor-pointer active:scale-[0.99]',
+          className,
+        )}
+      >
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400 break-words">{label}</div>
+            <div className="mt-2 text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold tracking-[-0.02em] leading-tight text-gray-900 dark:text-white tabular-nums break-words">{value}</div>
+            {sublabel && <div className="mt-1.5 text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 break-words">{sublabel}</div>}
+          </div>
+          {icon && (
+            <div className={cn('h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-[var(--bg-tertiary)] flex items-center justify-center flex-shrink-0 ring-1', styles.ring, styles.text)}>
+              {icon}
+            </div>
+          )}
+        </div>
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -89,11 +123,17 @@ export function KpiCard({
 export function PageHeader({
   title, subtitle, actions,
 }: { title: string; subtitle?: string | ReactNode; actions?: ReactNode }) {
+  const v2 = useThemeStore((s) => s.designVersion === 'v2');
   return (
     // Stack vertically on mobile, horizontal from sm: up. Actions wrap if multiple.
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
       <div className="min-w-0">
-        <h1 className="font-display-serif text-2xl sm:text-3xl md:text-[2.25rem] font-medium tracking-tight text-gray-900 dark:text-white leading-[1.1]">{title}</h1>
+        <h1 className={cn(
+          'text-gray-900 dark:text-white leading-[1.1]',
+          v2
+            ? 'text-[clamp(1.6rem,3vw,2.15rem)] font-semibold tracking-[-0.021em]'
+            : 'font-display-serif text-2xl sm:text-3xl md:text-[2.25rem] font-medium tracking-tight',
+        )}>{title}</h1>
         {subtitle && <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
       </div>
       {actions && (
