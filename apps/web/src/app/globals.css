@@ -35,6 +35,25 @@ html[data-design="v2"] .font-display-serif {
   font-family: var(--font-display);
   letter-spacing: -0.021em;
 }
+/* v2-Skin: rein kosmetische Verfeinerungen (nur neues Design). Unlayered →
+   gewinnt gegen @layer utilities. Betrifft keine Funktion/kein Layout. */
+html[data-design="v2"] .fp-btn-primary {
+  background-image: none;
+  background-color: rgb(var(--accent-2));
+  box-shadow: 0 1px 2px rgb(var(--accent-2) / 0.35), 0 6px 16px -8px rgb(var(--accent-2) / 0.5);
+}
+html[data-design="v2"] .fp-btn-primary:hover {
+  background-image: none;
+  background-color: rgb(var(--accent-2));
+  filter: brightness(1.07);
+}
+html[data-design="v2"] .shadow-card {
+  box-shadow: 0 1px 2px rgba(17, 12, 44, 0.04), 0 8px 26px -10px rgba(17, 12, 44, 0.10);
+}
+html[data-design="v2"].dark .shadow-card,
+html[data-design="v2"] .dark .shadow-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px -12px rgba(101, 72, 255, 0.12);
+}
 
 /* Smooth scrolling */
 html {
