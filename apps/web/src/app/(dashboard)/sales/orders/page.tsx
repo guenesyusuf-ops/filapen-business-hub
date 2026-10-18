@@ -8,11 +8,21 @@ import { salesApi, STATUS_LABELS, fmtDate, fmtMoney, urgencyOf, SalesOrderStatus
 import { PageHeader, Card, Input, Select, Button, StatusPill, EmptyState, buttonClass } from '@/components/ds';
 import { cn } from '@/lib/utils';
 import { PullToRefresh } from '@/components/shared/PullToRefresh';
+import { useThemeStore } from '@/stores/theme';
+import { OrdersClassic } from './OrdersClassic';
 
 type UrgencyFilter = 'all' | 'urgent' | 'overdue';
 type Tab = 'open' | 'done';
 
+// Design-Master-Schalter: 'Altes Design' zeigt exakt die Original-Liste,
+// 'Neues Design' die migrierte DS-Variante. Getrennte Komponenten, damit die
+// Hook-Reihenfolge je Variante stabil bleibt (React rules-of-hooks).
 export default function SalesOrdersPage() {
+  const v2 = useThemeStore((s) => s.designVersion === 'v2');
+  return v2 ? <OrdersNew /> : <OrdersClassic />;
+}
+
+function OrdersNew() {
   const [search, setSearch] = useState('');
   const [urgency, setUrgency] = useState<UrgencyFilter>('all');
   const [status, setStatus] = useState<SalesOrderStatus | 'all'>('all');
