@@ -43,6 +43,7 @@ import {
 } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ds';
+import { useThemeStore } from '@/stores/theme';
 import { OnlineUsersWidget } from '@/components/home/OnlineUsersWidget';
 import { PendingApprovalsWidget } from '@/components/home/PendingApprovalsWidget';
 import { ShortcutInbox } from '@/components/home/ShortcutInbox';
@@ -111,6 +112,39 @@ function GreetingCard() {
   const now = new Date();
   const weekday = now.toLocaleDateString('de-DE', { weekday: 'long' });
   const dateLong = now.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const v2 = useThemeStore((s) => s.designVersion === 'v2');
+
+  if (!v2) {
+    // Altes Design — exakt die ursprüngliche Hero-Karte (Serif + Akzent-Mesh).
+    return (
+      <div className="relative overflow-hidden rounded-3xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-bento">
+        <div className="absolute inset-0 pointer-events-none opacity-90" style={{ backgroundImage: 'linear-gradient(110deg, transparent 0%, transparent 35%, rgb(var(--accent-1) / 0.25) 60%, rgb(var(--accent-3) / 0.35) 85%, rgb(var(--accent-4) / 0.4) 100%)' }} />
+        <div className="absolute inset-0 bg-mesh pointer-events-none opacity-90" />
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-white via-white/85 to-transparent dark:from-[var(--card-bg)] dark:via-[color:var(--card-bg)]/85 dark:to-transparent" style={{ backgroundSize: '60% 100%', backgroundRepeat: 'no-repeat' }} />
+        <div className="absolute inset-0 opacity-[0.015] dark:opacity-[0.04] pointer-events-none mix-blend-overlay" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+        <div className="relative p-7 md:p-9 flex items-start gap-6">
+          {user?.avatarUrl ? (
+            <img src={user.avatarUrl} alt={firstName} className="h-14 w-14 rounded-2xl object-cover ring-2 ring-gray-100 dark:ring-white/10" />
+          ) : (
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-navy to-brand-blue flex items-center justify-center shadow-glow-soft">
+              <span className="text-xl font-bold text-white">{initial}</span>
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500 font-semibold mb-2">{greeting}</p>
+            <h1 className="font-display-serif text-4xl md:text-5xl font-medium leading-[1.05] tracking-tight text-gray-900 dark:text-white">{firstName}<span className="text-brand-amber">.</span></h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-3 max-w-xl">{message}</p>
+          </div>
+          <div className="hidden md:block text-right flex-shrink-0">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-semibold">{weekday}</p>
+            <p className="font-display-serif text-3xl font-medium mt-1 text-gray-900 dark:text-white tracking-tight">{now.getDate()}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">{dateLong.split(' ').slice(1).join(' ')}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card className="p-7 md:p-9">

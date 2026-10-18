@@ -43,11 +43,13 @@ const themeScript = `
   } catch(e){}
   try {
     var tf = localStorage.getItem('filapen-theme');
-    if (tf) {
-      var fo = JSON.parse(tf).state?.font;
-      if (fo === 'classic') document.documentElement.setAttribute('data-font', 'classic');
-    }
-  } catch(e){}
+    var st = tf ? JSON.parse(tf).state : null;
+    if (st?.font === 'classic') document.documentElement.setAttribute('data-font', 'classic');
+    // Design-Master: Standard = neues Design ('v2'), außer der User hat 'classic' gewählt.
+    if (st?.designVersion !== 'classic') document.documentElement.setAttribute('data-design', 'v2');
+  } catch(e){
+    document.documentElement.setAttribute('data-design', 'v2');
+  }
 })();
 `;
 

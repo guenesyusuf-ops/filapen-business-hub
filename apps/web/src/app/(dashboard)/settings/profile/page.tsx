@@ -340,45 +340,46 @@ export default function ProfileSettingsPage() {
         </div>
       </form>
 
+      <DesignVersionPicker />
       <ThemePresetPicker />
-      <FontPicker />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Schriftart-Picker (Design-System 2.0) — jeder User wählt zwischen der neuen
-// Apple-System-Typografie und der klassischen Inter-Schrift. Reine UI-
-// Präferenz, lokal gespeichert (filapen-theme), sofort in der ganzen App.
+// Design-Version-Picker (Design-System 2.0) — Master-Schalter: Neues vs. Altes
+// Design. Setzt html[data-design]; das neue Design ist komplett darunter
+// gescoped. 'classic' zeigt die Software exakt wie bisher. Reine UI-Präferenz
+// pro User (filapen-theme), sofort in der ganzen App, jederzeit umkehrbar.
 // ---------------------------------------------------------------------------
-function FontPicker() {
-  const font = useThemeStore((s) => s.font);
-  const setFont = useThemeStore((s) => s.setFont);
+function DesignVersionPicker() {
+  const designVersion = useThemeStore((s) => s.designVersion);
+  const setDesignVersion = useThemeStore((s) => s.setDesignVersion);
 
-  const OPTIONS: { id: 'system' | 'classic'; label: string; desc: string; sample: string }[] = [
-    { id: 'system', label: 'Neu — System', desc: 'Apple-System-Schrift (nativ auf Mac/iPhone), sonst hochwertiger Fallback.', sample: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' },
-    { id: 'classic', label: 'Klassisch — Inter', desc: 'Die bisherige Schriftart der Software.', sample: 'InterDisplay, Inter, sans-serif' },
+  const OPTIONS: { id: 'v2' | 'classic'; label: string; desc: string; sample: string }[] = [
+    { id: 'v2', label: 'Neues Design', desc: 'Modernisierte Oberfläche mit Apple-System-Typografie und veredelten Komponenten.', sample: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' },
+    { id: 'classic', label: 'Altes Design', desc: 'Die bisherige Oberfläche — unverändert, jederzeit als Rückfall verfügbar.', sample: 'InterDisplay, Inter, sans-serif' },
   ];
 
   return (
-    <div className="mt-8 rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card p-6">
+    <div className="rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card p-6">
       <div className="mb-4">
         <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white" style={{ fontFamily: 'var(--font-display)' }}>
-          Schriftart
+          Design
         </h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Wähle zwischen der neuen und der klassischen Typografie. Greift sofort in der ganzen App — nur für dich.
+          Wähle zwischen dem neuen und dem alten Design. Greift sofort in der ganzen App — nur für dich, jederzeit umschaltbar.
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         {OPTIONS.map((o) => {
-          const selected = font === o.id;
+          const selected = designVersion === o.id;
           return (
             <button
               key={o.id}
               type="button"
-              onClick={() => setFont(o.id)}
+              onClick={() => setDesignVersion(o.id)}
               aria-pressed={selected}
               className={cn(
                 'group relative overflow-hidden rounded-2xl border text-left transition-all px-4 py-4',

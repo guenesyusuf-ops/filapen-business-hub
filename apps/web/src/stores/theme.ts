@@ -5,13 +5,20 @@ type ThemeMode = 'light' | 'dark' | 'system';
 // Schriftart-Präferenz: 'system' = neue Apple-System-Typografie (Standard),
 // 'classic' = bisherige Inter-Typografie. Reine UI-Einstellung (kein Backend).
 type FontPref = 'system' | 'classic';
+// Master-Design-Schalter: 'v2' = neues Design (Standard), 'classic' = altes
+// Design. Setzt html[data-design]; das neue Design ist komplett darunter
+// gescoped, sodass 'classic' die Software 1:1 wie bisher zeigt. Reine UI-
+// Präferenz pro User, kein Backend-Eingriff.
+type DesignVersion = 'v2' | 'classic';
 
 interface ThemeState {
   theme: ThemeMode;
   resolvedTheme: 'light' | 'dark';
   font: FontPref;
+  designVersion: DesignVersion;
   setTheme: (theme: ThemeMode) => void;
   setFont: (font: FontPref) => void;
+  setDesignVersion: (v: DesignVersion) => void;
 }
 
 function resolveTheme(theme: ThemeMode): 'light' | 'dark' {
@@ -42,12 +49,24 @@ function applyFont(font: FontPref) {
   }
 }
 
+function applyDesign(v: DesignVersion) {
+  if (typeof document !== 'undefined') {
+    // 'v2' = neues Design (Attribut gesetzt); 'classic' = altes Design (kein Attribut).
+    if (v === 'v2') {
+      document.documentElement.setAttribute('data-design', 'v2');
+    } else {
+      document.documentElement.removeAttribute('data-design');
+    }
+  }
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       theme: 'light',
       resolvedTheme: 'light',
       font: 'system',
+      designVersion: 'v2',
       setTheme: (theme) => {
         const resolved = resolveTheme(theme);
         applyTheme(resolved);
@@ -56,6 +75,10 @@ export const useThemeStore = create<ThemeState>()(
       setFont: (font) => {
         applyFont(font);
         set({ font });
+      },
+      setDesignVersion: (v) => {
+        applyDesign(v);
+        set({ designVersion: v });
       },
     }),
     {
@@ -66,6 +89,7 @@ export const useThemeStore = create<ThemeState>()(
           applyTheme(resolved);
           state.resolvedTheme = resolved;
           applyFont(state.font ?? 'system');
+          applyDesign(state.designVersion ?? 'v2');
         }
       },
     },
