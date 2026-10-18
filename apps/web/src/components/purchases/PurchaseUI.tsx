@@ -178,7 +178,10 @@ export function btn(variant: 'primary' | 'secondary' | 'ghost' | 'danger' = 'pri
     ghost: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5',
     danger: 'bg-red-600 text-white hover:bg-red-700',
   };
-  return cn(base, variants[variant], extra);
+  // Marker-Klassen (fp-btn, fp-btn-<variant>) — rein additiv. Das neue Design
+  // (html[data-design=v2]) hängt daran eine veredelte, flache Optik; das alte
+  // Design ignoriert sie. Verhalten unverändert.
+  return cn(base, `fp-btn fp-btn-${variant}`, variants[variant], extra);
 }
 
 export function input(extra?: string) {
