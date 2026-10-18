@@ -5,7 +5,7 @@ import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-quer
 import Link from 'next/link';
 import { Plus, Upload, AlertTriangle, Clock, FileText, Inbox, CheckCircle2 } from 'lucide-react';
 import { salesApi, STATUS_LABELS, fmtDate, fmtMoney, urgencyOf, SalesOrderStatus } from '@/lib/sales';
-import { PageHeader, Empty, btn, Badge } from '@/components/sales/SalesUI';
+import { PageHeader, Card, Input, Select, Button, StatusPill, EmptyState, buttonClass } from '@/components/ds';
 import { cn } from '@/lib/utils';
 import { PullToRefresh } from '@/components/shared/PullToRefresh';
 
@@ -64,6 +64,7 @@ export default function SalesOrdersPage() {
     <PullToRefresh onRefresh={async () => { await Promise.all([listQuery.refetch(), openCountQuery.refetch(), doneCountQuery.refetch()]); }}>
     <div className="space-y-4">
       <PageHeader
+        eyebrow="Handel"
         title="Verkauf"
         subtitle={
           tab === 'open'
@@ -71,20 +72,20 @@ export default function SalesOrdersPage() {
             : `${counts.total} abgeschlossene Bestellungen`
         }
         actions={
-          <div className="flex gap-2">
-            <Link href="/sales/import" className={btn('secondary')}>
+          <>
+            <Link href="/sales/import" className={buttonClass('secondary')}>
               <Upload className="h-4 w-4" /> Import
             </Link>
-            <Link href="/sales/orders/new" className={btn('primary')}>
+            <Link href="/sales/orders/new" className={buttonClass('primary')}>
               <Plus className="h-4 w-4" /> Neue Bestellung
             </Link>
-          </div>
+          </>
         }
       />
 
       {/* Tabs: Offen / Abgeschlossen. shippedAt entscheidet — alles mit
           gesetztem Versand-Datum landet im Abgeschlossen-Tab. */}
-      <div className="flex items-center gap-1 border-b border-gray-200 dark:border-white/8">
+      <div className="flex items-center gap-1 border-b border-[var(--border-color)]">
         <TabButton
           active={tab === 'open'}
           onClick={() => setTab('open')}
@@ -102,54 +103,56 @@ export default function SalesOrdersPage() {
       </div>
 
       {/* Filter-Leiste */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] p-3">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') listQuery.refetch(); }}
-          placeholder="Suche: Bestellnummer, Kunde …"
-          className="flex-1 min-w-[200px] rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
-        />
-        {/* Urgency-Filter nur im Offen-Tab — abgeschlossene Bestellungen
-            können nicht mehr "dringend" sein. */}
-        {tab === 'open' && (
-          <select
-            value={urgency}
-            onChange={(e) => setUrgency(e.target.value as UrgencyFilter)}
-            className="rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1.5 text-sm"
+      <Card flat className="p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') listQuery.refetch(); }}
+            placeholder="Suche: Bestellnummer, Kunde …"
+            className="flex-1 min-w-[200px] py-1.5"
+          />
+          {/* Urgency-Filter nur im Offen-Tab — abgeschlossene Bestellungen
+              können nicht mehr "dringend" sein. */}
+          {tab === 'open' && (
+            <Select
+              value={urgency}
+              onChange={(e) => setUrgency(e.target.value as UrgencyFilter)}
+              className="w-auto py-1.5"
+            >
+              <option value="all">Alle</option>
+              <option value="urgent">Dringend (≤3 Tage)</option>
+              <option value="overdue">In Verzug</option>
+            </Select>
+          )}
+          <Select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as any)}
+            className="w-auto py-1.5"
           >
-            <option value="all">Alle</option>
-            <option value="urgent">Dringend (≤3 Tage)</option>
-            <option value="overdue">In Verzug</option>
-          </select>
-        )}
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as any)}
-          className="rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] px-2 py-1.5 text-sm"
-        >
-          <option value="all">Status: Alle</option>
-          {Object.entries(STATUS_LABELS).map(([key, { label }]) => (
-            <option key={key} value={key}>{label}</option>
-          ))}
-        </select>
-        <button onClick={() => listQuery.refetch()} className={btn('ghost', 'text-sm')}>Filter anwenden</button>
-      </div>
+            <option value="all">Status: Alle</option>
+            {Object.entries(STATUS_LABELS).map(([key, { label }]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </Select>
+          <Button variant="ghost" size="sm" onClick={() => listQuery.refetch()}>Filter anwenden</Button>
+        </div>
+      </Card>
 
       {loading ? (
-        <div className="p-12 text-center text-sm text-gray-500">Lädt …</div>
+        <div className="p-12 text-center text-sm text-[var(--text-secondary)]">Lädt …</div>
       ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03]">
-          <Empty
-            icon={<FileText className="h-10 w-10" />}
+        <Card flat>
+          <EmptyState
+            icon={<FileText className="h-6 w-6" />}
             title="Noch keine Bestellungen"
-            hint="Importiere eine PDF-Bestellung oder lege manuell eine an."
+            description="Importiere eine PDF-Bestellung oder lege manuell eine an."
           />
-        </div>
+        </Card>
       ) : (
-        <div className="rounded-2xl border border-gray-200/80 dark:border-white/8 bg-white dark:bg-white/[0.03] table-scroll">
+        <Card flat className="table-scroll">
           <table className="w-full text-sm sm:min-w-[720px]">
-            <thead className="border-b border-gray-200/80 dark:border-white/8 text-left text-xs uppercase tracking-wide text-gray-500 hidden sm:table-header-group">
+            <thead className="border-b border-[var(--border-color)] text-left text-xs uppercase tracking-wide text-[var(--text-secondary)] hidden sm:table-header-group">
               <tr>
                 <th className="px-4 py-2">Bestellnr.</th>
                 <th className="px-4 py-2">Kunde</th>
@@ -170,7 +173,7 @@ export default function SalesOrdersPage() {
               {items.map((o) => {
                 const urg = urgencyOf(o);
                 return (
-                  <tr key={o.id} className="border-t border-gray-200/60 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                  <tr key={o.id} className="border-t border-[var(--border-color)] hover:bg-primary-500/[0.04]">
                     <td className="px-4 py-2 font-mono text-xs">
                       <Link href={`/sales/orders/${o.id}`} className="text-primary-600 hover:underline">
                         {o.orderNumber}
@@ -188,8 +191,8 @@ export default function SalesOrdersPage() {
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
                       <div className="flex items-center gap-1.5">
-                        {urg === 'overdue' && <Badge color="bg-red-100 text-red-700"><AlertTriangle className="inline h-3 w-3 mr-0.5" />In Verzug</Badge>}
-                        {urg === 'urgent' && <Badge color="bg-amber-100 text-amber-700"><Clock className="inline h-3 w-3 mr-0.5" />Dringend</Badge>}
+                        {urg === 'overdue' && <StatusPill tone="crit">In Verzug</StatusPill>}
+                        {urg === 'urgent' && <StatusPill tone="warn">Dringend</StatusPill>}
                         {!urg && <span className="text-gray-600 dark:text-gray-400">{fmtDate(o.requiredDeliveryDate)}</span>}
                       </div>
                       {urg && (
@@ -237,7 +240,7 @@ export default function SalesOrdersPage() {
               })}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
     </div>
     </PullToRefresh>

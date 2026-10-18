@@ -45,6 +45,14 @@ const variants: Record<Variant, string> = {
     'bg-transparent text-error border border-[var(--border-color)] hover:bg-error/10',
 };
 
+/**
+ * Klassen-String der DS-Button-Optik — für Elemente, die kein <button> sind
+ * (z. B. Next <Link>). Verhalten/Markup des Elements bleibt unangetastet.
+ */
+export function buttonClass(variant: Variant = 'secondary', size: Size = 'md', extra?: string): string {
+  return cn(base, sizes[size], variants[variant], ds.rControl, ds.focus, ds.ease, extra);
+}
+
 const Spinner = () => (
   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" className="opacity-25" />

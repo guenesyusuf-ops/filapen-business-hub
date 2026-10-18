@@ -11,7 +11,7 @@
  */
 export { ds, toneClasses } from './tokens';
 export type { Tone } from './tokens';
-export { Button } from './Button';
+export { Button, buttonClass } from './Button';
 export type { ButtonProps } from './Button';
 export { Card, CardHeader, CardBody } from './Card';
 export type { CardProps } from './Card';
