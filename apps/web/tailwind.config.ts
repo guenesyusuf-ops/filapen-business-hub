@@ -72,9 +72,12 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // Sans: Inter bleibt, aber wir nutzen Display-Variante für Headlines
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['InterDisplay', 'Inter', 'system-ui', 'sans-serif'],
+        // Design-System 2.0 (freigegeben): Apple-System-Typografie.
+        // Auf Apple-Geräten native San-Francisco-Schrift, sonst hochwertiger,
+        // konsistenter Fallback (Segoe UI → Inter → Roboto). Inter bleibt via
+        // next/font geladen und dient als plattformübergreifender Fallback.
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"Segoe UI"', 'Inter', 'system-ui', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+        display: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"Segoe UI"', 'Inter', 'system-ui', 'sans-serif'],
         // Serif für WOW-Akzente — Fraunces hat mehr Charakter als generische Serif
         serif: ['Fraunces', 'Georgia', 'serif'],
       },
