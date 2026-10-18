@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, Fragment } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore, getAuthHeaders } from '@/stores/auth';
@@ -408,6 +408,52 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Menü-Gruppierung (Design-System 2.0) — reine Darstellung/Reihenfolge.
+// NAV_ITEMS bleibt unverändert; wir ordnen die (rechte-gefilterte) Liste beim
+// Rendern stabil nach Abschnitt und zeigen Abschnitts-Überschriften. Kein
+// Menüpunkt, Link oder Recht wird verändert.
+// ---------------------------------------------------------------------------
+const NAV_SECTION_ORDER = ['overview', 'finance', 'commerce', 'marketing', 'creative', 'operations', 'system'] as const;
+type NavSection = (typeof NAV_SECTION_ORDER)[number];
+const NAV_SECTION_LABELS: Record<NavSection, string> = {
+  overview: 'Überblick',
+  finance: 'Finanzen',
+  commerce: 'Handel',
+  marketing: 'Marketing',
+  creative: 'Kreativ',
+  operations: 'Betrieb',
+  system: 'System',
+};
+const NAV_ITEM_SECTION: Record<string, NavSection> = {
+  'nav.home': 'overview',
+  'nav.financeHub': 'finance',
+  'nav.profitAnalysis': 'finance',
+  'nav.invoices': 'finance',
+  'nav.sales': 'commerce',
+  'nav.purchases': 'commerce',
+  'nav.shipping': 'commerce',
+  'nav.returns': 'commerce',
+  'nav.nfc': 'commerce',
+  'nav.creatorHub': 'marketing',
+  'nav.influencerHub': 'marketing',
+  'nav.metaAds': 'marketing',
+  'nav.emailMarketing': 'marketing',
+  'nav.contentHub': 'creative',
+  'nav.whiteboard': 'creative',
+  'nav.documents': 'creative',
+  'nav.workManagement': 'operations',
+  'nav.screenShare': 'operations',
+  'nav.filapenSend': 'operations',
+  'nav.passwords': 'operations',
+  'nav.settings': 'system',
+};
+function navSectionIndex(labelKey: string): number {
+  const sec = NAV_ITEM_SECTION[labelKey];
+  const i = sec ? NAV_SECTION_ORDER.indexOf(sec) : -1;
+  return i === -1 ? NAV_SECTION_ORDER.length : i;
+}
+
+// ---------------------------------------------------------------------------
 // Sidebar component
 // ---------------------------------------------------------------------------
 
@@ -419,6 +465,12 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
   const visibleNavItems = NAV_ITEMS.filter((item) =>
     hasMenuAccess(user?.role, user?.menuPermissions, item.permissionKey ?? null),
   );
+  // Stabil nach Abschnitt gruppiert — Reihenfolge innerhalb eines Abschnitts
+  // bleibt wie in NAV_ITEMS. Reine Darstellung: nichts wird entfernt/gefiltert.
+  const orderedNavItems = visibleNavItems
+    .map((item, i) => ({ item, i }))
+    .sort((a, b) => navSectionIndex(a.item.labelKey) - navSectionIndex(b.item.labelKey) || a.i - b.i)
+    .map((x) => x.item);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     const initial = new Set<string>();
     if (pathname.startsWith('/finance') && !pathname.startsWith('/finance/integrations')) {
@@ -528,16 +580,25 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-3 px-2 scrollbar-thin">
-        {visibleNavItems.map((item) => {
+        {orderedNavItems.map((item, navIdx) => {
           const Icon = item.icon;
           const label = t(item.labelKey);
           const active = isActive(item.href);
           const hasChildren = item.children && item.children.length > 0;
           const expanded = expandedGroups.has(item.labelKey);
           const isHubActive = hasChildren && pathname.startsWith(item.href);
+          const sectionKey = NAV_ITEM_SECTION[item.labelKey];
+          const prevSectionKey = navIdx > 0 ? NAV_ITEM_SECTION[orderedNavItems[navIdx - 1].labelKey] : undefined;
+          const showSection = !collapsed && !!sectionKey && sectionKey !== prevSectionKey;
 
           return (
-            <div key={item.labelKey} className="mb-0.5">
+            <Fragment key={item.labelKey}>
+              {showSection && (
+                <div className="px-2.5 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500 first:pt-1">
+                  {NAV_SECTION_LABELS[sectionKey]}
+                </div>
+              )}
+            <div className="mb-0.5">
               {/* Parent item */}
               {hasChildren ? (
                 <button
@@ -634,6 +695,7 @@ function Sidebar({ collapsed, user, pendingApprovalCount, toggleSidebar }: { col
                 </div>
               )}
             </div>
+            </Fragment>
           );
         })}
       </div>
