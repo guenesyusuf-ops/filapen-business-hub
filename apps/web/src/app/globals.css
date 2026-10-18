@@ -28,6 +28,13 @@ html[data-font="classic"] {
   --font-ui: Inter, system-ui, -apple-system, sans-serif;
   --font-display: InterDisplay, Inter, system-ui, sans-serif;
 }
+/* Neues Design: Serif-Headlines (.font-display-serif, 74 Stellen) nutzen die
+   Apple-System-Display-Schrift statt Fraunces — app-weit, reversibel. Unlayered,
+   damit es gegen @layer utilities gewinnt. Altes Design behält Fraunces. */
+html[data-design="v2"] .font-display-serif {
+  font-family: var(--font-display);
+  letter-spacing: -0.021em;
+}
 
 /* Smooth scrolling */
 html {
