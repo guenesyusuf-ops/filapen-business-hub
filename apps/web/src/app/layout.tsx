@@ -41,6 +41,13 @@ const themeScript = `
       }
     }
   } catch(e){}
+  try {
+    var tf = localStorage.getItem('filapen-theme');
+    if (tf) {
+      var fo = JSON.parse(tf).state?.font;
+      if (fo === 'classic') document.documentElement.setAttribute('data-font', 'classic');
+    }
+  } catch(e){}
 })();
 `;
 

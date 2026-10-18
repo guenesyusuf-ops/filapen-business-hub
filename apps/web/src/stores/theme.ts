@@ -2,11 +2,16 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 type ThemeMode = 'light' | 'dark' | 'system';
+// Schriftart-Präferenz: 'system' = neue Apple-System-Typografie (Standard),
+// 'classic' = bisherige Inter-Typografie. Reine UI-Einstellung (kein Backend).
+type FontPref = 'system' | 'classic';
 
 interface ThemeState {
   theme: ThemeMode;
   resolvedTheme: 'light' | 'dark';
+  font: FontPref;
   setTheme: (theme: ThemeMode) => void;
+  setFont: (font: FontPref) => void;
 }
 
 function resolveTheme(theme: ThemeMode): 'light' | 'dark' {
@@ -26,15 +31,31 @@ function applyTheme(resolved: 'light' | 'dark') {
   }
 }
 
+function applyFont(font: FontPref) {
+  if (typeof document !== 'undefined') {
+    // 'system' = Standard (kein Attribut nötig); 'classic' schaltet auf Inter.
+    if (font === 'classic') {
+      document.documentElement.setAttribute('data-font', 'classic');
+    } else {
+      document.documentElement.removeAttribute('data-font');
+    }
+  }
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       theme: 'light',
       resolvedTheme: 'light',
+      font: 'system',
       setTheme: (theme) => {
         const resolved = resolveTheme(theme);
         applyTheme(resolved);
         set({ theme, resolvedTheme: resolved });
+      },
+      setFont: (font) => {
+        applyFont(font);
+        set({ font });
       },
     }),
     {
@@ -44,6 +65,7 @@ export const useThemeStore = create<ThemeState>()(
           const resolved = resolveTheme(state.theme);
           applyTheme(resolved);
           state.resolvedTheme = resolved;
+          applyFont(state.font ?? 'system');
         }
       },
     },

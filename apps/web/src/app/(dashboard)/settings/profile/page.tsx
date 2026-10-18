@@ -6,6 +6,7 @@ import { API_URL } from '@/lib/api';
 import { Camera, Save, CheckCircle2, X, User as UserIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { THEME_PRESETS } from '@/hooks/useThemePreset';
+import { useThemeStore } from '@/stores/theme';
 
 const MAX_AVATAR_BYTES = 300 * 1024; // 300KB
 
@@ -340,6 +341,75 @@ export default function ProfileSettingsPage() {
       </form>
 
       <ThemePresetPicker />
+      <FontPicker />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Schriftart-Picker (Design-System 2.0) — jeder User wählt zwischen der neuen
+// Apple-System-Typografie und der klassischen Inter-Schrift. Reine UI-
+// Präferenz, lokal gespeichert (filapen-theme), sofort in der ganzen App.
+// ---------------------------------------------------------------------------
+function FontPicker() {
+  const font = useThemeStore((s) => s.font);
+  const setFont = useThemeStore((s) => s.setFont);
+
+  const OPTIONS: { id: 'system' | 'classic'; label: string; desc: string; sample: string }[] = [
+    { id: 'system', label: 'Neu — System', desc: 'Apple-System-Schrift (nativ auf Mac/iPhone), sonst hochwertiger Fallback.', sample: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif' },
+    { id: 'classic', label: 'Klassisch — Inter', desc: 'Die bisherige Schriftart der Software.', sample: 'InterDisplay, Inter, sans-serif' },
+  ];
+
+  return (
+    <div className="mt-8 rounded-2xl bg-white dark:bg-[var(--card-bg)] border border-gray-200/70 dark:border-white/8 shadow-card p-6">
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white" style={{ fontFamily: 'var(--font-display)' }}>
+          Schriftart
+        </h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Wähle zwischen der neuen und der klassischen Typografie. Greift sofort in der ganzen App — nur für dich.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {OPTIONS.map((o) => {
+          const selected = font === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => setFont(o.id)}
+              aria-pressed={selected}
+              className={cn(
+                'group relative overflow-hidden rounded-2xl border text-left transition-all px-4 py-4',
+                selected
+                  ? 'border-primary-500 ring-2 ring-primary-500/30 shadow-card-primary'
+                  : 'border-gray-200/70 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-card',
+              )}
+            >
+              <div
+                className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-3 leading-none"
+                style={{ fontFamily: o.sample }}
+              >
+                Ag 123 €
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">{o.label}</div>
+                  <div className="text-[11px] text-gray-500 dark:text-gray-400">{o.desc}</div>
+                </div>
+                {selected && (
+                  <div className="flex-shrink-0 h-6 w-6 rounded-full bg-primary-600 flex items-center justify-center">
+                    <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
