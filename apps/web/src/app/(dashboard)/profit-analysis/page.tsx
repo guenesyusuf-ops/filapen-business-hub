@@ -138,17 +138,26 @@ export default function OverviewPage() {
       // ALLES parallel + fehlertolerant: ein einzelner Monat-Fehler killt
       // nicht die gesamte Ladung. Fehlende Monate werden im UI als leerer
       // Zeitraum sichtbar (aber die anderen KPIs stimmen).
-      const monthResults = await Promise.all(
-        Array.from(allNeededMonths.values()).map(async (m) => {
-          try {
-            const res = await profitAnalysisApi.daily.getMonth(m.year, m.month);
-            return { key: monthKey(m.year, m.month), res };
-          } catch (e: any) {
-            console.warn(`[Overview] Monat ${m.year}-${m.month} konnte nicht geladen werden:`, e?.message ?? e);
-            return { key: monthKey(m.year, m.month), res: null };
-          }
-        }),
-      );
+      // Begrenzte Parallelität (Batches zu 4): verhindert Last-Spitzen auf dem
+      // Backend/DB-Pool, die zuvor sporadisch einzelne Monats-Abrufe scheitern
+      // ließen. Pro Monat weiterhin fehlertolerant (ein Fehler killt nicht alles);
+      // zusätzlich greift der Timeout+Retry im API-Client.
+      const loadOne = async (m: { year: number; month: number }) => {
+        try {
+          const res = await profitAnalysisApi.daily.getMonth(m.year, m.month);
+          return { key: monthKey(m.year, m.month), res };
+        } catch (e: any) {
+          console.warn(`[Overview] Monat ${m.year}-${m.month} konnte nicht geladen werden:`, e?.message ?? e);
+          return { key: monthKey(m.year, m.month), res: null as Awaited<ReturnType<typeof profitAnalysisApi.daily.getMonth>> | null };
+        }
+      };
+      const monthList = Array.from(allNeededMonths.values());
+      const monthResults: Awaited<ReturnType<typeof loadOne>>[] = [];
+      const CONCURRENCY = 4;
+      for (let i = 0; i < monthList.length; i += CONCURRENCY) {
+        const batch = await Promise.all(monthList.slice(i, i + CONCURRENCY).map(loadOne));
+        monthResults.push(...batch);
+      }
       // Targets + Rankings parallel — sind unabhaengig von den Monats-Daten
       const [t, r] = await Promise.all([
         profitAnalysisApi.targets.list().catch((e) => {
