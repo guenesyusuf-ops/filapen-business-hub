@@ -206,11 +206,15 @@ export class CalculationService {
       for (const ps of d.productSales) productIds.add(ps.productId);
     }
     const costLookup = await this.buildCostLookup(orgId, Array.from(productIds));
+    // Produkt-Titel EINMAL pro Monat laden statt pro Tag (war N+1: ein
+    // findMany je Tag). Titel dienen nur Anzeige/Warnungen — fliessen in KEINE
+    // Berechnung ein. Rechnerisch identisch, nur schneller.
+    const titleLookup = await this.buildTitleLookup(Array.from(productIds));
 
     // Settings pro Datum abrufen (koennen sich innerhalb eines Monats aendern!)
     const days: ComputedDay[] = [];
     for (const day of monthRow.days) {
-      days.push(await this.computeDayFromRow(orgId, day, costLookup));
+      days.push(await this.computeDayFromRow(orgId, day, costLookup, titleLookup));
     }
     const dayTotals = this.computeMonthTotals(days);
 
@@ -386,7 +390,19 @@ export class CalculationService {
   // Kern-Berechnung eines Tages
   // ---------------------------------------------------------------------------
 
-  private async computeDayFromRow(orgId: string, day: any, costLookup: CostLookup): Promise<ComputedDay> {
+  /** Produkt-Titel fuer eine Menge IDs in EINER Abfrage. Nur Anzeige/Warnungen. */
+  private async buildTitleLookup(ids: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (ids.length === 0) return map;
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, title: true },
+    });
+    products.forEach((p) => map.set(p.id, p.title));
+    return map;
+  }
+
+  private async computeDayFromRow(orgId: string, day: any, costLookup: CostLookup, titleLookup?: Map<string, string>): Promise<ComputedDay> {
     const date = day.date as Date;
     const dateIso = date.toISOString().slice(0, 10);
 
@@ -474,18 +490,22 @@ export class CalculationService {
 
     const aggregate = aggregateDay({ webshop, amazon: amazonRes, tiktok: tiktokRes });
 
-    // Produkt-Titel fuer Warnungen anhaengen
-    const productTitles = new Map<string, string>();
-    if (day.productSales.length > 0) {
-      const ids = day.productSales.map((s: any) => s.productId);
-      const products = await this.prisma.product.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, title: true },
-      });
-      products.forEach((p) => productTitles.set(p.id, p.title));
+    // Produkt-Titel fuer Warnungen anhaengen. Bevorzugt den Monats-Lookup
+    // (einmal geladen); ohne (Einzeltag-Pfad) wie bisher per Abfrage.
+    let productTitles = titleLookup;
+    if (!productTitles) {
+      productTitles = new Map<string, string>();
+      if (day.productSales.length > 0) {
+        const ids = day.productSales.map((s: any) => s.productId);
+        const products = await this.prisma.product.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, title: true },
+        });
+        products.forEach((p) => productTitles!.set(p.id, p.title));
+      }
     }
     const productSalesWithTitle = day.productSales.map((s: any) => ({
-      ...s, productTitle: productTitles.get(s.productId),
+      ...s, productTitle: productTitles!.get(s.productId),
     }));
 
     // Warnungen (§74)
