@@ -3,15 +3,65 @@ import { getAuthHeaders } from '@/stores/auth';
 
 const headers = () => ({ 'Content-Type': 'application/json', ...getAuthHeaders() });
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Robuster Fetch mit Timeout + Retry.
+ *
+ * Hintergrund: Monats-Berechnungen (computeMonth) sind für datenreiche Monate
+ * langsam; die Übersicht lädt mehrere Monate parallel. Bei DB-Latenz kam es
+ * sporadisch zu Timeouts/5xx → ein Monat fiel aus ("Fehlt: September").
+ *
+ * - AbortController-Timeout, damit ein hängender Request schnell scheitert
+ *   statt endlos zu blockieren.
+ * - Nur IDEMPOTENTE GETs werden automatisch wiederholt (bis zu 3 Versuche) —
+ *   und NUR bei transienten Fehlern (Timeout/Netzwerk/5xx), NIE bei 4xx.
+ * - Schreibende Requests (POST/PATCH/…) werden NIE automatisch wiederholt,
+ *   damit keine doppelten Schreibvorgänge entstehen. Daten bleiben unberührt.
+ */
 async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}/api/profit-analysis${path}`, { headers: headers(), ...init });
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
-    throw new Error(msg);
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const isGet = method === 'GET';
+  const maxAttempts = isGet ? 3 : 1;
+  const timeoutMs = 25_000;
+  let lastErr: any;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${API_URL}/api/profit-analysis${path}`, {
+        headers: headers(),
+        signal: ctrl.signal,
+        ...init,
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        // Transiente Serverfehler (5xx) bei GET: nochmal versuchen.
+        if (isGet && res.status >= 500 && attempt < maxAttempts) {
+          lastErr = new Error(`HTTP ${res.status}`);
+          await sleep(attempt * 500);
+          continue;
+        }
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
+        throw new Error(msg);
+      }
+      if (res.status === 204) return undefined as T;
+      return res.json();
+    } catch (e: any) {
+      clearTimeout(timer);
+      // Timeout (AbortError) oder Netzwerkfehler (TypeError) bei GET → Retry.
+      const transient = e?.name === 'AbortError' || e?.name === 'TypeError';
+      if (isGet && attempt < maxAttempts && transient) {
+        lastErr = e;
+        await sleep(attempt * 500);
+        continue;
+      }
+      throw e;
+    }
   }
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  throw lastErr ?? new Error('Laden fehlgeschlagen');
 }
 
 // ---------------------------------------------------------------------------
