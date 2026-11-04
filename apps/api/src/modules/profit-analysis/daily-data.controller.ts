@@ -31,7 +31,7 @@ export class DailyDataController {
     const { year, month } = this.parseYearMonth(yearStr, monthStr);
     const [raw, computed] = await Promise.all([
       this.daily.getMonthRaw(orgId, year, month),
-      this.calc.computeMonth(orgId, year, month),
+      this.calc.getMonthComputed(orgId, year, month),
     ]);
     return { raw, computed };
   }

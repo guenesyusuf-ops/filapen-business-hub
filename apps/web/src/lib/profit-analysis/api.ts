@@ -5,6 +5,17 @@ const headers = () => ({ 'Content-Type': 'application/json', ...getAuthHeaders()
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// ---------------------------------------------------------------------------
+// Browser-Cache für Monats-Abrufe (Phase 1, Option 2).
+// Hält geladene Monate kurz im Speicher → Zurückspringen zwischen Monaten ist
+// sofort, und parallele Anfragen für denselben Monat werden dedupliziert.
+// SICHER: Bei JEDER schreibenden Anfrage (POST/PATCH/… via call()) wird der
+// Cache komplett geleert → nach einer Eingabe nie veraltete Zahlen.
+// ---------------------------------------------------------------------------
+const MONTH_CACHE_TTL = 30_000;
+const monthCache = new Map<string, { at: number; promise: Promise<any> }>();
+function clearMonthCache() { monthCache.clear(); }
+
 /**
  * Robuster Fetch mit Timeout + Retry.
  *
@@ -47,6 +58,8 @@ async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
         try { const j = await res.json(); msg = j.message || j.error || msg; } catch {}
         throw new Error(msg);
       }
+      // Jede erfolgreiche Schreibaktion macht den Monats-Cache ungültig.
+      if (!isGet) clearMonthCache();
       if (res.status === 204) return undefined as T;
       return res.json();
     } catch (e: any) {
@@ -196,8 +209,18 @@ export const profitAnalysisApi = {
 
   daily: {
     /** Rohdaten + Berechnungen fuer einen ganzen Monat. */
-    getMonth: (year: number, month: number) =>
-      call<{ raw: RawMonth; computed: ComputedMonth }>(`/months/${year}/${month}`),
+    getMonth: (year: number, month: number) => {
+      const key = `${year}-${month}`;
+      const hit = monthCache.get(key);
+      if (hit && Date.now() - hit.at < MONTH_CACHE_TTL) {
+        return hit.promise as Promise<{ raw: RawMonth; computed: ComputedMonth }>;
+      }
+      const promise = call<{ raw: RawMonth; computed: ComputedMonth }>(`/months/${year}/${month}`);
+      monthCache.set(key, { at: Date.now(), promise });
+      // Fehlgeschlagene Abrufe nicht zwischenspeichern — nächster Versuch lädt neu.
+      promise.catch(() => { if (monthCache.get(key)?.promise === promise) monthCache.delete(key); });
+      return promise;
+    },
 
     /** Nur die Berechnung eines einzelnen Tages (praktisch fuer Autosave-Response). */
     getComputedDay: (date: string) =>

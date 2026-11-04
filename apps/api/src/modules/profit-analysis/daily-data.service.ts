@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Prisma, PaChannel } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { invalidateMonth } from './month-cache';
 
 export type Channel = 'shopify' | 'amazon' | 'tiktok';
 
@@ -383,10 +384,13 @@ export class DailyDataService {
     // Bestehenden Tag suchen (mit Monat-Status pruefen)
     const existing = await this.prisma.paDay.findUnique({
       where: { orgId_date: { orgId, date: parsed } },
-      include: { month: { select: { id: true, status: true } } },
+      include: { month: { select: { id: true, status: true, year: true, month: true } } },
     });
     if (existing) {
       this.assertMonthWritable(existing.month.status as any, role);
+      // Dashboard-Cache dieses Monats verwerfen (ensureDay läuft vor jedem
+      // Schreibzugriff — Single-Upserts UND Batch). Nächster Aufruf rechnet frisch.
+      invalidateMonth(orgId, existing.month.year, existing.month.month);
       return { day: existing, month: existing.month };
     }
     // Monat lazy erstellen
@@ -403,6 +407,7 @@ export class DailyDataService {
       create: { orgId, monthId: monthRow.id, date: parsed },
       update: {},
     });
+    invalidateMonth(orgId, year, month);
     return { day, month: monthRow };
   }
 

@@ -15,6 +15,7 @@ import { calculateWholesaleOrder, roundWholesaleOrder } from './domain/wholesale
 import { aggregateOverhead, roundOverheadTotals } from './domain/overhead';
 import { D, toD, round2 } from './domain/decimal';
 import { margin } from './domain/margin';
+import { getCachedMonth, setCachedMonth } from './month-cache';
 
 export interface ComputedChannel {
   vat: MixedVatResult;                     // gross/net/vat inkl. Retouren
@@ -174,6 +175,41 @@ export class CalculationService {
    * Vollstaendige Monatsberechnung. Fuer jeden vorhandenen Tag werden die
    * Kanal-Profite berechnet, plus Monats-Summen darueber.
    */
+  /**
+   * Schneller Lese-Pfad fürs Dashboard (Phase 1). Ändert NICHTS an der
+   * Berechnung — liefert nur gespeicherte/zwischengespeicherte Ergebnisse:
+   *
+   *  - Abgeschlossene/gesperrte Monate: direkt aus dem beim Abschluss
+   *    eingefrorenen Snapshot (das vollständige computeMonth-Ergebnis). Kein
+   *    Neu-Rechnen — ein abgeschlossener Monat ist per Definition eingefroren.
+   *  - Offene Monate: kurzer 15s-Cache; bei jeder Tages-Bearbeitung verworfen.
+   *
+   * Nur der Dashboard-Lesepfad nutzt das. compute/compare/preflight/export
+   * laufen unverändert über computeMonth().
+   */
+  async getMonthComputed(orgId: string, year: number, month: number): Promise<ComputedMonth> {
+    const head = await this.prisma.paMonth.findUnique({
+      where: { orgId_year_month: { orgId, year, month } },
+      select: { status: true, snapshot: { select: { snapshotJson: true } } },
+    });
+
+    // Abgeschlossen + Snapshot vorhanden → eingefrorenes Ergebnis direkt liefern.
+    if ((head?.status === 'closed' || head?.status === 'locked') && head.snapshot?.snapshotJson) {
+      return head.snapshot.snapshotJson as unknown as ComputedMonth;
+    }
+
+    // Offener Monat → kurzer Cache.
+    const cached = getCachedMonth<ComputedMonth>(orgId, year, month);
+    if (cached) return cached;
+
+    const computed = await this.computeMonth(orgId, year, month);
+    // Nur offene Monate cachen (geschlossene kommen oben aus dem Snapshot).
+    if (computed.status !== 'closed' && computed.status !== 'locked') {
+      setCachedMonth(orgId, year, month, computed);
+    }
+    return computed;
+  }
+
   async computeMonth(orgId: string, year: number, month: number): Promise<ComputedMonth> {
     const monthRow = await this.prisma.paMonth.findUnique({
       where: { orgId_year_month: { orgId, year, month } },
