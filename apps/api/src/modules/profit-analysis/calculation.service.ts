@@ -176,37 +176,31 @@ export class CalculationService {
    * Kanal-Profite berechnet, plus Monats-Summen darueber.
    */
   /**
-   * Schneller Lese-Pfad fürs Dashboard (Phase 1). Ändert NICHTS an der
-   * Berechnung — liefert nur gespeicherte/zwischengespeicherte Ergebnisse:
+   * Schneller Lese-Pfad fürs Dashboard. Ändert NICHTS an der Berechnung —
+   * rechnet jeden Monat weiterhin LIVE über computeMonth() und legt das
+   * Ergebnis nur kurz (15s) in den Cache.
    *
-   *  - Abgeschlossene/gesperrte Monate: direkt aus dem beim Abschluss
-   *    eingefrorenen Snapshot (das vollständige computeMonth-Ergebnis). Kein
-   *    Neu-Rechnen — ein abgeschlossener Monat ist per Definition eingefroren.
-   *  - Offene Monate: kurzer 15s-Cache; bei jeder Tages-Bearbeitung verworfen.
+   * WICHTIG: Auch ABGESCHLOSSENE/gesperrte Monate werden live gerechnet,
+   * niemals aus dem eingefrorenen Snapshot geliefert. Ein abgeschlossener
+   * Monat muss nachträgliche Einträge und Korrekturen weiterhin anzeigen —
+   * so ist das Modul von Anfang an gebaut (statt einzufrieren wird oben in
+   * computeMonth ein Drift-Hinweis berechnet). Eine frühere Snapshot-
+   * Abkürzung hat genau das gebrochen: nach dem Abschluss eingetragene Tage
+   * verschwanden aus der Übersicht. Diese Abkürzung ist bewusst entfernt.
+   *
+   * Der Cache wird bei jeder Tages-Bearbeitung verworfen (invalidateMonth)
+   * und heilt sich spätestens nach 15s selbst — es können nie dauerhaft
+   * veraltete Zahlen entstehen.
    *
    * Nur der Dashboard-Lesepfad nutzt das. compute/compare/preflight/export
-   * laufen unverändert über computeMonth().
+   * laufen unverändert direkt über computeMonth().
    */
   async getMonthComputed(orgId: string, year: number, month: number): Promise<ComputedMonth> {
-    const head = await this.prisma.paMonth.findUnique({
-      where: { orgId_year_month: { orgId, year, month } },
-      select: { status: true, snapshot: { select: { snapshotJson: true } } },
-    });
-
-    // Abgeschlossen + Snapshot vorhanden → eingefrorenes Ergebnis direkt liefern.
-    if ((head?.status === 'closed' || head?.status === 'locked') && head.snapshot?.snapshotJson) {
-      return head.snapshot.snapshotJson as unknown as ComputedMonth;
-    }
-
-    // Offener Monat → kurzer Cache.
     const cached = getCachedMonth<ComputedMonth>(orgId, year, month);
     if (cached) return cached;
 
     const computed = await this.computeMonth(orgId, year, month);
-    // Nur offene Monate cachen (geschlossene kommen oben aus dem Snapshot).
-    if (computed.status !== 'closed' && computed.status !== 'locked') {
-      setCachedMonth(orgId, year, month, computed);
-    }
+    setCachedMonth(orgId, year, month, computed);
     return computed;
   }
 
