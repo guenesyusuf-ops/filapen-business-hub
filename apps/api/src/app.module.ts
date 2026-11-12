@@ -30,6 +30,7 @@ import { NfcModule } from './modules/nfc/nfc.module';
 import { PasswordModule } from './modules/password/password.module';
 import { ProfitAnalysisModule } from './modules/profit-analysis/profit-analysis.module';
 import { MetaAdsModule } from './modules/meta-ads/meta-ads.module';
+import { DropshippingModule } from './modules/dropshipping/dropshipping.module';
 import { HealthController } from './health.controller';
 import { TelemetryModule } from './common/telemetry/telemetry.module';
 
@@ -105,6 +106,7 @@ import { TelemetryModule } from './common/telemetry/telemetry.module';
     PasswordModule,
     ProfitAnalysisModule,
     MetaAdsModule,
+    DropshippingModule,
   ],
   controllers: [HealthController],
   providers: [],

@@ -87,6 +87,7 @@ import {
   FlaskConical,
   Lightbulb,
   Sparkles,
+  Ship,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFinanceUI } from '@/stores/finance-ui';
@@ -299,6 +300,18 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    labelKey: 'nav.dropshipping',
+    href: '/dropshipping',
+    icon: Ship,
+    permissionKey: 'dropshipping',
+    accent: 'text-accent-sales',
+    children: [
+      { labelKey: 'nav.dsOverview', href: '/dropshipping', icon: BarChart3 },
+      { labelKey: 'nav.dsOrders', href: '/dropshipping/orders', icon: ClipboardList },
+      { labelKey: 'nav.dsProducts', href: '/dropshipping/products', icon: Boxes },
+    ],
+  },
+  {
     labelKey: 'nav.nfc',
     href: '/nfc',
     icon: Radio,
@@ -433,6 +446,7 @@ const NAV_ITEM_SECTION: Record<string, NavSection> = {
   'nav.purchases': 'commerce',
   'nav.shipping': 'commerce',
   'nav.returns': 'commerce',
+  'nav.dropshipping': 'commerce',
   'nav.nfc': 'commerce',
   'nav.creatorHub': 'marketing',
   'nav.influencerHub': 'marketing',

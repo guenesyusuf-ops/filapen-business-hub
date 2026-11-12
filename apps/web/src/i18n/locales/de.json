@@ -147,7 +147,11 @@
     "paImport": "Import",
     "paSettings": "Einstellungen",
     "paAudit": "Audit Log",
-    "appDownload": "App Download"
+    "appDownload": "App Download",
+    "dropshipping": "Dropshipping",
+    "dsOverview": "Übersicht",
+    "dsOrders": "Bestellungen",
+    "dsProducts": "Produkte / SKUs"
   },
   "finance": {
     "grossRevenue": "Bruttoumsatz",

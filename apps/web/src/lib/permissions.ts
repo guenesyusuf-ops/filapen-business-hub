@@ -19,6 +19,7 @@ export const MENU_PERMISSIONS = [
   { key: 'invoices', label: 'Rechnungen', description: 'Eingangsrechnungen mit OCR, Fälligkeits-Tracking, Lieferanten, Statistiken' },
   { key: 'returns', label: 'Retouren', description: 'Retouren-Management TikTok/Shopify mit Bilder, Status-Workflow, Erstattungen' },
   { key: 'nfc', label: 'NFC', description: 'NFC-Bänder generieren, CSV-Export, Bands verwalten (keine Kundendaten)' },
+  { key: 'dropshipping', label: 'Dropshipping', description: 'Dropship-SKUs auswählen, Bestellungen an externen Partner bereitstellen, Versand-Workflow (China→DE). DSGVO-relevant (Kundendaten).' },
   { key: 'nfc-customer-data', label: 'NFC-Kundendaten', description: 'Zugriff auf personenbezogene Daten der aktivierten Bänder (DSGVO-relevant — nur Owner/Admin sinnvoll)' },
   { key: 'screen-share', label: 'Bildschirm teilen', description: 'Live Bildschirm + Voice-Chat mit Team oder externen Gaesten (LiveKit)' },
   { key: 'send', label: 'Filapen Send', description: 'Dateien und Ordner an Team-Mitglieder senden (LocalSend-Style)' },
@@ -58,6 +59,7 @@ export function pathToPermission(pathname: string): MenuPermissionKey | null {
   if (pathname.startsWith('/invoices')) return 'invoices';
   if (pathname.startsWith('/returns')) return 'returns';
   if (pathname.startsWith('/nfc')) return 'nfc';
+  if (pathname.startsWith('/dropshipping')) return 'dropshipping';
   if (pathname.startsWith('/screen-share')) return 'screen-share';
   if (pathname.startsWith('/send')) return 'send';
   if (pathname.startsWith('/passwords')) return 'passwords';

@@ -5276,3 +5276,150 @@ model MaLongTermAdSnapshot {
   @@index([reviewId], map: "idx_ma_lts_review")
   @@map("ma_long_term_ad_snapshot")
 }
+
+// =============================================================================
+// Dropshipping-Modul (ds_*) — Phase 1: Fundament
+//
+// Externes China-Partner-Portal. Bewusst ISOLIERT: keine Fremdschluessel in die
+// bestehenden grossen Tabellen (orders/products/organizations). Stattdessen
+// werden die fuer den Versand noetigen Felder beim Sync als Snapshot kopiert.
+// Die Migration ist damit rein additiv (nur CREATE TABLE) — nichts Bestehendes
+// wird veraendert.
+//
+// Quelle der Bestellungen: die bereits von der Shopify-Integration lokal
+// synchronisierten `orders`/`order_line_items`. Der stuendliche Sync liest nur
+// und schreibt ausschliesslich in ds_*-Tabellen.
+// =============================================================================
+
+enum DsOrderStatus {
+  new
+  shipped_cn
+  in_de
+  delivered
+  on_hold
+
+  @@map("ds_order_status")
+}
+
+model DsPartner {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String    @map("org_id") @db.Uuid
+  name         String    @db.VarChar(255)
+  email        String    @db.VarChar(320)
+  passwordHash String?   @map("password_hash") @db.Text
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  orders DsOrder[]
+  skus   DsSku[]
+
+  @@unique([orgId, email], map: "uq_ds_partner_org_email")
+  @@index([orgId])
+  @@map("ds_partners")
+}
+
+model DsSku {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String    @map("org_id") @db.Uuid
+  sku               String    @db.VarChar(255)
+  title             String?   @db.VarChar(500)
+  variantExternalId String?   @map("variant_external_id") @db.VarChar(255)
+  partnerId         String?   @map("partner_id") @db.Uuid
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  partner DsPartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, sku], map: "uq_ds_sku_org_sku")
+  @@index([orgId])
+  @@index([orgId, active])
+  @@map("ds_skus")
+}
+
+model DsOrder {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId              String        @map("org_id") @db.Uuid
+  partnerId          String?       @map("partner_id") @db.Uuid
+  orderId            String?       @map("order_id") @db.Uuid
+  orderExternalId    String        @map("order_external_id") @db.VarChar(255)
+  orderNumber        String        @map("order_number") @db.VarChar(50)
+  placedAt           DateTime      @map("placed_at") @db.Timestamptz
+  customerName       String?       @map("customer_name") @db.VarChar(255)
+  customerPhone      String?       @map("customer_phone") @db.VarChar(50)
+  customerEmail      String?       @map("customer_email") @db.VarChar(320)
+  shippingAddress    Json?         @map("shipping_address") @db.JsonB
+  countryCode        String?       @map("country_code") @db.VarChar(2)
+  status             DsOrderStatus @default(new)
+  cnTracking         String?       @map("cn_tracking") @db.VarChar(255)
+  deTracking         String?       @map("de_tracking") @db.VarChar(255)
+  carrier            String?       @db.VarChar(120)
+  note               String?       @db.Text
+  shippedAt          DateTime?     @map("shipped_at") @db.Timestamptz
+  arrivedAt          DateTime?     @map("arrived_at") @db.Timestamptz
+  deliveredAt        DateTime?     @map("delivered_at") @db.Timestamptz
+  shopifyFulfilledAt DateTime?     @map("shopify_fulfilled_at") @db.Timestamptz
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  partner DsPartner?    @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  items   DsOrderItem[]
+
+  @@unique([orgId, orderExternalId], map: "uq_ds_order_org_external")
+  @@index([orgId])
+  @@index([orgId, status])
+  @@index([partnerId])
+  @@index([orgId, placedAt])
+  @@map("ds_orders")
+}
+
+model DsOrderItem {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId              String   @map("org_id") @db.Uuid
+  dsOrderId          String   @map("ds_order_id") @db.Uuid
+  sku                String?  @db.VarChar(255)
+  title              String   @db.VarChar(500)
+  quantity           Int
+  lineItemExternalId String   @map("line_item_external_id") @db.VarChar(255)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  dsOrder DsOrder @relation(fields: [dsOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([dsOrderId, lineItemExternalId], map: "uq_ds_order_item_order_line")
+  @@index([orgId])
+  @@index([dsOrderId])
+  @@map("ds_order_items")
+}
+
+model DsSyncLog {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String    @map("org_id") @db.Uuid
+  trigger       String    @db.VarChar(30)
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz
+  ordersScanned Int       @default(0) @map("orders_scanned")
+  ordersCreated Int       @default(0) @map("orders_created")
+  ordersUpdated Int       @default(0) @map("orders_updated")
+  status        String    @default("ok") @db.VarChar(20)
+  error         String?   @db.Text
+
+  @@index([orgId, startedAt])
+  @@map("ds_sync_logs")
+}
+
+model DsAuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  actorType String   @map("actor_type") @db.VarChar(20)
+  actorId   String?  @map("actor_id") @db.Uuid
+  action    String   @db.VarChar(60)
+  dsOrderId String?  @map("ds_order_id") @db.Uuid
+  detail    Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([orgId, createdAt])
+  @@index([dsOrderId])
+  @@map("ds_audit_logs")
+}
