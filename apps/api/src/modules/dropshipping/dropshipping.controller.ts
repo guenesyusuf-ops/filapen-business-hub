@@ -71,6 +71,18 @@ export class DropshippingController {
     return this.ds.deletePartner(orgId, id);
   }
 
+  @Post('partners/:id/resend-invite')
+  async resendInvite(
+    @Headers('authorization') authHeader: string,
+    @Headers('origin') origin: string | undefined,
+    @Param('id') id: string,
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    const portalBaseUrl = origin ? `${origin.replace(/\/$/, '')}/partner` : undefined;
+    return this.ds.resendInvite(orgId, id, portalBaseUrl);
+  }
+
   @Post('orders/:id/retry-fulfillment')
   async retryFulfillment(@Headers('authorization') authHeader: string, @Param('id') id: string) {
     const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);

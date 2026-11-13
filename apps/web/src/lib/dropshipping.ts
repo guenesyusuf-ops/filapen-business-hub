@@ -129,7 +129,9 @@ export const dropshippingApi = {
   // Partner-Verwaltung (Owner)
   listPartners: () => call<DsPartner[]>(`/partners`),
   createPartner: (input: { name: string; email: string; password: string }) =>
-    call<DsPartner & { emailSent: boolean }>(`/partners`, { method: 'POST', body: JSON.stringify(input) }),
+    call<DsPartner & { emailSent: boolean; emailReason: 'sent' | 'no_key' | 'failed' }>(`/partners`, { method: 'POST', body: JSON.stringify(input) }),
+  resendInvite: (id: string) =>
+    call<{ emailSent: boolean; emailReason: 'sent' | 'no_key' | 'failed'; email: string; password: string }>(`/partners/${id}/resend-invite`, { method: 'POST' }),
   updatePartner: (id: string, input: Partial<{ name: string; active: boolean; password: string }>) =>
     call<{ ok: boolean }>(`/partners/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   deletePartner: (id: string) => call<{ ok: boolean }>(`/partners/${id}`, { method: 'DELETE' }),

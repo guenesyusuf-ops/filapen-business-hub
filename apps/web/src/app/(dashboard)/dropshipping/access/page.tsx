@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { UserPlus, Trash2, KeyRound, Link2, Copy, Check } from 'lucide-react';
+import { UserPlus, Trash2, KeyRound, Link2, Copy, Check, Mail } from 'lucide-react';
 import { PageHeader, Button, Card, CardBody, Input, StatusPill, Toggle, EmptyState } from '@/components/ds';
 import { dropshippingApi, DsPartner } from '@/lib/dropshipping';
 
@@ -38,10 +38,14 @@ export default function DropshippingAccessPage() {
     setCreating(true); setError(null); setInfo(null);
     try {
       const r = await dropshippingApi.createPartner({ name: form.name.trim(), email: form.email.trim(), password: form.password });
+      const reasonMsg: Record<string, string> = {
+        no_key: 'E-Mail-Dienst nicht erreichbar',
+        failed: 'E-Mail-Versand fehlgeschlagen (Absender-Domain prüfen)',
+      };
       setInfo(
         r.emailSent
           ? `Partner „${form.name.trim()}" angelegt — Einladungs-E-Mail mit Zugangsdaten wurde an ${form.email.trim()} gesendet.`
-          : `Partner „${form.name.trim()}" angelegt. ⚠️ E-Mail konnte nicht gesendet werden (kein E-Mail-Dienst konfiguriert) — bitte Zugangsdaten manuell weitergeben: ${form.email.trim()} / ${form.password}`,
+          : `Partner „${form.name.trim()}" angelegt. ⚠️ ${reasonMsg[r.emailReason] ?? 'E-Mail nicht gesendet'} — bitte Zugangsdaten manuell weitergeben: ${form.email.trim()} / ${form.password}`,
       );
       setForm({ name: '', email: '', password: '' });
       await load();
@@ -58,6 +62,21 @@ export default function DropshippingAccessPage() {
     catch (e: any) {
       setPartners((prev) => prev.map((x) => (x.id === p.id ? { ...x, active: p.active } : x)));
       setError(e.message ?? 'Konnte nicht speichern');
+    }
+  };
+
+  const resendInvite = async (p: DsPartner) => {
+    if (!confirm(`Einladung an ${p.email} senden? Dabei wird ein NEUES Passwort gesetzt.`)) return;
+    try {
+      const r = await dropshippingApi.resendInvite(p.id);
+      setError(null);
+      setInfo(
+        r.emailSent
+          ? `Einladung an ${r.email} gesendet (neues Passwort gesetzt).`
+          : `⚠️ E-Mail nicht gesendet. Neues Passwort zum manuellen Weitergeben: ${r.email} / ${r.password}`,
+      );
+    } catch (e: any) {
+      setError(e.message ?? 'Fehlgeschlagen');
     }
   };
 
@@ -136,6 +155,7 @@ export default function DropshippingAccessPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Toggle checked={p.active} onChange={() => toggleActive(p)} label="Zugang aktiv" />
+                    <Button variant="ghost" size="sm" leftIcon={<Mail size={15} />} onClick={() => resendInvite(p)}>Einladung senden</Button>
                     <Button variant="ghost" size="sm" leftIcon={<KeyRound size={15} />} onClick={() => resetPw(p)}>Passwort</Button>
                     <Button variant="ghost" size="sm" onClick={() => remove(p)} aria-label="Löschen"><Trash2 size={15} /></Button>
                   </div>

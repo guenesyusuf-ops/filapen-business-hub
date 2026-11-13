@@ -66,13 +66,43 @@ export class DropshippingService {
     });
 
     // Einladungs-E-Mail mit Zugangsdaten (best effort — blockiert nicht).
-    const base = (portalBaseUrl || this.config.get<string>('WEB_APP_URL', 'https://business.filapen.de')).replace(/\/$/, '');
-    const portalLink = base.endsWith('/partner') ? base : `${base}/partner`;
-    const emailSent = await this.email.sendDropshipPartnerInvite({
-      to: email, name, password: input.password, portalLink,
+    const emailReason = await this.email.sendDropshipPartnerInvite({
+      to: email, name, password: input.password, portalLink: this.portalLink(portalBaseUrl),
     });
 
-    return { ...partner, emailSent };
+    return { ...partner, emailSent: emailReason === 'sent', emailReason };
+  }
+
+  private portalLink(portalBaseUrl?: string): string {
+    const base = (portalBaseUrl || this.config.get<string>('WEB_APP_URL', 'https://business.filapen.de')).replace(/\/$/, '');
+    return base.endsWith('/partner') ? base : `${base}/partner`;
+  }
+
+  /**
+   * Einladung erneut senden: setzt ein neues Passwort und mailt die Zugangsdaten.
+   * Gibt das neue Passwort zurueck, damit der Owner es notfalls manuell weitergeben kann.
+   */
+  async resendInvite(orgId: string, id: string, portalBaseUrl?: string) {
+    const partner = await this.prisma.dsPartner.findFirst({
+      where: { id, orgId }, select: { id: true, name: true, email: true },
+    });
+    if (!partner) throw new NotFoundException('Partner nicht gefunden');
+
+    const password = this.generatePassword();
+    await this.prisma.dsPartner.update({
+      where: { id }, data: { passwordHash: this.partnerAuth.hashPassword(password), active: true },
+    });
+    const emailReason = await this.email.sendDropshipPartnerInvite({
+      to: partner.email, name: partner.name, password, portalLink: this.portalLink(portalBaseUrl),
+    });
+    return { emailSent: emailReason === 'sent', emailReason, email: partner.email, password };
+  }
+
+  private generatePassword(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let out = 'FP-';
+    for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
   }
 
   async updatePartner(

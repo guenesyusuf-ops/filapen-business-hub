@@ -149,11 +149,11 @@ export class EmailService {
     name: string;
     password: string;
     portalLink: string;
-  }): Promise<boolean> {
+  }): Promise<'sent' | 'no_key' | 'failed'> {
     if (!this.apiKey) {
       this.logger.warn(`Email not sent (no RESEND_API_KEY): Dropship invite -> ${params.to}`);
       this.logger.log(`Portal: ${params.portalLink} | login: ${params.to}`);
-      return false;
+      return 'no_key';
     }
     const html = `
       <div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1915">
@@ -180,13 +180,13 @@ export class EmailService {
       });
       if (!res.ok) {
         this.logger.error(`Failed to send dropship invite: ${await res.text()}`);
-        return false;
+        return 'failed';
       }
       this.logger.log(`Dropship invite sent to ${params.to}`);
-      return true;
+      return 'sent';
     } catch (error) {
       this.logger.error(`Dropship invite email error: ${error}`);
-      return false;
+      return 'failed';
     }
   }
 
