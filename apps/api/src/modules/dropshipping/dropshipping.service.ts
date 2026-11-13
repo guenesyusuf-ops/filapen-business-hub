@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DsPartnerAuthService } from './ds-partner-auth.service';
 
 export interface DsSkuRow {
   sku: string;
@@ -21,7 +22,66 @@ export interface DsRuleSkuInput {
  */
 @Injectable()
 export class DropshippingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly partnerAuth: DsPartnerAuthService,
+  ) {}
+
+  // ---------------------------------------------------------------------------
+  // Partner-Verwaltung (Owner-Seite)
+  // ---------------------------------------------------------------------------
+
+  async listPartners(orgId: string) {
+    return this.prisma.dsPartner.findMany({
+      where: { orgId },
+      select: {
+        id: true, name: true, email: true, active: true, lastLoginAt: true, createdAt: true,
+        _count: { select: { orders: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createPartner(orgId: string, input: { name: string; email: string; password: string }) {
+    const name = (input.name ?? '').trim();
+    const email = (input.email ?? '').trim().toLowerCase();
+    if (!name || !email) throw new BadRequestException('Name und E-Mail erforderlich');
+    if (!input.password || input.password.length < 8) {
+      throw new BadRequestException('Passwort muss mindestens 8 Zeichen haben');
+    }
+    const existing = await this.prisma.dsPartner.findFirst({ where: { orgId, email } });
+    if (existing) throw new BadRequestException('Ein Partner mit dieser E-Mail existiert bereits');
+    const partner = await this.prisma.dsPartner.create({
+      data: { orgId, name, email, passwordHash: this.partnerAuth.hashPassword(input.password), active: true },
+      select: { id: true, name: true, email: true, active: true },
+    });
+    return partner;
+  }
+
+  async updatePartner(
+    orgId: string,
+    id: string,
+    input: { name?: string; active?: boolean; password?: string },
+  ) {
+    const partner = await this.prisma.dsPartner.findFirst({ where: { id, orgId }, select: { id: true } });
+    if (!partner) throw new NotFoundException('Partner nicht gefunden');
+    const data: any = {};
+    if (input.name !== undefined) data.name = input.name.trim();
+    if (input.active !== undefined) data.active = input.active;
+    if (input.password) {
+      if (input.password.length < 8) throw new BadRequestException('Passwort muss mindestens 8 Zeichen haben');
+      data.passwordHash = this.partnerAuth.hashPassword(input.password);
+    }
+    await this.prisma.dsPartner.update({ where: { id }, data });
+    return { ok: true };
+  }
+
+  async deletePartner(orgId: string, id: string) {
+    const partner = await this.prisma.dsPartner.findFirst({ where: { id, orgId }, select: { id: true } });
+    if (!partner) throw new NotFoundException('Partner nicht gefunden');
+    await this.prisma.dsPartner.delete({ where: { id } });
+    return { ok: true };
+  }
 
   // ---------------------------------------------------------------------------
   // Produkt-Katalog (zum Zusammenstellen von Regeln)

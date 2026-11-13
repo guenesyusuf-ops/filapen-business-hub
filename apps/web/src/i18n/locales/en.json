@@ -151,7 +151,8 @@
     "dropshipping": "Dropshipping",
     "dsOverview": "Overview",
     "dsOrders": "Orders",
-    "dsProducts": "Rules"
+    "dsProducts": "Rules",
+    "dsAccess": "Access"
   },
   "finance": {
     "grossRevenue": "Gross Revenue",

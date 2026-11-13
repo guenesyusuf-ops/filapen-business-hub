@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { PackageOpen, Download, Plus, Boxes } from 'lucide-react';
+import { PackageOpen, Download, Plus, Boxes, RefreshCw } from 'lucide-react';
 import { PageHeader, Button, Input, DataTable, StatusPill, EmptyState, type Column } from '@/components/ds';
 import { dropshippingApi, DsOrder, DsOrderStatus, DS_STATUS_LABELS } from '@/lib/dropshipping';
 
@@ -33,6 +33,7 @@ export default function DropshippingOrdersPage() {
   const [importNo, setImportNo] = useState('');
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const load = useCallback(async (s: string) => {
     setLoading(true);
@@ -62,6 +63,21 @@ export default function DropshippingOrdersPage() {
       setError(e.message ?? 'Import fehlgeschlagen');
     } finally {
       setImporting(false);
+    }
+  };
+
+  const doRetry = async (id: string) => {
+    setRetrying(id);
+    setError(null); setInfo(null);
+    try {
+      const r = await dropshippingApi.retryFulfillment(id);
+      if (r.ok) setInfo('Rückschreibung nach Shopify erfolgreich.');
+      else setError(`Shopify-Rückschreibung fehlgeschlagen: ${r.error ?? 'unbekannt'}`);
+      await load(status);
+    } catch (e: any) {
+      setError(e.message ?? 'Fehlgeschlagen');
+    } finally {
+      setRetrying(null);
     }
   };
 
@@ -102,6 +118,17 @@ export default function DropshippingOrdersPage() {
     { key: 'cn', header: 'CN-Tracking', render: (o) => o.cnTracking ?? <span className="text-[var(--text-tertiary)]">—</span> },
     { key: 'de', header: 'DE-Tracking', render: (o) => o.deTracking ?? <span className="text-[var(--text-tertiary)]">—</span> },
     { key: 'carrier', header: 'Spedition', render: (o) => o.carrier ?? <span className="text-[var(--text-tertiary)]">—</span> },
+    { key: 'shopify', header: 'Shopify', width: '150px', render: (o) => {
+      if (o.shopifyFulfilledAt) return <StatusPill tone="ok" dot={false}>versendet</StatusPill>;
+      if (o.status === 'in_de' || o.status === 'delivered') {
+        return (
+          <Button variant="ghost" size="sm" leftIcon={<RefreshCw size={14} />} loading={retrying === o.id} onClick={() => doRetry(o.id)}>
+            Rückschreiben
+          </Button>
+        );
+      }
+      return <span className="text-[var(--text-tertiary)]">—</span>;
+    } },
   ];
 
   return (
@@ -158,7 +185,7 @@ export default function DropshippingOrdersPage() {
         columns={columns}
         rows={loading ? [] : orders}
         rowKey={(o) => o.id}
-        minWidth={960}
+        minWidth={1120}
         empty={
           <EmptyState
             icon={<PackageOpen size={28} />}

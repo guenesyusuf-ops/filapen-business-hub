@@ -2139,6 +2139,82 @@ export class ShopifyService {
   }
 
   /**
+   * Dropshipping-Rueckschreibung: erstellt in Shopify eine Fulfillment mit
+   * Tracking-Nummer fuer die angegebenen Order-Line-Items (per Shopify-
+   * line_item_id). notifyCustomer=true loest die Versand-Mail an den Kunden aus.
+   *
+   * Best-effort aus Sicht des Aufrufers: wirft bei Fehler, der Aufrufer
+   * entscheidet ueber Wiederholung. Sind keine offenen Fulfillment-Orders mehr
+   * vorhanden (bereits versendet), wird 'already_fulfilled' gemeldet.
+   */
+  async createTrackingFulfillment(
+    orgId: string,
+    orderExternalId: string,
+    opts: {
+      trackingNumber: string;
+      trackingCompany?: string | null;
+      notifyCustomer: boolean;
+      lineItemExternalIds: string[];
+    },
+  ): Promise<{ status: 'fulfilled' | 'already_fulfilled'; fulfillmentId?: string }> {
+    const integration = await this.prisma.integration.findFirst({
+      where: { orgId, type: 'shopify' },
+    });
+    if (!integration) {
+      throw new Error('Keine Shopify-Integration fuer diese Organisation');
+    }
+    const { accessToken, shopDomain } = this.decryptCredentials(
+      integration.credentials as Record<string, string>,
+    );
+
+    const foResp = await this.shopifyApiGet<{ fulfillment_orders: any[] }>(
+      shopDomain,
+      accessToken,
+      `/admin/api/2024-01/orders/${orderExternalId}/fulfillment_orders.json`,
+    );
+
+    const wantIds = new Set((opts.lineItemExternalIds ?? []).map((x) => String(x)));
+    const groups: Array<{
+      fulfillment_order_id: number;
+      fulfillment_order_line_items: Array<{ id: number; quantity: number }>;
+    }> = [];
+
+    for (const fo of foResp.fulfillment_orders ?? []) {
+      if (!['open', 'in_progress', 'scheduled'].includes(fo.status)) continue;
+      const items = (fo.line_items ?? [])
+        .filter((li: any) => wantIds.size === 0 || wantIds.has(String(li.line_item_id)))
+        .map((li: any) => ({ id: li.id, quantity: li.fulfillable_quantity ?? li.quantity ?? 0 }))
+        .filter((li: { quantity: number }) => li.quantity > 0);
+      if (items.length > 0) {
+        groups.push({ fulfillment_order_id: fo.id, fulfillment_order_line_items: items });
+      }
+    }
+
+    if (groups.length === 0) {
+      return { status: 'already_fulfilled' };
+    }
+
+    const body = {
+      fulfillment: {
+        line_items_by_fulfillment_order: groups,
+        tracking_info: {
+          number: opts.trackingNumber,
+          company: opts.trackingCompany || undefined,
+        },
+        notify_customer: opts.notifyCustomer,
+      },
+    };
+
+    const res = await this.shopifyApiPost<{ fulfillment: { id: number } }>(
+      shopDomain,
+      accessToken,
+      `/admin/api/2024-01/fulfillments.json`,
+      body,
+    );
+    return { status: 'fulfilled', fulfillmentId: String(res.fulfillment?.id ?? '') };
+  }
+
+  /**
    * Enqueue a DailyAggregate recalculation for the given date.
    * Uses a debounce key so rapid successive calls for the same date
    * get deduplicated by BullMQ.

@@ -7,6 +7,7 @@ import { AuthService } from '../auth/auth.service';
 import { extractAuthContext, assertCanWrite } from './ds-auth-context';
 import { DropshippingService, DsRuleSkuInput } from './dropshipping.service';
 import { DropshippingSyncService } from './dropshipping-sync.service';
+import { DsPortalService } from './ds-portal.service';
 
 /**
  * Owner-/Hub-interne Endpunkte des Dropshipping-Moduls (Deutsch-UI).
@@ -18,7 +19,53 @@ export class DropshippingController {
     private readonly auth: AuthService,
     private readonly ds: DropshippingService,
     private readonly sync: DropshippingSyncService,
+    private readonly portal: DsPortalService,
   ) {}
+
+  // ---- Partner-Verwaltung ----
+  @Get('partners')
+  async listPartners(@Headers('authorization') authHeader: string) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.ds.listPartners(orgId);
+  }
+
+  @Post('partners')
+  async createPartner(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { name?: string; email?: string; password?: string },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    if (!body?.name || !body?.email || !body?.password) {
+      throw new BadRequestException('name, email und password erforderlich');
+    }
+    return this.ds.createPartner(orgId, { name: body.name, email: body.email, password: body.password });
+  }
+
+  @Patch('partners/:id')
+  async updatePartner(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+    @Body() body: { name?: string; active?: boolean; password?: string },
+  ) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.ds.updatePartner(orgId, id, body ?? {});
+  }
+
+  @Delete('partners/:id')
+  async deletePartner(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.ds.deletePartner(orgId, id);
+  }
+
+  @Post('orders/:id/retry-fulfillment')
+  async retryFulfillment(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+    const { orgId, userId, role } = extractAuthContext(authHeader, this.auth);
+    assertCanWrite(role);
+    return this.portal.retryFulfillmentAsOwner(orgId, id, userId);
+  }
 
   // ---- Katalog ----
   @Get('skus')

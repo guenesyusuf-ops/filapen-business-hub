@@ -309,6 +309,7 @@ const NAV_ITEMS: NavItem[] = [
       { labelKey: 'nav.dsOverview', href: '/dropshipping', icon: BarChart3 },
       { labelKey: 'nav.dsOrders', href: '/dropshipping/orders', icon: ClipboardList },
       { labelKey: 'nav.dsProducts', href: '/dropshipping/products', icon: Boxes },
+      { labelKey: 'nav.dsAccess', href: '/dropshipping/access', icon: Users },
     ],
   },
   {

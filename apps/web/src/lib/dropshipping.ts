@@ -67,8 +67,19 @@ export interface DsOrder {
   deTracking: string | null;
   carrier: string | null;
   note: string | null;
+  shopifyFulfilledAt: string | null;
   items: DsOrderItem[];
   partner: { id: string; name: string } | null;
+}
+
+export interface DsPartner {
+  id: string;
+  name: string;
+  email: string;
+  active: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  _count?: { orders: number };
 }
 
 export interface DsStats {
@@ -107,6 +118,16 @@ export const dropshippingApi = {
   listOrders: (status?: string) => call<DsOrder[]>(`/orders${status ? `?status=${encodeURIComponent(status)}` : ''}`),
   importOrder: (orderNumber: string) =>
     call<{ id: string; itemCount: number }>(`/orders/import`, { method: 'POST', body: JSON.stringify({ orderNumber }) }),
+  retryFulfillment: (id: string) =>
+    call<{ ok: boolean; status?: string; error?: string }>(`/orders/${id}/retry-fulfillment`, { method: 'POST' }),
+
+  // Partner-Verwaltung (Owner)
+  listPartners: () => call<DsPartner[]>(`/partners`),
+  createPartner: (input: { name: string; email: string; password: string }) =>
+    call<DsPartner>(`/partners`, { method: 'POST', body: JSON.stringify(input) }),
+  updatePartner: (id: string, input: Partial<{ name: string; active: boolean; password: string }>) =>
+    call<{ ok: boolean }>(`/partners/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deletePartner: (id: string) => call<{ ok: boolean }>(`/partners/${id}`, { method: 'DELETE' }),
 
   stats: () => call<DsStats>(`/stats`),
   lastSync: () => call<DsSyncLog | null>(`/sync/status`),
