@@ -19,13 +19,30 @@ async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
 // -----------------------------------------------------------------------------
 
 export type DsOrderStatus = 'new' | 'shipped_cn' | 'in_de' | 'delivered' | 'on_hold';
+export type DsRuleMode = 'subset' | 'exact';
 
 export interface DsSkuRow {
   sku: string;
   title: string | null;
   productTitle: string;
   variantExternalId: string | null;
-  dropship: boolean;
+  imageUrl: string | null;
+}
+
+export interface DsRuleSku {
+  id?: string;
+  sku: string;
+  title?: string | null;
+  imageUrl?: string | null;
+  variantExternalId?: string | null;
+}
+
+export interface DsRule {
+  id: string;
+  name: string;
+  mode: DsRuleMode;
+  active: boolean;
+  skus: DsRuleSku[];
 }
 
 export interface DsOrderItem {
@@ -33,6 +50,7 @@ export interface DsOrderItem {
   sku: string | null;
   title: string;
   quantity: number;
+  imageUrl: string | null;
 }
 
 export interface DsOrder {
@@ -57,7 +75,7 @@ export interface DsStats {
   byStatus: Record<DsOrderStatus, number>;
   overdue: number;
   total: number;
-  activeSkus: number;
+  activeRules: number;
 }
 
 export interface DsSyncLog {
@@ -77,25 +95,39 @@ export interface DsSyncLog {
 // -----------------------------------------------------------------------------
 
 export const dropshippingApi = {
-  listSkus: (q?: string) =>
-    call<DsSkuRow[]>(`/skus${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  listSkus: (q?: string) => call<DsSkuRow[]>(`/skus${q ? `?q=${encodeURIComponent(q)}` : ''}`),
 
-  toggleSku: (input: { sku: string; title?: string | null; variantExternalId?: string | null; active: boolean }) =>
-    call<{ sku: string; active: boolean }>(`/skus/toggle`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
+  listRules: () => call<DsRule[]>(`/rules`),
+  createRule: (input: { name?: string; mode: DsRuleMode; active?: boolean; skus: DsRuleSku[] }) =>
+    call<DsRule>(`/rules`, { method: 'POST', body: JSON.stringify(input) }),
+  updateRule: (id: string, input: Partial<{ name: string; mode: DsRuleMode; active: boolean; skus: DsRuleSku[] }>) =>
+    call<DsRule>(`/rules/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteRule: (id: string) => call<{ ok: boolean }>(`/rules/${id}`, { method: 'DELETE' }),
 
-  listOrders: (status?: string) =>
-    call<DsOrder[]>(`/orders${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  listOrders: (status?: string) => call<DsOrder[]>(`/orders${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  importOrder: (orderNumber: string) =>
+    call<{ id: string; itemCount: number }>(`/orders/import`, { method: 'POST', body: JSON.stringify({ orderNumber }) }),
 
   stats: () => call<DsStats>(`/stats`),
-
   lastSync: () => call<DsSyncLog | null>(`/sync/status`),
+  runSync: () => call<{ ok: boolean; scanned: number; created: number; updated: number }>(`/sync`, { method: 'POST' }),
 
-  runSync: () => call<{ ok: boolean; scanned: number; created: number; updated: number }>(`/sync`, {
-    method: 'POST',
-  }),
+  /** CSV-Download (authentifiziert → via Blob). */
+  async exportCsv(status?: string): Promise<void> {
+    const res = await fetch(`${API_URL}/api/dropshipping/orders/export${status ? `?status=${encodeURIComponent(status)}` : ''}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error(`Export fehlgeschlagen (HTTP ${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dropshipping-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const DS_STATUS_LABELS: Record<DsOrderStatus, string> = {
@@ -104,4 +136,9 @@ export const DS_STATUS_LABELS: Record<DsOrderStatus, string> = {
   in_de: 'In Deutschland',
   delivered: 'Zugestellt',
   on_hold: 'Problem / Wartet',
+};
+
+export const DS_MODE_LABELS: Record<DsRuleMode, string> = {
+  subset: 'Erlaubte Produkte',
+  exact: 'Exakte Kombination',
 };

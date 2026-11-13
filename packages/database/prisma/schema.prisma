@@ -5382,6 +5382,7 @@ model DsOrderItem {
   sku                String?  @db.VarChar(255)
   title              String   @db.VarChar(500)
   quantity           Int
+  imageUrl           String?  @map("image_url") @db.Text
   lineItemExternalId String   @map("line_item_external_id") @db.VarChar(255)
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
@@ -5422,4 +5423,40 @@ model DsAuditLog {
   @@index([orgId, createdAt])
   @@index([dsOrderId])
   @@map("ds_audit_logs")
+}
+
+// Dropshipping Phase 1.5 — Regeln (Einzel-SKU oder Kombination, je Regel ein Modus)
+model DsRule {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String      @map("org_id") @db.Uuid
+  name      String      @default("") @db.VarChar(200)
+  // 'subset' = Bestellung passt, wenn ALLE Produkte aus der SKU-Menge stammen.
+  // 'exact'  = Bestellung passt nur bei exakt dieser SKU-Menge.
+  mode      String      @default("subset") @db.VarChar(10)
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  skus DsRuleSku[]
+
+  @@index([orgId])
+  @@index([orgId, active])
+  @@map("ds_rules")
+}
+
+model DsRuleSku {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String  @map("org_id") @db.Uuid
+  ruleId            String  @map("rule_id") @db.Uuid
+  sku               String  @db.VarChar(255)
+  title             String? @db.VarChar(500)
+  imageUrl          String? @map("image_url") @db.Text
+  variantExternalId String? @map("variant_external_id") @db.VarChar(255)
+
+  rule DsRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, sku], map: "uq_ds_rule_sku")
+  @@index([orgId])
+  @@index([ruleId])
+  @@map("ds_rule_skus")
 }

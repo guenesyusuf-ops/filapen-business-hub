@@ -68,7 +68,7 @@ export default function DropshippingOverviewPage() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiTile label="Aktive Dropship-SKUs" value={loading ? '–' : stats?.activeSkus ?? 0} visual={<Boxes size={18} />} />
+        <KpiTile label="Aktive Regeln" value={loading ? '–' : stats?.activeRules ?? 0} visual={<Boxes size={18} />} />
         <KpiTile label="Bestellungen gesamt" value={loading ? '–' : stats?.total ?? 0} visual={<Package size={18} />} />
         <KpiTile label="Neu / offen" value={loading ? '–' : stats?.byStatus.new ?? 0} visual={<Clock size={18} />} />
         <KpiTile label="Überfällig (>48h)" value={loading ? '–' : stats?.overdue ?? 0} trend={stats && stats.overdue > 0 ? 'down' : 'flat'} visual={<AlertTriangle size={18} />} />
