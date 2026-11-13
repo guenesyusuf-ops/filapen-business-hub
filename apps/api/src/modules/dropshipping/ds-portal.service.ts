@@ -78,6 +78,58 @@ export class DsPortalService {
     return orders;
   }
 
+  /** Kurz-Infos fuer den Portal-Header: Anzahl Bestellungen + letzte Aktualisierung. */
+  async summary(partnerId: string, orgId: string) {
+    await this.assertActive(partnerId, orgId);
+    const total = await this.prisma.dsOrder.count({ where: { orgId, partnerId } });
+    const openCount = await this.prisma.dsOrder.count({ where: { orgId, partnerId, status: { in: ['new', 'shipped_cn'] } } });
+    const lastSync = await this.prisma.dsSyncLog.findFirst({
+      where: { orgId, status: 'ok' },
+      orderBy: { startedAt: 'desc' },
+      select: { finishedAt: true, startedAt: true },
+    });
+    return { total, openCount, lastUpdatedAt: lastSync?.finishedAt ?? lastSync?.startedAt ?? null };
+  }
+
+  /** CSV-Export der eigenen Bestellungen (englisch). */
+  async exportCsv(partnerId: string, orgId: string, status?: string): Promise<string> {
+    const orders = await this.listOrders(partnerId, orgId, status);
+    const statusLabel: Record<string, string> = {
+      new: 'New', shipped_cn: 'Shipped (CN)', in_de: 'In Germany', delivered: 'Delivered', on_hold: 'On hold',
+    };
+    const headers = [
+      'Order', 'Date', 'Status', 'Customer', 'Phone', 'Country', 'Address',
+      'Items', 'CN tracking', 'DE tracking', 'Carrier',
+    ];
+    const esc = (v: any) => {
+      const s = v == null ? '' : String(v);
+      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const addr = (a: any): string => {
+      if (!a || typeof a !== 'object') return '';
+      return [a.address1, a.address2, [a.zip, a.city].filter(Boolean).join(' '), a.province, a.country]
+        .filter(Boolean).join(', ');
+    };
+    const lines = [headers.join(';')];
+    for (const o of orders) {
+      const items = (o.items ?? []).map((i: any) => `${i.quantity}x ${i.sku ?? i.title}`).join(' | ');
+      lines.push([
+        `#${o.orderNumber}`,
+        new Date(o.placedAt).toLocaleDateString('en-GB'),
+        statusLabel[o.status] ?? o.status,
+        o.customerName ?? '',
+        o.customerPhone ?? '',
+        o.countryCode ?? '',
+        addr(o.shippingAddress),
+        items,
+        o.cnTracking ?? '',
+        o.deTracking ?? '',
+        o.carrier ?? '',
+      ].map(esc).join(';'));
+    }
+    return '﻿' + lines.join('\r\n');
+  }
+
   private async loadOwnOrder(partnerId: string, orgId: string, dsOrderId: string) {
     const order = await this.prisma.dsOrder.findFirst({
       where: { id: dsOrderId, orgId, partnerId },

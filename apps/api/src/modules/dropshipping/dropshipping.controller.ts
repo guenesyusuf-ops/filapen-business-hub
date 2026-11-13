@@ -32,6 +32,7 @@ export class DropshippingController {
   @Post('partners')
   async createPartner(
     @Headers('authorization') authHeader: string,
+    @Headers('origin') origin: string | undefined,
     @Body() body: { name?: string; email?: string; password?: string },
   ) {
     const { orgId, role } = extractAuthContext(authHeader, this.auth);
@@ -39,7 +40,17 @@ export class DropshippingController {
     if (!body?.name || !body?.email || !body?.password) {
       throw new BadRequestException('name, email und password erforderlich');
     }
-    return this.ds.createPartner(orgId, { name: body.name, email: body.email, password: body.password });
+    const portalBaseUrl = origin ? `${origin.replace(/\/$/, '')}/partner` : undefined;
+    return this.ds.createPartner(orgId, { name: body.name, email: body.email, password: body.password }, portalBaseUrl);
+  }
+
+  @Post('suggestions')
+  async suggestions(
+    @Headers('authorization') authHeader: string,
+    @Body() body: { skus?: string[] },
+  ) {
+    const { orgId } = extractAuthContext(authHeader, this.auth);
+    return this.ds.suggestions(orgId, Array.isArray(body?.skus) ? body.skus : []);
   }
 
   @Patch('partners/:id')

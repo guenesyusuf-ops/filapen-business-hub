@@ -108,6 +108,11 @@ export interface DsSyncLog {
 export const dropshippingApi = {
   listSkus: (q?: string) => call<DsSkuRow[]>(`/skus${q ? `?q=${encodeURIComponent(q)}` : ''}`),
 
+  suggestions: (skus: string[]) =>
+    call<Array<{ sku: string; title: string; count: number; imageUrl: string | null }>>(`/suggestions`, {
+      method: 'POST', body: JSON.stringify({ skus }),
+    }),
+
   listRules: () => call<DsRule[]>(`/rules`),
   createRule: (input: { name?: string; mode: DsRuleMode; active?: boolean; skus: DsRuleSku[] }) =>
     call<DsRule>(`/rules`, { method: 'POST', body: JSON.stringify(input) }),
@@ -124,7 +129,7 @@ export const dropshippingApi = {
   // Partner-Verwaltung (Owner)
   listPartners: () => call<DsPartner[]>(`/partners`),
   createPartner: (input: { name: string; email: string; password: string }) =>
-    call<DsPartner>(`/partners`, { method: 'POST', body: JSON.stringify(input) }),
+    call<DsPartner & { emailSent: boolean }>(`/partners`, { method: 'POST', body: JSON.stringify(input) }),
   updatePartner: (id: string, input: Partial<{ name: string; active: boolean; password: string }>) =>
     call<{ ok: boolean }>(`/partners/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   deletePartner: (id: string) => call<{ ok: boolean }>(`/partners/${id}`, { method: 'DELETE' }),

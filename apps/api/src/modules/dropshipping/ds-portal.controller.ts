@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, Res, BadRequestException } from '@nestjs/common';
+import type { Response } from 'express';
 import { DsPartnerAuthService } from './ds-partner-auth.service';
 import { DsPortalService } from './ds-portal.service';
 
@@ -20,10 +21,30 @@ export class DsPortalController {
     return this.portal.login(body.email, body.password);
   }
 
+  @Get('summary')
+  async summary(@Headers('authorization') authHeader: string) {
+    const { partnerId, orgId } = this.auth.extractContext(authHeader);
+    return this.portal.summary(partnerId, orgId);
+  }
+
   @Get('orders')
   async orders(@Headers('authorization') authHeader: string, @Query('status') status?: string) {
     const { partnerId, orgId } = this.auth.extractContext(authHeader);
     return this.portal.listOrders(partnerId, orgId, status);
+  }
+
+  @Get('orders/export')
+  async exportOrders(
+    @Headers('authorization') authHeader: string,
+    @Query('status') status: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { partnerId, orgId } = this.auth.extractContext(authHeader);
+    const csv = await this.portal.exportCsv(partnerId, orgId, status);
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="orders-${date}.csv"`);
+    res.send(csv);
   }
 
   @Post('orders/:id/ship')

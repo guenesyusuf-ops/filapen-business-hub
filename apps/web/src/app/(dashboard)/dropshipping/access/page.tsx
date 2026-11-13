@@ -37,8 +37,12 @@ export default function DropshippingAccessPage() {
     }
     setCreating(true); setError(null); setInfo(null);
     try {
-      await dropshippingApi.createPartner({ name: form.name.trim(), email: form.email.trim(), password: form.password });
-      setInfo(`Partner „${form.name.trim()}" angelegt. Zugangsdaten sicher weitergeben.`);
+      const r = await dropshippingApi.createPartner({ name: form.name.trim(), email: form.email.trim(), password: form.password });
+      setInfo(
+        r.emailSent
+          ? `Partner „${form.name.trim()}" angelegt — Einladungs-E-Mail mit Zugangsdaten wurde an ${form.email.trim()} gesendet.`
+          : `Partner „${form.name.trim()}" angelegt. ⚠️ E-Mail konnte nicht gesendet werden (kein E-Mail-Dienst konfiguriert) — bitte Zugangsdaten manuell weitergeben: ${form.email.trim()} / ${form.password}`,
+      );
       setForm({ name: '', email: '', password: '' });
       await load();
     } catch (e: any) {

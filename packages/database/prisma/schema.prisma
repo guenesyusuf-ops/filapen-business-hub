@@ -5352,6 +5352,7 @@ model DsOrder {
   customerEmail      String?       @map("customer_email") @db.VarChar(320)
   shippingAddress    Json?         @map("shipping_address") @db.JsonB
   countryCode        String?       @map("country_code") @db.VarChar(2)
+  source             String        @default("rule") @db.VarChar(10)
   status             DsOrderStatus @default(new)
   cnTracking         String?       @map("cn_tracking") @db.VarChar(255)
   deTracking         String?       @map("de_tracking") @db.VarChar(255)

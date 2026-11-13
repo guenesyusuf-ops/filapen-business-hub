@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ship, LogOut, Package, Truck, CheckCircle2, AlertTriangle, X, Boxes, MapPin, Phone } from 'lucide-react';
+import { Ship, LogOut, Package, Truck, CheckCircle2, AlertTriangle, X, Boxes, MapPin, Phone, Download } from 'lucide-react';
 import { Button, Card, CardBody, Input, Select, StatusPill, EmptyState } from '@/components/ds';
 import {
   portalApi, PortalOrder, PortalOrderStatus, PORTAL_STATUS_LABEL, CARRIERS,
@@ -129,6 +129,12 @@ function OrdersView({ onAuthLost }: { onAuthLost: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<{ order: PortalOrder; type: ActionType } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [summary, setSummary] = useState<{ total: number; openCount: number; lastUpdatedAt: string | null } | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const loadSummary = useCallback(() => {
+    portalApi.summary().then(setSummary).catch(() => {});
+  }, []);
 
   const load = useCallback(async (s: string) => {
     setLoading(true);
@@ -144,6 +150,14 @@ function OrdersView({ onAuthLost }: { onAuthLost: () => void }) {
   }, [onAuthLost]);
 
   useEffect(() => { load(status); }, [load, status]);
+  useEffect(() => { loadSummary(); }, [loadSummary, orders.length]);
+
+  const doExport = async () => {
+    setExporting(true);
+    try { await portalApi.exportCsv(status || undefined); }
+    catch (e: any) { setError(e.message ?? 'Export failed'); }
+    finally { setExporting(false); }
+  };
 
   const markDelivered = async (o: PortalOrder) => {
     setBusyId(o.id);
@@ -154,6 +168,16 @@ function OrdersView({ onAuthLost }: { onAuthLost: () => void }) {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-4">
+      {/* Summary bar */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 justify-between">
+        <div className="text-[13.5px] text-[var(--text-secondary)] flex flex-wrap items-center gap-x-3">
+          <span><span className="font-semibold text-[var(--text-primary)]">{summary?.total ?? orders.length}</span> orders</span>
+          {summary && <span><span className="font-semibold text-[var(--text-primary)]">{summary.openCount}</span> to ship</span>}
+          {summary?.lastUpdatedAt && <span>Last updated {new Date(summary.lastUpdatedAt).toLocaleString('en-GB')}</span>}
+        </div>
+        <Button variant="secondary" size="sm" leftIcon={<Download size={15} />} loading={exporting} onClick={doExport}>Export CSV</Button>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button

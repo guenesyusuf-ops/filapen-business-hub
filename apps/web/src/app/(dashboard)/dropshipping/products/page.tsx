@@ -165,6 +165,7 @@ function RuleEditor({
   const [catalog, setCatalog] = useState<DsSkuRow[]>([]);
   const [q, setQ] = useState('');
   const [loadingCat, setLoadingCat] = useState(true);
+  const [suggestions, setSuggestions] = useState<Array<{ sku: string; title: string; count: number; imageUrl: string | null }>>([]);
 
   useEffect(() => {
     let alive = true;
@@ -176,6 +177,20 @@ function RuleEditor({
   }, []);
 
   const selectedSkus = useMemo(() => new Set(draft.skus.map((s) => s.sku)), [draft.skus]);
+  const selectedKey = useMemo(() => [...selectedSkus].sort().join(','), [selectedSkus]);
+
+  // Vorschläge: Produkte, die in offenen Bestellungen mit der Auswahl vorkommen.
+  useEffect(() => {
+    if (draft.skus.length === 0) { setSuggestions([]); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      dropshippingApi.suggestions(draft.skus.map((s) => s.sku))
+        .then((rows) => { if (alive) setSuggestions(rows.filter((r) => !selectedSkus.has(r.sku))); })
+        .catch(() => {});
+    }, 400);
+    return () => { alive = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -235,6 +250,33 @@ function RuleEditor({
             </div>
           )}
         </div>
+
+        {/* Vorschläge aus offenen Bestellungen */}
+        {suggestions.length > 0 && (
+          <div className="rounded-xl border border-primary-500/30 bg-primary-500/[0.05] p-3">
+            <div className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">
+              Kommt oft zusammen vor — fehlt vielleicht in dieser Regel?
+            </div>
+            <div className="text-[12px] text-[var(--text-secondary)] mb-2.5">
+              Diese Produkte stecken in offenen Bestellungen, die sonst deine Auswahl enthalten. Antippen zum Hinzufügen.
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {suggestions.map((s) => (
+                <button
+                  key={s.sku}
+                  onClick={() => add({ sku: s.sku, title: s.title, productTitle: s.title, variantExternalId: null, imageUrl: s.imageUrl })}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-color)] bg-[var(--card-bg)] pl-1 pr-2.5 py-1 text-[12.5px] hover:border-primary-500/50"
+                  title={`${s.title} — in ${s.count} offenen Bestellungen`}
+                >
+                  <Thumb url={s.imageUrl} alt={s.sku} />
+                  <span className="font-mono text-[var(--text-primary)]">{s.sku}</span>
+                  <span className="text-[var(--text-secondary)]">+{s.count}</span>
+                  <Plus size={13} className="text-primary-600" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Katalog-Suche */}
         <div>

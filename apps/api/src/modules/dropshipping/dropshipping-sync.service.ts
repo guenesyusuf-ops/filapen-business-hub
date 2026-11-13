@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isIgnorableLine, setEquals, MatchLine } from './ds-matching';
 
 export interface DsSyncResult {
   scanned: number;
@@ -11,12 +12,6 @@ interface RuleDef {
   id: string;
   mode: string; // 'subset' | 'exact'
   skus: Set<string>;
-}
-
-function setEquals(a: Set<string>, b: Set<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const x of a) if (!b.has(x)) return false;
-  return true;
 }
 
 /**
@@ -64,8 +59,12 @@ export class DropshippingSyncService {
       .filter((r) => r.skus.size > 0);
   }
 
-  /** Prueft, ob eine Bestellung (Liste von Line-Items) zu einer Regel passt. */
-  private orderMatches(lineItems: Array<{ sku: string | null }>, rules: RuleDef[]): boolean {
+  /**
+   * Prueft, ob eine Bestellung zu einer Regel passt. Versand-/Rabatt-Pseudo-
+   * Positionen werden ignoriert (zaehlen nicht als Produkt).
+   */
+  private orderMatches(allLineItems: Array<MatchLine>, rules: RuleDef[]): boolean {
+    const lineItems = allLineItems.filter((li) => !isIgnorableLine(li));
     const hasForeignNull = lineItems.some((li) => !li.sku);
     if (hasForeignNull) return false;
     const skusInOrder = new Set<string>(lineItems.map((li) => li.sku as string));
@@ -113,13 +112,27 @@ export class DropshippingSyncService {
         });
         scanned = orders.length;
 
+        const matchedExternalIds: string[] = [];
         for (const o of orders) {
           if (!this.orderMatches(o.lineItems, rules)) continue;
-          // Bei einem Treffer sind per Definition ALLE Positionen Dropship-Artikel.
-          const r = await this.upsertDsOrder(orgId, o, o.lineItems, imageMap, soloPartnerId);
+          matchedExternalIds.push(o.externalId);
+          // Treffer: Dropship-Positionen = alle echten Produkt-Positionen
+          // (Versandzeilen ausgenommen).
+          const dropItems = o.lineItems.filter((li: any) => !isIgnorableLine(li));
+          const r = await this.upsertDsOrder(orgId, o, dropItems, imageMap, soloPartnerId);
           if (r === 'created') created++;
           else if (r === 'updated') updated++;
         }
+
+        // Veraltete Regel-Treffer aufraeumen: ds_orders, die der Dropshipper noch
+        // nicht angefasst hat (status 'new') und die per Regel entstanden sind,
+        // aber nicht mehr matchen. Manuelle Importe ('manual') bleiben unberuehrt.
+        await this.prisma.dsOrder.deleteMany({
+          where: {
+            orgId, status: 'new', source: 'rule',
+            orderExternalId: { notIn: matchedExternalIds.length ? matchedExternalIds : ['__none__'] },
+          },
+        });
       }
 
       await this.prisma.dsSyncLog.update({
@@ -156,9 +169,11 @@ export class DropshippingSyncService {
     const union = new Set<string>();
     for (const r of rules) for (const s of r.skus) union.add(s);
 
+    // Versandzeilen nie als Artikel; dann nur Dropship-Produkte (SKU in Regel-Union).
+    const realItems = order.lineItems.filter((li) => !isIgnorableLine(li));
     const dropItems = union.size > 0
-      ? order.lineItems.filter((li) => li.sku && union.has(li.sku))
-      : order.lineItems;
+      ? realItems.filter((li) => li.sku && union.has(li.sku))
+      : realItems;
 
     if (dropItems.length === 0) {
       throw new BadRequestException(
@@ -168,7 +183,7 @@ export class DropshippingSyncService {
 
     const imageMap = await this.buildImageMap(orgId, dropItems.map((li) => li.sku!).filter(Boolean));
     const soloPartnerId = await this.resolveSoloPartner(orgId);
-    await this.upsertDsOrder(orgId, order, dropItems, imageMap, soloPartnerId);
+    await this.upsertDsOrder(orgId, order, dropItems, imageMap, soloPartnerId, 'manual');
 
     const saved = await this.prisma.dsOrder.findUnique({
       where: { orgId_orderExternalId: { orgId, orderExternalId: order.externalId } },
@@ -193,6 +208,7 @@ export class DropshippingSyncService {
     dropItems: Array<any>,
     imageMap: Map<string, string | null>,
     soloPartnerId: string | null,
+    source: 'rule' | 'manual' = 'rule',
   ): Promise<'created' | 'updated' | 'skipped'> {
     const existing = await this.prisma.dsOrder.findUnique({
       where: { orgId_orderExternalId: { orgId, orderExternalId: o.externalId } },
@@ -213,6 +229,7 @@ export class DropshippingSyncService {
           customerEmail: o.customerEmail,
           shippingAddress: (o.shippingAddress as any) ?? undefined,
           countryCode: o.countryCode,
+          source,
           status: 'new',
           items: {
             create: dropItems.map((li) => ({
@@ -243,6 +260,9 @@ export class DropshippingSyncService {
           shippingAddress: (o.shippingAddress as any) ?? undefined,
           countryCode: o.countryCode,
           partnerId: soloPartnerId ?? undefined,
+          // Manueller Import markiert als 'manual' (schuetzt vor Auto-Cleanup);
+          // der Regel-Sync laesst die Herkunft unveraendert.
+          source: source === 'manual' ? 'manual' : undefined,
         },
       });
       for (const li of dropItems) {

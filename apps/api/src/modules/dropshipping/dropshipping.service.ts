@@ -1,6 +1,9 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../../common/email/email.service';
 import { DsPartnerAuthService } from './ds-partner-auth.service';
+import { isIgnorableLine } from './ds-matching';
 
 export interface DsSkuRow {
   sku: string;
@@ -25,6 +28,8 @@ export class DropshippingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly partnerAuth: DsPartnerAuthService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -42,7 +47,11 @@ export class DropshippingService {
     });
   }
 
-  async createPartner(orgId: string, input: { name: string; email: string; password: string }) {
+  async createPartner(
+    orgId: string,
+    input: { name: string; email: string; password: string },
+    portalBaseUrl?: string,
+  ) {
     const name = (input.name ?? '').trim();
     const email = (input.email ?? '').trim().toLowerCase();
     if (!name || !email) throw new BadRequestException('Name und E-Mail erforderlich');
@@ -55,7 +64,15 @@ export class DropshippingService {
       data: { orgId, name, email, passwordHash: this.partnerAuth.hashPassword(input.password), active: true },
       select: { id: true, name: true, email: true, active: true },
     });
-    return partner;
+
+    // Einladungs-E-Mail mit Zugangsdaten (best effort — blockiert nicht).
+    const base = (portalBaseUrl || this.config.get<string>('WEB_APP_URL', 'https://business.filapen.de')).replace(/\/$/, '');
+    const portalLink = base.endsWith('/partner') ? base : `${base}/partner`;
+    const emailSent = await this.email.sendDropshipPartnerInvite({
+      to: email, name, password: input.password, portalLink,
+    });
+
+    return { ...partner, emailSent };
   }
 
   async updatePartner(
@@ -128,6 +145,53 @@ export class DropshippingService {
       });
     }
     return out;
+  }
+
+  /**
+   * Vorschlaege: Produkte, die in OFFENEN Bestellungen zusammen mit den bereits
+   * gewaehlten SKUs vorkommen, aber noch nicht ausgewaehlt sind. So sieht der
+   * Owner sofort, welche Zubehoer-/Varianten-SKUs eine Regel noch braucht, damit
+   * mehr Bestellungen exakt passen. Versandzeilen werden ignoriert.
+   */
+  async suggestions(orgId: string, skus: string[]): Promise<Array<{ sku: string; title: string; count: number; imageUrl: string | null }>> {
+    const set = new Set((skus ?? []).map((s) => s.trim()).filter(Boolean));
+    if (set.size === 0) return [];
+    const arr = [...set];
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        orgId,
+        status: { not: 'cancelled' },
+        financialStatus: 'paid',
+        fulfillmentStatus: { in: ['unfulfilled', 'partial'] },
+        lineItems: { some: { sku: { in: arr } } },
+      },
+      select: { lineItems: { select: { sku: true, title: true } } },
+      take: 3000,
+    });
+
+    const counts = new Map<string, { title: string; count: number }>();
+    for (const o of orders) {
+      const foreign = new Set<string>();
+      for (const li of o.lineItems) {
+        if (isIgnorableLine(li)) continue;
+        const sku = (li.sku ?? '').trim();
+        if (!sku || set.has(sku)) continue;
+        foreign.add(sku);
+        if (!counts.has(sku)) counts.set(sku, { title: li.title ?? sku, count: 0 });
+      }
+      for (const sku of foreign) counts.get(sku)!.count++;
+    }
+
+    const top = [...counts.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 30);
+    const variants = await this.prisma.productVariant.findMany({
+      where: { orgId, sku: { in: top.map((t) => t[0]) } },
+      select: { sku: true, imageUrl: true, product: { select: { imageUrl: true } } },
+    });
+    const img = new Map<string, string | null>();
+    for (const v of variants) if (v.sku && !img.has(v.sku)) img.set(v.sku, v.imageUrl ?? v.product?.imageUrl ?? null);
+
+    return top.map(([sku, v]) => ({ sku, title: v.title, count: v.count, imageUrl: img.get(sku) ?? null }));
   }
 
   // ---------------------------------------------------------------------------

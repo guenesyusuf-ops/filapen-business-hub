@@ -69,8 +69,23 @@ export interface PortalOrder {
 export const portalApi = {
   login: (email: string, password: string) =>
     call<{ token: string; partner: { name: string } }>(`/login`, { method: 'POST', body: JSON.stringify({ email, password }) }),
+  summary: () => call<{ total: number; openCount: number; lastUpdatedAt: string | null }>(`/summary`),
   listOrders: (status?: string) =>
     call<PortalOrder[]>(`/orders${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  async exportCsv(status?: string): Promise<void> {
+    const token = getPartnerToken();
+    const res = await fetch(`${API_URL}/api/dropshipping/portal/orders/export${status ? `?status=${encodeURIComponent(status)}` : ''}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  },
   ship: (id: string, cnTracking: string) =>
     call(`/orders/${id}/ship`, { method: 'POST', body: JSON.stringify({ cnTracking }) }),
   arrived: (id: string, deTracking: string, carrier: string) =>

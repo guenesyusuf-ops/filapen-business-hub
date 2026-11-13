@@ -141,6 +141,62 @@ export class EmailService {
   }
 
   /**
+   * Einladung fuer einen externen Dropship-Partner (englisches Portal).
+   * Enthaelt Portal-Link + Zugangsdaten. Best-effort.
+   */
+  async sendDropshipPartnerInvite(params: {
+    to: string;
+    name: string;
+    password: string;
+    portalLink: string;
+  }): Promise<boolean> {
+    if (!this.apiKey) {
+      this.logger.warn(`Email not sent (no RESEND_API_KEY): Dropship invite -> ${params.to}`);
+      this.logger.log(`Portal: ${params.portalLink} | login: ${params.to}`);
+      return false;
+    }
+    const html = `
+      <div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1a1915">
+        <h2 style="margin:0 0 8px">Filapen Dropshipping – Portal access</h2>
+        <p style="margin:0 0 16px;color:#555">Hello ${this.esc(params.name)}, you have been given access to the Filapen fulfillment partner portal.</p>
+        <table style="width:100%;border-collapse:collapse;margin:0 0 16px">
+          <tr><td style="padding:6px 0;color:#777">Portal</td><td style="padding:6px 0"><a href="${this.esc(params.portalLink)}">${this.esc(params.portalLink)}</a></td></tr>
+          <tr><td style="padding:6px 0;color:#777">Email</td><td style="padding:6px 0"><b>${this.esc(params.to)}</b></td></tr>
+          <tr><td style="padding:6px 0;color:#777">Password</td><td style="padding:6px 0"><b>${this.esc(params.password)}</b></td></tr>
+        </table>
+        <a href="${this.esc(params.portalLink)}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">Open portal</a>
+        <p style="margin:16px 0 0;color:#999;font-size:12px">Please keep these credentials confidential. You can change the password with your contact at Filapen.</p>
+      </div>`;
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: this.fromEmail,
+          to: [params.to],
+          subject: 'Your Filapen Dropshipping portal access',
+          html,
+        }),
+      });
+      if (!res.ok) {
+        this.logger.error(`Failed to send dropship invite: ${await res.text()}`);
+        return false;
+      }
+      this.logger.log(`Dropship invite sent to ${params.to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Dropship invite email error: ${error}`);
+      return false;
+    }
+  }
+
+  private esc(s: string): string {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+    ));
+  }
+
+  /**
    * Erinnerungsmail fuer eine Eingangsrechnung — 7T/3T vor Faelligkeit,
    * am Faelligkeitstag oder bei Überschreitung.
    */
